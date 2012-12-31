@@ -49,11 +49,17 @@ data S2 = S2 { ϑParamS2 :: Double -- [0, π[
 instance Manifold S2 where
   type TangentSpace S2 = (Double, Double)
   localAtlas (S2 ϑ φ)
-   | ϑ==0       = [ Chart (\(ϑ'ᵥ,φ'ᵥ) -> S2(ϑ'ᵥ*pi) (φ'ᵥ*2*pi) )
-                          (\(S2 ϑ' φ') -> guard (ϑ'<pi) >> Just (ϑ'/pi, φ'/(2*pi)) )
+   | ϑ<pi-2     = [ Chart (\(x,y)
+                             -> S2(2 * sqrt(x^2+y^2)) (atan2 y x) )
+                          (\(S2 ϑ' φ')
+                             -> let r=ϑ'/2
+                                in guard (r<1) >> Just (r * cos φ', r * sin φ') )
                           LandlockedChart ]
-   | ϑ==2*pi    = [ Chart (\(ϑ'ᵥ,φ'ᵥ) -> S2 ((1-ϑ'ᵥ)*pi) (φ'ᵥ*2*pi) )
-                          (\(S2 ϑ' φ') -> guard (ϑ'>0) >> Just (1-ϑ'/pi, φ'/(2*pi)) )
+   | ϑ>2        = [ Chart (\(x,y)
+                             -> S2(pi - 2*sqrt(x^2+y^2)) (atan2 y x) )
+                          (\(S2 ϑ' φ')
+                             -> let r=(pi-ϑ')/2
+                                in guard (r<1) >> Just (r * cos φ', r * sin φ') )
                           LandlockedChart ]
    | otherwise  = localAtlas(S2 0 φ) ++ localAtlas(S2 (2*pi) φ)
 
