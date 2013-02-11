@@ -16,7 +16,10 @@ import Data.Basis
 import Control.Monad
 import Control.Monad.Trans.Maybe
 
-type VSpace v = (InnerSpace v, EqFloating(Scalar v))
+
+type EuclidSpace v = (HasBasis v, EqFloating(Scalar v))
+type EqFloating f = (Eq f, Floating f)
+
 
 -- | A chart is a homeomorphism from a connected, open subset /Q/ ⊂ /M/ of
 -- an /n/-manifold /M/ to either the open unit disk /Dⁿ/ ⊂ /V/ ≃ ℝ/ⁿ/, or
@@ -25,30 +28,30 @@ type VSpace v = (InnerSpace v, EqFloating(Scalar v))
 -- with /x/ ∊ /Dⁿ/ provided /p/ is in /Q/, and @Nothing@ otherwise.
 -- Obviously, @fromJust . 'chartOutMap' . 'chartInMap'@ should be equivalent to @id@
 -- on /Dⁿ/, and @'chartInMap' . fromJust . 'chartOutMap'@ to @id@ on /Q/.
-data Chart manifold tangentspace where
-  Chart :: VSpace v =>
+data Chart :: * -> * where
+  Chart :: (Manifold m, v ~ TangentSpace m) =>
         { chartInMap :: v -> m
         , chartOutMap :: m -> Maybe v
-        , chartKind :: ChartKind      } -> Chart m v
+        , chartKind :: ChartKind      } -> Chart m
 data ChartKind = LandlockedChart  -- ^ A /M/ ⇆ /Dⁿ/ chart, for ordinary manifolds
                | RimChart         -- ^ A /M/ ⇆ /Hⁿ/ chart, for manifolds with a rim
 
-isInUpperHemi :: VSpace v => v -> Bool
+isInUpperHemi :: EuclidSpace v => v -> Bool
 isInUpperHemi v = (snd . head) (decompose v) >= 0
 
-rimGuard :: VSpace v => ChartKind -> v -> Maybe v
+rimGuard :: EuclidSpace v => ChartKind -> v -> Maybe v
 rimGuard LandlockedChart v = Just v
 rimGuard RimChart v
  | isInUpperHemi v = Just v
  | otherwise       = Nothing
 
-chartEnv :: Manifold m => Chart m (TangentSpace m)
+chartEnv :: Manifold m => Chart m
                -> (TangentSpace m->TangentSpace m)
                -> m -> Maybe m
 chartEnv (Chart inMap outMap chKind) f 
    = fmap inMap . (>>=rimGuard chKind) . fmap f . outMap
 
-chartEnv' :: (Manifold m, Monad f) => Chart m (TangentSpace m)
+chartEnv' :: (Manifold m, Monad f) => Chart m
                -> (TangentSpace m->f(TangentSpace m))
                -> m -> MaybeT f m
 chartEnv' (Chart inMap outMap chKind) f x
@@ -61,10 +64,7 @@ chartEnv' (Chart inMap outMap chKind) f x
 
 type Atlas m v = [Chart m v]
 
-type EqFloating f = (Eq f, Floating f)
-
-class (HasBasis(TangentSpace m), EqFloating(Scalar(TangentSpace m)))
-         => Manifold m where
+class (EuclidSpace(TangentSpace m)) => Manifold m where
   type TangentSpace m :: *
   
   triangulation :: m -> Triangulation m
@@ -111,6 +111,7 @@ class (Functor s) => Simplex s where
   simplexVertices :: FastNub p => s p -> [p]
   barycentricSubdiv :: s p -> Triangulation p
 
+
 newtype Simplex0 p = Simplex0 p deriving (Eq)
 data SimplexN lowerDim p
    = SimplexN { simplexNLDBounds :: [lowerDim p]
@@ -154,16 +155,20 @@ instance Ord (IndexedVert p) where {compare = compare`on`vertexIndex}
 autoTriangulation :: forall m . Manifold m => m -> Triangulation m
 autoTriangulation m = undefined -- Triangulation
  where 
+       basisChart :: Chart m
        basisChart = head $ localAtlas m
        
-       expandablyRim :: Chart m (TangentSpace m) -> [m] -> [m]
+       chartCovers :: Chart m -> m -> Bool
+       chartCovers (Chart _ outMap _) p = isJust $ outMap p
+       
+       expandablyRim :: Chart m -> [m] -> [m]
        expandablyRim (Chart inMap outMap chKind) = 
        
        basisSimplexVerts :: [m]
-       basisSimplexVerts = liftM fromJust . runMaybeT $ chartEnv' basisChart spread m
+       basisSimplexVerts = liftM fromJust . runMaybeT $ chartEnv' basisChart spreadStBall m
        
-       spread :: TangentSpace m -> [TangentSpace m]
-       spread v = map recompose $
+       spreadStBall :: EuclidSpace v => v -> [v]
+       spreadStBall v = map recompose $
                    zeroP : map dimSingP decomp'
         where zeroP = map (\(b, _) -> (b,0)) decomp
               dimSingP(n,_) = map z decomp'
@@ -175,10 +180,17 @@ autoTriangulation m = undefined -- Triangulation
               decomp = decompose v
               decomp' = zip [0..] decomp
               
-              
+
+ballAround :: EuclidSpace v
+    =>  Scalar v        -- ^ Size of the ball to be created
+     -> v               -- ^ Center of the ball (this also defines what space we're in, and thereby the dimension of the ball)
+     -> Triangulation v -- ^ A barycentrically-subdividable simplicial complex triangulating the ball in question
+r `ballAround`p = Triangulation orthoplex subdivision
+ where orthoplexEdges = 
+       vDecomp = decompose v
               
  
 mapOnNth :: (a->a) -> Int -> [a] -> [a]
 mapOnNth f 0 (l:ls) = f l : ls
 mapOnNth f n (l:ls) = l : mapOnNth f (n-1) ls
-mapOnNth _ _ [] = []
+mapOnNth _ _   []   = []
