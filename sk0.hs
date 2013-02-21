@@ -13,12 +13,13 @@ import Data.Function
 import Data.VectorSpace
 import Data.Basis
 
+import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.Maybe
 
 
-type EuclidSpace v = (HasBasis v, EqFloating(Scalar v))
-type EqFloating f = (Eq f, Floating f)
+type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
+type EqFloating f = (Eq f, Ord f, Floating f)
 
 
 -- | A chart is a homeomorphism from a connected, open subset /Q/ ⊂ /M/ of
@@ -62,15 +63,15 @@ chartEnv' (Chart inMap outMap chKind) f x
 
  
 
-type Atlas m v = [Chart m v]
+type Atlas m = [Chart m]
 
 class (EuclidSpace(TangentSpace m)) => Manifold m where
   type TangentSpace m :: *
   
   triangulation :: m -> Triangulation m
-  triangulation = autoTriangulation
+--   triangulation = autoTriangulation
   
-  localAtlas :: m -> Atlas m (TangentSpace m)
+  localAtlas :: m -> Atlas m
 
 
 
@@ -105,92 +106,177 @@ fastNub :: FastNub a => [a] -> [a]
 fastNub = map head . group . sort
 
 
-class (Functor s) => Simplex s where
-  type LowerDim s p :: *
-  lowerDimSimplices :: s p -> [LowerDim s p]
-  simplexVertices :: FastNub p => s p -> [p]
-  barycentricSubdiv :: s p -> Triangulation p
 
 
-newtype Simplex0 p = Simplex0 p deriving (Eq)
-data SimplexN lowerDim p
-   = SimplexN { simplexNLDBounds :: [lowerDim p]
+data Simplex p
+   = Simplex0 p
+   | SimplexN { simplexNLDBounds :: [Simplex p]
               , simplexNBarycentricSD :: Triangulation p
               } 
+
+instance (Show p) => Show (Simplex p) where
+  show (Simplex0 p) = "Simplex0(" ++ show p ++ ")"
+  show (SimplexN sss _) = "SimplexN " ++ show sss ++ " undefined"
+
+simplexVertices :: Eq p => Simplex p -> [p]
+simplexVertices (Simplex0 p) = [p]
+simplexVertices (SimplexN vs _) = nub $ simplexVertices =<< vs 
+
 --               deriving(Eq)
 
-instance Functor Simplex0 where {fmap f(Simplex0 p) = Simplex0(f p)}
-
-instance (Simplex ld) => Functor (SimplexN ld) where
+instance Functor Simplex where
+  fmap f(Simplex0 p) = Simplex0(f p)
   fmap f(SimplexN lds subdiv) = SimplexN (map(fmap f) lds) (fmap f subdiv)
 
-instance Simplex Simplex0 where
-  type LowerDim Simplex0 p = ()
-  lowerDimSimplices _ = []
-  simplexVertices (Simplex0 point) = [point]
-  barycentricSubdiv p = triangPoint
-   where triangPoint = Triangulation [p] triangPoint
+newtype Triangulation p
+  = Triangulation
+    { simplicialComplex      :: [Simplex p]
+--     , barycentricSubdivision :: Triangulation p 
+    }       --  -> Triangulation p
+  deriving (Show)
 
-instance (Simplex lowerDim) => Simplex (SimplexN lowerDim) where
-  type LowerDim (SimplexN lowerDim) p = lowerDim p
-  lowerDimSimplices (SimplexN lds _) = lds
-  simplexVertices (SimplexN lds _) = fastNub $ lds>>=simplexVertices
-  barycentricSubdiv (SimplexN _ sd) = sd
 
-data Triangulation p where
-  Triangulation :: Simplex s => 
-    { simplicialComplex :: [s p]
-    , barycentricSubdivision :: Triangulation p } -> Triangulation p
+triangulationVertices :: Eq p => Triangulation p -> [p]
+triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< sComplex
     
 -- deriving instance Eq (Triangulation p)
 
 instance Functor Triangulation where
-  fmap f(Triangulation c bcs) = Triangulation(map(fmap f)c) (fmap f bcs)
+  fmap f(Triangulation c) = Triangulation(map(fmap f)c)
 
 
 data IndexedVert p = IndexedVert {indexedVertex::p, vertexIndex::Int}
 instance Eq (IndexedVert p) where {(==) = (==)`on`vertexIndex}
 instance Ord (IndexedVert p) where {compare = compare`on`vertexIndex}
 
-autoTriangulation :: forall m . Manifold m => m -> Triangulation m
-autoTriangulation m = undefined -- Triangulation
- where 
-       basisChart :: Chart m
-       basisChart = head $ localAtlas m
-       
-       chartCovers :: Chart m -> m -> Bool
-       chartCovers (Chart _ outMap _) p = isJust $ outMap p
-       
-       expandablyRim :: Chart m -> [m] -> [m]
-       expandablyRim (Chart inMap outMap chKind) = 
-       
-       basisSimplexVerts :: [m]
-       basisSimplexVerts = liftM fromJust . runMaybeT $ chartEnv' basisChart spreadStBall m
-       
-       spreadStBall :: EuclidSpace v => v -> [v]
-       spreadStBall v = map recompose $
-                   zeroP : map dimSingP decomp'
-        where zeroP = map (\(b, _) -> (b,0)) decomp
-              dimSingP(n,_) = map z decomp'
-               where z(n',(b,q))
-                      | n'/=n          = (b,0)
-                      | q'<-signum q
-                      , q'/=0          = (b, q'*0.9)
-                      | otherwise      = (b, 0.9)
-              decomp = decompose v
-              decomp' = zip [0..] decomp
+-- autoTriangulation :: forall m . Manifold m => m -> Triangulation m
+-- autoTriangulation m = undefined -- Triangulation
+--  where 
+--        basisChart :: Chart m
+--        basisChart = head $ localAtlas m
+--        
+--        chartCovers :: Chart m -> m -> Bool
+--        chartCovers (Chart _ outMap _) p = isJust $ outMap p
+--        
+--        expandablyRim :: Chart m -> [m] -> [m]
+--        expandablyRim (Chart inMap outMap chKind) = 
+--        
+--        basisSimplexVerts :: [m]
+--        basisSimplexVerts = liftM fromJust . runMaybeT $ chartEnv' basisChart spreadStBall m
+--        
+--        spreadStBall :: EuclidSpace v => v -> [v]
+--        spreadStBall v = map recompose $
+--                    zeroP : map dimSingP decomp'
+--         where zeroP = map (\(b, _) -> (b,0)) decomp
+--               dimSingP(n,_) = map z decomp'
+--                where z(n',(b,q))
+--                       | n'/=n          = (b,0)
+--                       | q'<-signum q
+--                       , q'/=0          = (b, q'*0.9)
+--                       | otherwise      = (b, 0.9)
+--               decomp = decompose v
+--               decomp' = zip [0..] decomp
               
 
-ballAround :: EuclidSpace v
+ballAround :: forall v. EuclidSpace v
     =>  Scalar v        -- ^ Size of the ball to be created
      -> v               -- ^ Center of the ball (this also defines what space we're in, and thereby the dimension of the ball)
      -> Triangulation v -- ^ A barycentrically-subdividable simplicial complex triangulating the ball in question
-r `ballAround`p = Triangulation orthoplex subdivision
- where orthoplexEdges = 
-       vDecomp = decompose v
+r `ballAround`p = fmap ((^+^p) . l₁tol₂) $ Triangulation orthoplex
+ where orthoplex
+        | [] <- vDecomp  = [Simplex0 p]
+        | otherwise      = orthSides
+         
+       vDecomp :: [(Basis v, Scalar v)]
+       vDecomp = decompose p
+       vBasis = map fst vDecomp
+       n = length $ vDecomp
+       
+       orthSides = map (affineSimplex . (p:)) orthVertices
+       
+       orthVertices = (map.map) ( recompose . zip vBasis )
+                            $ map directSide orthDirections
+       directSide [] = []
+       directSide (c:cs) = (c:map(const 0)cs) : map(0:)(directSide cs)
+       orthDirections = map (take n) . take (2^n)     -- e.g. [ [-r,-r], [-r, r], [ r,-r], [ r, r] ]
+                      . fix.fix $ \q ~(l:ls) -> (-r:l) : (r:l) : q ls
+       
+       l₁tol₂ :: v -> v
+       l₁tol₂ = coordMap bloat
+        where bloat vl = map scale vl
+               where l₁ = sum $ map abs vl
+                     l₂ = sqrt . sum $ map (^2) vl
+                     scale | l₂>0       = (* (l₁ / l₂))
+                           | otherwise = id
+
+affineSimplex :: EuclidSpace v => [v] -> Simplex v
+affineSimplex [v] = Simplex0 v
+affineSimplex vs  = result
+ where sides      = map affineSimplex $ omit1s vs
+       result = SimplexN sides subdivided
+       subdivided = Triangulation . map snd . snd $ subdivide result
+       
+       subdivide (Simplex0 v)    = (v, [([v],Simplex0 v)])
+       subdivide (SimplexN vs _) = orq $ map subdivide vs
+        where
+              orq ps = ( b, map((\vs -> (vs, affineSimplex vs)) . (b:))
+                                  . concat $ map (map fst . snd) ps     )
+               where b = midBetween $ map fst ps
+               
+              midBetween :: EuclidSpace v => [v] -> v
+              midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
               
+blarque =              
+ Triangulation {simplicialComplex = [ SimplexN [ SimplexN [Simplex0(Space2D 0.0 (-1.0)),Simplex0(Space2D (-1.0) 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 0.0 (-1.0)),Simplex0(Space2D 0.0 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D (-1.0) 0.0),Simplex0(Space2D 0.0 0.0)] undefined            ] undefined
+                                    , SimplexN [ SimplexN [Simplex0(Space2D 0.0 (-1.0)),Simplex0(Space2D 1.0 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 0.0 (-1.0)),Simplex0(Space2D 0.0 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.0 0.0),Simplex0(Space2D 0.0 0.0)] undefined ] undefined
+                                    , SimplexN [ SimplexN [Simplex0(Space2D 0.0 1.0),Simplex0(Space2D (-1.0) 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 0.0 1.0),Simplex0(Space2D 0.0 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D (-1.0) 0.0),Simplex0(Space2D 0.0 0.0)] undefined ] undefined
+                                    , SimplexN [ SimplexN [Simplex0(Space2D 0.0 1.0),Simplex0(Space2D 1.0 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 0.0 1.0),Simplex0(Space2D 0.0 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.0 0.0),Simplex0(Space2D 0.0 0.0)] undefined ] undefined ]}
+
+
+omit1s :: [a] -> [[a]]
+omit1s [] = []
+omit1s [_] = [[]]
+omit1s (v:vs) = vs : map(v:) (omit1s vs)
  
 mapOnNth :: (a->a) -> Int -> [a] -> [a]
 mapOnNth f 0 (l:ls) = f l : ls
 mapOnNth f n (l:ls) = l : mapOnNth f (n-1) ls
 mapOnNth _ _   []   = []
+
+mapExceptOnNth :: (a->a) -> Int -> [a] -> [a]
+mapExceptOnNth f 0 (l:ls) = l : map f ls
+mapExceptOnNth f n (l:ls) = f l : mapOnNth f (n-1) ls
+mapExceptOnNth _ _   []   = []
+
+coordMap :: HasBasis v => ([Scalar v] -> [Scalar v]) -> v -> v
+coordMap f = recompose .  dcmap . decompose
+ where dcmap dc = let b=map fst dc
+                      c=map snd dc
+                  in zip b $ f c
+
+data Space2D = Space2D Double Double
+       deriving(Eq, Show)
+data Space2DIndex = X | Y
+
+instance AdditiveGroup Space2D where
+  zeroV = Space2D 0 0
+  Space2D x y ^+^ Space2D x' y' = Space2D (x+x') (y+y')
+  negateV (Space2D x y) = Space2D (-x) (-y)
+instance VectorSpace Space2D where
+  type Scalar Space2D = Double
+  λ *^ Space2D x y = Space2D (λ*x) (λ*y)
+instance HasBasis Space2D where
+  type Basis Space2D = Space2DIndex
+  basisValue X = Space2D 1 0
+  basisValue Y = Space2D 0 1
+  decompose (Space2D x y) = [(X, x), (Y, y)]
+  decompose' (Space2D x _) X = x
+  decompose' (Space2D _ y) Y = y

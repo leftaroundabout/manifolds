@@ -1,0 +1,11 @@
+dist
+cabal-dev
+*.o
+*.hi
+*.chi
+*.chs.h
+.virthualenv
+*~
+bin/
+*.kate-swp
+*.fuse_hidden*
