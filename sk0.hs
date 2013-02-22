@@ -122,6 +122,10 @@ simplexVertices :: Eq p => Simplex p -> [p]
 simplexVertices (Simplex0 p) = [p]
 simplexVertices (SimplexN vs _) = nub $ simplexVertices =<< vs 
 
+simplexDimension :: Simplex p -> Int
+simplexDimension (Simplex0 _) = 0
+simplexDimension (SimplexN (face:_) _) = simplexDimension face + 1
+
 --               deriving(Eq)
 
 instance Functor Simplex where
@@ -141,6 +145,17 @@ triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< sComp
     
 -- deriving instance Eq (Triangulation p)
 
+-- This is not particularly efficient at the moment: 'fmap' obviously
+-- works on vertices in the end, but every vertex is an edge of multiple
+-- simplices, which is not specially taken account for, i.e. the function
+-- will be called multiple times on each vertex.
+-- It might be a good idea to refactor 'Triangulation' to use a \"vertex pool\"
+-- and only have the simplices /refer/ to the vertices therein. Alternatively,
+-- 'fmap' could first trim out duplicates (would require a 'FastNub' GADT
+-- constraint) and re-map them; that would make 'fmap' rather expensive
+-- by itself, but as with stream fusion rewrite rules of the functor laws
+-- the mapped function should typically become few and reasonably complex
+-- this should not be much of a problem.
 instance Functor Triangulation where
   fmap f(Triangulation c) = Triangulation(map(fmap f)c)
 
@@ -178,7 +193,7 @@ instance Ord (IndexedVert p) where {compare = compare`on`vertexIndex}
 --               decomp' = zip [0..] decomp
               
 
-ballAround :: forall v. EuclidSpace v
+ballAround :: EuclidSpace v
     =>  Scalar v        -- ^ Size of the ball to be created
      -> v               -- ^ Center of the ball (this also defines what space we're in, and thereby the dimension of the ball)
      -> Triangulation v -- ^ A barycentrically-subdividable simplicial complex triangulating the ball in question
@@ -187,7 +202,6 @@ r `ballAround`p = fmap ((^+^p) . l₁tol₂) $ Triangulation orthoplex
         | [] <- vDecomp  = [Simplex0 p]
         | otherwise      = orthSides
          
-       vDecomp :: [(Basis v, Scalar v)]
        vDecomp = decompose p
        vBasis = map fst vDecomp
        n = length $ vDecomp
@@ -201,9 +215,8 @@ r `ballAround`p = fmap ((^+^p) . l₁tol₂) $ Triangulation orthoplex
        orthDirections = map (take n) . take (2^n)     -- e.g. [ [-r,-r], [-r, r], [ r,-r], [ r, r] ]
                       . fix.fix $ \q ~(l:ls) -> (-r:l) : (r:l) : q ls
        
-       l₁tol₂ :: v -> v
-       l₁tol₂ = coordMap bloat
-        where bloat vl = map scale vl
+       l₁tol₂ = coordMap inflate
+        where inflate vl = map scale vl
                where l₁ = sum $ map abs vl
                      l₂ = sqrt . sum $ map (^2) vl
                      scale | l₂>0       = (* (l₁ / l₂))
@@ -212,33 +225,63 @@ r `ballAround`p = fmap ((^+^p) . l₁tol₂) $ Triangulation orthoplex
 affineSimplex :: EuclidSpace v => [v] -> Simplex v
 affineSimplex [v] = Simplex0 v
 affineSimplex vs  = result
- where sides      = map affineSimplex $ omit1s vs
+ where sides      = map affineSimplex . orientate $ omit1s vs
        result = SimplexN sides subdivided
        subdivided = Triangulation . map snd . snd $ subdivide result
        
        subdivide (Simplex0 v)    = (v, [([v],Simplex0 v)])
        subdivide (SimplexN vs _) = orq $ map subdivide vs
         where
-              orq ps = ( b, map((\vs -> (vs, affineSimplex vs)) . (b:))
-                                  . concat $ map (map fst . snd) ps     )
+              orq ps = ( b, map((\vs -> (vs, affineSimplex vs)) . (b:) )
+                             . orientate . concat $ map (map fst . snd) ps )
                where b = midBetween $ map fst ps
                
               midBetween :: EuclidSpace v => [v] -> v
               midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
+       
+       orientate = zipWith($) $ cycle [reverse, id]
+
+
+data ManifoldFromTriangltn a tSpc = ManifoldFromTriangltn
+         { manifoldTriangulation :: Triangulation a
+         , triangltnFocus :: [Int]                  }
+
+
               
-blarque =              
- Triangulation {simplicialComplex = [ SimplexN [ SimplexN [Simplex0(Space2D 0.0 (-1.0)),Simplex0(Space2D (-1.0) 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 0.0 (-1.0)),Simplex0(Space2D 0.0 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D (-1.0) 0.0),Simplex0(Space2D 0.0 0.0)] undefined            ] undefined
-                                    , SimplexN [ SimplexN [Simplex0(Space2D 0.0 (-1.0)),Simplex0(Space2D 1.0 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 0.0 (-1.0)),Simplex0(Space2D 0.0 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.0 0.0),Simplex0(Space2D 0.0 0.0)] undefined ] undefined
-                                    , SimplexN [ SimplexN [Simplex0(Space2D 0.0 1.0),Simplex0(Space2D (-1.0) 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 0.0 1.0),Simplex0(Space2D 0.0 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D (-1.0) 0.0),Simplex0(Space2D 0.0 0.0)] undefined ] undefined
-                                    , SimplexN [ SimplexN [Simplex0(Space2D 0.0 1.0),Simplex0(Space2D 1.0 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 0.0 1.0),Simplex0(Space2D 0.0 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.0 0.0),Simplex0(Space2D 0.0 0.0)] undefined ] undefined ]}
+edgeSimplex2subdiv =              
+ Triangulation {simplicialComplex = [ SimplexN [ SimplexN [ Simplex0(Space2D 3.0 0.0), Simplex0(Space2D 1.5 1.5)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.5 1.5), Simplex0(Space2D 1.0 1.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 3.0 0.0)] undefined ] undefined
+                                    , SimplexN [ SimplexN [ Simplex0(Space2D 1.5 1.5), Simplex0(Space2D 0.0 3.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 0.0 3.0), Simplex0(Space2D 1.0 1.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 1.5 1.5)] undefined ] undefined
+                                    , SimplexN [ SimplexN [ Simplex0(Space2D 0.0 3.0), Simplex0(Space2D 0.0 1.5)] undefined
+                                               , SimplexN [ Simplex0(Space2D 0.0 1.5), Simplex0(Space2D 1.0 1.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 0.0 3.0)] undefined ] undefined
+                                    , SimplexN [ SimplexN [ Simplex0(Space2D 0.0 1.5), Simplex0(Space2D 0.0 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 0.0 0.0), Simplex0(Space2D 1.0 1.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 0.0 1.5)] undefined ] undefined
+                                    , SimplexN [ SimplexN [ Simplex0(Space2D 0.0 0.0), Simplex0(Space2D 1.5 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.5 0.0), Simplex0(Space2D 1.0 1.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 0.0 0.0)] undefined ] undefined
+                                    , SimplexN [ SimplexN [ Simplex0(Space2D 1.5 0.0), Simplex0(Space2D 3.0 0.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 3.0 0.0), Simplex0(Space2D 1.0 1.0)] undefined
+                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 1.5 0.0)] undefined ] undefined ]}
+edgeSimplex3 =
+ SimplexN [ SimplexN [ SimplexN [ Simplex0(Space3D 0.0 3.0 0.0), Simplex0(Space3D 3.0 0.0 0.0)] undefined
+                     , SimplexN [ Simplex0(Space3D 3.0 0.0 0.0), Simplex0(Space3D 0.0 0.0 3.0)] undefined
+                     , SimplexN [ Simplex0(Space3D 0.0 0.0 3.0), Simplex0(Space3D 0.0 3.0 0.0)] undefined ] undefined
+          , SimplexN [ SimplexN [ Simplex0(Space3D 0.0 3.0 0.0), Simplex0(Space3D 0.0 0.0 3.0)] undefined
+                     , SimplexN [ Simplex0(Space3D 0.0 0.0 3.0), Simplex0(Space3D 0.0 0.0 0.0)] undefined
+                     , SimplexN [ Simplex0(Space3D 0.0 0.0 0.0), Simplex0(Space3D 0.0 3.0 0.0)] undefined ] undefined
+          , SimplexN [ SimplexN [ Simplex0(Space3D 3.0 0.0 0.0), Simplex0(Space3D 0.0 0.0 0.0)] undefined
+                     , SimplexN [ Simplex0(Space3D 0.0 0.0 0.0), Simplex0(Space3D 0.0 0.0 3.0)] undefined
+                     , SimplexN [ Simplex0(Space3D 0.0 0.0 3.0), Simplex0(Space3D 3.0 0.0 0.0)] undefined ] undefined
+          , SimplexN [ SimplexN [ Simplex0(Space3D 3.0 0.0 0.0), Simplex0(Space3D 0.0 3.0 0.0)] undefined
+                     , SimplexN [ Simplex0(Space3D 0.0 3.0 0.0), Simplex0(Space3D 0.0 0.0 0.0)] undefined
+                     , SimplexN [ Simplex0(Space3D 0.0 0.0 0.0), Simplex0(Space3D 3.0 0.0 0.0)] undefined ] undefined ] undefined
+ 
+
 
 
 omit1s :: [a] -> [[a]]
@@ -264,7 +307,7 @@ coordMap f = recompose .  dcmap . decompose
 
 data Space2D = Space2D Double Double
        deriving(Eq, Show)
-data Space2DIndex = X | Y
+data Space2DIndex = X' | Y
 
 instance AdditiveGroup Space2D where
   zeroV = Space2D 0 0
@@ -275,8 +318,30 @@ instance VectorSpace Space2D where
   λ *^ Space2D x y = Space2D (λ*x) (λ*y)
 instance HasBasis Space2D where
   type Basis Space2D = Space2DIndex
-  basisValue X = Space2D 1 0
-  basisValue Y = Space2D 0 1
-  decompose (Space2D x y) = [(X, x), (Y, y)]
-  decompose' (Space2D x _) X = x
-  decompose' (Space2D _ y) Y = y
+  basisValue X' = Space2D 1 0
+  basisValue Y  = Space2D 0 1
+  decompose (Space2D x y) = [(X', x), (Y, y)]
+  decompose' (Space2D x _) X' = x
+  decompose' (Space2D _ y) Y  = y
+
+
+data Space3D = Space3D Double Double Double
+       deriving(Eq, Show)
+data Space3DIndex = X'' | Y' | Z
+
+instance AdditiveGroup Space3D where
+  zeroV = Space3D 0 0 0
+  Space3D x y z ^+^ Space3D x' y' z' = Space3D (x+x') (y+y') (z+z')
+  negateV (Space3D x y z) = Space3D (-x) (-y) (-z)
+instance VectorSpace Space3D where
+  type Scalar Space3D = Double
+  λ *^ Space3D x y z = Space3D (λ*x) (λ*y) (λ*z)
+instance HasBasis Space3D where
+  type Basis Space3D = Space3DIndex
+  basisValue X'' = Space3D 1 0 0
+  basisValue Y'  = Space3D 0 1 0
+  basisValue Z   = Space3D 0 0 1
+  decompose (Space3D x y z) = [(X'', x), (Y', y), (Z, z)]
+  decompose' (Space3D x _ _) X'' = x
+  decompose' (Space3D _ y _) Y'  = y
+  decompose' (Space3D _ _ z) Z   = z
