@@ -111,8 +111,11 @@ fastNub = map head . group . sort
 data Simplex p
    = Simplex0 p
    | SimplexN { simplexNLDBounds :: [Simplex p]
-              , simplexNBarycentricSD :: Triangulation p
-              } 
+              , simplexNInnards :: SimplexInnards p } 
+
+data SimplexInnards p = SimplexInnards
+                        { simplexBarycenter :: p
+                        , simplexBarySubdivs :: [SimplexInnards p] }
 
 instance (Show p) => Show (Simplex p) where
   show (Simplex0 p) = "Simplex0(" ++ show p ++ ")"
@@ -126,11 +129,31 @@ simplexDimension :: Simplex p -> Int
 simplexDimension (Simplex0 _) = 0
 simplexDimension (SimplexN (face:_) _) = simplexDimension face + 1
 
+simplexInnards :: Simplex p -> [[SimplexInnards p]]
+simplexInnards (Simplex0 _) = []
+simplexInnards (SimplexN lds inrs) = [inrs] : map concat(transpose $ map simplexInnards lds)
+
+emptySimplexCone :: p -> Simplex p -> Simplex p
+emptySimplexCone p q@(Simplex0 _) = SimplexN [Simplex0 p, q]
+emptySimplexCone p s@(SimplexN qs _) = SimplexN (s : map (emptySimplexCone p) qs) undefined
+
+manualfillSimplexCone :: p -> [[SimplexInnards p]] -> Simplex p -> Simplex p
+manualfillSimplexCone _              p q@(Simplex0 _)       = SimplexN [Simplex0 p,q]
+manualfillSimplexCone ([inrs]:sinrs) p s@(SimplexN qs binr)
+      = SimplexN (s : zipWith manualfillSimplexCone qs contins) inrs
+  where contins = transpose $ map (divide $ length qs) sinrs
+
+
 --               deriving(Eq)
 
+-- | Note that the 'Functor' instances of 'Simplex' and 'Triangulation'
+-- are only vaguely related to the actual category-theoretic /simplicial functor/.
 instance Functor Simplex where
   fmap f(Simplex0 p) = Simplex0(f p)
-  fmap f(SimplexN lds subdiv) = SimplexN (map(fmap f) lds) (fmap f subdiv)
+  fmap f(SimplexN lds innards) = SimplexN (map(fmap f) lds) (fmap f innards)
+
+instance Functor SimplexInnards where
+  fmap f(SimplexInnards b sdvs) = SimplexInnards (f p) (map(fmap f) sdvs)
 
 newtype Triangulation p
   = Triangulation
@@ -142,20 +165,20 @@ newtype Triangulation p
 
 triangulationVertices :: Eq p => Triangulation p -> [p]
 triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< sComplex
+
+simplexBarycentricSubdivision :: Simplex p -> Triangulation p
+simplexBarycentricSubdivision (SimplexN lds (SimplexInnards baryc subdiv))
+         = Triangulation . flip (zipWith ($)) subdiv $ do
+             Triangulation sideSubdiv <- map simplexBarycentricSubdivision lds
+             subside <- sideSubdiv
+             return $ emptySimplexCone baryc subside
+             case subside of
+              p@(Simplex0 _)           -> return $ SimplexN [baryc, p]
+              s@(SimplexN lds innards) -> return . SimplexN $ s : 
+simplexBarycentricSubdivision s0 = Triangulation [s0]
     
 -- deriving instance Eq (Triangulation p)
 
--- This is not particularly efficient at the moment: 'fmap' obviously
--- works on vertices in the end, but every vertex is an edge of multiple
--- simplices, which is not specially taken account for, i.e. the function
--- will be called multiple times on each vertex.
--- It might be a good idea to refactor 'Triangulation' to use a \"vertex pool\"
--- and only have the simplices /refer/ to the vertices therein. Alternatively,
--- 'fmap' could first trim out duplicates (would require a 'FastNub' GADT
--- constraint) and re-map them; that would make 'fmap' rather expensive
--- by itself, but as with stream fusion rewrite rules of the functor laws
--- the mapped function should typically become few and reasonably complex
--- this should not be much of a problem.
 instance Functor Triangulation where
   fmap f(Triangulation c) = Triangulation(map(fmap f)c)
 
@@ -226,7 +249,22 @@ affineSimplex :: EuclidSpace v => [v] -> Simplex v
 affineSimplex [v] = Simplex0 v
 affineSimplex vs  = result
  where sides      = map affineSimplex . orientate $ omit1s vs
-       result = SimplexN sides subdivided
+       result = SimplexN sides (innardsBetween sides)
+       
+       innardsBetween [s1@Simplex0 p1, s2@Simplex0 p2]<-sidess  
+           = SimplexInnards barycenter [ innardsBetween [s1, barycenter]
+                                       , innardsBetween [barycenter, s2] ]
+        where barycenter = midBetween [p1,p2]
+       innardsBetween sidess = SimplexInnards barycenter subinnards
+        where 
+              barycenter
+                    = midBetween $ map (simplexBarycenter . simplexNInnards) sidess
+              subinnards = do
+                  SimplexN sSides (SimplexInnards sBaryc sBarysubs) <- sidess
+                  SimplexInnards sBsubBary _ <- sBarysubs
+                  return
+                  sSides : map()
+       
        subdivided = Triangulation . map snd . snd $ subdivide result
        
        subdivide (Simplex0 v)    = (v, [([v],Simplex0 v)])
@@ -236,8 +274,8 @@ affineSimplex vs  = result
                              . orientate . concat $ map (map fst . snd) ps )
                where b = midBetween $ map fst ps
                
-              midBetween :: EuclidSpace v => [v] -> v
-              midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
+       midBetween :: EuclidSpace v => [v] -> v
+       midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
        
        orientate = zipWith($) $ cycle [reverse, id]
 
@@ -288,6 +326,50 @@ omit1s :: [a] -> [[a]]
 omit1s [] = []
 omit1s [_] = [[]]
 omit1s (v:vs) = vs : map(v:) (omit1s vs)
+
+
+-- | Unlike the related 'zipWith', 'associateWith' \"spreads out\" the shorter
+-- list by duplicating elements, before merging, to minimise the number of
+-- elements from the longer list which aren't used.
+associateWith :: (a->b->c) -> [a] -> [b] -> [c]
+associateWith f a b
+  | lb>la      = spreadn(lb`quot`la) f a b
+  | otherwise  = spreadn(la`quot`lb) (flip f) b a
+ where la = length a; lb = length b
+       spreadn n f' = go
+        where go (e:es) t
+               | (et, tr) <- splitAt n t  
+                    = foldr((:) . f e) (go es tr) et
+              go _ _ = []
+              
+-- | @associate = associateWith (,)@.
+associate :: [a] -> [b] -> [(a,b)]
+associate = associateWith (,)
+
+associaterSectorsWith :: (a->[b]->c) -> [a] -> [b] -> [c]
+associateSectorsWith f a b = spreadn(lb`quot`la) a b
+ where la = length a; lb = length lb
+       spreadn n (e:es) t
+        | (et, tr) <- splitAt n t  = f e et : spreadn n es tr
+       spreadn _ _ _ = []
+
+associaterSectors :: [a] -> [b] -> [(a,[b])]
+associaterSectors = associaterSectorsWith (,)
+       
+associatelSectorsWith :: ([a]->b->c) -> [a] -> [b] -> [c]
+associatelSectorsWith = flip associaterSectorsWith . flip
+
+associatelSectors :: [a] -> [b] -> [([a],b)]
+associatelSectors = associatelSectorsWith (,)
+
+partitions :: Int -> [a] -> [[a]]
+partitions n = go
+ where go [] = []
+       go l | (chunk,rest) <- splitAt n l  = chunk : go rest
+
+divide :: Int -> [a] -> [[a]]
+divide n ls = partitions(length ls`div`n) ls
+ 
  
 mapOnNth :: (a->a) -> Int -> [a] -> [a]
 mapOnNth f 0 (l:ls) = f l : ls
