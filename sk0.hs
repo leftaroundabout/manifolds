@@ -114,8 +114,13 @@ data Simplex p
               , simplexNInnards :: SimplexInnards p } 
 
 data SimplexInnards p = SimplexInnards
-                        { simplexBarycenter :: p
-                        , simplexBarySubdivs :: [SimplexInnards p] }
+    { simplexBarycenter :: p
+    , simplexBarySubdivs :: [SimplexInnards p]
+    , simplexBarySubdividers :: [SimplexInnards p] 
+   -- ^ Length 0 for 1-simplices' innards; same length as 'simplexBarySubdivs'
+   -- otherwise: each subinnard has exactly one of the sides' as a face; for
+   -- 2-simplices these form a cycle of 6 elements
+    }
 
 instance (Show p) => Show (Simplex p) where
   show (Simplex0 p) = "Simplex0(" ++ show p ++ ")"
@@ -167,7 +172,7 @@ triangulationVertices :: Eq p => Triangulation p -> [p]
 triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< sComplex
 
 simplexBarycentricSubdivision :: Simplex p -> Triangulation p
-simplexBarycentricSubdivision (SimplexN lds (SimplexInnards baryc subdiv))
+simplexBarycentricSubdivision s@(SimplexN lds (SimplexInnards baryc subdiv dividers))
          = Triangulation . flip (zipWith ($)) subdiv $ do
              Triangulation sideSubdiv <- map simplexBarycentricSubdivision lds
              subside <- sideSubdiv
