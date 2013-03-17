@@ -113,13 +113,43 @@ data Simplex p
    | SimplexN { simplexNLDBounds :: [Simplex p]
               , simplexNInnards :: SimplexInnards p } 
 
+
+data SubSimplex = SubSimplex
+    { subSimplexInnards :: SimplexInnards
+    , subSimplexBoundaries :: [SubSimplexSideShare]
+    }
+
+data SubSimplexSideShare = ShareSubdivider Int
+                         | ShareFaceSubDiv Int Int
+
 data SimplexInnards p = SimplexInnards
     { simplexBarycenter :: p
-    , simplexBarySubdivs :: [SimplexInnards p]
-    , simplexBarySubdividers :: [SimplexInnards p] 
-   -- ^ Length 0 for 1-simplices' innards; same length as 'simplexBarySubdivs'
-   -- otherwise: each subinnard has exactly one of the sides' as a face; for
-   -- 2-simplices these form a cycle of 6 elements
+    , simplexBarySubdivs :: [[SimplexInnards p]]
+   -- ^ Length 0 for 0-simplices' innards; length 2 for 1-simplices;
+   -- same length as the union of the faces' subdivisions else,
+   -- which also defines the order (@[[ f₁:s₁, f₁:s₂, ... f₁:sⱼ], [f₂:s₁, ...]]@):
+   -- each subdivision is the cone of the barycenter over one of one
+   -- of the faces' subdivisions, each list is a cone over the whole face.
+    , simplexBarySubdividers :: [([SimplexInnards p],[(SimplexInnards p, Int)])]
+   -- ^ The 'fst' of each tuple corresponds to one of the simplex' faces, namely
+   -- the one at the same position in 'simplexNLDBounds'. The elements of this list
+   -- represent cones of the barycenter over the subdividers of this face.
+   -- 
+   -- The 'snd' consists of 
+--    -- Length @0@ for 0- and 1-simplices' innards; length @6⋅2@ for 2-simplices;
+--    -- else same length as the union of the faces' subdiv/iders/ plus the number
+--    -- of subdiv/isions/ of the faces' faces, which also defines the order
+--    -- (@[([ f₁:d₁, f₁:d₂, ... f₁:dᵤ], [f₁∩f₂:s₁, ... f₁∩f₂:sᵣ]), ([f₂:d₁, ...],[f₂∩f₃:s₁, ... ])]@).
+--    -- The number in the second element of the list tuples indicates the position
+--    -- 
+--    -- each subdivision is the cone of the barycenter over one of one
+--    -- of the faces' subdividers or their faces' subdivisions, except for 2-simplices
+--    -- where the subdividers are line segments alternating between
+--    -- 
+--    -- * from the barycenter to one of the vertices
+--    -- * from the barycenter to one of the sides' barycenter.
+--    -- 
+--    -- Here, the order of vertices is defined by the order of the sides.
     }
 
 instance (Show p) => Show (Simplex p) where
@@ -139,11 +169,11 @@ simplexInnards (Simplex0 _) = []
 simplexInnards (SimplexN lds inrs) = [inrs] : map concat(transpose $ map simplexInnards lds)
 
 emptySimplexCone :: p -> Simplex p -> Simplex p
-emptySimplexCone p q@(Simplex0 _) = SimplexN [Simplex0 p, q]
+emptySimplexCone p q@(Simplex0 _) = SimplexN [Simplex0 p, q] undefined
 emptySimplexCone p s@(SimplexN qs _) = SimplexN (s : map (emptySimplexCone p) qs) undefined
 
 manualfillSimplexCone :: p -> [[SimplexInnards p]] -> Simplex p -> Simplex p
-manualfillSimplexCone _              p q@(Simplex0 _)       = SimplexN [Simplex0 p,q]
+manualfillSimplexCone [inrs]         p q@(Simplex0 _)       = SimplexN [Simplex0 p,q] inrs
 manualfillSimplexCone ([inrs]:sinrs) p s@(SimplexN qs binr)
       = SimplexN (s : zipWith manualfillSimplexCone qs contins) inrs
   where contins = transpose $ map (divide $ length qs) sinrs
