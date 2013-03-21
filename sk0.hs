@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables      #-}
 
 import Data.List
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Function
 
@@ -105,6 +106,19 @@ type FastNub a = (Eq a, Ord a) -- Should really be (Eq a, Hashable a)
 fastNub :: FastNub a => [a] -> [a]
 fastNub = map head . group . sort
 
+-- | Simply a merge sort that discards equivalent elements.
+fastNubBy :: (a->a->Ordering) -> [a] -> [a]
+fastNubBy _ [] = []
+fastNubBy _ [e] = [e]
+fastNubBy cmp es = merge(fastNubBy cmp lhs)(fastNubBy cmp rhs)
+ where (lhs,rhs) = splitAt (length es `quot` 2) es
+       merge [] rs = rs
+       merge ls [] = ls
+       merge (l:ls) (r:rs) = case cmp l r of
+                              GT -> l : r : merge ls rs
+                              LT -> r : l : merge ls rs
+                              EQ -> l : merge ls rs
+
 
 
 
@@ -113,44 +127,34 @@ data Simplex p
    | SimplexN { simplexNLDBounds :: [Simplex p]
               , simplexNInnards :: SimplexInnards p } 
 
-
-data SubSimplex = SubSimplex
-    { subSimplexInnards :: SimplexInnards
-    , subSimplexBoundaries :: [SubSimplexSideShare]
-    }
-
+data SimplexInnards p
+ = SimplexBarycenter p
+ | SimplexInnards
+    { simplexBarySubdivs :: [SubSimplex p]
+    , simplexBarySubdividers :: [SubSimplex p] }
+data SubSimplex p = SubSimplex
+    { subSimplexInnards :: SimplexInnards p
+    , subSimplexBoundaries :: [SubSimplexSideShare] }
 data SubSimplexSideShare = ShareSubdivider Int
-                         | ShareFaceSubDiv Int Int
+                         | ShareSubdivision Int
+                         | ShareInFace Int SubSimplexSideShare
+                         deriving (Eq, Ord)
 
-data SimplexInnards p = SimplexInnards
-    { simplexBarycenter :: p
-    , simplexBarySubdivs :: [[SimplexInnards p]]
-   -- ^ Length 0 for 0-simplices' innards; length 2 for 1-simplices;
-   -- same length as the union of the faces' subdivisions else,
-   -- which also defines the order (@[[ f₁:s₁, f₁:s₂, ... f₁:sⱼ], [f₂:s₁, ...]]@):
-   -- each subdivision is the cone of the barycenter over one of one
-   -- of the faces' subdivisions, each list is a cone over the whole face.
-    , simplexBarySubdividers :: [([SimplexInnards p],[(SimplexInnards p, Int)])]
-   -- ^ The 'fst' of each tuple corresponds to one of the simplex' faces, namely
-   -- the one at the same position in 'simplexNLDBounds'. The elements of this list
-   -- represent cones of the barycenter over the subdividers of this face.
-   -- 
-   -- The 'snd' consists of 
---    -- Length @0@ for 0- and 1-simplices' innards; length @6⋅2@ for 2-simplices;
---    -- else same length as the union of the faces' subdiv/iders/ plus the number
---    -- of subdiv/isions/ of the faces' faces, which also defines the order
---    -- (@[([ f₁:d₁, f₁:d₂, ... f₁:dᵤ], [f₁∩f₂:s₁, ... f₁∩f₂:sᵣ]), ([f₂:d₁, ...],[f₂∩f₃:s₁, ... ])]@).
---    -- The number in the second element of the list tuples indicates the position
---    -- 
---    -- each subdivision is the cone of the barycenter over one of one
---    -- of the faces' subdividers or their faces' subdivisions, except for 2-simplices
---    -- where the subdividers are line segments alternating between
---    -- 
---    -- * from the barycenter to one of the vertices
---    -- * from the barycenter to one of the sides' barycenter.
---    -- 
---    -- Here, the order of vertices is defined by the order of the sides.
-    }
+simplexBarycenter :: Simplex p -> p
+simplexBarycenter (Simplex0 p) = p
+simplexBarycenter (SimplexN _ (SimplexBarycenter p)) = p
+ 
+findSharedSide :: Simplex p -> SubSimplexSideShare -> Simplex p
+findSharedSide s@(Simplex0 _) _ = s
+findSharedSide s@(SimplexN _ (SimplexInnards _ subdividers)) (ShareSubdivider n)
+         = SimplexN ( map (findSharedSide s) sdBnds ) sdInn 
+   where (SubSimplex sdInn sdBnds) = subdividers !! n
+findSharedSide s@(SimplexN _ (SimplexInnards subdivisions _)) (ShareSubdivision n)
+         = SimplexN ( map (findSharedSide s) sdBnds ) sdInn 
+   where (SubSimplex sdInn sdBnds) = subdivisions !! n
+findSharedSide (SimplexN faces _) (ShareInFace n sshare)
+         = findSharedSide (faces!!n) sshare
+
 
 instance (Show p) => Show (Simplex p) where
   show (Simplex0 p) = "Simplex0(" ++ show p ++ ")"
@@ -171,13 +175,13 @@ simplexInnards (SimplexN lds inrs) = [inrs] : map concat(transpose $ map simplex
 emptySimplexCone :: p -> Simplex p -> Simplex p
 emptySimplexCone p q@(Simplex0 _) = SimplexN [Simplex0 p, q] undefined
 emptySimplexCone p s@(SimplexN qs _) = SimplexN (s : map (emptySimplexCone p) qs) undefined
-
+{-
 manualfillSimplexCone :: p -> [[SimplexInnards p]] -> Simplex p -> Simplex p
 manualfillSimplexCone [inrs]         p q@(Simplex0 _)       = SimplexN [Simplex0 p,q] inrs
 manualfillSimplexCone ([inrs]:sinrs) p s@(SimplexN qs binr)
       = SimplexN (s : zipWith manualfillSimplexCone qs contins) inrs
   where contins = transpose $ map (divide $ length qs) sinrs
-
+-}
 
 --               deriving(Eq)
 
@@ -188,7 +192,12 @@ instance Functor Simplex where
   fmap f(SimplexN lds innards) = SimplexN (map(fmap f) lds) (fmap f innards)
 
 instance Functor SimplexInnards where
-  fmap f(SimplexInnards b sdvs) = SimplexInnards (f p) (map(fmap f) sdvs)
+  fmap f(SimplexBarycenter p) = SimplexBarycenter $ f p
+  fmap f(SimplexInnards divs dvders)
+       = SimplexInnards (map (fmap f) divs) (map (fmap f) dvders)
+instance Functor SubSimplex where
+  fmap f(SubSimplex irs fr) = SubSimplex (fmap f irs) fr
+
 
 newtype Triangulation p
   = Triangulation
@@ -202,14 +211,27 @@ triangulationVertices :: Eq p => Triangulation p -> [p]
 triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< sComplex
 
 simplexBarycentricSubdivision :: Simplex p -> Triangulation p
-simplexBarycentricSubdivision s@(SimplexN lds (SimplexInnards baryc subdiv dividers))
-         = Triangulation . flip (zipWith ($)) subdiv $ do
+simplexBarycentricSubdivision s@(SimplexN _ (SimplexInnards subdiv dividers))
+         = Triangulation $ map finalise subdiv
+    where finalise(SubSimplex inrs bounds)
+             = SimplexN (map (findSharedSide s) bounds) inrs
+ {-  where finalise(SubSimplex inrs bounds)
+             = SimplexN (map (lookupBound faceSubdivs) bounds) inrs
+         lookupBound lds (ShareSubdivider q) = SimplexN bbounds divInr
+          where divInr = dividers !! q
+                bbounds | (SimplexBarycenter _)<-divInr  = []
+                        | otherwise                      = finalise divInr
+         lookupBound lds (ShareInFace f b) = simplicialComplex(faceSubdivs!!f) !! q
+          where reconstrFace = SimplexN (
+         
+         faceSubdivs = map simplexBarycentricSubdivision lds
+         
              Triangulation sideSubdiv <- map simplexBarycentricSubdivision lds
              subside <- sideSubdiv
              return $ emptySimplexCone baryc subside
              case subside of
               p@(Simplex0 _)           -> return $ SimplexN [baryc, p]
-              s@(SimplexN lds innards) -> return . SimplexN $ s : 
+              s@(SimplexN lds innards) -> return . SimplexN $ s :           -}
 simplexBarycentricSubdivision s0 = Triangulation [s0]
     
 -- deriving instance Eq (Triangulation p)
@@ -283,23 +305,49 @@ r `ballAround`p = fmap ((^+^p) . l₁tol₂) $ Triangulation orthoplex
 affineSimplex :: EuclidSpace v => [v] -> Simplex v
 affineSimplex [v] = Simplex0 v
 affineSimplex vs  = result
- where sides      = map affineSimplex . orientate $ omit1s vs
-       result = SimplexN sides (innardsBetween sides)
+ where sides  = map affineSimplex $ gapPositions vs
+       result = SimplexN sides $ innardsBetween sides
        
-       innardsBetween [s1@Simplex0 p1, s2@Simplex0 p2]<-sidess  
-           = SimplexInnards barycenter [ innardsBetween [s1, barycenter]
-                                       , innardsBetween [barycenter, s2] ]
-        where barycenter = midBetween [p1,p2]
-       innardsBetween sidess = SimplexInnards barycenter subinnards
+       innardsBetween [s0@(Simplex0 p0), s1@(Simplex0 p1)]
+           = SimplexInnards [ SubSimplex (innardsBetween [s0, barycenter])
+                                         [ ShareInFace 0 $ ShareSubdivision 0
+                                         , ShareSubdivider 0 ]
+                            , SubSimplex (innardsBetween [barycenter, s1])
+                                         [ ShareSubdivider 0
+                                         , ShareInFace 1 $ ShareSubdivision 0 ] ]
+                            [ SubSimplex (SimplexBarycenter barycenter) ]
+        where barycenter = midBetween [p0,p1]
+       innardsBetween sidess = SimplexInnards subdivs dividers
         where 
+              subdivs = 
+              
+              rCones = Map.fromList [ 
+              
+              buildCone (fId, (sId, SubSimplex fsInrs fsBounds))
+                         = SubSimplex coneInnards coneBounds
+               where coneInnards = innardsBetween rSides
+                     rSides = srcFace`findSharedSide`sId
+                                : map ( ... )
+                     srcFace = sidess !! fId
+                                                  
+              nSides = length sidess
+              
+              [sideSubs,sideSubDivs] =
+                  [ concat . zip [0..]
+                        $ map (zip [0..] . sspAccess . simplexNInnards) sidess
+                  | sspAccess <- [ simplexBarySubdivs, simplexBarySubdividers ] ]
               barycenter
-                    = midBetween $ map (simplexBarycenter . simplexNInnards) sidess
+                    = midBetween $ map simplexBarycenter sidess
+{-       
               subinnards = do
                   SimplexN sSides (SimplexInnards sBaryc sBarysubs) <- sidess
                   SimplexInnards sBsubBary _ <- sBarysubs
                   return
                   sSides : map()
-       
+                  
+       distinctSubfaces s@[SimplexN [s0,s1] _] = [s:[s0,s1]]
+       distinctSubfaces sidess = thisLevel : (thisLevel >>= distinctSubfaces)
+        where thisLevel = [ f | SimplexN(f:_)<-sidess ]
        subdivided = Triangulation . map snd . snd $ subdivide result
        
        subdivide (Simplex0 v)    = (v, [([v],Simplex0 v)])
@@ -308,11 +356,23 @@ affineSimplex vs  = result
               orq ps = ( b, map((\vs -> (vs, affineSimplex vs)) . (b:) )
                              . orientate . concat $ map (map fst . snd) ps )
                where b = midBetween $ map fst ps
-               
+ -}              
        midBetween :: EuclidSpace v => [v] -> v
        midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
        
-       orientate = zipWith($) $ cycle [reverse, id]
+--        orientate = zipWith($) $ cycle [reverse, id]
+
+
+distinctSubfacesSelect :: Int -> [[Int]]
+distinctSubfacesSelect = (sel!!)
+ where sel = [ findDistinct [([],[0 .. n-1])] | n<-[0..] ]
+       findDistinct ls@((_,[]):_) = []
+       findDistinct ls = map fst distinct ++ findDistinct(fFaces=<<distinct)
+        where fFaces (path,[]) = [(path,[])]
+              fFaces (path,splx) = zipWith (\n splx' -> (path++[n], splx')) [0..]
+                                     $ gapPositions splx
+              distinct = fastNubBy (compare `on` sort.snd) ls
+
 
 
 data ManifoldFromTriangltn a tSpc = ManifoldFromTriangltn
@@ -357,10 +417,17 @@ edgeSimplex3 =
 
 
 
+-- | @'omit1s' [0,1,2,3] = [[1,2,3], [0,2,3], [0,1,3], [0,1,2]]@
 omit1s :: [a] -> [[a]]
 omit1s [] = []
 omit1s [_] = [[]]
 omit1s (v:vs) = vs : map(v:) (omit1s vs)
+
+-- | @'gapPositions' [0,1,2,3] = [[1,2,3], [2,3,0], [3,0,1], [0,1,2]]
+gapPositions :: [a] -> [[a]]
+gapPositions = gp id
+ where gp rq (v:vs) = (vs++rq[]) : gp (rq.(v:)) vs
+       gp _ _ = []
 
 
 -- | Unlike the related 'zipWith', 'associateWith' \"spreads out\" the shorter
@@ -374,7 +441,7 @@ associateWith f a b
        spreadn n f' = go
         where go (e:es) t
                | (et, tr) <- splitAt n t  
-                    = foldr((:) . f e) (go es tr) et
+                    = foldr((:) . f' e) (go es tr) et
               go _ _ = []
               
 -- | @associate = associateWith (,)@.
@@ -382,8 +449,8 @@ associate :: [a] -> [b] -> [(a,b)]
 associate = associateWith (,)
 
 associaterSectorsWith :: (a->[b]->c) -> [a] -> [b] -> [c]
-associateSectorsWith f a b = spreadn(lb`quot`la) a b
- where la = length a; lb = length lb
+associaterSectorsWith f a b = spreadn(lb`quot`la) a b
+ where la = length a; lb = length b
        spreadn n (e:es) t
         | (et, tr) <- splitAt n t  = f e et : spreadn n es tr
        spreadn _ _ _ = []
@@ -392,7 +459,7 @@ associaterSectors :: [a] -> [b] -> [(a,[b])]
 associaterSectors = associaterSectorsWith (,)
        
 associatelSectorsWith :: ([a]->b->c) -> [a] -> [b] -> [c]
-associatelSectorsWith = flip associaterSectorsWith . flip
+associatelSectorsWith f = flip (associaterSectorsWith $ flip f)
 
 associatelSectors :: [a] -> [b] -> [([a],b)]
 associatelSectors = associatelSectorsWith (,)
