@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE GADTs                    #-}
+{-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
@@ -10,6 +11,8 @@ import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Function
+
+import qualified Data.Vector as V
 
 import Data.VectorSpace
 import Data.Basis
@@ -119,6 +122,20 @@ fastNubBy cmp es = merge(fastNubBy cmp lhs)(fastNubBy cmp rhs)
                               LT -> r : l : merge ls rs
                               EQ -> l : merge ls rs
 
+-- | Like 'fastNubBy', but doesn't just discard duplicates but \"merges\" them.
+-- @'fastNubBy' cmp = cmp `'fastNubByWith'` 'const'@.
+fastNubByWith :: (a->a->Ordering) -> (a->a->a) -> [a] -> [a]
+fastNubByWith _ _ [] = []
+fastNubByWith _ _ [e] = [e]
+fastNubByWith cmp cmb es = merge(fastNubBy cmp lhs)(fastNubBy cmp rhs)
+ where (lhs,rhs) = splitAt (length es `quot` 2) es
+       merge [] rs = rs
+       merge ls [] = ls
+       merge (l:ls) (r:rs) = case cmp l r of
+                              GT -> l : r : merge ls rs
+                              LT -> r : l : merge ls rs
+                              EQ -> cmb l r : merge ls rs
+
 
 
 
@@ -134,26 +151,34 @@ data SimplexInnards p
     , simplexBarySubdividers :: [SubSimplex p] }
 data SubSimplex p = SubSimplex
     { subSimplexInnards :: SimplexInnards p
-    , subSimplexBoundaries :: [SubSimplexSideShare] }
+    , subSimplexBoundaries :: [SimplexSideShare] }
+data SimplexSideShare = SimplexSideShare
+    { sideShareTarget :: SubSimplexSideShare
+    , sharePermutation :: SimplexPermutation }
 data SubSimplexSideShare = ShareSubdivider Int
                          | ShareSubdivision Int
-                         | ShareInFace Int SubSimplexSideShare
+                         | ShareInFace SubSplxIndex SubSimplexSideShare
                          deriving (Eq, Ord)
+type SimplexPermutation = forall p. Simplex p -> Simplex p
+type SubSplxIndex = Int
 
 simplexBarycenter :: Simplex p -> p
 simplexBarycenter (Simplex0 p) = p
 simplexBarycenter (SimplexN _ (SimplexBarycenter p)) = p
  
-findSharedSide :: Simplex p -> SubSimplexSideShare -> Simplex p
+findSharedSide :: Simplex p -> SimplexSideShare -> Simplex p
 findSharedSide s@(Simplex0 _) _ = s
-findSharedSide s@(SimplexN _ (SimplexInnards _ subdividers)) (ShareSubdivider n)
-         = SimplexN ( map (findSharedSide s) sdBnds ) sdInn 
+findSharedSide s@(SimplexN _ (SimplexInnards _ subdividers))
+               (SimplexSideShare (ShareSubdivider n) perm)
+         = perm $ SimplexN ( map (findSharedSide s) sdBnds ) sdInn 
    where (SubSimplex sdInn sdBnds) = subdividers !! n
-findSharedSide s@(SimplexN _ (SimplexInnards subdivisions _)) (ShareSubdivision n)
-         = SimplexN ( map (findSharedSide s) sdBnds ) sdInn 
+findSharedSide s@(SimplexN _ (SimplexInnards subdivisions _))
+               (SimplexSideShare (ShareSubdivision n) perm)
+         = perm $ SimplexN ( map (findSharedSide s) sdBnds ) sdInn 
    where (SubSimplex sdInn sdBnds) = subdivisions !! n
-findSharedSide (SimplexN faces _) (ShareInFace n sshare)
-         = findSharedSide (faces!!n) sshare
+findSharedSide (SimplexN faces _)
+               (SimplexSideShare (ShareInFace n sshare) perm)
+         = findSharedSide (faces!!n) (SimplexSideShare sshare perm)
 
 
 instance (Show p) => Show (Simplex p) where
@@ -273,6 +298,7 @@ instance Ord (IndexedVert p) where {compare = compare`on`vertexIndex}
 --               decomp' = zip [0..] decomp
               
 
+{-       
 ballAround :: EuclidSpace v
     =>  Scalar v        -- ^ Size of the ball to be created
      -> v               -- ^ Center of the ball (this also defines what space we're in, and thereby the dimension of the ball)
@@ -338,7 +364,6 @@ affineSimplex vs  = result
                   | sspAccess <- [ simplexBarySubdivs, simplexBarySubdividers ] ]
               barycenter
                     = midBetween $ map simplexBarycenter sidess
-{-       
               subinnards = do
                   SimplexN sSides (SimplexInnards sBaryc sBarysubs) <- sidess
                   SimplexInnards sBsubBary _ <- sBarysubs
@@ -356,23 +381,44 @@ affineSimplex vs  = result
               orq ps = ( b, map((\vs -> (vs, affineSimplex vs)) . (b:) )
                              . orientate . concat $ map (map fst . snd) ps )
                where b = midBetween $ map fst ps
- -}              
        midBetween :: EuclidSpace v => [v] -> v
        midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
+ -}              
        
 --        orientate = zipWith($) $ cycle [reverse, id]
 
+type SimplexPermutation' = V.Vector Int
 
-distinctSubfacesSelect :: Int -> [[Int]]
-distinctSubfacesSelect = (sel!!)
- where sel = [ findDistinct [([],[0 .. n-1])] | n<-[0..] ]
-       findDistinct ls@((_,[]):_) = []
-       findDistinct ls = map fst distinct ++ findDistinct(fFaces=<<distinct)
-        where fFaces (path,[]) = [(path,[])]
-              fFaces (path,splx) = zipWith (\n splx' -> (path++[n], splx')) [0..]
-                                     $ gapPositions splx
-              distinct = fastNubBy (compare `on` sort.snd) ls
+(↺↺) :: SimplexPermutation' -> SimplexPermutation' -> SimplexPermutation'
+(↺↺) = V.backpermute
 
+(↺↻) :: SimplexPermutation' -> SimplexPermutation' -> SimplexPermutation'
+p↺↻q = V.backpermute p (invPerm q)
+
+invPerm :: SimplexPermutation' -> SimplexPermutation'
+invPerm = fst . undoableSort . V.toList
+-- idSplPermute = id :: SimplexPermutation'
+
+distinctSubsplxSelect :: Int -> [([SubSplxIndex], [([SubSplxIndex],SimplexPermutation')])]
+distinctSubsplxSelect = (sel!!)
+ where sel = [ groupEquivs $ findAll [0 .. n-1] | n<-[0..] ]
+       
+       findAll :: [Int] -> [ ([SubSplxIndex], [Int]) ]
+       findAll [] = []
+       findAll sid = ([],sid) : (deeper =<< zip[0..] (gapPositions sid))
+        where deeper(wy, newSpl) = map (first(wy:)) $ findAll newSpl
+              
+       groupEquivs :: [ ([SubSplxIndex], [Int]) ]
+                      -> [([SubSplxIndex], [([SubSplxIndex],SimplexPermutation')])]
+       groupEquivs = map (\(_,eqvs@((dpath,dcfg):_))
+                           -> (dpath, map (\(path,cfg) -> (path,dcfg↺↻cfg)) eqvs) )
+                      . fastNubByWith ( compare `on` fst )
+                                      ( \(c1,l1)(_,l2) -> (c1,l1++l2) )
+                      . map(\(path, cfg) -> let(unSort,sorted)=undoableSort cfg
+                                            in (sorted, [(path, unSort)])       )
+
+undoableSort :: Ord a => [a] -> (SimplexPermutation',[a])
+undoableSort = first(V.fromList) . unzip . sortBy(compare`on`snd) . zip[0..]
 
 
 data ManifoldFromTriangltn a tSpc = ManifoldFromTriangltn
