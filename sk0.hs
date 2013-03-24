@@ -4,7 +4,7 @@
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE ConstraintKinds          #-}
-{-# LANGUAGE StandaloneDeriving       #-}
+-- {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 
 import Data.List
@@ -118,23 +118,23 @@ fastNubBy cmp es = merge(fastNubBy cmp lhs)(fastNubBy cmp rhs)
        merge [] rs = rs
        merge ls [] = ls
        merge (l:ls) (r:rs) = case cmp l r of
-                              GT -> l : r : merge ls rs
-                              LT -> r : l : merge ls rs
-                              EQ -> l : merge ls rs
+                              LT -> l : merge ls (r:rs)
+                              GT -> r : merge (l:ls) rs
+                              EQ -> merge (l:ls) rs
 
 -- | Like 'fastNubBy', but doesn't just discard duplicates but \"merges\" them.
 -- @'fastNubBy' cmp = cmp `'fastNubByWith'` 'const'@.
 fastNubByWith :: (a->a->Ordering) -> (a->a->a) -> [a] -> [a]
 fastNubByWith _ _ [] = []
 fastNubByWith _ _ [e] = [e]
-fastNubByWith cmp cmb es = merge(fastNubBy cmp lhs)(fastNubBy cmp rhs)
+fastNubByWith cmp cmb es = merge(fastNubByWith cmp cmb lhs)(fastNubByWith cmp cmb rhs)
  where (lhs,rhs) = splitAt (length es `quot` 2) es
        merge [] rs = rs
        merge ls [] = ls
        merge (l:ls) (r:rs) = case cmp l r of
-                              GT -> l : r : merge ls rs
-                              LT -> r : l : merge ls rs
-                              EQ -> cmb l r : merge ls rs
+                              LT -> l : merge ls (r:rs)
+                              GT -> r : merge (l:ls) rs
+                              EQ -> merge (cmb l r : ls) rs
 
 
 
@@ -157,10 +157,11 @@ data SimplexSideShare = SimplexSideShare
     , sharePermutation :: SimplexPermutation }
 data SubSimplexSideShare = ShareSubdivider Int
                          | ShareSubdivision Int
-                         | ShareInFace SubSplxIndex SubSimplexSideShare
+                         | ShareInFace Int SubSimplexSideShare
                          deriving (Eq, Ord)
 type SimplexPermutation = forall p. Simplex p -> Simplex p
-type SubSplxIndex = Int
+newtype SubSplxIndex = SubSplxIndex{ getSubSplxIndex::[Int] }
+   deriving (Eq, Ord)
 
 simplexBarycenter :: Simplex p -> p
 simplexBarycenter (Simplex0 p) = p
@@ -387,31 +388,64 @@ affineSimplex vs  = result
        
 --        orientate = zipWith($) $ cycle [reverse, id]
 
+thisWholeSimplex = SubSplxIndex[]
+
+type SubSplxPathfinder = SubSplxIndex -> SubSplxIndex
+
+splxPathAriths :: (Int->Int->Int) -> SubSplxPathfinder->SubSplxPathfinder->SubSplxPathfinder
+splxPathAriths ifx f1 f2 p
+   = SubSplxIndex $ zipWith ifx (getSubSplxIndex $ f1 p) (getSubSplxIndex $ f2 p)
+
+instance Num SubSplxPathfinder where
+  fromInteger n (SubSplxIndex p) = SubSplxIndex(fromInteger n : p)
+  (+) = splxPathAriths(+)
+  (-) = splxPathAriths(+)
+  (*) = splxPathAriths(+)
+  abs = id
+  signum = const $ const thisWholeSimplex
+instance Enum SubSplxPathfinder where
+  toEnum = fromIntegral
+  fromEnum p = head . getSubSplxIndex $ p thisWholeSimplex
+
+pathToSubSmplx :: SubSplxPathfinder->SubSplxIndex
+pathToSubSmplx = ($ thisWholeSimplex) 
+instance Show SubSplxIndex where
+  show(SubSplxIndex p)
+   | chainShow@(_:_) <- intercalate"."(map show p) = "pathToSubSmplx("++chainShow++")"
+   | otherwise = "thisWholeSimplex"
+
 type SimplexPermutation' = V.Vector Int
+
+infixl 7 ↺↺, ↺↻
 
 (↺↺) :: SimplexPermutation' -> SimplexPermutation' -> SimplexPermutation'
 (↺↺) = V.backpermute
 
 (↺↻) :: SimplexPermutation' -> SimplexPermutation' -> SimplexPermutation'
-p↺↻q = V.backpermute p (invPerm q)
+p↺↻q = p ↺↺ invPerm q
 
 invPerm :: SimplexPermutation' -> SimplexPermutation'
 invPerm = fst . undoableSort . V.toList
 -- idSplPermute = id :: SimplexPermutation'
 
-distinctSubsplxSelect :: Int -> [([SubSplxIndex], [([SubSplxIndex],SimplexPermutation')])]
+asSimplexPermutation :: SimplexPermutation' -> SimplexPermutation
+asSimplexPermutation = undefined
+
+distinctSubsplxSelect :: Int -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation')])]
 distinctSubsplxSelect = (sel!!)
  where sel = [ groupEquivs $ findAll [0 .. n-1] | n<-[0..] ]
        
-       findAll :: [Int] -> [ ([SubSplxIndex], [Int]) ]
+       findAll :: [Int] -> [ (SubSplxIndex, [Int]) ]
        findAll [] = []
-       findAll sid = ([],sid) : (deeper =<< zip[0..] (gapPositions sid))
-        where deeper(wy, newSpl) = map (first(wy:)) $ findAll newSpl
+       findAll sid = (thisWholeSimplex, sid)
+                       : (deeper =<< zip[0..] (gapPositions sid))
+        where deeper(wy, newSpl) = map (first wy) $ findAll newSpl
               
-       groupEquivs :: [ ([SubSplxIndex], [Int]) ]
-                      -> [([SubSplxIndex], [([SubSplxIndex],SimplexPermutation')])]
-       groupEquivs = map (\(_,eqvs@((dpath,dcfg):_))
-                           -> (dpath, map (\(path,cfg) -> (path,dcfg↺↻cfg)) eqvs) )
+       groupEquivs :: [ (SubSplxIndex, [Int]) ]
+                      -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation')])]
+       groupEquivs = sortBy (compare`on`fst)
+                      . map (\(cfg,eqvs@((dpath,dperm):_))
+                           -> (dpath, map (\(path,perm) -> (path, dperm↺↻perm)) eqvs) )
                       . fastNubByWith ( compare `on` fst )
                                       ( \(c1,l1)(_,l2) -> (c1,l1++l2) )
                       . map(\(path, cfg) -> let(unSort,sorted)=undoableSort cfg
