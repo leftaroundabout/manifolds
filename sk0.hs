@@ -13,6 +13,8 @@ import Data.Maybe
 import Data.Function
 
 import qualified Data.Vector as V
+import Data.Vector(fromList, toList, (!), singleton)
+import qualified Data.Vector.Algorithms.Insertion as VAIns
 
 import Data.VectorSpace
 import Data.Basis
@@ -20,6 +22,8 @@ import Data.Basis
 import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.Maybe
+
+
 
 
 type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
@@ -105,7 +109,7 @@ instance Manifold S2 where
 
 
 
-type FastNub a = (Eq a, Ord a) -- Should really be (Eq a, Hashable a)
+type FastNub a = (Eq a, Ord a) -- S̶h̶o̶u̶l̶d̶ ̶r̶e̶a̶l̶l̶y̶ ̶b̶e̶ ̶(̶E̶q̶ ̶a̶,̶̶ ̶H̶a̶s̶h̶a̶b̶l̶e̶ ̶a̶)̶
 fastNub :: FastNub a => [a] -> [a]
 fastNub = map head . group . sort
 
@@ -141,17 +145,20 @@ fastNubByWith cmp cmb es = merge(fastNubByWith cmp cmb lhs)(fastNubByWith cmp cm
 
 data Simplex p
    = Simplex0 p
-   | SimplexN { simplexNLDBounds :: [Simplex p]
-              , simplexNInnards :: SimplexInnards p } 
+   | SimplexN { simplexNLDBounds :: Array(Simplex p)
+              , simplexNInnards :: SimplexInnards p  } 
+   | PermutedSimplex { simplexPermutation :: SimplexPermutation 
+                     , thePermutedSimplex :: Simplex p          }
+                     
 
 data SimplexInnards p
  = SimplexBarycenter p
  | SimplexInnards
-    { simplexBarySubdivs :: [SubSimplex p]
-    , simplexBarySubdividers :: [SubSimplex p] }
+    { simplexBarySubdivs :: Array(SubSimplex p)
+    , simplexBarySubdividers :: Array(SubSimplex p) }
 data SubSimplex p = SubSimplex
     { subSimplexInnards :: SimplexInnards p
-    , subSimplexBoundaries :: [SimplexSideShare] }
+    , subSimplexBoundaries :: Array(SimplexSideShare) }
 data SimplexSideShare = SimplexSideShare
     { sideShareTarget :: SubSimplexSideShare
     , sharePermutation :: SimplexPermutation }
@@ -159,7 +166,12 @@ data SubSimplexSideShare = ShareSubdivider Int
                          | ShareSubdivision Int
                          | ShareInFace Int SubSimplexSideShare
                          deriving (Eq, Ord)
-type SimplexPermutation = forall p. Simplex p -> Simplex p
+
+data SimplexPermutation
+  = SimplexIdPermutation
+  | SimplexPermutation { subSimplexRemapping :: Array(Int, SimplexPermutation) }
+  deriving(Eq, Show)
+ 
 newtype SubSplxIndex = SubSplxIndex{ getSubSplxIndex::[Int] }
    deriving (Eq, Ord)
 
@@ -170,16 +182,34 @@ simplexBarycenter (SimplexN _ (SimplexBarycenter p)) = p
 findSharedSide :: Simplex p -> SimplexSideShare -> Simplex p
 findSharedSide s@(Simplex0 _) _ = s
 findSharedSide s@(SimplexN _ (SimplexInnards _ subdividers))
-               (SimplexSideShare (ShareSubdivider n) perm)
-         = perm $ SimplexN ( map (findSharedSide s) sdBnds ) sdInn 
-   where (SubSimplex sdInn sdBnds) = subdividers !! n
+               (SimplexSideShare (ShareSubdivider n) π)
+         = π `permuteSimplex` SimplexN ( fmap (findSharedSide s) sdBnds ) sdInn 
+   where (SubSimplex sdInn sdBnds) = subdividers ! n
 findSharedSide s@(SimplexN _ (SimplexInnards subdivisions _))
-               (SimplexSideShare (ShareSubdivision n) perm)
-         = perm $ SimplexN ( map (findSharedSide s) sdBnds ) sdInn 
-   where (SubSimplex sdInn sdBnds) = subdivisions !! n
+               (SimplexSideShare (ShareSubdivision n) π)
+         = π `permuteSimplex` SimplexN ( fmap (findSharedSide s) sdBnds ) sdInn 
+   where (SubSimplex sdInn sdBnds) = subdivisions ! n
 findSharedSide (SimplexN faces _)
                (SimplexSideShare (ShareInFace n sshare) perm)
-         = findSharedSide (faces!!n) (SimplexSideShare sshare perm)
+         = findSharedSide (faces!n) (SimplexSideShare sshare perm)
+
+permuteSimplex :: SimplexPermutation -> Simplex p -> Simplex p
+SimplexIdPermutation `permuteSimplex` s = s
+π `permuteSimplex` PermutedSimplex σ s = (π ↺↺ σ) `permuteSimplex` s
+
+
+
+instance Permutation SimplexPermutation where
+  invPerm (SimplexIdPermutation) = SimplexIdPermutation
+  invPerm (SimplexPermutation rm)
+           = SimplexPermutation . fromList
+             . map(\(n, (_,π)) -> (n, invPerm π) )
+             . sortBy (compare `on` fst.snd) . zip[0..] $ toList rm
+  π ↺↺ SimplexIdPermutation = π
+  SimplexIdPermutation ↺↺ π = π
+  SimplexPermutation rm ↺↺ SimplexPermutation rm'
+     = SimplexPermutation $ V.map (\(n, π) -> second (π↺↺) $ rm' ! n ) rm
+
 
 
 instance (Show p) => Show (Simplex p) where
@@ -188,12 +218,13 @@ instance (Show p) => Show (Simplex p) where
 
 simplexVertices :: Eq p => Simplex p -> [p]
 simplexVertices (Simplex0 p) = [p]
-simplexVertices (SimplexN vs _) = nub $ simplexVertices =<< vs 
+simplexVertices (SimplexN vs _) = nub $ simplexVertices =<< toList vs
 
 simplexDimension :: Simplex p -> Int
 simplexDimension (Simplex0 _) = 0
-simplexDimension (SimplexN (face:_) _) = simplexDimension face + 1
+simplexDimension (SimplexN faces _) = simplexDimension (V.head faces) + 1
 
+{-
 simplexInnards :: Simplex p -> [[SimplexInnards p]]
 simplexInnards (Simplex0 _) = []
 simplexInnards (SimplexN lds inrs) = [inrs] : map concat(transpose $ map simplexInnards lds)
@@ -201,7 +232,6 @@ simplexInnards (SimplexN lds inrs) = [inrs] : map concat(transpose $ map simplex
 emptySimplexCone :: p -> Simplex p -> Simplex p
 emptySimplexCone p q@(Simplex0 _) = SimplexN [Simplex0 p, q] undefined
 emptySimplexCone p s@(SimplexN qs _) = SimplexN (s : map (emptySimplexCone p) qs) undefined
-{-
 manualfillSimplexCone :: p -> [[SimplexInnards p]] -> Simplex p -> Simplex p
 manualfillSimplexCone [inrs]         p q@(Simplex0 _)       = SimplexN [Simplex0 p,q] inrs
 manualfillSimplexCone ([inrs]:sinrs) p s@(SimplexN qs binr)
@@ -215,32 +245,33 @@ manualfillSimplexCone ([inrs]:sinrs) p s@(SimplexN qs binr)
 -- are only vaguely related to the actual category-theoretic /simplicial functor/.
 instance Functor Simplex where
   fmap f(Simplex0 p) = Simplex0(f p)
-  fmap f(SimplexN lds innards) = SimplexN (map(fmap f) lds) (fmap f innards)
+  fmap f(SimplexN lds innards) = SimplexN (fmap(fmap f) lds) (fmap f innards)
+  fmap f(PermutedSimplex π s) = PermutedSimplex π $ fmap f s
 
 instance Functor SimplexInnards where
   fmap f(SimplexBarycenter p) = SimplexBarycenter $ f p
   fmap f(SimplexInnards divs dvders)
-       = SimplexInnards (map (fmap f) divs) (map (fmap f) dvders)
+       = SimplexInnards (fmap (fmap f) divs) (fmap (fmap f) dvders)
 instance Functor SubSimplex where
   fmap f(SubSimplex irs fr) = SubSimplex (fmap f irs) fr
 
 
 newtype Triangulation p
   = Triangulation
-    { simplicialComplex      :: [Simplex p]
+    { simplicialComplex      :: Array (Simplex p)
 --     , barycentricSubdivision :: Triangulation p 
     }       --  -> Triangulation p
   deriving (Show)
 
 
 triangulationVertices :: Eq p => Triangulation p -> [p]
-triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< sComplex
+triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< toList sComplex
 
 simplexBarycentricSubdivision :: Simplex p -> Triangulation p
 simplexBarycentricSubdivision s@(SimplexN _ (SimplexInnards subdiv dividers))
-         = Triangulation $ map finalise subdiv
+         = Triangulation $ fmap finalise subdiv
     where finalise(SubSimplex inrs bounds)
-             = SimplexN (map (findSharedSide s) bounds) inrs
+             = SimplexN (fmap (findSharedSide s) bounds) inrs
  {-  where finalise(SubSimplex inrs bounds)
              = SimplexN (map (lookupBound faceSubdivs) bounds) inrs
          lookupBound lds (ShareSubdivider q) = SimplexN bbounds divInr
@@ -258,12 +289,12 @@ simplexBarycentricSubdivision s@(SimplexN _ (SimplexInnards subdiv dividers))
              case subside of
               p@(Simplex0 _)           -> return $ SimplexN [baryc, p]
               s@(SimplexN lds innards) -> return . SimplexN $ s :           -}
-simplexBarycentricSubdivision s0 = Triangulation [s0]
+simplexBarycentricSubdivision s0 = Triangulation $ singleton s0
     
 -- deriving instance Eq (Triangulation p)
 
 instance Functor Triangulation where
-  fmap f(Triangulation c) = Triangulation(map(fmap f)c)
+  fmap f(Triangulation c) = Triangulation(fmap(fmap f)c)
 
 
 data IndexedVert p = IndexedVert {indexedVertex::p, vertexIndex::Int}
@@ -414,24 +445,55 @@ instance Show SubSplxIndex where
    | chainShow@(_:_) <- intercalate"."(map show p) = "pathToSubSmplx("++chainShow++")"
    | otherwise = "thisWholeSimplex"
 
-type SimplexPermutation' = V.Vector Int
+locateSubSimplex :: SubSplxIndex -> Simplex p -> Simplex p
+locateSubSimplex (SubSplxIndex (dir:path)) (SimplexN faces _)
+     = locateSubSimplex (SubSplxIndex path) $ faces ! dir
+locateSubSimplex idx (PermutedSimplex SimplexIdPermutation s)
+     = locateSubSimplex idx s
+locateSubSimplex idx (PermutedSimplex π (PermutedSimplex σ s))
+     = locateSubSimplex idx $ PermutedSimplex (π↺↺σ) s
+locateSubSimplex (SubSplxIndex (dir:path))
+                 (PermutedSimplex (SimplexPermutation rm) (SimplexN faces _))
+   = let (tgt, π) = rm ! dir
+     in  locateSubSimplex (SubSplxIndex path) $ permuteSimplex π (faces ! tgt)
+locateSubSimplex _ s = s
 
-infixl 7 ↺↺, ↺↻
+type SimplexPermutation' = Array Int
 
-(↺↺) :: SimplexPermutation' -> SimplexPermutation' -> SimplexPermutation'
-(↺↺) = V.backpermute
+instance Permutation SimplexPermutation' where
+  (↺↺) = V.backpermute
+  invPerm = fst . undoableSort
 
-(↺↻) :: SimplexPermutation' -> SimplexPermutation' -> SimplexPermutation'
-p↺↻q = p ↺↺ invPerm q
 
-invPerm :: SimplexPermutation' -> SimplexPermutation'
-invPerm = fst . undoableSort . V.toList
--- idSplPermute = id :: SimplexPermutation'
 
 asSimplexPermutation :: SimplexPermutation' -> SimplexPermutation
-asSimplexPermutation = undefined
+asSimplexPermutation vPerm
+  | V.and $ V.imap(==) vPerm  = SimplexIdPermutation
+  | otherwise                 = SimplexPermutation $
+                      mapElAndRest( \k qerm
+                         -> (k, asSimplexPermutation $ V.map (m k) qerm)
+                       ) vPerm
+     where m k q
+            | q<k   = q - k + n - 1
+            | q>k   = q - k     - 1
+           
+           n = V.length vPerm
+           
+           mapElAndRest :: (a -> Array a -> b) -> Array a -> Array b
+           mapElAndRest f arr = V.zipWith f arr gapqs
+            where gapqs = V.map fromList . fromList . gapPositions $ toList arr
+   
 
-distinctSubsplxSelect :: Int -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation')])]
+
+-- | Remove \"gaps\" in an array of unique numbers, i.e. maps the set of elements
+-- strict-monotonically to @[0 .. length arr - 1]@.
+sediment :: Array Int -> Array Int
+sediment = V.map fst . saSortBy(compare`on`fst.snd)
+             . V.indexed . saSortBy(compare`on`snd) . V.indexed
+
+
+
+distinctSubsplxSelect :: Int -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
 distinctSubsplxSelect = (sel!!)
  where sel = [ groupEquivs $ findAll [0 .. n-1] | n<-[0..] ]
        
@@ -442,17 +504,21 @@ distinctSubsplxSelect = (sel!!)
         where deeper(wy, newSpl) = map (first wy) $ findAll newSpl
               
        groupEquivs :: [ (SubSplxIndex, [Int]) ]
-                      -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation')])]
+                      -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
        groupEquivs = sortBy (compare`on`fst)
                       . map (\(cfg,eqvs@((dpath,dperm):_))
-                           -> (dpath, map (\(path,perm) -> (path, dperm↺↻perm)) eqvs) )
+                           -> ( dpath
+                              , map (\(path,perm)
+                                   -> ( path, asSimplexPermutation $ dperm↺↻perm )
+                                 ) eqvs
+                              ) )
                       . fastNubByWith ( compare `on` fst )
                                       ( \(c1,l1)(_,l2) -> (c1,l1++l2) )
-                      . map(\(path, cfg) -> let(unSort,sorted)=undoableSort cfg
-                                            in (sorted, [(path, unSort)])       )
+                      . map(\(path, cfg) -> let(unSort,sorted)=undoableSort $ fromList cfg
+                                            in (toList sorted, [(path, unSort)])           )
 
-undoableSort :: Ord a => [a] -> (SimplexPermutation',[a])
-undoableSort = first(V.fromList) . unzip . sortBy(compare`on`snd) . zip[0..]
+undoableSort :: Ord a => Array a -> (SimplexPermutation', Array a)
+undoableSort = V.unzip . saSortBy(compare`on`snd) . V.indexed
 
 
 data ManifoldFromTriangltn a tSpc = ManifoldFromTriangltn
@@ -461,6 +527,7 @@ data ManifoldFromTriangltn a tSpc = ManifoldFromTriangltn
 
 
               
+{-
 edgeSimplex2subdiv =              
  Triangulation {simplicialComplex = [ SimplexN [ SimplexN [ Simplex0(Space2D 3.0 0.0), Simplex0(Space2D 1.5 1.5)] undefined
                                                , SimplexN [ Simplex0(Space2D 1.5 1.5), Simplex0(Space2D 1.0 1.0)] undefined
@@ -493,7 +560,16 @@ edgeSimplex3 =
           , SimplexN [ SimplexN [ Simplex0(Space3D 3.0 0.0 0.0), Simplex0(Space3D 0.0 3.0 0.0)] undefined
                      , SimplexN [ Simplex0(Space3D 0.0 3.0 0.0), Simplex0(Space3D 0.0 0.0 0.0)] undefined
                      , SimplexN [ Simplex0(Space3D 0.0 0.0 0.0), Simplex0(Space3D 3.0 0.0 0.0)] undefined ] undefined ] undefined
+-}
  
+
+
+infixl 7 ↺↺, ↺↻
+class Permutation π where
+  (↺↺) :: π -> π -> π
+  (↺↻) :: π -> π -> π
+  p↺↻q = p ↺↺ invPerm q
+  invPerm :: π -> π
 
 
 
@@ -503,11 +579,25 @@ omit1s [] = []
 omit1s [_] = [[]]
 omit1s (v:vs) = vs : map(v:) (omit1s vs)
 
--- | @'gapPositions' [0,1,2,3] = [[1,2,3], [2,3,0], [3,0,1], [0,1,2]]
+-- | @'gapPositions' [0,1,2,3] = [[1,2,3], [2,3,0], [3,0,1], [0,1,2]]@
 gapPositions :: [a] -> [[a]]
 gapPositions = gp id
  where gp rq (v:vs) = (vs++rq[]) : gp (rq.(v:)) vs
        gp _ _ = []
+
+
+type Array = V.Vector
+
+saSort :: Ord a => Array a -> Array a
+saSort = V.modify VAIns.sort
+
+-- The sorting algorithm of choice is simple insertion sort, because simplices
+-- that can feasibly be handled will always have low dimension, so the better
+-- complexity of more sophisticated sorting algorithms is no use on the short
+-- vertex arrays.
+{-# inline saSortBy #-}
+saSortBy :: VAIns.Comparison a -> Array a -> Array a
+saSortBy cmp = V.modify $ VAIns.sortBy cmp
 
 
 -- | Unlike the related 'zipWith', 'associateWith' \"spreads out\" the shorter
