@@ -144,7 +144,7 @@ fastNubByWith cmp cmb es = merge(fastNubByWith cmp cmb lhs)(fastNubByWith cmp cm
 
 
 data Simplex p
-   = Simplex0 p
+   = Simplex0 { getSimplex0 :: p }
    | SimplexN { simplexNLDBounds :: Array(Simplex p)
               , simplexNInnards :: SimplexInnards p  } 
    | PermutedSimplex { simplexPermutation :: SimplexPermutation 
@@ -156,12 +156,20 @@ data SimplexInnards p
  | SimplexInnards
     { simplexBarySubdivs :: Array(SubSimplex p)
     , simplexBarySubdividers :: Array(SubSimplex p) }
+    
+-- | The name \"subsimplex\" is used somewhat ambiguously in this module:
+-- 'SubSimplex' is the type for /parts of a simplex' subdivision/; on the
+-- other hand many of the functions refer to @subsimplex@ in the more
+-- conventional sense, i.e. one of the sides, vertices, or the entirety
+-- of a simplex.
 data SubSimplex p = SubSimplex
     { subSimplexInnards :: SimplexInnards p
     , subSimplexBoundaries :: Array(SimplexSideShare) }
+    
 data SimplexSideShare = SimplexSideShare
     { sideShareTarget :: SubSimplexSideShare
     , sharePermutation :: SimplexPermutation }
+    
 data SubSimplexSideShare = ShareSubdivider Int
                          | ShareSubdivision Int
                          | ShareInFace Int SubSimplexSideShare
@@ -219,6 +227,13 @@ instance (Show p) => Show (Simplex p) where
 simplexVertices :: Eq p => Simplex p -> [p]
 simplexVertices (Simplex0 p) = [p]
 simplexVertices (SimplexN vs _) = nub $ simplexVertices =<< toList vs
+
+
+fSimplexVertices :: Simplex p -> [p]
+fSimplexVertices (Simplex0 p) = [p]
+fSimplexVertices s = map (getSimplex0 . (`locateSubSimplex`s) . fst)
+                      . distinctDim0SubsplxGroups $ simplexDimension s
+
 
 simplexDimension :: Simplex p -> Int
 simplexDimension (Simplex0 _) = 0
@@ -289,6 +304,7 @@ simplexBarycentricSubdivision s@(SimplexN _ (SimplexInnards subdiv dividers))
              case subside of
               p@(Simplex0 _)           -> return $ SimplexN [baryc, p]
               s@(SimplexN lds innards) -> return . SimplexN $ s :           -}
+simplexBarycentricSubdivision (PermutedSimplex _ s) = simplexBarycentricSubdivision s
 simplexBarycentricSubdivision s0 = Triangulation $ singleton s0
     
 -- deriving instance Eq (Triangulation p)
@@ -301,6 +317,13 @@ data IndexedVert p = IndexedVert {indexedVertex::p, vertexIndex::Int}
 instance Eq (IndexedVert p) where {(==) = (==)`on`vertexIndex}
 instance Ord (IndexedVert p) where {compare = compare`on`vertexIndex}
 
+-- The sketch below is not good. A better one might be the following,
+-- procedural-style:
+-- while (∃ wrong-rim):
+--    pick a rim subsimplex to build a cone c on top of, such that
+--    the number of other rim-simplices which can also build a cone to
+--    the tip of c is maximised.
+-- 
 -- autoTriangulation :: forall m . Manifold m => m -> Triangulation m
 -- autoTriangulation m = undefined -- Triangulation
 --  where 
@@ -330,21 +353,20 @@ instance Ord (IndexedVert p) where {compare = compare`on`vertexIndex}
 --               decomp' = zip [0..] decomp
               
 
-{-       
 ballAround :: EuclidSpace v
     =>  Scalar v        -- ^ Size of the ball to be created
      -> v               -- ^ Center of the ball (this also defines what space we're in, and thereby the dimension of the ball)
      -> Triangulation v -- ^ A barycentrically-subdividable simplicial complex triangulating the ball in question
 r `ballAround`p = fmap ((^+^p) . l₁tol₂) $ Triangulation orthoplex
  where orthoplex
-        | [] <- vDecomp  = [Simplex0 p]
+        | [] <- vDecomp  = singleton $ Simplex0 p
         | otherwise      = orthSides
          
        vDecomp = decompose p
        vBasis = map fst vDecomp
        n = length $ vDecomp
        
-       orthSides = map (affineSimplex . (p:)) orthVertices
+       orthSides = V.map (affineSimplex . (p:)) $ fromList orthVertices
        
        orthVertices = (map.map) ( recompose . zip vBasis )
                             $ map directSide orthDirections
@@ -360,9 +382,109 @@ r `ballAround`p = fmap ((^+^p) . l₁tol₂) $ Triangulation orthoplex
                      scale | l₂>0       = (* (l₁ / l₂))
                            | otherwise = id
 
-affineSimplex :: EuclidSpace v => [v] -> Simplex v
-affineSimplex [v] = Simplex0 v
-affineSimplex vs  = result
+
+
+affineSimplex :: forall v . EuclidSpace v => [v] -> Simplex v
+-- affineSimplex _ = undefined
+-- affineSimplex [v] = Simplex0 v
+affineSimplex vertices = undefined
+ where 
+--        uniqueSubs :: [Simplex v]
+       subLookup :: Map SubSplxIndex (Simplex v)
+--        (uniqueSubs, 
+       subLookup = prepareSubs vertices
+       
+       prepareSubs vs = {- ( map fst unqSubGroups
+                        ,-} foldr mpIns Map.empty unqSubGroups -- )
+         where 
+               unqSubGroups :: [ (Simplex v, [(SubSplxIndex, SimplexPermutation)]) ]
+               unqSubGroups
+                  = map ( first $ \(SubSplxIndex path) 
+                      -> constructSubAt path vs (SubSplxIndex . (path++) )
+                     ) subgroups
+                     
+               constructSubAt :: [Int] -> [v] -> ([Int]->SubSplxIndex) -> Simplex v
+               constructSubAt (dir:path) vs' pb
+                  = constructSubAt path (deleteAt dir vs') pb
+               constructSubAt [] vs' pb 
+                  = constructor vs' ((subLookup Map.!) . pb)
+                  
+               mpIns (ref, slaves) prev 
+                  = foldr (\(idx,π) -> Map.insert idx (permuteSimplex π ref)
+                     ) prev slaves
+                              
+               subgroups :: [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
+               subgroups = distinctSubsplxGroups dimension 
+               
+               dimension :: Int
+               dimension = length vs
+       
+       
+       constructor :: [v] -> ([Int]->Simplex v) -> Simplex v
+       constructor [v] _ = Simplex0 v
+       constructor vs subF = SimplexN (fromList [ subF[n] | n<-[0 .. dimension-1] ])
+                                      innards
+         where
+               uniqueFaces, uniqueLDSubs :: [([Int], Simplex v)]
+               (uniqueFaces,uniqueLDSubs) 
+                       = (render***render) . partition(null . tail)
+                              . map(getSubSplxIndex . fst)
+                              $ distinctProperSubsplxGroups dimension
+                  where render = map $ id &&& subF
+               
+               buildSDCones :: Simplex v
+                            -- ^ The cones' base simplex /b/, i.e. the simplex the subdivisions of which form the cones' bases.
+                            -> (SubSimplexSideShare->(Int, Simplex v))
+                            -- ^ Index of the subdivider that is the cone over this shared-side (relative to /b/), as well as this simplex in constructed form.
+                            -> (SubSimplexSideShare->SimplexSideShare)
+                            -- ^ Sideshare-index of a subdivision of /b/, as a side of the simplex containing the built cones.
+                                 -> Array (SubSimplex v)
+                                 -- ^ Cones of the barycenter over /b/'s subdivisions.
+               buildSDCones b@(Simplex0 p) _ sfShare 
+                      = singleton $ SubSimplex cnInrs cnvBounds
+                where (SimplexN _ cnInrs) = constructor cnBounds vsFun
+                      cnBounds = [barycenter, p]
+                      vsFun = Simplex0 . (cnBounds!!) . head
+                      cnvBounds = fromList [ barycenterShare, sfShare $ ShareSubdivision 0 ]
+               buildSDCones b@(SimplexN sSides (SimplexInnards sDivs sDivd))
+                            swLookup sfShare
+                               = V.map build $ V.indexed sDivs
+                where build (sdIdx, SubSimplex cbInrs cbBounds) = SubSimplex cnInrs cnvBounds
+                       where (SimplexN _ cnInrs) = constructor coneVs vsFun
+                             coneVs = barycenter : fSimplexVertices cnBase
+                             cnBounds = cnBase `V.cons` V.map snd cnMantle
+                             cnMantle = V.map (\(SimplexSideShare bfs π) 
+                                                  -> let(i, z) = swLookup bfs
+                                                     in ((i,π), up1pS π`permuteSimplex`z) )
+                                              cbBounds
+                             up1pS SimplexIdPermutation = SimplexIdPermutation
+                             up1pS π@(SimplexPermutation pa)
+                               = SimplexPermutation 
+                                   $ (0,π) `V.cons` V.map (\(i,σ)->(i+1, up1pS σ)) pa
+                             cnvBounds = sfShare(ShareSubdivision sdIdx) 
+                                          `V.cons`
+                                          V.map (uncurry(SimplexSideShare . ShareSubdivider)
+                                                     . fst)       cnMantle
+                             cnBase = SimplexN (fmap (findSharedSide b) cbBounds) cbInrs
+                             vsFun (dsideId:drestId) = locateSubSimplex(SubSplxIndex drestId)
+                                                            $ cnBounds ! dsideId
+--                       sSubdivs = simplicialComplex $ simplexBarycentricSubdivision b
+--                       cnvBounds = fromList [ barycenterShare, sfShare prePath ]
+               
+               barycenterShare :: SimplexSideShare
+               barycenterShare = SimplexSideShare (ShareSubdivider $ undefined)
+                                                  SimplexIdPermutation
+               
+               barycenter :: v
+               barycenter = midBetween vs
+               
+               dimension :: Int
+               dimension = length vs
+               
+               innards :: SimplexInnards v
+               innards = undefined
+              
+{-       
  where sides  = map affineSimplex $ gapPositions vs
        result = SimplexN sides $ innardsBetween sides
        
@@ -413,9 +535,9 @@ affineSimplex vs  = result
               orq ps = ( b, map((\vs -> (vs, affineSimplex vs)) . (b:) )
                              . orientate . concat $ map (map fst . snd) ps )
                where b = midBetween $ map fst ps
-       midBetween :: EuclidSpace v => [v] -> v
-       midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
  -}              
+       midBetween :: [v] -> v
+       midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
        
 --        orientate = zipWith($) $ cycle [reverse, id]
 
@@ -485,16 +607,16 @@ asSimplexPermutation vPerm
    
 
 
--- | Remove \"gaps\" in an array of unique numbers, i.e. maps the set of elements
--- strict-monotonically to @[0 .. length arr - 1]@.
+-- | Remove \"gaps\" in an array of unique numbers, i.e. the set of elements
+-- is mapped strict-monotonically to @[0 .. length arr - 1]@.
 sediment :: Array Int -> Array Int
 sediment = V.map fst . saSortBy(compare`on`fst.snd)
              . V.indexed . saSortBy(compare`on`snd) . V.indexed
 
 
 
-distinctSubsplxSelect :: Int -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
-distinctSubsplxSelect = (sel!!)
+distinctSubsplxGroups :: Int -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
+distinctSubsplxGroups = (sel!!)
  where sel = [ groupEquivs $ findAll [0 .. n-1] | n<-[0..] ]
        
        findAll :: [Int] -> [ (SubSplxIndex, [Int]) ]
@@ -516,6 +638,22 @@ distinctSubsplxSelect = (sel!!)
                                       ( \(c1,l1)(_,l2) -> (c1,l1++l2) )
                       . map(\(path, cfg) -> let(unSort,sorted)=undoableSort $ fromList cfg
                                             in (toList sorted, [(path, unSort)])           )
+
+distinctProperSubsplxGroups :: Int -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
+distinctProperSubsplxGroups = (sel!!)
+ where sel = [ tail $ distinctSubsplxGroups n | n<-[0.. ] ]
+
+distinctDim0SubsplxGroups :: Int -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
+distinctDim0SubsplxGroups = (sel!!)
+ where sel = [ filter((==n) . length . getSubSplxIndex . fst) 
+                      $ distinctSubsplxGroups n 
+             | n<-[0.. ] ]
+
+distinctSubsplxSelect :: Int -> Map SubSplxIndex (SubSplxIndex, SimplexPermutation)
+distinctSubsplxSelect = (sel!!)
+ where sel = [ constructMap $ distinctSubsplxGroups n | n<-[0.. ] ]
+       constructMap = foldr ins Map.empty
+        where ins (ref, slaves) prev = foldr (\(idx,π) -> Map.insert idx (ref,π)) prev slaves
 
 undoableSort :: Ord a => Array a -> (SimplexPermutation', Array a)
 undoableSort = V.unzip . saSortBy(compare`on`snd) . V.indexed
@@ -573,6 +711,10 @@ class Permutation π where
 
 
 
+
+deleteAt :: Int -> [a] -> [a]
+deleteAt n = uncurry(++) . second tail . splitAt n
+
 -- | @'omit1s' [0,1,2,3] = [[1,2,3], [0,2,3], [0,1,3], [0,1,2]]@
 omit1s :: [a] -> [[a]]
 omit1s [] = []
@@ -584,6 +726,9 @@ gapPositions :: [a] -> [[a]]
 gapPositions = gp id
  where gp rq (v:vs) = (vs++rq[]) : gp (rq.(v:)) vs
        gp _ _ = []
+
+
+type Map = Map.Map
 
 
 type Array = V.Vector
@@ -653,11 +798,9 @@ mapExceptOnNth f 0 (l:ls) = l : map f ls
 mapExceptOnNth f n (l:ls) = f l : mapOnNth f (n-1) ls
 mapExceptOnNth _ _   []   = []
 
+{-# INLINE coordMap #-}
 coordMap :: HasBasis v => ([Scalar v] -> [Scalar v]) -> v -> v
-coordMap f = recompose .  dcmap . decompose
- where dcmap dc = let b=map fst dc
-                      c=map snd dc
-                  in zip b $ f c
+coordMap f = recompose . uncurry zip . second f . unzip . decompose
 
 data Space2D = Space2D Double Double
        deriving(Eq, Show)
