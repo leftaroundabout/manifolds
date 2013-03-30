@@ -238,6 +238,12 @@ fSimplexVertices s = map (getSimplex0 . (`locateSubSimplex`s) . fst)
 simplexDimension :: Simplex p -> Int
 simplexDimension (Simplex0 _) = 0
 simplexDimension (SimplexN faces _) = simplexDimension (V.head faces) + 1
+simplexDimension (PermutedSimplex _ s) = simplexDimension s
+
+simplexBarySubdivNSimplices :: Simplex p -> Int
+simplexBarySubdivNSimplices (Simplex0 _) = 1
+simplexBarySubdivNSimplices (SimplexN _ (SimplexInnards sds _)) = V.length sds
+simplexBarySubdivNSimplices (PermutedSimplex _ s) = simplexBarySubdivNSimplices s
 
 {-
 simplexInnards :: Simplex p -> [[SimplexInnards p]]
@@ -422,15 +428,48 @@ affineSimplex vertices = undefined
        
        constructor :: [v] -> ([Int]->Simplex v) -> Simplex v
        constructor [v] _ = Simplex0 v
-       constructor vs subF = SimplexN (fromList [ subF[n] | n<-[0 .. dimension-1] ])
-                                      innards
+       constructor vs subF = cstrResult
          where
-               uniqueFaces, uniqueLDSubs :: [([Int], Simplex v)]
-               (uniqueFaces,uniqueLDSubs) 
-                       = (render***render) . partition(null . tail)
-                              . map(getSubSplxIndex . fst)
+               cstrResult :: Simplex v
+               cstrResult = SimplexN (fromList [ subF[n] | n<-[0 .. dimension-1] ])
+                                     innards
+               
+               subdivs :: Array (SubSimplex v)
+               subdivs = do
+                    ([sdId], base) <- fromList $ filter(null . tail . fst) uniqueSSPs
+                    let fiLookup = (id &&& findSharedSide cstrResult . ShareSubdivider)
+                                          . fst . (subDvdsSel Map.!) . ShareInFace sdId
+                        bsdLookup sd = ShareInFace sdId sd
+                    buildSDCones base fiLookup bsdLookup
+                                         
+               subDvdsSel :: Map
+                               SubSimplexSideShare -- The face-subdivision that the desired simplex is a cone over.
+                               (Int, SubSimplex v) -- Index of that cone in the resultant subdivisers-array, and actual subsimplex implementation.
+               subDvdsSel = Map.fromList undefined
+               
+--                backrenderSDS :: SimplexSideShare -> Simplex v
+               nSubdivsPerSide = simplexBarySubdivNSimplices . fromJust 
+                                       $ V.find(null . tail . fst) uniqueSSPs
+               
+               facesSel, ldSubSel :: Map [Int] ([Int], Simplex v)
+               (facesSel, ldSubSel) =
+                           Map.partition(null . tail . fst)
+                           . Map.fromList
+                           . rendMerge uniqueSSPs
+                           . sortBy(compare `on` fst.snd)
+                           . Map.toList
+                           . Map.filter(not . null . getSubSplxIndex . fst)
+                           $ distinctSubsplxSelect dimension
+                where rendMerge rs@((rSp, rendered) : rnas)
+                                qs@((qSp, (SubSplxIndex tSp, π)) : tnas)
+                        | tSp==rSp   = (qSp, (tSp, permuteSimplex π rendered))
+                                       : rendMerge rs tnas
+                        | otherwise  = rendMerge rnas qs
+                      rendMerge _ _ = []
+               
+               uniqueSSPs :: [([Int], Simplex v)]
+               uniqueSSPs = map((id &&& subF) . getSubSplxIndex . fst)
                               $ distinctProperSubsplxGroups dimension
-                  where render = map $ id &&& subF
                
                buildSDCones :: Simplex v
                             -- ^ The cones' base simplex /b/, i.e. the simplex the subdivisions of which form the cones' bases.
