@@ -76,10 +76,14 @@ type Atlas m = [Chart m]
 class (EuclidSpace(TangentSpace m)) => Manifold m where
   type TangentSpace m :: *
   
+  localAtlas :: m -> Atlas m
+  
+  transferSimplex :: Chart m                  -> Chart m
+                  -> Simplex (TangentSpace m) -> Maybe(Simplex(TangentSpace m))
+  
   triangulation :: m -> Triangulation m
 --   triangulation = autoTriangulation
   
-  localAtlas :: m -> Atlas m
 
 
 
@@ -140,6 +144,8 @@ fastNubByWith cmp cmb es = merge(fastNubByWith cmp cmb lhs)(fastNubByWith cmp cm
                               GT -> r : merge (l:ls) rs
                               EQ -> merge (cmb l r : ls) rs
 
+sfGroupBy :: (a->a->Ordering) -> [a] -> [[a]]
+sfGroupBy cmp = fastNubByWith (cmp`on`head) (++) . map(:[])
 
 
 
@@ -413,7 +419,7 @@ affineSimplex vertices = undefined
                constructSubAt (dir:path) vs' pb
                   = constructSubAt path (deleteAt dir vs') pb
                constructSubAt [] vs' pb 
-                  = constructor vs' ((subLookup Map.!) . pb)
+                  = spannedAffineSplx vs' ((subLookup Map.!) . pb)
                   
                mpIns (ref, slaves) prev 
                   = foldr (\(idx,π) -> Map.insert idx (permuteSimplex π ref)
@@ -426,103 +432,117 @@ affineSimplex vertices = undefined
                dimension = length vs
        
        
-       constructor :: [v] -> ([Int]->Simplex v) -> Simplex v
-       constructor [v] _ = Simplex0 v
-       constructor vs subF = cstrResult
-         where
-               cstrResult :: Simplex v
-               cstrResult = SimplexN (fromList [ subF[n] | n<-[0 .. dimension-1] ])
-                                     innards
-               
-               subdivs :: Array (SubSimplex v)
-               subdivs = do
-                    ([sdId], base) <- fromList $ filter(null . tail . fst) uniqueSSPs
-                    let fiLookup = (id &&& findSharedSide cstrResult . ShareSubdivider)
-                                          . fst . (subDvdsSel Map.!) . ShareInFace sdId
-                        bsdLookup sd = ShareInFace sdId sd
-                    buildSDCones base fiLookup bsdLookup
-                                         
-               subDvdsSel :: Map
-                               SubSimplexSideShare -- The face-subdivision that the desired simplex is a cone over.
-                               (Int, SubSimplex v) -- Index of that cone in the resultant subdivisers-array, and actual subsimplex implementation.
-               subDvdsSel = Map.fromList undefined
-               
+spannedAffineSplx :: forall v. EuclidSpace v 
+            => [v]                 -- ^ The vertices.
+            -> ([Int]->Simplex v)  -- ^ Lookup function for the required sides.
+            -> Simplex v
+spannedAffineSplx [v] _ = Simplex0 v
+spannedAffineSplx vs subF = result
+  where
+        result :: Simplex v
+        result = SimplexN (fromList [ subF[n] | n<-[0 .. dimension-1] ])
+                              innards
+        
+        subdivs, subdvds :: Array (SubSimplex v)
+        subdivs = V.concat . V.map snd
+                    . conesClass $ null . tail . fst
+        
+        conesClass :: ([Int]->Bool) -> Array(SubSimplexSideShare, SubSimplex v)
+        conesClass cclFilter = do 
+             (sdId, base) <- fromList $ filter cclFilter uniqueSSPs
+             let fiLookup = (id &&& findSharedSide result . ShareSubdivider)
+                                    . fst . (subdvdsSel Map.!) . bsdLookup
+                 bsdLookup sd = foldr ShareInFace sd sdId
+             (cbsId, cone) <- V.indexed $ buildSDCones base fiLookup bsdLookup
+             return (bsdLookup $ ShareSubdivision cbsId, cone)
+        
+        subdvds = SubSimplex (V.singleton $ SimplexBarycenter barycenter) V.empty
+                    `V.cons`
+                                  
+        subdvdsSel :: Map
+                        SubSimplexSideShare -- The face-subdivision that the desired simplex is a cone over.
+                        (Int, SubSimplex v) -- Index of that cone in the resultant subdividers-array, and actual subsimplex implementation.
+        subdvdsSel = Map.fromList
+                       . zipWith(\i(ssh,ssmr)->(ssh,(i,ssmr))) [1..] 
+                       $ fFcSdvds ++ fLdsSdvs ++ fLdsSdvds
+         where fFcSdvds = c
+        
 --                backrenderSDS :: SimplexSideShare -> Simplex v
-               nSubdivsPerSide = simplexBarySubdivNSimplices . fromJust 
-                                       $ V.find(null . tail . fst) uniqueSSPs
-               
-               facesSel, ldSubSel :: Map [Int] ([Int], Simplex v)
-               (facesSel, ldSubSel) =
-                           Map.partition(null . tail . fst)
-                           . Map.fromList
-                           . rendMerge uniqueSSPs
-                           . sortBy(compare `on` fst.snd)
-                           . Map.toList
-                           . Map.filter(not . null . getSubSplxIndex . fst)
-                           $ distinctSubsplxSelect dimension
-                where rendMerge rs@((rSp, rendered) : rnas)
-                                qs@((qSp, (SubSplxIndex tSp, π)) : tnas)
-                        | tSp==rSp   = (qSp, (tSp, permuteSimplex π rendered))
-                                       : rendMerge rs tnas
-                        | otherwise  = rendMerge rnas qs
-                      rendMerge _ _ = []
-               
-               uniqueSSPs :: [([Int], Simplex v)]
-               uniqueSSPs = map((id &&& subF) . getSubSplxIndex . fst)
-                              $ distinctProperSubsplxGroups dimension
-               
-               buildSDCones :: Simplex v
-                            -- ^ The cones' base simplex /b/, i.e. the simplex the subdivisions of which form the cones' bases.
-                            -> (SubSimplexSideShare->(Int, Simplex v))
-                            -- ^ Index of the subdivider that is the cone over this shared-side (relative to /b/), as well as this simplex in constructed form.
-                            -> (SubSimplexSideShare->SimplexSideShare)
-                            -- ^ Sideshare-index of a subdivision of /b/, as a side of the simplex containing the built cones.
-                                 -> Array (SubSimplex v)
-                                 -- ^ Cones of the barycenter over /b/'s subdivisions.
-               buildSDCones b@(Simplex0 p) _ sfShare 
-                      = singleton $ SubSimplex cnInrs cnvBounds
-                where (SimplexN _ cnInrs) = constructor cnBounds vsFun
-                      cnBounds = [barycenter, p]
-                      vsFun = Simplex0 . (cnBounds!!) . head
-                      cnvBounds = fromList [ barycenterShare, sfShare $ ShareSubdivision 0 ]
-               buildSDCones b@(SimplexN sSides (SimplexInnards sDivs sDivd))
-                            swLookup sfShare
-                               = V.map build $ V.indexed sDivs
-                where build (sdIdx, SubSimplex cbInrs cbBounds) = SubSimplex cnInrs cnvBounds
-                       where (SimplexN _ cnInrs) = constructor coneVs vsFun
-                             coneVs = barycenter : fSimplexVertices cnBase
-                             cnBounds = cnBase `V.cons` V.map snd cnMantle
-                             cnMantle = V.map (\(SimplexSideShare bfs π) 
-                                                  -> let(i, z) = swLookup bfs
-                                                     in ((i,π), up1pS π`permuteSimplex`z) )
-                                              cbBounds
-                             up1pS SimplexIdPermutation = SimplexIdPermutation
-                             up1pS π@(SimplexPermutation pa)
-                               = SimplexPermutation 
-                                   $ (0,π) `V.cons` V.map (\(i,σ)->(i+1, up1pS σ)) pa
-                             cnvBounds = sfShare(ShareSubdivision sdIdx) 
-                                          `V.cons`
-                                          V.map (uncurry(SimplexSideShare . ShareSubdivider)
-                                                     . fst)       cnMantle
-                             cnBase = SimplexN (fmap (findSharedSide b) cbBounds) cbInrs
-                             vsFun (dsideId:drestId) = locateSubSimplex(SubSplxIndex drestId)
-                                                            $ cnBounds ! dsideId
+        nSubdivsPerSide :: Int
+        nSubdivsPerSide = simplexBarySubdivNSimplices . fromJust 
+                                $ V.find(null . tail . fst) uniqueSSPs
+        
+        facesList, ldSubList :: [([Int], ([Int], Simplex v))]
+        (facesList, ldSubList) =
+                    partition(null . tail . fst)
+                    . rendMerge uniqueSSPs
+                    . sortBy(compare `on` fst.snd)
+                    . Map.toList
+                    . Map.filter(not . null . getSubSplxIndex . fst)
+                    $ distinctSubsplxSelect dimension
+         where rendMerge rs@((rSp, rendered) : rnas)
+                         qs@((qSp, (SubSplxIndex tSp, π)) : tnas)
+                 | tSp==rSp   = (qSp, (tSp, permuteSimplex π rendered))
+                                : rendMerge rs tnas
+                 | otherwise  = rendMerge rnas qs
+               rendMerge _ _ = []
+        
+        uniqueSSPs :: [([Int], Simplex v)]
+        uniqueSSPs = map((id &&& subF) . getSubSplxIndex . fst)
+                       $ distinctProperSubsplxGroups dimension
+        
+        buildSDCones :: Simplex v
+                     -- ^ The cones' base simplex /b/, i.e. the simplex the subdivisions of which form the cones' bases.
+                     -> (SubSimplexSideShare->(Int, Simplex v))
+                     -- ^ Index of the subdivider that is the cone over this shared-side (relative to /b/), as well as this simplex in constructed form.
+                     -> (SubSimplexSideShare->SimplexSideShare)
+                     -- ^ Sideshare-index of a subdivision of /b/, as a side of the simplex containing the built cones.
+                          -> Array (SubSimplex v)
+                          -- ^ Cones of the barycenter over /b/'s subdivisions.
+        buildSDCones b@(Simplex0 p) _ sfShare 
+               = singleton $ SubSimplex cnInrs cnvBounds
+         where (SimplexN _ cnInrs) = spannedAffineSplx cnBounds vsFun
+               cnBounds = [barycenter, p]
+               vsFun = Simplex0 . (cnBounds!!) . head
+               cnvBounds = fromList [ barycenterShare, sfShare $ ShareSubdivision 0 ]
+        buildSDCones b@(SimplexN sSides (SimplexInnards sDivs sDivd))
+                     swLookup sfShare
+                        = V.map build $ V.indexed sDivs
+         where build (sdIdx, SubSimplex cbInrs cbBounds) = SubSimplex cnInrs cnvBounds
+                where (SimplexN _ cnInrs) = spannedAffineSplx coneVs vsFun
+                      coneVs = barycenter : fSimplexVertices cnBase
+                      cnBounds = cnBase `V.cons` V.map snd cnMantle
+                      cnMantle = V.map (\(SimplexSideShare bfs π) 
+                                           -> let(i, z) = swLookup bfs
+                                              in ((i,π), up1pS π`permuteSimplex`z) )
+                                       cbBounds
+                      up1pS SimplexIdPermutation = SimplexIdPermutation
+                      up1pS π@(SimplexPermutation pa)
+                        = SimplexPermutation 
+                            $ (0,π) `V.cons` V.map (\(i,σ)->(i+1, up1pS σ)) pa
+                      cnvBounds = sfShare(ShareSubdivision sdIdx) 
+                                   `V.cons`
+                                   V.map (uncurry(SimplexSideShare . ShareSubdivider)
+                                              . fst)       cnMantle
+                      cnBase = SimplexN (fmap (findSharedSide b) cbBounds) cbInrs
+                      vsFun (dsideId:drestId) = locateSubSimplex(SubSplxIndex drestId)
+                                                     $ cnBounds ! dsideId
 --                       sSubdivs = simplicialComplex $ simplexBarycentricSubdivision b
 --                       cnvBounds = fromList [ barycenterShare, sfShare prePath ]
-               
-               barycenterShare :: SimplexSideShare
-               barycenterShare = SimplexSideShare (ShareSubdivider $ undefined)
-                                                  SimplexIdPermutation
-               
-               barycenter :: v
-               barycenter = midBetween vs
-               
-               dimension :: Int
-               dimension = length vs
-               
-               innards :: SimplexInnards v
-               innards = undefined
-              
+        
+        barycenterShare :: SimplexSideShare
+        barycenterShare = SimplexSideShare (ShareSubdivider $ undefined)
+                                           SimplexIdPermutation
+        
+        barycenter :: v
+        barycenter = midBetween vs
+        
+        dimension :: Int
+        dimension = length vs
+        
+        innards :: SimplexInnards v
+        innards = undefined
+       
 {-       
  where sides  = map affineSimplex $ gapPositions vs
        result = SimplexN sides $ innardsBetween sides
@@ -575,8 +595,8 @@ affineSimplex vertices = undefined
                              . orientate . concat $ map (map fst . snd) ps )
                where b = midBetween $ map fst ps
  -}              
-       midBetween :: [v] -> v
-       midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
+midBetween :: [v] -> v
+midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
        
 --        orientate = zipWith($) $ cycle [reverse, id]
 
