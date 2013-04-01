@@ -4,6 +4,7 @@
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE ConstraintKinds          #-}
+{-# LANGUAGE PatternGuards            #-}
 -- {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 

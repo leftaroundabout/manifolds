@@ -1,0 +1,39 @@
+Name:                manifolds
+Version:             0.1
+Category:            Math
+Synopsis:            Types for working with manifolds without needing to embed into vectorspaces or approximate by finite meshes.
+Description:         Manifolds, a generalisation of the notion of \"smooth curves\" or sufaces,
+                     are topological spaces /locally homeomorphic to a vector space/. This gives
+                     rise to what is actually the most natural / mathematically elegant way of dealing
+                     with them: calculations can be carried out locally, in connection with Riemannian
+                     products etc., in a vector space, the tangent space / tangent bundle.
+                     .
+                     However, this does not trivially translate to non-local operations. Common
+                     ways to carry those out include using a single affine map to cover (almost) all of the manifold
+                     (in general not possible homeomorphically, which leads to both topological and geometrical
+                     problems), to embed the manifold into a larger-dimensional vector space (which tends
+                     to distract from the manifold's own properties and is often not friendly to computations)
+                     or approximating the manifold by some kind of finite simplicial mesh (which intrinsically
+                     introduces non-differentiability issues and leads to the question of what precision
+                     is required).
+                     .
+                     This library tries to mitigate these problems by using Haskell's
+                     functional nature to keep the representation close to the mathematical ideal of
+                     local linearity with homeomorphic coordinate transforms, and, where it is
+                     necessary to recede to the less elegant alternatives, exploiting lazy evaluation
+                     etc. to optimise the compromises that have to be made.
+License:             GPL-3
+License-file:        COPYING
+Author:              Justus Sagemüller
+Maintainer:          (@) sagemuej $ smail.uni-koeln.de
+Build-Type:          Simple
+Cabal-Version:       >=1.2
+
+Library
+  Build-Depends:     base>=4.5
+                     , transformers
+                     , vector-space>=0.8
+                     , vector
+                     , vector-algorithms
+                     , containers
+  Exposed-modules:   Data.Manifold
