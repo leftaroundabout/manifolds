@@ -38,5 +38,14 @@ Library
                      , containers
                      , OpenGL
                      , GLUT
+  Extensions:        FlexibleInstances
+                     , TypeFamilies
+                     , FlexibleContexts
+                     , GADTs
+                     , RankNTypes
+                     , ConstraintKinds
+                     , PatternGuards
+                     , ScopedTypeVariables
+--  ghc-options:       -Wall
   Exposed-modules:   Data.Manifold
                      Data.Manifold.Visualisation.R3.GLUT

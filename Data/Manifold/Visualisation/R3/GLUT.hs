@@ -32,15 +32,15 @@ renderSimplexUntil _ (Simplex0 p) = renderPrimitive Points $ vertex p
 renderSimplexUntil smallEnough s@(SimplexN sides _)
  | smallEnough s
        = case V.length sides of
-           2  -> do
-              putStrLn $ "Hello, now plotting a line..."
+           2 -> do
+              putStrLn $ "Now plotting a line..."
               forM_ (fSimplexVertices s) print
               faceColor <- get currentColor
               color $ Color3 (1::GLfloat) 1 1
               renderPrimitive Lines $ forM_ (fSimplexVertices s) vertex
               color faceColor
-           3  -> do
-              putStrLn $ "Hello, now plotting a triangle..."
+           3 -> do
+              putStrLn $ "Now plotting a triangle..."
               forM_ (fSimplexVertices s) print
               renderPrimitive Triangles $ forM_ (fSimplexVertices s) vertex
               V.forM_ sides $ renderSimplexUntil smallEnough
@@ -66,6 +66,7 @@ triangViewMain smallEnough triang = do
     mainLoop
  where display = do 
          clear [ColorBuffer]
+         color $ Color3 (0.1::GLfloat) 0.1 0.1
          renderTriangulationUntil smallEnough triang
          flush
          
