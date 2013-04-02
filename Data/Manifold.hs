@@ -313,6 +313,9 @@ newtype Triangulation p
     }       --  -> Triangulation p
   deriving (Show)
 
+autoglueTriangulation :: Eq p => [Simplex p] -> Triangulation p
+autoglueTriangulation = Triangulation . fromList
+
 
 triangulationVertices :: Eq p => Triangulation p -> [p]
 triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< toList sComplex
