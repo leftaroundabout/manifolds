@@ -16,6 +16,8 @@ import Control.Monad
 import Data.Vector ((!))
 import qualified Data.Vector as V
 
+import System.Exit
+
 type Render = IO()
 
 
@@ -62,13 +64,20 @@ triangViewMain :: (Vertex v, InnerSpace v, Show v) =>
 triangViewMain smallEnough triang = do 
     (progname, _) <- getArgsAndInitialize
     createWindow "A simple view of a triangulation"
+    keyboardMouseCallback $= Just keyboardMouse
     displayCallback $= display
     mainLoop
  where display = do 
          clear [ColorBuffer]
-         color $ Color3 (0.1::GLfloat) 0.1 0.1
+         color $ Color3 (0.2::GLfloat) 0.2 0.2
          renderTriangulationUntil smallEnough triang
          flush
+         
+       keyboardMouse :: KeyboardMouseCallback
+       keyboardMouse (Char '\ESC') Down _ _ = exitSuccess
+       keyboardMouse key state modifiers position = return ()
+
+
          
 -- myPoints :: [(GLfloat,GLfloat,GLfloat)]
 -- myPoints = map (\k -> (sin(2*pi*k/12),cos(2*pi*k/12),0.0)) [1..12] 
