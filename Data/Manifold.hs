@@ -1,3 +1,14 @@
+-- |
+-- Module      : Data.Manifold
+-- Copyright   : (c) Justus Sagemüller 2013
+-- License     : GPL v3
+-- 
+-- Maintainer  : (@) sagemuej $ smail.uni-koeln.de
+-- Stability   : experimental
+-- Portability : portable
+-- 
+
+
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE FlexibleContexts         #-}
@@ -297,7 +308,7 @@ instance Functor SubSimplex where
 
 newtype Triangulation p
   = Triangulation
-    { simplicialComplex      :: Array (Simplex p)
+    { sComplexSimplices      :: Array (Simplex p)
 --     , barycentricSubdivision :: Triangulation p 
     }       --  -> Triangulation p
   deriving (Show)

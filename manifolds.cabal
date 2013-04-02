@@ -36,4 +36,7 @@ Library
                      , vector
                      , vector-algorithms
                      , containers
+                     , OpenGL
+                     , GLUT
   Exposed-modules:   Data.Manifold
+                     Data.Manifold.Visualisation.R3.GLUT
