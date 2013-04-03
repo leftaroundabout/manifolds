@@ -40,6 +40,8 @@ import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.Maybe
 
+import Debug.Trace
+
 
 
 
@@ -174,21 +176,20 @@ data Simplex p
                      , thePermutedSimplex :: Simplex p          }
                      
 
-data SimplexInnards p
- = SimplexBarycenter { getSimplexBarycenter :: p }
- | SimplexInnards
+data SimplexInnards p = SimplexInnards
     { simplexBarySubdivs :: Array(SubSimplex p)
     , simplexBarySubdividers :: Array(SubSimplex p) }
     
     
--- | The name \"subsimplex\" is used somewhat ambiguously in this module:
+-- The name \"subsimplex\" is used somewhat ambiguously in this module:
 -- 'SubSimplex' is the type for /parts of a simplex' subdivision/; on the
 -- other hand many of the functions refer to @subsimplex@ in the more
 -- conventional sense, i.e. one of the sides, vertices, or the entirety
 -- of a simplex.
-data SubSimplex p = SubSimplex
-    { subSimplexInnards :: SimplexInnards p
-    , subSimplexBoundaries :: Array(SimplexSideShare) }
+data SubSimplex p
+  = SimplexBarycenter { getSimplexBarycenter :: p }
+  | SubSimplex { subSimplexInnards :: SimplexInnards p
+               , subSimplexBoundaries :: Array(SimplexSideShare) }
 --     deriving(Show)
     
 data SimplexSideShare = SimplexSideShare
@@ -211,22 +212,19 @@ newtype SubSplxIndex = SubSplxIndex{ getSubSplxIndex::[Int] }
 
 simplexBarycenter :: Simplex p -> p
 simplexBarycenter (Simplex0 p) = p
-simplexBarycenter (SimplexN _ (SimplexBarycenter p)) = p
 simplexBarycenter (SimplexN _ (SimplexInnards _ sdvds))
-  = getSimplexBarycenter . fromJust . V.find ibcsdd $ V.map subSimplexInnards sdvds
-     where ibcsdd (SimplexBarycenter b) = True; ibcsdd _ = False
+  = getSimplexBarycenter . fromJust . V.find ibcsdd $ sdvds
+     where ibcsdd (SimplexBarycenter _) = True; ibcsdd _ = False
 simplexBarycenter (PermutedSimplex _ s) = simplexBarycenter s
  
 findSharedSide :: Simplex p -> SimplexSideShare -> Simplex p
 findSharedSide s@(Simplex0 _) _ = s
 findSharedSide s@(SimplexN _ (SimplexInnards _ subdividers))
                (SimplexSideShare (ShareSubdivider n) π)
-             | (SimplexBarycenter b) <- sdInn
-                 = Simplex0 b
-             | otherwise
-                 = π `permuteSimplex` 
-                         SimplexN ( fmap (findSharedSide s) sdBnds ) sdInn 
-   where (SubSimplex sdInn sdBnds) = subdividers ! n
+    = case subdividers ! n of
+        (SimplexBarycenter b) -> Simplex0 b
+        (SubSimplex sdInn sdBnds)
+          -> π `permuteSimplex` SimplexN ( fmap (findSharedSide s) sdBnds ) sdInn 
 findSharedSide s@(SimplexN _ (SimplexInnards subdivisions _))
                (SimplexSideShare (ShareSubdivision n) π)
          = π `permuteSimplex` SimplexN ( fmap (findSharedSide s) sdBnds ) sdInn 
@@ -300,7 +298,6 @@ instance (Show p) => LtdShow (Simplex p) where
          pShow = ltdShow $ n`quot`2
 
 instance (Show p) => LtdShow (SimplexInnards p) where
-  ltdShow n (SimplexBarycenter b) = "SB "++ show b
   ltdShow 0 _ = "SI (...) (...)"
   ltdShow n (SimplexInnards sds dvds) = "SI " ++ pShow sds
                                       ++ " " ++ pShow dvds
@@ -308,6 +305,7 @@ instance (Show p) => LtdShow (SimplexInnards p) where
          pShow = ltdShow $ n`quot`2
                                       
 instance (Show p) => LtdShow (SubSimplex p) where
+  ltdShow n (SimplexBarycenter b) = "SB "++ show b
   ltdShow n (SubSimplex inrs bnds)
      = "SS ("++ pShow inrs ++ ") " ++ pShow(V.map LtdShow bnds)
    where pShow :: LtdShow s => s->String
@@ -370,10 +368,10 @@ instance Functor Simplex where
   fmap f(PermutedSimplex π s) = PermutedSimplex π $ fmap f s
 
 instance Functor SimplexInnards where
-  fmap f(SimplexBarycenter p) = SimplexBarycenter $ f p
   fmap f(SimplexInnards divs dvders)
        = SimplexInnards (fmap (fmap f) divs) (fmap (fmap f) dvders)
 instance Functor SubSimplex where
+  fmap f(SimplexBarycenter p) = SimplexBarycenter $ f p
   fmap f(SubSimplex irs fr) = SubSimplex (fmap f irs) fr
 
 
@@ -395,7 +393,7 @@ triangulationVertices :: Eq p => Triangulation p -> [p]
 triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< toList sComplex
 
 simplexBarycentricSubdivision :: Simplex p -> Triangulation p
-simplexBarycentricSubdivision s@(SimplexN _ (SimplexInnards subdiv dividers))
+simplexBarycentricSubdivision s@(SimplexN _ (SimplexInnards subdiv _))
          = Triangulation $ fmap finalise subdiv
     where finalise(SubSimplex inrs bounds)
                           = SimplexN (fmap (findSharedSide s) bounds) inrs
@@ -564,12 +562,13 @@ spannedAffineSplx vs subF = result
                                             (shareSubSplxStraighly . bsdLookup)
              return (bsdLookup $ ShareSubdivision cbsId, cone)
         
-        subdvds = SubSimplex (SimplexBarycenter barycenter) V.empty
+        subdvds = SimplexBarycenter barycenter
                     `V.cons` V.map snd uniqueSubdvds
         
         subdvdsSel :: SubSimplexSideShare -> (Int, SimplexPermutation)
         subdvdsSel = sel id
          where sel lkls (ShareInFace i sh) = sel (lkls . (i:)) sh
+               sel _ (ShareSubdivider 0) = (0, SimplexIdPermutation)
                sel lkls sh = let (SubSplxIndex rlkup, π) 
                                     = fcSrcLookup Map.! (SubSplxIndex $ lkls[])
                              in  second(const π) 
@@ -647,6 +646,13 @@ spannedAffineSplx vs subF = result
                             -> SubSimplex v 
                             -- ^ The base /b/ of the desired cone.
                             -> SubSimplex v
+        buildCone_baseIn e swLookup sfShare sdIdx (SimplexBarycenter eb)
+                    = SubSimplex cnInrs cnvBounds
+         where (SimplexN _ cnInrs) = spannedAffineSplx coneVs vsFun
+               coneVs = [barycenter, eb]
+               vsFun [0] = Simplex0 barycenter -- Actually, turning this around would give the correct orientation, in the case of 2-simplices,
+               vsFun [1] = Simplex0 eb         -- where it is at the moment inconsistent. But this "fix" seems suspiciously non-general.
+               cnvBounds = fromList [barycenterShare, sfShare sdIdx]
         buildCone_baseIn e swLookup sfShare sdIdx (SubSimplex cbInrs cbBounds) 
                     = SubSimplex cnInrs cnvBounds
          where (SimplexN _ cnInrs) = spannedAffineSplx coneVs vsFun
@@ -874,6 +880,45 @@ data ManifoldFromTriangltn a tSpc = ManifoldFromTriangltn
 
               
 {-
+affineSimplex [0,1,2 :: Double]
+ ≈ SN [∘ SN [∘ S0(2.0)∘ S0(1.0) ∘]
+            (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
+       ∘ SN [∘ S0(0.0)∘ S0(2.0) ∘]
+            (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
+       ∘ SN [∘ S0(1.0)∘ S0(0.0) ∘]
+            (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) ∘]
+      (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
+          [∘ SB 1.0
+           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+           ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
+ ≈ SN [∘ SN [∘ S0(2.0)∘ S0(1.0) ∘]
+            (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] [∘ SB 1.5 ∘])
+       ∘ SN [∘ S0(0.0)∘ S0(2.0) ∘]
+            (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] [∘ SB 1.0 ∘])
+       ∘ SN [∘ S0(1.0)∘ S0(0.0) ∘]
+            (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] [∘ SB 0.5 ∘]) ∘]
+      (SI [∘ SS (SI
+             *** Exception: Map.find: element not in the map
+             )]
+          [∘ SB 1.0
+           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivider 0))... ∘]
+           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivider 0))... ∘]
+           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 2 (ShareSubdivider 0))... ∘]
+           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareInFace 0 (ShareSubdivision 0)))... ∘]
+           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareInFace 1 (ShareSubdivision 0)))... ∘]
+           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareInFace 0 (ShareSubdivision 0)))... ∘] ∘] )
+
+
+
 affineSimplex [0,1]
  ≈ SN [∘ S0(1.0)∘ S0(0.0) ∘]
       (SI ([∘ SS (SI ([∘ SS (SI [∘ SS  (SI (...) (...))[∘∘{2}∘∘]
