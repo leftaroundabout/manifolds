@@ -32,20 +32,21 @@ renderSimplexUntil :: (Vertex v, InnerSpace v, Show v) =>
                     -> Simplex v -> Render
 renderSimplexUntil _ (Simplex0 p) = renderPrimitive Points $ vertex p
 renderSimplexUntil smallEnough s@(SimplexN sides _)
- | smallEnough s
-       = case V.length sides of
+ | smallEnough s = do
+         case V.length sides of
            2 -> do
               putStrLn $ "Now plotting a line..."
               forM_ (fSimplexVertices s) print
               faceColor <- get currentColor
-              color $ Color3 (1::GLfloat) 1 1
+              color $ Color3 (0.7::GLfloat) 0.7 0.7
               renderPrimitive Lines $ forM_ (fSimplexVertices s) vertex
               color faceColor
            3 -> do
               putStrLn $ "Now plotting a triangle..."
               forM_ (fSimplexVertices s) print
               renderPrimitive Triangles $ forM_ (fSimplexVertices s) vertex
-              V.forM_ sides $ renderSimplexUntil smallEnough
+           _ -> return()
+         V.forM_ sides $ renderSimplexUntil smallEnough
  | otherwise      = renderTriangulationUntil smallEnough 
                           $ simplexBarycentricSubdivision s
 renderSimplexUntil se (PermutedSimplex _ s) = renderSimplexUntil se s
@@ -64,12 +65,14 @@ triangViewMain :: (Vertex v, InnerSpace v, Show v) =>
 triangViewMain smallEnough triang = do 
     (progname, _) <- getArgsAndInitialize
     createWindow "A simple view of a triangulation"
+    initialDisplayMode $= [WithDepthBuffer]
+    depthFunc $= Just Less
     keyboardMouseCallback $= Just keyboardMouse
     displayCallback $= display
     mainLoop
  where display = do 
-         clear [ColorBuffer]
-         color $ Color3 (0.2::GLfloat) 0.2 0.2
+         clear [ColorBuffer, DepthBuffer]
+         color $ Color3 (0.3::GLfloat) 0.3 0.3
          renderTriangulationUntil smallEnough triang
          flush
          

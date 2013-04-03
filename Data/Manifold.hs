@@ -10,6 +10,8 @@
 
 
 {-# LANGUAGE FlexibleInstances        #-}
+{-# LANGUAGE UndecidableInstances     #-}
+-- {-# LANGUAGE OverlappingInstances     #-}
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE GADTs                    #-}
@@ -178,6 +180,7 @@ data SimplexInnards p
     { simplexBarySubdivs :: Array(SubSimplex p)
     , simplexBarySubdividers :: Array(SubSimplex p) }
     
+    
 -- | The name \"subsimplex\" is used somewhat ambiguously in this module:
 -- 'SubSimplex' is the type for /parts of a simplex' subdivision/; on the
 -- other hand many of the functions refer to @subsimplex@ in the more
@@ -186,15 +189,17 @@ data SimplexInnards p
 data SubSimplex p = SubSimplex
     { subSimplexInnards :: SimplexInnards p
     , subSimplexBoundaries :: Array(SimplexSideShare) }
+--     deriving(Show)
     
 data SimplexSideShare = SimplexSideShare
     { sideShareTarget :: SubSimplexSideShare
     , sharePermutation :: SimplexPermutation }
+    deriving(Eq)
     
 data SubSimplexSideShare = ShareSubdivider Int
                          | ShareSubdivision Int
                          | ShareInFace Int SubSimplexSideShare
-                         deriving (Eq, Ord)
+                         deriving (Eq, Ord, Show)
 
 data SimplexPermutation
   = SimplexIdPermutation
@@ -216,7 +221,11 @@ findSharedSide :: Simplex p -> SimplexSideShare -> Simplex p
 findSharedSide s@(Simplex0 _) _ = s
 findSharedSide s@(SimplexN _ (SimplexInnards _ subdividers))
                (SimplexSideShare (ShareSubdivider n) π)
-         = π `permuteSimplex` SimplexN ( fmap (findSharedSide s) sdBnds ) sdInn 
+             | (SimplexBarycenter b) <- sdInn
+                 = Simplex0 b
+             | otherwise
+                 = π `permuteSimplex` 
+                         SimplexN ( fmap (findSharedSide s) sdBnds ) sdInn 
    where (SubSimplex sdInn sdBnds) = subdividers ! n
 findSharedSide s@(SimplexN _ (SimplexInnards subdivisions _))
                (SimplexSideShare (ShareSubdivision n) π)
@@ -247,9 +256,65 @@ instance Permutation SimplexPermutation where
 
 
 
-instance (Show p) => Show (Simplex p) where
-  show (Simplex0 p) = "Simplex0(" ++ show p ++ ")"
-  show (SimplexN sss _) = "SimplexN " ++ show sss ++ " undefined"
+class LtdShow s where
+  ltdShow :: Int -> s -> String
+
+ltdShows :: LtdShow s => Int -> s -> ShowS
+ltdShows n o s = ltdShow n o ++ s
+
+ltdPrint :: LtdShow s => Int -> s -> IO()
+ltdPrint n = putStrLn . ltdShow n
+
+newtype LtdShowT a = LtdShow { runLtdShow :: a }
+
+instance (Show a) => LtdShow ( LtdShowT a ) where
+  ltdShow n = go "" (n*16) . show . runLtdShow where
+       go ('{':um) 0 _ = "..}" ++ go um 0 []
+       go ('[':um) 0 _ = "..]" ++ go um 0 []
+       go ('(':um) 0 _ = "..)" ++ go um 0 []
+       go [] n _ | n<=0     = "..."
+       go unmatched n (c:cs)
+        | c `elem` "([{"   = c : go (c:unmatched) (n-8) cs
+       go ('{':um) n ('}':cs) = '}' : go um (n-1) cs
+       go ('[':um) n (']':cs) = ']' : go um (n-1) cs
+       go ('(':um) n (')':cs) = ')' : go um (n-1) cs
+       go unmatched n (c:cs) = c : go unmatched n' cs
+        where n' | c`elem`(['a'..'z']++['A'..'Z']++['0'..'9'])  = n-1
+                 | otherwise                                    = n-8
+       go [] _ "" = ""
+                                      
+
+instance (LtdShow s) => LtdShow (Array s) where
+  ltdShow n arr 
+     | n<=1, l>0  = "[∘∘{" ++ show l ++ "}∘∘]"
+     | otherwise  = ('[':) . V.foldr ((("∘ "++).) . ltdShows(n`quot`l)) " ∘]" $ arr
+   where l = V.length arr
+
+
+instance (Show p) => LtdShow (Simplex p) where
+  ltdShow n (Simplex0 p) = "S0(" ++ show p ++ ")"
+  ltdShow 0 _ = "SN (...) (...)"
+  ltdShow n (SimplexN sss inrs) = "SN " ++ pShow sss
+                          ++ " (" ++ pShow inrs ++ ")"
+   where pShow :: LtdShow s => s->String
+         pShow = ltdShow $ n`quot`2
+
+instance (Show p) => LtdShow (SimplexInnards p) where
+  ltdShow n (SimplexBarycenter b) = "SB "++ show b
+  ltdShow 0 _ = "SI (...) (...)"
+  ltdShow n (SimplexInnards sds dvds) = "SI " ++ pShow sds
+                                      ++ " " ++ pShow dvds
+   where pShow :: LtdShow s => s->String
+         pShow = ltdShow $ n`quot`2
+                                      
+instance (Show p) => LtdShow (SubSimplex p) where
+  ltdShow n (SubSimplex inrs bnds)
+     = "SS ("++ pShow inrs ++ ") " ++ pShow(V.map LtdShow bnds)
+   where pShow :: LtdShow s => s->String
+         pShow = ltdShow $ n`quot`2
+
+instance Show SimplexSideShare where
+  show (SimplexSideShare tgt π) = "SSS ("++show tgt++") ("++show π++")"
 
 simplexVertices :: Eq p => Simplex p -> [p]
 simplexVertices (Simplex0 p) = [p]
@@ -317,7 +382,10 @@ newtype Triangulation p
     { sComplexSimplices      :: Array (Simplex p)
 --     , barycentricSubdivision :: Triangulation p 
     }       --  -> Triangulation p
-  deriving (Show)
+
+instance (Show p) => LtdShow (Triangulation p) where
+  ltdShow n (Triangulation cmplx) = "Triang "++ltdShow n cmplx
+    
 
 autoglueTriangulation :: Eq p => [Simplex p] -> Triangulation p
 autoglueTriangulation = Triangulation . fromList
@@ -330,7 +398,7 @@ simplexBarycentricSubdivision :: Simplex p -> Triangulation p
 simplexBarycentricSubdivision s@(SimplexN _ (SimplexInnards subdiv dividers))
          = Triangulation $ fmap finalise subdiv
     where finalise(SubSimplex inrs bounds)
-             = SimplexN (fmap (findSharedSide s) bounds) inrs
+                          = SimplexN (fmap (findSharedSide s) bounds) inrs
  {-  where finalise(SubSimplex inrs bounds)
              = SimplexN (map (lookupBound faceSubdivs) bounds) inrs
          lookupBound lds (ShareSubdivider q) = SimplexN bbounds divInr
@@ -557,7 +625,7 @@ spannedAffineSplx vs subF = result
             -> Array (SubSimplex v)
             -- ^ Cones of the barycenter over /b/'s subdivisions.
             
-        buildSDCones (Simplex0 p) _ sfShare 
+        buildSDCones (Simplex0 p) _ sfShare
                = singleton $ SubSimplex cnInrs cnvBounds
          where (SimplexN _ cnInrs) = spannedAffineSplx cnBounds vsFun
                cnBounds = [barycenter, p]
@@ -806,38 +874,66 @@ data ManifoldFromTriangltn a tSpc = ManifoldFromTriangltn
 
               
 {-
-edgeSimplex2subdiv =              
- Triangulation {simplicialComplex = [ SimplexN [ SimplexN [ Simplex0(Space2D 3.0 0.0), Simplex0(Space2D 1.5 1.5)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.5 1.5), Simplex0(Space2D 1.0 1.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 3.0 0.0)] undefined ] undefined
-                                    , SimplexN [ SimplexN [ Simplex0(Space2D 1.5 1.5), Simplex0(Space2D 0.0 3.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 0.0 3.0), Simplex0(Space2D 1.0 1.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 1.5 1.5)] undefined ] undefined
-                                    , SimplexN [ SimplexN [ Simplex0(Space2D 0.0 3.0), Simplex0(Space2D 0.0 1.5)] undefined
-                                               , SimplexN [ Simplex0(Space2D 0.0 1.5), Simplex0(Space2D 1.0 1.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 0.0 3.0)] undefined ] undefined
-                                    , SimplexN [ SimplexN [ Simplex0(Space2D 0.0 1.5), Simplex0(Space2D 0.0 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 0.0 0.0), Simplex0(Space2D 1.0 1.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 0.0 1.5)] undefined ] undefined
-                                    , SimplexN [ SimplexN [ Simplex0(Space2D 0.0 0.0), Simplex0(Space2D 1.5 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.5 0.0), Simplex0(Space2D 1.0 1.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 0.0 0.0)] undefined ] undefined
-                                    , SimplexN [ SimplexN [ Simplex0(Space2D 1.5 0.0), Simplex0(Space2D 3.0 0.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 3.0 0.0), Simplex0(Space2D 1.0 1.0)] undefined
-                                               , SimplexN [ Simplex0(Space2D 1.0 1.0), Simplex0(Space2D 1.5 0.0)] undefined ] undefined ]}
-edgeSimplex3 =
- SimplexN [ SimplexN [ SimplexN [ Simplex0(Space3D 0.0 3.0 0.0), Simplex0(Space3D 3.0 0.0 0.0)] undefined
-                     , SimplexN [ Simplex0(Space3D 3.0 0.0 0.0), Simplex0(Space3D 0.0 0.0 3.0)] undefined
-                     , SimplexN [ Simplex0(Space3D 0.0 0.0 3.0), Simplex0(Space3D 0.0 3.0 0.0)] undefined ] undefined
-          , SimplexN [ SimplexN [ Simplex0(Space3D 0.0 3.0 0.0), Simplex0(Space3D 0.0 0.0 3.0)] undefined
-                     , SimplexN [ Simplex0(Space3D 0.0 0.0 3.0), Simplex0(Space3D 0.0 0.0 0.0)] undefined
-                     , SimplexN [ Simplex0(Space3D 0.0 0.0 0.0), Simplex0(Space3D 0.0 3.0 0.0)] undefined ] undefined
-          , SimplexN [ SimplexN [ Simplex0(Space3D 3.0 0.0 0.0), Simplex0(Space3D 0.0 0.0 0.0)] undefined
-                     , SimplexN [ Simplex0(Space3D 0.0 0.0 0.0), Simplex0(Space3D 0.0 0.0 3.0)] undefined
-                     , SimplexN [ Simplex0(Space3D 0.0 0.0 3.0), Simplex0(Space3D 3.0 0.0 0.0)] undefined ] undefined
-          , SimplexN [ SimplexN [ Simplex0(Space3D 3.0 0.0 0.0), Simplex0(Space3D 0.0 3.0 0.0)] undefined
-                     , SimplexN [ Simplex0(Space3D 0.0 3.0 0.0), Simplex0(Space3D 0.0 0.0 0.0)] undefined
-                     , SimplexN [ Simplex0(Space3D 0.0 0.0 0.0), Simplex0(Space3D 3.0 0.0 0.0)] undefined ] undefined ] undefined
+affineSimplex [0,1]
+ ≈ SN [∘ S0(1.0)∘ S0(0.0) ∘]
+      (SI ([∘ SS (SI ([∘ SS (SI [∘ SS  (SI (...) (...))[∘∘{2}∘∘]
+                                 ∘ SS  (SI (...) (...))[∘∘{2}∘∘] ∘]
+                                ([∘ SS  (SB 0.625)[∘∘{0}∘∘] ∘]))
+                            [∘ SSS (ShareSubdivid..)...
+                             ∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                       ∘ SS (SI [∘ SS  (SI (...) (...))[∘∘{2}∘∘]
+                                 ∘ SS  (SI (...) (...))[∘∘{2}∘∘] ∘]
+                                [∘ SS  (SB 0.875)[∘∘{0}∘∘] ∘])
+                            [∘ SSS (ShareSubdivid..)...
+                             ∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘])
+                     ([∘ SS  (SB 0.75)[ ∘] ∘]))
+                 [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)
+                  ∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]
+            ∘ SS (SI ([∘ SS (SI [∘ SS  (SI (...) (...))[∘∘{2}∘∘]
+                                 ∘ SS  (SI (...) (...))[∘∘{2}∘∘] ∘]
+                                ([∘ SS  (SB 0.375)[∘∘{0}∘∘] ∘]))
+                            [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                       ∘ SS (SI ([∘ SS  (SI (...) (...))[∘∘{2}∘∘]∘ SS  (SI (...) (...))[∘∘{2}∘∘] ∘]) ([∘ SS  (SB 0.125)[∘∘{0}∘∘] ∘]))
+                            [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘])
+                     ([∘ SS  (SB 0.25)[ ∘] ∘]))
+                 [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘])
+          ([∘ SS (SB 0.5)[ ∘] ∘]))
+
+simplexBarycentricSubdivision  $ affineSimplex [0,1 :: Double]
+ ≈ Triang [∘ SN [∘ S0(0.5)∘ S0(1.0) ∘]
+                (SI [∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
+                                    [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
+                              [∘ SS (SB 0.625) [ ∘] ∘])
+                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]
+                     ∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
+                                    [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘] [∘ SS (SB 0.875) [ ∘] ∘]) [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘] [∘ SS (SB 0.75) [ ∘] ∘])∘ SN [∘ S0(0.5)∘ S0(0.0) ∘] (SI [∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘] [∘ SS (SB 0.375) [ ∘] ∘]) [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘] [∘ SS (SB 0.125) [ ∘] ∘]) [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘] [∘ SS (SB 0.25) [ ∘] ∘]) ∘]
+ 
+
+BAD LOOKUP:
+simplexBarycentricSubdivision $ affineSimplex [0,1 :: Double]
+ ≈ Triang [∘ SN [∘ SN [ ∘] (SB 0.5)∘ S0(1.0) ∘]
+                (SI [∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
+                              [∘ SS (SB 0.625) [ ∘] ∘])
+                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]
+                     ∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
+                                    [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
+                              [∘ SS (SB 0.875) [ ∘] ∘])
+                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘]
+                    [∘ SS (SB 0.75) [ ∘] ∘])
+           ∘ SN [∘ SN [ ∘] (SB 0.5)∘ S0(0.0) ∘]
+                (SI [∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
+                              [∘ SS (SB 0.375) [ ∘] ∘])
+                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]
+                     ∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
+                                    [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
+                              [∘ SS (SB 0.125) [ ∘] ∘])
+                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘]
+                    [∘ SS (SB 0.25) [ ∘] ∘]) ∘]
 -}
  
 
