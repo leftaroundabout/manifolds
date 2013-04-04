@@ -285,7 +285,11 @@ instance (Show a) => LtdShow ( LtdShowT a ) where
 instance (LtdShow s) => LtdShow (Array s) where
   ltdShow n arr 
      | n<=1, l>0  = "[∘∘{" ++ show l ++ "}∘∘]"
-     | otherwise  = ('[':) . V.foldr ((("∘ "++).) . ltdShows(n`quot`l)) " ∘]" $ arr
+     | otherwise  = ('[':) . V.foldr (("∘ "++).) " ∘]"
+                     . V.imap(\i -> ltdShows $ round(
+                                     fromIntegral n 
+                                      * 2**(-1 - sqrt(fromIntegral i)) ))
+                     $ arr
    where l = V.length arr
 
 
@@ -545,12 +549,12 @@ spannedAffineSplx vs subF = result
         innards = SimplexInnards subdivs subdvds
         
         subdivs, subdvds :: Array (SubSimplex v)
-        subdivs = V.map snd $ conesClass buildSDCones isFcPath
+        subdivs = V.map snd $ conesClass buildSDCones ShareSubdivision isFcPath
         
         conesClass :: ( Simplex v -> (SubSimplexSideShare->(Int,Simplex v)) -> (SubSimplexSideShare->SimplexSideShare) -> Array(SubSimplex v) )
-                      -> ([Int] -> Bool)
+                      -> (Int->SubSimplexSideShare) -> ([Int] -> Bool)
                           -> Array(SubSimplexSideShare, SubSimplex v)
-        conesClass cnBuilder cclFilter = do 
+        conesClass cnBuilder sbKind cclFilter = do 
              (bsdLookup, base) <- fromList . map(first traceSubsplxPath) 
                                                  $ filter (cclFilter . fst) uniqueSSPs
              let fiLookup = (fst &&& findSharedSide result
@@ -560,19 +564,26 @@ spannedAffineSplx vs subF = result
 --                  bsdLookup sd = foldr ShareInFace sd sdId
              (cbsId, cone) <- V.indexed $ cnBuilder base fiLookup 
                                             (shareSubSplxStraighly . bsdLookup)
-             return (bsdLookup $ ShareSubdivision cbsId, cone)
+             return (bsdLookup $ sbKind cbsId, cone)
         
         subdvds = SimplexBarycenter barycenter
                     `V.cons` V.map snd uniqueSubdvds
         
         subdvdsSel :: SubSimplexSideShare -> (Int, SimplexPermutation)
-        subdvdsSel = sel id
+        subdvdsSel (ShareSubdivider 0) = (0, SimplexIdPermutation)
+        subdvdsSel sssh = -- trace ("Looking up cone over: "++show sssh) 
+                           --  . trace ("fcSrcLookup = "++show fcSrcLookup ) $
+                         sel id sssh
          where sel lkls (ShareInFace i sh) = sel (lkls . (i:)) sh
-               sel _ (ShareSubdivider 0) = (0, SimplexIdPermutation)
                sel lkls sh = let (SubSplxIndex rlkup, π) 
                                     = fcSrcLookup Map.! (SubSplxIndex $ lkls[])
-                             in  second(const π) 
-                                  $ uniqueSubdvdsSel Map.! traceSubsplxPath rlkup sh
+                                 pathToTrace = traceSubsplxPath rlkup sh
+                                 lkupres = second(const π) 
+                                   $ uniqueSubdvdsSel Map.! pathToTrace
+                             in -- trace ("uniqueSubdvdsSel = "++show(Map.map fst uniqueSubdvdsSel))
+                                -- . trace ("pathToTrace = " ++ show pathToTrace)
+                                -- . trace ("lkupres = " ++ show lkupres) $
+                                   lkupres
         
         fcSrcLookup :: Map SubSplxIndex (SubSplxIndex, SimplexPermutation)
         fcSrcLookup = distinctSubsplxSelect dimension
@@ -585,10 +596,14 @@ spannedAffineSplx vs subF = result
         
         uniqueSubdvds :: Array ( SubSimplexSideShare -- The face-part that the associated simplex is a cone over.
                                , SubSimplex v        )
-        uniqueSubdvds = V.concat [fFcSdvds, fLdsSdvs, fLdsSdvds]
-         where fLdsSdvs  = conesClass buildSDCones  isLdsPath
-               fFcSdvds  = conesClass buildSDDCones isFcPath
-               fLdsSdvds = conesClass buildSDDCones isLdsPath
+        uniqueSubdvds = -- trace("fLdsSdvs = "++fsh fLdsSdvs)
+                        -- . trace("fFcSdvds = "++fsh fFcSdvds)
+                        -- . trace("fLdsSdvds = "++fsh fLdsSdvds) $ 
+                          V.concat [fFcSdvds, fLdsSdvs, fLdsSdvds]
+         where fLdsSdvs  = conesClass buildSDCones ShareSubdivision isLdsPath
+               fFcSdvds  = conesClass buildSDDCones ShareSubdivider isFcPath
+               fLdsSdvds = conesClass buildSDDCones ShareSubdivider isLdsPath
+--                fsh = show . V.map fst
         
 --                backrenderSDS :: SimplexSideShare -> Simplex v
 --         nSubdivsPerSide :: Int
@@ -878,107 +893,104 @@ data ManifoldFromTriangltn a tSpc = ManifoldFromTriangltn
          , triangltnFocus :: [Int]                  }
 
 
-              
+
+
 {-
-affineSimplex [0,1,2 :: Double]
- ≈ SN [∘ SN [∘ S0(2.0)∘ S0(1.0) ∘]
-            (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
-       ∘ SN [∘ S0(0.0)∘ S0(2.0) ∘]
-            (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
-       ∘ SN [∘ S0(1.0)∘ S0(0.0) ∘]
-            (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) ∘]
-      (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
-          [∘ SB 1.0
-           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-           ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
- ≈ SN [∘ SN [∘ S0(2.0)∘ S0(1.0) ∘]
-            (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] [∘ SB 1.5 ∘])
-       ∘ SN [∘ S0(0.0)∘ S0(2.0) ∘]
-            (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] [∘ SB 1.0 ∘])
-       ∘ SN [∘ S0(1.0)∘ S0(0.0) ∘]
-            (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] [∘ SB 0.5 ∘]) ∘]
-      (SI [∘ SS (SI
-             *** Exception: Map.find: element not in the map
-             )]
-          [∘ SB 1.0
-           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivider 0))... ∘]
-           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivider 0))... ∘]
-           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 2 (ShareSubdivider 0))... ∘]
-           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareInFace 0 (ShareSubdivision 0)))... ∘]
-           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareInFace 1 (ShareSubdivision 0)))... ∘]
-           ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareInFace 0 (ShareSubdivision 0)))... ∘] ∘] )
-
-
-
-affineSimplex [0,1]
- ≈ SN [∘ S0(1.0)∘ S0(0.0) ∘]
-      (SI ([∘ SS (SI ([∘ SS (SI [∘ SS  (SI (...) (...))[∘∘{2}∘∘]
-                                 ∘ SS  (SI (...) (...))[∘∘{2}∘∘] ∘]
-                                ([∘ SS  (SB 0.625)[∘∘{0}∘∘] ∘]))
-                            [∘ SSS (ShareSubdivid..)...
-                             ∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                       ∘ SS (SI [∘ SS  (SI (...) (...))[∘∘{2}∘∘]
-                                 ∘ SS  (SI (...) (...))[∘∘{2}∘∘] ∘]
-                                [∘ SS  (SB 0.875)[∘∘{0}∘∘] ∘])
-                            [∘ SSS (ShareSubdivid..)...
-                             ∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘])
-                     ([∘ SS  (SB 0.75)[ ∘] ∘]))
-                 [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)
-                  ∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]
-            ∘ SS (SI ([∘ SS (SI [∘ SS  (SI (...) (...))[∘∘{2}∘∘]
-                                 ∘ SS  (SI (...) (...))[∘∘{2}∘∘] ∘]
-                                ([∘ SS  (SB 0.375)[∘∘{0}∘∘] ∘]))
-                            [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                       ∘ SS (SI ([∘ SS  (SI (...) (...))[∘∘{2}∘∘]∘ SS  (SI (...) (...))[∘∘{2}∘∘] ∘]) ([∘ SS  (SB 0.125)[∘∘{0}∘∘] ∘]))
-                            [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘])
-                     ([∘ SS  (SB 0.25)[ ∘] ∘]))
-                 [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘])
-          ([∘ SS (SB 0.5)[ ∘] ∘]))
-
-simplexBarycentricSubdivision  $ affineSimplex [0,1 :: Double]
- ≈ Triang [∘ SN [∘ S0(0.5)∘ S0(1.0) ∘]
-                (SI [∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
-                                    [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
-                              [∘ SS (SB 0.625) [ ∘] ∘])
-                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]
-                     ∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
-                                    [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘] [∘ SS (SB 0.875) [ ∘] ∘]) [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘] [∘ SS (SB 0.75) [ ∘] ∘])∘ SN [∘ S0(0.5)∘ S0(0.0) ∘] (SI [∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘] [∘ SS (SB 0.375) [ ∘] ∘]) [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘] [∘ SS (SB 0.125) [ ∘] ∘]) [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘] [∘ SS (SB 0.25) [ ∘] ∘]) ∘]
- 
-
-BAD LOOKUP:
-simplexBarycentricSubdivision $ affineSimplex [0,1 :: Double]
- ≈ Triang [∘ SN [∘ SN [ ∘] (SB 0.5)∘ S0(1.0) ∘]
-                (SI [∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
-                              [∘ SS (SB 0.625) [ ∘] ∘])
-                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]
-                     ∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
-                                    [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
-                              [∘ SS (SB 0.875) [ ∘] ∘])
-                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘]
-                    [∘ SS (SB 0.75) [ ∘] ∘])
-           ∘ SN [∘ SN [ ∘] (SB 0.5)∘ S0(0.0) ∘]
-                (SI [∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
-                              [∘ SS (SB 0.375) [ ∘] ∘])
-                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 0 (ShareSubdivision 0)) (SimplexIdPermutation) ∘]
-                     ∘ SS (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
-                                    [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                               ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
-                              [∘ SS (SB 0.125) [ ∘] ∘])
-                          [∘ SSS (ShareSubdivider 0) (SimplexIdPermutation)∘ SSS (ShareInFace 1 (ShareSubdivision 0)) (SimplexIdPermutation) ∘] ∘]
-                    [∘ SS (SB 0.25) [ ∘] ∘]) ∘]
+affineSimplex [(6,0),(0,6),(0,0) :: (Double,Double)]
+ ≈ SN [∘ SN [∘ S0((0,0))∘ S0((0,6)) ∘]
+            (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                 ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
+                [∘ SB (0,3) ∘])
+       ∘ SN [∘ S0((6,0))∘ S0((0,0)) ∘]
+            (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
+                      [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                 ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
+                      [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
+                [∘ SB (3,0) ∘])
+       ∘ SN [∘ S0((0,6))∘ S0((6,0)) ∘]
+            (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
+                 ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
+                [∘ SB (3,3) ∘]) ∘]
+      (SI [∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
+                    [∘ SB (1,1.5)
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
+                [∘ SSS (ShareInFace 0 (ShareSubdivision 0))...
+                 ∘ SSS (ShareSubdivider 0)...
+                 ∘ SSS (ShareSubdivider 4)... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
+                    [∘ SB (1,3.5)
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
+                [∘ SSS (ShareInFace 0 (ShareSubdivision 1))...
+                 ∘ SSS (ShareSubdivider 0)...
+                 ∘ SSS (ShareSubdivider 5)... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
+                    [∘ SB (3.5,1)
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
+                [∘ SSS (ShareInFace 1 (ShareSubdivision 0))...
+                 ∘ SSS (ShareSubdivider 0)...
+                 ∘ SSS (ShareSubdivider 6)... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
+                    [∘ SB (1.5,1)
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
+                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
+                [∘ SSS (ShareInFace 1 (ShareSubdivision 1))...∘ SSS (ShareSubdivider 0)...∘ SSS (ShareSubdivider 4)... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
+                    [∘ SB (1.5,3.5)∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
+                [∘ SSS (ShareInFace 2 (ShareSubdivision 0))...∘ SSS (ShareSubdivider 0)...∘ SSS (ShareSubdivider 5)... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
+                    [∘ SB (3.5,1.5)∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
+                [∘ SSS (ShareInFace 2 (ShareSubdivision 1))...∘ SSS (ShareSubdivider 0)...∘ SSS (ShareSubdivider 6)... ∘] ∘]
+          [∘ SB (2,2)
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘]
+                    [∘ SB (1,2.5) ∘])
+                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 0 (ShareSubdivider 0))... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] 
+                    [∘ SB (2.5,1) ∘])
+                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 1 (ShareSubdivider 0))... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] 
+                    [∘ SB (2.5,2.5) ∘])
+                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 2 (ShareSubdivider 0))... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] 
+                    [∘ SB (1,1) ∘])
+                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 0 (ShareInFace 0 (ShareSubdivision 0)))... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘]
+                    [∘ SB (1,4) ∘])
+                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 0 (ShareInFace 1 (ShareSubdivision 0)))... ∘]
+           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘]
+                    [∘ SB (4,1) ∘])
+                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 1 (ShareInFace 0 (ShareSubdivision 0)))... ∘] ∘])
+              
 -}
  
 
