@@ -38,6 +38,8 @@ Library
                      , containers
                      , OpenGL
                      , GLUT
+                     , random
+                     , MonadRandom
   Extensions:        FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts

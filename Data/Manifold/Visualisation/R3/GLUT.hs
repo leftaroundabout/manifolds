@@ -11,45 +11,78 @@ import Graphics.UI.GLUT hiding (Triangulation)
 
 import Data.VectorSpace
 
-import Control.Monad    
+import Control.Monad
+import Control.Arrow
 
 import Data.Vector ((!))
 import qualified Data.Vector as V
 
 import System.Exit
+import System.Random
+import Control.Monad.Random
 
 type Render = IO()
 
+-- instance Random GLfloat where
+--   randomR r = first(realToFrac :: Double->GLfloat) . randomR r
+--   random = first(realToFrac :: Double->GLfloat) . random
+
+instance Random (Color3 GLfloat) where
+  random = runRand $ fmap(\(r:g:b:_) -> Color3 (r/2) (g/2) (b/2)) getRandoms
 
 
-renderTriangulationUntil :: (Vertex v, InnerSpace v, Show v) => 
-                         (Simplex v->Bool) -> Triangulation v -> Render
-renderTriangulationUntil smallEnough triang
-   = V.forM_ (sComplexSimplices triang) $ renderSimplexUntil smallEnough
+data TrianglatnRenderCfg v = TrianglatnRenderCfg
+       { simplexSmallEnoughPred :: Simplex v -> Bool
+       -- ^ 'True' if the simplex is sufficiently small to be rendered as a straight line/triangle/tetrahedron...
+       , triangleRenderer, edgeRenderer     :: [v]   -> Render
+       , logTrianglatnRender :: Bool
+       }
+
+stdEdgeRenderer, stdTriangleRenderer, randColTriangleRenderer :: Vertex v => [v] -> Render
+
+stdEdgeRenderer verts = do
+    faceColor <- get currentColor
+    color $ Color3 (0.7::GLfloat) 0.7 0.7
+    renderPrimitive Lines $ mapM_ vertex verts
+    color faceColor
+
+stdTriangleRenderer verts = do
+    renderPrimitive Triangles $ mapM_ vertex verts
+
+randColTriangleRenderer verts = do
+    color =<< (randomIO :: IO (Color3 GLfloat))
+    renderPrimitive Triangles $ mapM_ vertex verts
+
+    
+
+
+renderTriangulation :: (Vertex v, Show v) => 
+                         TrianglatnRenderCfg v -> Triangulation v -> Render
+renderTriangulation cfg triang
+   = V.forM_ (sComplexSimplices triang) $ renderSimplex cfg
    
-renderSimplexUntil :: (Vertex v, InnerSpace v, Show v) =>
-                       (Simplex v->Bool)  -- ^ 'True' if the simplex is sufficiently small to be rendered as a straight line/triangle/tetrahedron...
+renderSimplex :: (Vertex v, Show v) =>
+                       TrianglatnRenderCfg v
                     -> Simplex v -> Render
-renderSimplexUntil _ (Simplex0 p) = renderPrimitive Points $ vertex p
-renderSimplexUntil smallEnough s@(SimplexN sides _)
- | smallEnough s = do
+renderSimplex _ (Simplex0 p) = renderPrimitive Points $ vertex p
+renderSimplex cfg s@(SimplexN sides _)
+ | simplexSmallEnoughPred cfg s = do
          case V.length sides of
            2 -> do
-              putStrLn $ "Now plotting a line..."
-              forM_ (fSimplexVertices s) print
-              faceColor <- get currentColor
-              color $ Color3 (0.7::GLfloat) 0.7 0.7
-              renderPrimitive Lines $ forM_ (fSimplexVertices s) vertex
-              color faceColor
+              when (logTrianglatnRender cfg) $ do
+                 putStrLn $ "Now plotting a line..."
+                 forM_ (fSimplexVertices s) print
+              edgeRenderer cfg $ fSimplexVertices s
            3 -> do
-              putStrLn $ "Now plotting a triangle..."
-              forM_ (fSimplexVertices s) print
-              renderPrimitive Triangles $ forM_ (fSimplexVertices s) vertex
+              when (logTrianglatnRender cfg) $ do
+                 putStrLn $ "Now plotting a triangle..."
+                 forM_ (fSimplexVertices s) print
+              triangleRenderer cfg $ fSimplexVertices s
            _ -> return()
-         V.forM_ sides $ renderSimplexUntil smallEnough
- | otherwise      = renderTriangulationUntil smallEnough 
+         V.forM_ sides $ renderSimplex cfg
+ | otherwise      = renderTriangulation cfg
                           $ simplexBarycentricSubdivision s
-renderSimplexUntil se (PermutedSimplex _ s) = renderSimplexUntil se s
+renderSimplex cfg (PermutedSimplex _ s) = renderSimplex cfg s
 
 
 simplexLength :: (InnerSpace v, s~Scalar v, RealFloat s) => Simplex v -> s
@@ -60,9 +93,9 @@ simplexLength(SimplexN bounds inrs)
 simplexLength(PermutedSimplex _ s) = simplexLength s
 
 
-triangViewMain :: (Vertex v, InnerSpace v, Show v) => 
-                         (Simplex v->Bool) -> Triangulation v -> IO()
-triangViewMain smallEnough triang = do 
+triangViewMain :: (Vertex v, Show v) => 
+                         TrianglatnRenderCfg v -> Triangulation v -> IO()
+triangViewMain cfg triang = do 
     (progname, _) <- getArgsAndInitialize
     createWindow "A simple view of a triangulation"
     initialDisplayMode $= [WithDepthBuffer]
@@ -73,7 +106,7 @@ triangViewMain smallEnough triang = do
  where display = do 
          clear [ColorBuffer, DepthBuffer]
          color $ Color3 (0.3::GLfloat) 0.3 0.3
-         renderTriangulationUntil smallEnough triang
+         renderTriangulation cfg triang
          flush
          
        keyboardMouse :: KeyboardMouseCallback
