@@ -61,27 +61,58 @@ renderTriangulation :: (Vertex v, Show v) =>
 renderTriangulation cfg triang
    = V.forM_ (sComplexSimplices triang) $ renderSimplex cfg
    
+   
 renderSimplex :: (Vertex v, Show v) =>
                        TrianglatnRenderCfg v
                     -> Simplex v -> Render
+ 
 renderSimplex _ (Simplex0 p) = renderPrimitive Points $ vertex p
+
 renderSimplex cfg s@(SimplexN sides _)
- | simplexSmallEnoughPred cfg s = do
-         case V.length sides of
-           2 -> do
-              when (logTrianglatnRender cfg) $ do
+  = case V.length sides of
+     1 -> return()
+     2 | simplexSmallEnoughPred cfg s  -> do
+              when needLog $ do
                  putStrLn $ "Now plotting a line..."
-                 forM_ (fSimplexVertices s) print
-              edgeRenderer cfg $ fSimplexVertices s
-           3 -> do
-              when (logTrianglatnRender cfg) $ do
-                 putStrLn $ "Now plotting a triangle..."
-                 forM_ (fSimplexVertices s) print
-              triangleRenderer cfg $ fSimplexVertices s
-           _ -> return()
-         V.forM_ sides $ renderSimplex cfg
- | otherwise      = renderTriangulation cfg
-                          $ simplexBarycentricSubdivision s
+                 forM_ vertices print
+              edgeRenderer cfg vertices
+       | otherwise = completeSubdiv 
+     3 -> let (shortEnoughSides, tooLongSides)
+                   = V.partition (simplexSmallEnoughPred.snd) $ V.indexed sides
+          in case V.length tooLongSides of
+              0 -> do
+                 when needLog $ do 
+                    putStrLn $ "Now plotting a triangle..."
+                    forM_ vertices print
+                 triangleRenderer cfg vertices
+              1 -> do
+                 let (longSideId, tooLongS_baryCtr) 
+                         = second simplexBarycenter $ V.head tooLongSides
+                 when needLog $ do
+                    putStrLn $ "Now plotting a split triangle..."
+                    forM_ vertices print
+                    print tooLongS_baryCtr
+                 forM_ shortEnoughSides $ \(vtId,_) -> do
+                    triangleRenderer cfg $ fromList
+                       [ tooLongS_baryCtr, vertices!vtId, vertices!longSideId ]
+              2 -> renderStripBetween (V.map snd $ saSortBy(compare`on`fst)tooLongSides True
+              3 -> completeSubdiv
+     4 -> V.forM_ sides $ renderSimplex cfg
+     _ -> return()
+ where
+       vertices = fSimplexVertices s
+       needLog = logTrianglatnRender cfg
+       completeSubdiv = renderTriangulation cfg $ simplexBarycentricSubdivision s
+       
+       renderStripBetween longSides tipsTouch
+        = let (shortEnoughSides, tooLongSides)
+                   = V.partition (simplexSmallEnoughPred.snd) $ V.indexed longSides
+          in case V.length tooLongSides of
+              0 | tipsTouch  = do
+                    when needLog $ do
+                | otherwise  = 
+
+       
 renderSimplex cfg (PermutedSimplex _ s) = renderSimplex cfg s
 
 
