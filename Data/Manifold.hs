@@ -846,8 +846,8 @@ distinctSubsplxGroups = (sel!!)
               
        groupEquivs :: [ (SubSplxIndex, [Int]) ]
                       -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
-       groupEquivs = sortBy (compare`on`fst)
-                      . map (\(_, eqvs@((dpath,dperm):_))
+       groupEquivs = {-sortBy (compare`on`fst)
+                      .-} map (\(_, eqvs@((dpath,dperm):_))
                            -> ( dpath
                               , map (\(path,perm)
                                    -> ( path, asSimplexPermutation $ dperm↺↻perm )
@@ -860,7 +860,7 @@ distinctSubsplxGroups = (sel!!)
 
 distinctProperSubsplxGroups :: Int -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
 distinctProperSubsplxGroups = (sel!!)
- where sel = [ tail $ distinctSubsplxGroups n | n<-[0.. ] ]
+ where sel = [ filter((/=thisWholeSimplex) . fst) $ distinctSubsplxGroups n | n<-[0.. ] ]
 
 distinctDim0SubsplxGroups :: Int -> [(SubSplxIndex, [(SubSplxIndex,SimplexPermutation)])]
 distinctDim0SubsplxGroups = (sel!!)

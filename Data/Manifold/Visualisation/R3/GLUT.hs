@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 
 module Data.Manifold.Visualisation.R3.GLUT where
@@ -6,12 +7,15 @@ module Data.Manifold.Visualisation.R3.GLUT where
 
 import Data.Manifold
 
+import Prelude hiding ((.), id)
+
 import Graphics.Rendering.OpenGL hiding (Triangulation)
 import Graphics.UI.GLUT hiding (Triangulation)
 
 import Data.VectorSpace
 
 import Control.Monad
+import Control.Category
 import Control.Arrow
 
 import Data.Vector ((!))
@@ -21,24 +25,29 @@ import System.Exit
 import System.Random
 import Control.Monad.Random
 
-type Render = IO()
 
 -- instance Random GLfloat where
 --   randomR r = first(realToFrac :: Double->GLfloat) . randomR r
 --   random = first(realToFrac :: Double->GLfloat) . random
 
 instance Random (Color3 GLfloat) where
-  random = runRand $ fmap(\(r:g:b:_) -> Color3 (r/2) (g/2) (b/2)) getRandoms
+  random = runRand $ fmap(\(r:g:b:_) -> Color3 (n r) (n g) (n b)) getRandoms
+   where n = (+1/8) . (/2)
 
 
-data TrianglatnRenderCfg v = TrianglatnRenderCfg
-       { simplexSmallEnoughPred :: Simplex v -> Bool
-       -- ^ 'True' if the simplex is sufficiently small to be rendered as a straight line/triangle/tetrahedron...
-       , triangleRenderer, edgeRenderer     :: [v]   -> Render
-       , logTrianglatnRender :: Bool
+data TrianglatnRenderCfg rendMonad vertex = TrianglatnRenderCfg
+       { simplexSmallEnoughPred :: Simplex vertex -> rendMonad Bool
+       -- ^ 'True' if the simplex is sufficiently small (or obscured-from-sight, etc.)
+       --  to be rendered as a straight line/triangle/tetrahedron...
+       , triangleRenderer, edgeRenderer     :: [vertex]   -> rendMonad()
+       , simplexRenderRefine :: Simplex vertex -> rendMonad () -> rendMonad ()
+       , logTrianglatnRender :: String -> rendMonad()
        }
 
-stdEdgeRenderer, stdTriangleRenderer, randColTriangleRenderer :: Vertex v => [v] -> Render
+type Render = IO()
+
+stdEdgeRenderer, stdTriangleRenderer, randColTriangleRenderer 
+      :: Vertex v => [v] -> Render
 
 stdEdgeRenderer verts = do
     faceColor <- get currentColor
@@ -56,64 +65,123 @@ randColTriangleRenderer verts = do
     
 
 
-renderTriangulation :: (Vertex v, Show v) => 
-                         TrianglatnRenderCfg v -> Triangulation v -> Render
+renderTriangulation :: forall v r. (Show v, Monad r) =>
+                   TrianglatnRenderCfg r v -> Triangulation v -> r()
 renderTriangulation cfg triang
    = V.forM_ (sComplexSimplices triang) $ renderSimplex cfg
    
    
-renderSimplex :: (Vertex v, Show v) =>
-                       TrianglatnRenderCfg v
-                    -> Simplex v -> Render
+renderSimplex :: forall v r. (Show v, Monad r) =>
+                   TrianglatnRenderCfg r v -> Simplex v -> r()
  
-renderSimplex _ (Simplex0 p) = renderPrimitive Points $ vertex p
+renderSimplex _ (Simplex0 p) = return()
+renderSimplex cfg (PermutedSimplex _ s) = renderSimplex cfg s
 
-renderSimplex cfg s@(SimplexN sides _)
-  = case V.length sides of
+renderSimplex cfg s@(SimplexN sides _) = do
+    allSmallEnough <- runKleisli smallEnough s
+    case V.length sides of
      1 -> return()
-     2 | simplexSmallEnoughPred cfg s  -> do
-              when needLog $ do
-                 putStrLn $ "Now plotting a line..."
-                 forM_ vertices print
+     2 | allSmallEnough -> do
+              lPutStrLn "Plotting a line..."
+              forM_ vertices lPrint
               edgeRenderer cfg vertices
-       | otherwise = completeSubdiv 
-     3 -> let (shortEnoughSides, tooLongSides)
-                   = V.partition (simplexSmallEnoughPred.snd) $ V.indexed sides
-          in case V.length tooLongSides of
+       | otherwise -> completeSubdiv 
+     3 -> do
+           (shortEnoughSides, tooLongSides)
+                   <- aPartition (smallEnough <<^ snd) $ V.indexed sides
+           case V.length tooLongSides of
               0 -> do
-                 when needLog $ do 
-                    putStrLn $ "Now plotting a triangle..."
-                    forM_ vertices print
-                 triangleRenderer cfg vertices
+                 lPutStrLn "Plotting a triangle..."
+                 forM_ vertices lPrint
+                 triangle vertices
               1 -> do
-                 let (longSideId, tooLongS_baryCtr) 
-                         = second simplexBarycenter $ V.head tooLongSides
-                 when needLog $ do
-                    putStrLn $ "Now plotting a split triangle..."
-                    forM_ vertices print
-                    print tooLongS_baryCtr
-                 forM_ shortEnoughSides $ \(vtId,_) -> do
-                    triangleRenderer cfg $ fromList
-                       [ tooLongS_baryCtr, vertices!vtId, vertices!longSideId ]
-              2 -> renderStripBetween (V.map snd $ saSortBy(compare`on`fst)tooLongSides True
+                 let (longSideId, (tooLongS_verts, tooLongS_baryCtr))
+                         = second (fSimplexVertices &&& simplexBarycenter)
+                                        $ V.head tooLongSides
+                 lPutStrLn "Plotting a split triangle..."
+                 forM_ vertices lPrint
+                 lPrint tooLongS_baryCtr
+                 forM_ tooLongS_verts $ \sVtx -> do
+                    triangle
+                       [ tooLongS_baryCtr, sVtx, vertices!!longSideId ]
+              2 -> simplexRenderRefine cfg s
+                     $ renderStripBetween (adjace tooLongSides) True (1-)
               3 -> completeSubdiv
      4 -> V.forM_ sides $ renderSimplex cfg
      _ -> return()
  where
        vertices = fSimplexVertices s
-       needLog = logTrianglatnRender cfg
-       completeSubdiv = renderTriangulation cfg $ simplexBarycentricSubdivision s
+       lPrint = lPutStrLn . show
+       lPutStrLn str = lPutStr str >> lPutStr "\n"
+       lPutStr = logTrianglatnRender cfg
+       completeSubdiv :: r()
+       completeSubdiv = simplexRenderRefine cfg s .
+              renderTriangulation cfg $ simplexBarycentricSubdivision s
+       smallEnough = Kleisli $ simplexSmallEnoughPred cfg
+       triangle = triangleRenderer cfg
        
-       renderStripBetween longSides tipsTouch
-        = let (shortEnoughSides, tooLongSides)
-                   = V.partition (simplexSmallEnoughPred.snd) $ V.indexed longSides
-          in case V.length tooLongSides of
-              0 | tipsTouch  = do
-                    when needLog $ do
-                | otherwise  = 
+       
+       renderStripBetween :: Array(Simplex v) -> Bool -> (Int->Int) -> r()
+       renderStripBetween longSides tipsTouch invDirections = do
+             (shortEnoughSides, tooLongSides)
+                 <- aPartition (smallEnough <<^ snd) $ V.indexed longSides
+             case V.length tooLongSides of
+              0 | tipsTouch  -> do
+                    lPutStrLn "Plotting a triangle tip..."
+                    let tVerts = (rayVerts!0!!1) : (rayVerts!1)
+                    forM_ tVerts lPrint
+                    triangle tVerts
+                | otherwise  -> do
+                    lPutStrLn "Plotting a (split) quadrangle..."
+                    forM_ [0,1] $ \i -> do
+                       let tVerts = rayVerts!i!!([invDirections 1,0]!!i) 
+                                     : rayVerts!(1-i)
+                       lPutStrLn " triangle"; forM_ tVerts lPrint
+                       triangle tVerts
+              1 -> do
+                     let (longSideId, (tooLongS_verts, tooLongS_baryCtr))
+                             = second (fSimplexVertices &&& simplexBarycenter)
+                                 $ V.head tooLongSides
+                         sBase = fSimplexVertices . snd $ V.head shortEnoughSides
+                     if tipsTouch then do
+                       lPutStrLn "Plotting a split triangle..."
+                       lPrint tooLongS_baryCtr
+                       forM_ tooLongS_verts $ \sVtx -> do
+                          let tVerts = [ tooLongS_baryCtr
+                                       , sVtx
+                                       , sBase !! ([id, invDirections]!!longSideId $ 1) ]
+                          lPutStrLn " triangle"; forM_ tVerts lPrint
+                          triangle tVerts
+                      else do
+                       lPutStrLn "Plotting a 3-split quadrangle..."
+                       lPutStrLn " triangle"; lPrint tooLongS_baryCtr; forM_ sBase lPrint
+                       triangleRenderer cfg $ tooLongS_baryCtr : sBase
+                       forM_ [0,1] $ \i -> do
+                          let tVerts = [ tooLongS_baryCtr, sBase!!i
+                                       , tooLongS_verts!!invDirections i ]
+                          lPutStrLn " triangle"; forM_ tVerts lPrint
+                          triangle tVerts
+                       
+              2 -> do
+                    let divisions :: Array(Array(Simplex v))
+                        divisions = V.map( sComplexSimplices 
+                                         . simplexBarycentricSubdivision) longSides
+                        delegate i = V.fromList [divisions!0!invDirections i, divisions!1!i]
+                    renderStripBetween (delegate 0) False     id 
+                    renderStripBetween (delegate 1) tipsTouch id
+        where rayVerts = V.map fSimplexVertices longSides
+       
+       adjace lsides
+         | fst(lsides!1) - fst(lsides!0) `elem` [1, -2] = usides
+         | otherwise                          = V.reverse usides
+        where usides = V.map snd lsides
 
+
+aPartition :: Monad r => (Kleisli r a Bool) -> Array a -> r(Array a, Array a) 
+aPartition p = liftM((V.map fst***V.map fst) . V.partition snd) 
+                 . V.mapM(runKleisli $ id &&& p)
        
-renderSimplex cfg (PermutedSimplex _ s) = renderSimplex cfg s
+       
 
 
 simplexLength :: (InnerSpace v, s~Scalar v, RealFloat s) => Simplex v -> s
@@ -125,7 +193,7 @@ simplexLength(PermutedSimplex _ s) = simplexLength s
 
 
 triangViewMain :: (Vertex v, Show v) => 
-                         TrianglatnRenderCfg v -> Triangulation v -> IO()
+                         TrianglatnRenderCfg IO v -> Triangulation v -> IO()
 triangViewMain cfg triang = do 
     (progname, _) <- getArgsAndInitialize
     createWindow "A simple view of a triangulation"
