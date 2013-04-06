@@ -44,6 +44,7 @@ data TrianglatnRenderCfg rendMonad vertex = TrianglatnRenderCfg
        , logTrianglatnRender :: String -> rendMonad()
        }
 
+
 type Render = IO()
 
 stdEdgeRenderer, stdTriangleRenderer, randColTriangleRenderer 
@@ -62,6 +63,8 @@ randColTriangleRenderer verts = do
     color =<< (randomIO :: IO (Color3 GLfloat))
     renderPrimitive Triangles $ mapM_ vertex verts
 
+ignore :: Monad m => a -> m()
+ignore = return . const()
     
 
 
@@ -78,34 +81,30 @@ renderSimplex _ (Simplex0 p) = return()
 renderSimplex cfg (PermutedSimplex _ s) = renderSimplex cfg s
 
 renderSimplex cfg s@(SimplexN sides _) = do
-    allSmallEnough <- runKleisli smallEnough s
+    allSmallEnough <- smallEnough s
     case V.length sides of
      1 -> return()
      2 | allSmallEnough -> do
-              lPutStrLn "Plotting a line..."
-              forM_ vertices lPrint
+              lPutStrLn "Plotting a line..."; lPrint vertices
               edgeRenderer cfg vertices
        | otherwise -> completeSubdiv 
      3 -> do
            (shortEnoughSides, tooLongSides)
-                   <- aPartition (smallEnough <<^ snd) $ V.indexed sides
+                   <- aPartition (Kleisli smallEnough <<^ snd) $ V.indexed sides
            case V.length tooLongSides of
               0 -> do
                  lPutStrLn "Plotting a triangle..."
-                 forM_ vertices lPrint
                  triangle vertices
               1 -> do
                  let (longSideId, (tooLongS_verts, tooLongS_baryCtr))
                          = second (fSimplexVertices &&& simplexBarycenter)
                                         $ V.head tooLongSides
                  lPutStrLn "Plotting a split triangle..."
-                 forM_ vertices lPrint
-                 lPrint tooLongS_baryCtr
                  forM_ tooLongS_verts $ \sVtx -> do
                     triangle
                        [ tooLongS_baryCtr, sVtx, vertices!!longSideId ]
               2 -> simplexRenderRefine cfg s
-                     $ renderStripBetween (adjace tooLongSides) True (1-)
+                     $ renderWedge(tooLongSides!0)(tooLongSides!1)
               3 -> completeSubdiv
      4 -> V.forM_ sides $ renderSimplex cfg
      _ -> return()
@@ -114,15 +113,67 @@ renderSimplex cfg s@(SimplexN sides _) = do
        lPrint = lPutStrLn . show
        lPutStrLn str = lPutStr str >> lPutStr "\n"
        lPutStr = logTrianglatnRender cfg
-       completeSubdiv :: r()
        completeSubdiv = simplexRenderRefine cfg s .
               renderTriangulation cfg $ simplexBarycentricSubdivision s
-       smallEnough = Kleisli $ simplexSmallEnoughPred cfg
-       triangle = triangleRenderer cfg
+       smallEnough = simplexSmallEnoughPred cfg
+       triangle vs = lPrint vs >> triangleRenderer cfg vs
        
+       renderWedge :: (Int,Simplex v) -> (Int,Simplex v) -> r()
+       renderWedge (li,ls) (ri,rs)
+        = renderStripBetween ls (rs, (1-)) 
+                 (Just $ if (ri-li)`mod`3 > 1 then 0 else 1)
        
-       renderStripBetween :: Array(Simplex v) -> Bool -> (Int->Int) -> r()
-       renderStripBetween longSides tipsTouch invDirections = do
+       renderStripBetween :: Simplex v -> (Simplex v, (Int->Int)) -> Maybe Int -> r()
+       renderStripBetween baseSide (oppSide, oppOrient) tipsTouch = do
+          baseShortEnough <- smallEnough baseSide
+          oppShortEnough  <- smallEnough oppSide
+          let baseVs = fSimplexVertices baseSide
+              oppVs  = fSimplexVertices oppSide
+              oppVss = (oppVs!!) . oppOrient
+          if baseShortEnough then
+            if oppShortEnough then
+              case tipsTouch of
+               Just ti -> do
+                 lPutStrLn "Plotting a triangle tip..."
+                 triangle $ oppVss(1-ti) : baseVs
+               Nothing -> do
+                 lPutStrLn "Plotting a (split) quadrangle..."
+                 forM_ [last baseVs, oppVss 0] $
+                    triangle . (:[head baseVs, oppVss 1])
+             else do
+              let oppBaryctr = simplexBarycenter oppSide
+              case tipsTouch of
+               Just ti -> do
+                 lPutStrLn "Plotting a split triangle..."
+                 forM_ oppVs $
+                    triangle . (:[baseVs!!(1-ti), oppBaryctr])
+               Nothing -> do
+                 lPutStrLn "Plotting a 3-split quadrangle..."
+                 triangle $ oppBaryctr : baseVs
+                 forM_ [0,1] $ \i ->
+                    triangle [baseVs!!i, oppBaryctr, oppVss i]
+           else do
+            let baseDivs = sComplexSimplices $ simplexBarycentricSubdivision baseSide
+                baseBaryctr = simplexBarycenter baseSide
+            if oppShortEnough then
+              case tipsTouch of
+               Just ti -> do
+                 lPutStrLn "Plotting a split triangle..."
+                 forM_ baseVs $
+                    triangle . (:[oppVss(1-ti), baseBaryctr])
+               Nothing -> do
+                 lPutStrLn "Plotting a 3-split quadrangle..."
+                 triangle $ baseBaryctr : oppVs
+                 forM_ [0,1] $ \i ->
+                    triangle [baseVs!!i, baseBaryctr, oppVss i]
+             else do
+              let oppDivs = sComplexSimplices $ simplexBarycentricSubdivision oppSide
+              forM_ [0,1] $ \i ->
+                 renderStripBetween (baseDivs! i)
+                                    (oppDivs ! oppOrient i, id)
+                                    (do { i'<-tipsTouch; guard(i==i'); return 0 })
+              
+   {- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
              (shortEnoughSides, tooLongSides)
                  <- aPartition (smallEnough <<^ snd) $ V.indexed longSides
              case V.length tooLongSides of
@@ -170,6 +221,7 @@ renderSimplex cfg s@(SimplexN sides _) = do
                     renderStripBetween (delegate 0) False     id 
                     renderStripBetween (delegate 1) tipsTouch id
         where rayVerts = V.map fSimplexVertices longSides
+   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -}
        
        adjace lsides
          | fst(lsides!1) - fst(lsides!0) `elem` [1, -2] = usides
