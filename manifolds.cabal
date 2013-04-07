@@ -49,6 +49,6 @@ Library
                      , PatternGuards
                      , ScopedTypeVariables
                      , RecordWildCards
---  ghc-options:       -Wall
+  ghc-options:       -O2
   Exposed-modules:   Data.Manifold
                      Data.Manifold.Visualisation.R3.GLUT

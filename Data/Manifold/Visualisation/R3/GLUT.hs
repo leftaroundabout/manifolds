@@ -22,6 +22,8 @@ import Control.Arrow
 import Data.Vector ((!))
 import qualified Data.Vector as V
 
+import Data.IORef
+
 import System.Exit
 import System.Random
 import Control.Monad.Random
@@ -57,7 +59,7 @@ stdEdgeRenderer v₀ v₁ = do
     renderPrimitive Lines $ do{vertex v₀; vertex v₁}
     color faceColor
 
-stdShadedTriangleRenderer = genShadedTriangleRenderer (Color3 0.3 0.3 0.3)
+stdShadingTriangleRenderer = genShadingTriangleRenderer (Color3 0.3 0.3 0.3)
 
 stdTriangleRenderer :: (Vertex v, Color v) => v -> v -> v -> Render
 stdTriangleRenderer v₀ v₁ v₂ 
@@ -67,20 +69,27 @@ stdTriangleRenderer v₀ v₁ v₂
        color v₂; vertex v₂
        
 
-stdShadedTriangleRenderer, randColShadedTriangleRenderer 
+randColTriangleRenderer :: Vertex v => v -> v -> v -> Render
+randColTriangleRenderer v₀ v₁ v₂ = do
+    color =<< (randomIO :: IO(Color3 GLfloat))
+    renderPrimitive Triangles $ do
+       vertex v₀; vertex v₁; vertex v₂
+
+
+stdShadingTriangleRenderer, randColShadingTriangleRenderer 
       :: (Vertex v, TriangleHasNormal v, Normal3 GLfloat ~ TriangleNormal v)
               => v -> v -> v -> Render
               
 
 
-randColShadedTriangleRenderer v₀ v₁ v₂ = do
+randColShadingTriangleRenderer v₀ v₁ v₂ = do
     colour <- randomIO
-    genShadedTriangleRenderer colour v₀ v₁ v₂
+    genShadingTriangleRenderer colour v₀ v₁ v₂
 
-genShadedTriangleRenderer
+genShadingTriangleRenderer
       :: (Vertex v, TriangleHasNormal v, Normal3 GLfloat ~ TriangleNormal v)
               => Color3 GLfloat -> v -> v -> v -> Render
-genShadedTriangleRenderer (Color3 r g b) v₀ v₁ v₂ = do
+genShadingTriangleRenderer (Color3 r g b) v₀ v₁ v₂ = do
     let (Normal3 _ _ z) = triangleNormal v₀ v₁ v₂
         z' = abs z
     color $ Color3 (r*z') (g*z') (b*z')
@@ -111,10 +120,10 @@ renderSimplex cfg@(TrianglatnRenderCfg {..}) s@(SimplexN sides _) = do
               lPutStrLn "Plotting a line..."; lPrint vertices
               let[v0,v1]=vertices in edgeRenderer v0 v1
        | otherwise -> completeSubdiv 
-     3 | allSmallEnough -> do
+     3 {-| allSmallEnough -> do
            lPutStrLn "Plotting a triangle..."
            triangle vertices
-       | otherwise -> do
+       | otherwise -} -> do
            (shortEnoughSides, tooLongSides)
                    <- aPartition (Kleisli smallEnough <<^ snd) $ V.indexed sides
            case V.length tooLongSides of
@@ -122,16 +131,18 @@ renderSimplex cfg@(TrianglatnRenderCfg {..}) s@(SimplexN sides _) = do
                  lPutStrLn "Plotting a triangle..."
                  triangle vertices
               1 -> do
-                 let (longSideId, (tooLongS_verts, tooLongS_baryCtr))
-                         = second (fSimplexVertices &&& simplexBarycenter)
-                                        $ V.head tooLongSides
                  lPutStrLn "Plotting a split triangle..."
-                 forM_ tooLongS_verts $ \sVtx -> do
-                    triangle
-                       [ tooLongS_baryCtr, sVtx, vertices!!longSideId ]
+                 uncurry (renderSplitTriangle . (vertices!!)) $ V.head tooLongSides
+--                  let (longSideId, (tooLongS_verts, tooLongS_baryCtr))
+--                          = second (fSimplexVertices &&& simplexBarycenter)
+--                                         $ V.head tooLongSides
+--                  lPutStrLn "Plotting a split triangle..."
+--                  forM_ tooLongS_verts $ \sVtx -> do
+--                     triangle
+--                        [ tooLongS_baryCtr, sVtx, vertices!!longSideId ]
               2 -> simplexRenderRefine s
                      $ renderWedge(tooLongSides!0)(tooLongSides!1)
-              3 -> completeSubdiv
+              _ -> completeSubdiv
      4 -> V.forM_ sides $ renderSimplex cfg
      _ -> return()
  where
@@ -143,6 +154,18 @@ renderSimplex cfg@(TrianglatnRenderCfg {..}) s@(SimplexN sides _) = do
               renderTriangulation cfg $ simplexBarycentricSubdivision s
        smallEnough = simplexSmallEnoughPred
        triangle vs = lPrint vs >> let[v0,v1,v2]=vs in triangleRenderer v0 v1 v2
+       
+       renderConeTriangle, renderSplitTriangle :: v -> Simplex v -> r()
+       
+       renderConeTriangle headv base = do
+          isSimple <- smallEnough base
+          if isSimple then triangle $ headv : fSimplexVertices base
+           else renderSplitTriangle headv base
+             
+       renderSplitTriangle headv base
+          = V.forM_ baseDivs $ \bdiv -> renderConeTriangle headv bdiv
+        where baseDivs = sComplexSimplices $ simplexBarycentricSubdivision base
+          
        
        renderWedge :: (Int,Simplex v) -> (Int,Simplex v) -> r()
        renderWedge (li,ls) (ri,rs)
@@ -166,33 +189,32 @@ renderSimplex cfg@(TrianglatnRenderCfg {..}) s@(SimplexN sides _) = do
                  lPutStrLn "Plotting a (split) quadrangle..."
                  forM_ [last baseVs, oppVss 0] $
                     triangle . (:[head baseVs, oppVss 1])
-             else do
-              let oppBaryctr = simplexBarycenter oppSide
+             else do -- not oppShortEnough
               case tipsTouch of
                Just ti -> do
                  lPutStrLn "Plotting a split triangle..."
-                 forM_ oppVs $
-                    triangle . (:[baseVs!!(1-ti), oppBaryctr])
+                 renderSplitTriangle (baseVs!!(1-ti)) oppSide
                Nothing -> do
-                 lPutStrLn "Plotting a 3-split quadrangle..."
+                 let oppBaryctr = simplexBarycenter oppSide
+                     oppDivs = sComplexSimplices $ simplexBarycentricSubdivision oppSide
+                 lPutStrLn "Plotting a multi-split quadrangle..."
                  triangle $ oppBaryctr : baseVs
                  forM_ [0,1] $ \i ->
-                    triangle [baseVs!!i, oppBaryctr, oppVss i]
-           else do
+                    renderConeTriangle (baseVs!!i) (oppDivs ! oppOrient i)
+           else do -- not baseShortEnough
             let baseDivs = sComplexSimplices $ simplexBarycentricSubdivision baseSide
                 baseBaryctr = simplexBarycenter baseSide
             if oppShortEnough then
               case tipsTouch of
                Just ti -> do
                  lPutStrLn "Plotting a split triangle..."
-                 forM_ baseVs $
-                    triangle . (:[oppVss(1-ti), baseBaryctr])
+                 renderSplitTriangle (oppVss $ 1-ti) baseSide
                Nothing -> do
-                 lPutStrLn "Plotting a 3-split quadrangle..."
+                 lPutStrLn "Plotting a multi-split quadrangle..."
                  triangle $ baseBaryctr : oppVs
                  forM_ [0,1] $ \i ->
-                    triangle [baseVs!!i, baseBaryctr, oppVss i]
-             else do
+                    renderConeTriangle (oppVss i) (baseDivs ! i)
+             else do -- not oppShortEnough
               let oppDivs = sComplexSimplices $ simplexBarycentricSubdivision oppSide
               forM_ [0,1] $ \i ->
                  renderStripBetween (baseDivs! i)
@@ -254,14 +276,36 @@ triangViewMain cfg@(TrianglatnRenderCfg{..})
     (progname, _) <- getArgsAndInitialize
     createWindow "A simple view of a triangulation"
     
-    initialDisplayMode $= [WithDepthBuffer]
+    initialDisplayMode $= [WithDepthBuffer, DoubleBuffered]
+    paused <- newIORef False
+    
+    reshapeCallback $= Just (\(Size w h) ->
+         viewport $= (Position (fromIntegral $ (w-h)`div`2) 0, Size h h)
+       )
     
     depthFunc $= Just Less
     
-    keyboardMouseCallback $= Just keyboardMouse
-    idleCallback $= Just display
+    keyboardMouseCallback $= (Just $ \key state modifiers position ->
+       case (key, state) of
+         (Char '\ESC', Down) -> exitSuccess
+         (Char ' ', Down)    -> modifyIORef paused not
+         _                   -> return ()
+      )
+    
+    displayCallback $= do 
+         isPaused <- readIORef paused
+         when(not isPaused) $ do
+            clear [ColorBuffer, DepthBuffer]
+            color $ Color3 (0.3::GLfloat) 0.3 0.3
+            triang <- triangGet
+            preservingMatrix $ renderTriangulation cfg triang
+            
+            swapBuffers
+       
+    idleCallback $= Just (postRedisplay Nothing)
     
     windowSize $= Size 480 480
+    
   
 --     when enableLighting $ do
 --        lighting $= Enabled
@@ -271,16 +315,7 @@ triangViewMain cfg@(TrianglatnRenderCfg{..})
 --        light (Light 0) $= Enabled
     
     mainLoop
- where display = do 
-         clear [ColorBuffer, DepthBuffer]
-         color $ Color3 (0.3::GLfloat) 0.3 0.3
-         triang <- triangGet
-         preservingMatrix $ renderTriangulation cfg triang
-         flush
          
-       keyboardMouse :: KeyboardMouseCallback
-       keyboardMouse (Char '\ESC') Down _ _ = exitSuccess
-       keyboardMouse key state modifiers position = return ()
 
 
          
@@ -313,6 +348,9 @@ instance (Color colour) => Color (ColourGLvertex vt colour) where
   color (ColourGLvertex _ c) = color c
 
 
+-- data BrcDiffLimits = BrcDiffLimits
+--       { 
+
 colourGLvertex_brcDiffLimit :: (RealFloat f, InnerSpace f, f~Scalar f) => f -> f
                          -> Simplex(ColourGLvertex (Vertex3 f) (Color3 f)) -> Bool
 colourGLvertex_brcDiffLimit brcOffLim clDiffLim s = posOk && colourOk
@@ -329,10 +367,10 @@ colourGLvertex_brcDiffLimit brcOffLim clDiffLim s = posOk && colourOk
               addup(ColourGLvertex _ (Color3 r g b))(Color3 r' g' b')
                         = Color3 (r+r') (g+g') (b+b')
        
-       posOk = brcInside || offDistSq < brcOffLim*brcOffLim
+       posOk = brcInside --  || 
         where brcInside
                | n==3       = brcIns3
-               | otherwise  = False
+               | otherwise  = offDistSq < brcOffLim*brcOffLim
               brcIns3 = α>0 && α<1 && β>0 && β<1
                where [p₀,p₁,p₂] = pPoints
                      v₁ = p₁ ^-^ p₀; v₂ = p₂ ^-^ p₀
