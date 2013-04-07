@@ -397,6 +397,14 @@ instance (Show p) => LtdShow (Triangulation p) where
 autoglueTriangulation :: Eq p => [Simplex p] -> Triangulation p
 autoglueTriangulation = Triangulation . fromList
 
+infixr 5 ⊿⌧,⊿⊳
+
+(⊿⌧) :: Eq p => Simplex p -> Triangulation p -> Triangulation p
+s ⊿⌧ (Triangulation cmplx) = Triangulation $ s`V.cons`cmplx
+
+(⊿⊳) :: Eq p => Simplex p -> Simplex p -> Triangulation p
+s1 ⊿⊳ s2 = Triangulation $ V.fromList [s1, s2]
+
 
 triangulationVertices :: Eq p => Triangulation p -> [p]
 triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< toList sComplex
@@ -751,7 +759,7 @@ spannedAffineSplx vs subF = result
                              . orientate . concat $ map (map fst . snd) ps )
                where b = midBetween $ map fst ps
  -}              
-midBetween :: EuclidSpace v => [v] -> v
+midBetween :: (VectorSpace v, Fractional(Scalar v)) => [v] -> v
 midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
        
 --        orientate = zipWith($) $ cycle [reverse, id]

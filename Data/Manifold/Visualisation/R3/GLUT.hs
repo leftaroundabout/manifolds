@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards     #-}
 
 
 module Data.Manifold.Visualisation.R3.GLUT where
@@ -39,7 +40,8 @@ data TrianglatnRenderCfg rendMonad vertex = TrianglatnRenderCfg
        { simplexSmallEnoughPred :: Simplex vertex -> rendMonad Bool
        -- ^ 'True' if the simplex is sufficiently small (or obscured-from-sight, etc.)
        --  to be rendered as a straight line/triangle/tetrahedron...
-       , triangleRenderer, edgeRenderer     :: [vertex]   -> rendMonad()
+       , triangleRenderer  :: vertex -> vertex -> vertex -> rendMonad()
+       , edgeRenderer     ::  vertex -> vertex           -> rendMonad()
        , simplexRenderRefine :: Simplex vertex -> rendMonad () -> rendMonad ()
        , logTrianglatnRender :: String -> rendMonad()
        }
@@ -47,21 +49,42 @@ data TrianglatnRenderCfg rendMonad vertex = TrianglatnRenderCfg
 
 type Render = IO()
 
-stdEdgeRenderer, stdTriangleRenderer, randColTriangleRenderer 
-      :: Vertex v => [v] -> Render
-
-stdEdgeRenderer verts = do
+stdEdgeRenderer
+      :: Vertex v => v -> v -> Render
+stdEdgeRenderer v₀ v₁ = do
     faceColor <- get currentColor
     color $ Color3 (0.7::GLfloat) 0.7 0.7
-    renderPrimitive Lines $ mapM_ vertex verts
+    renderPrimitive Lines $ do{vertex v₀; vertex v₁}
     color faceColor
 
-stdTriangleRenderer verts = do
-    renderPrimitive Triangles $ mapM_ vertex verts
+stdShadedTriangleRenderer = genShadedTriangleRenderer (Color3 0.3 0.3 0.3)
 
-randColTriangleRenderer verts = do
-    color =<< (randomIO :: IO (Color3 GLfloat))
-    renderPrimitive Triangles $ mapM_ vertex verts
+stdTriangleRenderer :: (Vertex v, Color v) => v -> v -> v -> Render
+stdTriangleRenderer v₀ v₁ v₂ 
+   = renderPrimitive Triangles $ do
+       color v₀; vertex v₀
+       color v₁; vertex v₁
+       color v₂; vertex v₂
+       
+
+stdShadedTriangleRenderer, randColShadedTriangleRenderer 
+      :: (Vertex v, TriangleHasNormal v, Normal3 GLfloat ~ TriangleNormal v)
+              => v -> v -> v -> Render
+              
+
+
+randColShadedTriangleRenderer v₀ v₁ v₂ = do
+    colour <- randomIO
+    genShadedTriangleRenderer colour v₀ v₁ v₂
+
+genShadedTriangleRenderer
+      :: (Vertex v, TriangleHasNormal v, Normal3 GLfloat ~ TriangleNormal v)
+              => Color3 GLfloat -> v -> v -> v -> Render
+genShadedTriangleRenderer (Color3 r g b) v₀ v₁ v₂ = do
+    let (Normal3 _ _ z) = triangleNormal v₀ v₁ v₂
+        z' = abs z
+    color $ Color3 (r*z') (g*z') (b*z')
+    renderPrimitive Triangles $ mapM_ vertex [v₀,v₁,v₂]
 
 ignore :: Monad m => a -> m()
 ignore = return . const()
@@ -80,15 +103,18 @@ renderSimplex :: forall v r. (Show v, Monad r) =>
 renderSimplex _ (Simplex0 p) = return()
 renderSimplex cfg (PermutedSimplex _ s) = renderSimplex cfg s
 
-renderSimplex cfg s@(SimplexN sides _) = do
+renderSimplex cfg@(TrianglatnRenderCfg {..}) s@(SimplexN sides _) = do
     allSmallEnough <- smallEnough s
     case V.length sides of
      1 -> return()
      2 | allSmallEnough -> do
               lPutStrLn "Plotting a line..."; lPrint vertices
-              edgeRenderer cfg vertices
+              let[v0,v1]=vertices in edgeRenderer v0 v1
        | otherwise -> completeSubdiv 
-     3 -> do
+     3 | allSmallEnough -> do
+           lPutStrLn "Plotting a triangle..."
+           triangle vertices
+       | otherwise -> do
            (shortEnoughSides, tooLongSides)
                    <- aPartition (Kleisli smallEnough <<^ snd) $ V.indexed sides
            case V.length tooLongSides of
@@ -103,7 +129,7 @@ renderSimplex cfg s@(SimplexN sides _) = do
                  forM_ tooLongS_verts $ \sVtx -> do
                     triangle
                        [ tooLongS_baryCtr, sVtx, vertices!!longSideId ]
-              2 -> simplexRenderRefine cfg s
+              2 -> simplexRenderRefine s
                      $ renderWedge(tooLongSides!0)(tooLongSides!1)
               3 -> completeSubdiv
      4 -> V.forM_ sides $ renderSimplex cfg
@@ -112,11 +138,11 @@ renderSimplex cfg s@(SimplexN sides _) = do
        vertices = fSimplexVertices s
        lPrint = lPutStrLn . show
        lPutStrLn str = lPutStr str >> lPutStr "\n"
-       lPutStr = logTrianglatnRender cfg
-       completeSubdiv = simplexRenderRefine cfg s .
+       lPutStr = logTrianglatnRender
+       completeSubdiv = simplexRenderRefine s .
               renderTriangulation cfg $ simplexBarycentricSubdivision s
-       smallEnough = simplexSmallEnoughPred cfg
-       triangle vs = lPrint vs >> triangleRenderer cfg vs
+       smallEnough = simplexSmallEnoughPred
+       triangle vs = lPrint vs >> let[v0,v1,v2]=vs in triangleRenderer v0 v1 v2
        
        renderWedge :: (Int,Simplex v) -> (Int,Simplex v) -> r()
        renderWedge (li,ls) (ri,rs)
@@ -173,60 +199,6 @@ renderSimplex cfg s@(SimplexN sides _) = do
                                     (oppDivs ! oppOrient i, id)
                                     (do { i'<-tipsTouch; guard(i==i'); return 0 })
               
-   {- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-             (shortEnoughSides, tooLongSides)
-                 <- aPartition (smallEnough <<^ snd) $ V.indexed longSides
-             case V.length tooLongSides of
-              0 | tipsTouch  -> do
-                    lPutStrLn "Plotting a triangle tip..."
-                    let tVerts = (rayVerts!0!!1) : (rayVerts!1)
-                    forM_ tVerts lPrint
-                    triangle tVerts
-                | otherwise  -> do
-                    lPutStrLn "Plotting a (split) quadrangle..."
-                    forM_ [0,1] $ \i -> do
-                       let tVerts = rayVerts!i!!([invDirections 1,0]!!i) 
-                                     : rayVerts!(1-i)
-                       lPutStrLn " triangle"; forM_ tVerts lPrint
-                       triangle tVerts
-              1 -> do
-                     let (longSideId, (tooLongS_verts, tooLongS_baryCtr))
-                             = second (fSimplexVertices &&& simplexBarycenter)
-                                 $ V.head tooLongSides
-                         sBase = fSimplexVertices . snd $ V.head shortEnoughSides
-                     if tipsTouch then do
-                       lPutStrLn "Plotting a split triangle..."
-                       lPrint tooLongS_baryCtr
-                       forM_ tooLongS_verts $ \sVtx -> do
-                          let tVerts = [ tooLongS_baryCtr
-                                       , sVtx
-                                       , sBase !! ([id, invDirections]!!longSideId $ 1) ]
-                          lPutStrLn " triangle"; forM_ tVerts lPrint
-                          triangle tVerts
-                      else do
-                       lPutStrLn "Plotting a 3-split quadrangle..."
-                       lPutStrLn " triangle"; lPrint tooLongS_baryCtr; forM_ sBase lPrint
-                       triangleRenderer cfg $ tooLongS_baryCtr : sBase
-                       forM_ [0,1] $ \i -> do
-                          let tVerts = [ tooLongS_baryCtr, sBase!!i
-                                       , tooLongS_verts!!invDirections i ]
-                          lPutStrLn " triangle"; forM_ tVerts lPrint
-                          triangle tVerts
-                       
-              2 -> do
-                    let divisions :: Array(Array(Simplex v))
-                        divisions = V.map( sComplexSimplices 
-                                         . simplexBarycentricSubdivision) longSides
-                        delegate i = V.fromList [divisions!0!invDirections i, divisions!1!i]
-                    renderStripBetween (delegate 0) False     id 
-                    renderStripBetween (delegate 1) tipsTouch id
-        where rayVerts = V.map fSimplexVertices longSides
-   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -}
-       
-       adjace lsides
-         | fst(lsides!1) - fst(lsides!0) `elem` [1, -2] = usides
-         | otherwise                          = V.reverse usides
-        where usides = V.map snd lsides
 
 
 aPartition :: Monad r => (Kleisli r a Bool) -> Array a -> r(Array a, Array a) 
@@ -243,21 +215,67 @@ simplexLength(SimplexN bounds inrs)
  | otherwise              = V.maximum $ V.map simplexLength bounds
 simplexLength(PermutedSimplex _ s) = simplexLength s
 
+simplexViewLength :: Simplex (Vertex3 GLfloat) -> GLfloat
+simplexViewLength = simplexLengthBy $
+    \(Vertex3 x₀ y₀ _)(Vertex3 x₁ y₁ _)
+        -> let xd = x₁-x₀; yd = y₁-y₀
+           in sqrt $ xd*xd + yd*yd 
+
+simplexLengthBy :: RealFloat l => (v->v->l) -> Simplex v -> l
+simplexLengthBy _ (Simplex0 _) = 0
+simplexLengthBy lfn s@(SimplexN bounds _)
+ | V.length bounds == 2   = let [v₀, v₁] = fSimplexVertices s
+                            in  lfn v₀ v₁
+ | otherwise              = V.maximum $ V.map (simplexLengthBy lfn) bounds
+simplexLengthBy lfn (PermutedSimplex _ s) = simplexLengthBy lfn s
+
+
+-- data SceneRotation = SceneRotation
+--    { defRotationAxis :: Vector3 GLfloat
+--    , rotationSpeed
+
+-- data GLSceneConfig = GLSceneConfig
+--    { enableLighting :: Bool
+--    , 
+--    }
+
+-- defOrthoSceneCfg :: GLSceneConfig
+-- defOrthoSceneCfg = GLSceneConfig False
+
+
 
 triangViewMain :: (Vertex v, Show v) => 
-                         TrianglatnRenderCfg IO v -> Triangulation v -> IO()
-triangViewMain cfg triang = do 
+                         TrianglatnRenderCfg IO v 
+--                       -> GLSceneConfig
+                      -> IO(Triangulation v) -> IO()
+triangViewMain cfg@(TrianglatnRenderCfg{..})
+--                sceneCfg@(GLSceneConfig{..})
+               triangGet = do 
     (progname, _) <- getArgsAndInitialize
     createWindow "A simple view of a triangulation"
+    
     initialDisplayMode $= [WithDepthBuffer]
+    
     depthFunc $= Just Less
+    
     keyboardMouseCallback $= Just keyboardMouse
-    displayCallback $= display
+    idleCallback $= Just display
+    
+    windowSize $= Size 480 480
+  
+--     when enableLighting $ do
+--        lighting $= Enabled
+--        normalize $= Enabled
+--        position (Light 0) $= Vertex4 10000 4000 8000  1
+--        diffuse (Light 0) $= Color4 1 1 1 1
+--        light (Light 0) $= Enabled
+    
     mainLoop
  where display = do 
          clear [ColorBuffer, DepthBuffer]
          color $ Color3 (0.3::GLfloat) 0.3 0.3
-         renderTriangulation cfg triang
+         triang <- triangGet
+         preservingMatrix $ renderTriangulation cfg triang
          flush
          
        keyboardMouse :: KeyboardMouseCallback
@@ -266,14 +284,72 @@ triangViewMain cfg triang = do
 
 
          
--- myPoints :: [(GLfloat,GLfloat,GLfloat)]
--- myPoints = map (\k -> (sin(2*pi*k/12),cos(2*pi*k/12),0.0)) [1..12] 
--- triangViewMain' _ _ = do 
---   (progname, _) <- getArgsAndInitialize
---   createWindow "Hello World"
---   displayCallback $= display
---   mainLoop
---  where display = do 
---           clear [ColorBuffer]
---           renderPrimitive Triangles $ mapM_ (\(x, y, z)->vertex$Vertex3 x y z) myPoints
---           flush
+
+
+class TriangleHasNormal v where
+  type TriangleNormal v :: *
+  unnormldTriangleNormal  :: v -> v -> v -> TriangleNormal v
+  triangleNormal :: v -> v -> v -> TriangleNormal v
+
+instance (Floating a) => TriangleHasNormal (Vertex3 a) where
+  type TriangleNormal (Vertex3 a) = Normal3 a
+  unnormldTriangleNormal (Vertex3 x₀ y₀ z₀) (Vertex3 x₁ y₁ z₁) (Vertex3 x₂ y₂ z₂)
+    = Normal3 (yΔ₁ * zΔ₂ - zΔ₁ * yΔ₂) (zΔ₁ * xΔ₂ - xΔ₁ * zΔ₂) (xΔ₁ * yΔ₂ - yΔ₁ * xΔ₂)
+   where xΔ₁ = x₁-x₀; xΔ₂ = x₂-x₀; yΔ₁ = y₁-y₀; yΔ₂ = y₂-y₀; zΔ₁ = z₁-z₀; zΔ₂ = z₂-z₀
+  triangleNormal v₀ v₁ v₂ = Normal3 (x*n) (y*n) (z*n)
+   where (Normal3 x y z) = unnormldTriangleNormal v₀ v₁ v₂
+         n = 1/sqrt(x*x + y*y + z*z)
+   
+
+
+data ColourGLvertex vert colour
+       = ColourGLvertex { vertexP :: !vert
+                        , vColour :: !colour }
+             deriving(Eq, Show)
+
+instance (Vertex vert) => Vertex (ColourGLvertex vert cl) where
+  vertex (ColourGLvertex v _) = vertex v
+instance (Color colour) => Color (ColourGLvertex vt colour) where
+  color (ColourGLvertex _ c) = color c
+
+
+colourGLvertex_brcDiffLimit :: (RealFloat f, InnerSpace f, f~Scalar f) => f -> f
+                         -> Simplex(ColourGLvertex (Vertex3 f) (Color3 f)) -> Bool
+colourGLvertex_brcDiffLimit brcOffLim clDiffLim s = posOk && colourOk
+ where (ColourGLvertex (Vertex3 brcx brcy _) (Color3 brcR brcG brcB))
+             = simplexBarycenter s
+       
+       splVerts = fSimplexVertices s
+       n = length splVerts
+       n' = recip $ fromIntegral n
+       
+       colourOk = all ((<clDiffLim) . abs) $ zipWith(-) [avgR,avgG,avgB] [brcR,brcG,brcB]
+        where (Color3 avgR avgG avgB) = renorm $ foldr addup (Color3 0 0 0) splVerts
+              renorm (Color3 r g b) = Color3(r*n')(g*n')(b*n')
+              addup(ColourGLvertex _ (Color3 r g b))(Color3 r' g' b')
+                        = Color3 (r+r') (g+g') (b+b')
+       
+       posOk = brcInside || offDistSq < brcOffLim*brcOffLim
+        where brcInside
+               | n==3       = brcIns3
+               | otherwise  = False
+              brcIns3 = α>0 && α<1 && β>0 && β<1
+               where [p₀,p₁,p₂] = pPoints
+                     v₁ = p₁ ^-^ p₀; v₂ = p₂ ^-^ p₀
+                     vᵣ = brcP ^-^ p₀
+                     α = ( ρ₂₂ * κ₁ - ρ₁₂ * κ₂ ) / τ
+                     β = ( ρ₁₁ * κ₂ - ρ₁₂ * κ₁ ) / τ
+                     τ = ρ₁₁ * ρ₂₂ - ρ₁₂ * ρ₁₂
+                     ρ₁₁ = v₁<.>v₁; ρ₁₂ = v₁<.>v₂; ρ₂₂ = v₂<.>v₂
+                     κ₁ = vᵣ<.>v₁; κ₂ = vᵣ<.>v₂
+              brcP = (brcx,brcy)
+              pPoints = map (\(ColourGLvertex (Vertex3 x y _) _) -> (x,y)) splVerts
+              pBrc@(pbx,pby) = midBetween pPoints
+              offDistSq = magnitudeSq $ brcP ^-^ pBrc
+       
+       
+          
+--   = simplexLength(fmap vertexP s) <= maxLength
+--    && simplexLength(fmap (\(ColourGLvertex _ (Color3 r _ _)) -> r) s) <= maxColourDiff
+--    && simplexLength(fmap (\(ColourGLvertex _ (Color3 _ g _)) -> g) s) <= maxColourDiff
+--    && simplexLength(fmap (\(ColourGLvertex _ (Color3 _ _ b)) -> b) s) <= maxColourDiff
