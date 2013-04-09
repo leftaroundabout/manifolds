@@ -40,6 +40,7 @@ Library
                      , GLUT
                      , random
                      , MonadRandom
+                     , time>=1.2
   Extensions:        FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts

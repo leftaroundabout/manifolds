@@ -13,16 +13,24 @@ import Prelude hiding ((.), id)
 import Graphics.Rendering.OpenGL hiding (Triangulation)
 import Graphics.UI.GLUT hiding (Triangulation)
 
+import Data.AffineSpace
 import Data.VectorSpace
 
 import Control.Monad
 import Control.Category
 import Control.Arrow
 
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Reader
+
+import Data.Maybe
+
 import Data.Vector ((!))
 import qualified Data.Vector as V
 
 import Data.IORef
+
+import Data.Time.Clock
 
 import System.Exit
 import System.Random
@@ -35,7 +43,7 @@ import Control.Monad.Random
 
 instance Random (Color3 GLfloat) where
   random = runRand $ fmap(\(r:g:b:_) -> Color3 (n r) (n g) (n b)) getRandoms
-   where n = (+1/8) . (/2)
+   where n = (+1/2) . (/2)
 
 
 data TrianglatnRenderCfg rendMonad vertex = TrianglatnRenderCfg
@@ -49,55 +57,54 @@ data TrianglatnRenderCfg rendMonad vertex = TrianglatnRenderCfg
        }
 
 
-type Render = IO()
 
-stdEdgeRenderer
-      :: Vertex v => v -> v -> Render
-stdEdgeRenderer v₀ v₁ = do
+stdEdgeRenderer :: (Vertex v, MonadIO r) => v -> v -> r()
+stdEdgeRenderer v₀ v₁ = liftIO $ do
     faceColor <- get currentColor
     color $ Color3 (0.7::GLfloat) 0.7 0.7
     renderPrimitive Lines $ do{vertex v₀; vertex v₁}
     color faceColor
 
-stdShadingTriangleRenderer = genShadingTriangleRenderer (Color3 0.3 0.3 0.3)
 
-stdTriangleRenderer :: (Vertex v, Color v) => v -> v -> v -> Render
+stdTriangleRenderer :: (Vertex v, Color v, MonadIO r)
+          => v -> v -> v -> r()
 stdTriangleRenderer v₀ v₁ v₂ 
-   = renderPrimitive Triangles $ do
+   = liftIO . renderPrimitive Triangles $ do
        color v₀; vertex v₀
        color v₁; vertex v₁
        color v₂; vertex v₂
        
 
-randColTriangleRenderer :: Vertex v => v -> v -> v -> Render
-randColTriangleRenderer v₀ v₁ v₂ = do
+randColTriangleRenderer :: (Vertex v, MonadIO r)
+               => v -> v -> v -> r()
+randColTriangleRenderer v₀ v₁ v₂ = liftIO $ do
     color =<< (randomIO :: IO(Color3 GLfloat))
     renderPrimitive Triangles $ do
        vertex v₀; vertex v₁; vertex v₂
 
 
-stdShadingTriangleRenderer, randColShadingTriangleRenderer 
-      :: (Vertex v, TriangleHasNormal v, Normal3 GLfloat ~ TriangleNormal v)
-              => v -> v -> v -> Render
+stdShadableTriangleRenderer, randColShadableTriangleRenderer 
+      :: (Vertex v, MonadIO r)
+              => (v->Color3 GLfloat) -> v -> v -> v -> r()
               
+stdShadableTriangleRenderer shf = genShadableTriangleRenderer shf (Color3 0.6 0.6 0.6)
 
 
-randColShadingTriangleRenderer v₀ v₁ v₂ = do
+randColShadableTriangleRenderer shf v₀ v₁ v₂ = liftIO $ do
     colour <- randomIO
-    genShadingTriangleRenderer colour v₀ v₁ v₂
+    genShadableTriangleRenderer shf colour v₀ v₁ v₂
 
-genShadingTriangleRenderer
-      :: (Vertex v, TriangleHasNormal v, Normal3 GLfloat ~ TriangleNormal v)
-              => Color3 GLfloat -> v -> v -> v -> Render
-genShadingTriangleRenderer (Color3 r g b) v₀ v₁ v₂ = do
-    let (Normal3 _ _ z) = triangleNormal v₀ v₁ v₂
-        z' = abs z
-    color $ Color3 (r*z') (g*z') (b*z')
-    renderPrimitive Triangles $ mapM_ vertex [v₀,v₁,v₂]
+genShadableTriangleRenderer :: (Vertex v, MonadIO r)
+              => (v->Color3 GLfloat) -> Color3 GLfloat -> v -> v -> v -> r()
+genShadableTriangleRenderer shf (Color3 r g b) v₀ v₁ v₂ = liftIO $ do
+    renderPrimitive Triangles $ forM_ [v₀,v₁,v₂] $ \v -> do
+       let (Color3 r' g' b') = shf v
+       color $ Color3 (r*r') (g*g') (b*b')
+       vertex v
 
 ignore :: Monad m => a -> m()
 ignore = return . const()
-    
+ 
 
 
 renderTriangulation :: forall v r. (Show v, Monad r) =>
@@ -256,28 +263,34 @@ simplexLengthBy lfn (PermutedSimplex _ s) = simplexLengthBy lfn s
 --    { defRotationAxis :: Vector3 GLfloat
 --    , rotationSpeed
 
--- data GLSceneConfig = GLSceneConfig
---    { enableLighting :: Bool
---    , 
---    }
+data GLSceneConfig = GLSceneConfig
+    { enableLighting :: Bool
+    }
 
--- defOrthoSceneCfg :: GLSceneConfig
--- defOrthoSceneCfg = GLSceneConfig False
-
+defOrthoSceneCfg :: GLSceneConfig
+defOrthoSceneCfg = GLSceneConfig False
 
 
-triangViewMain :: (Vertex v, Show v) => 
-                         TrianglatnRenderCfg IO v 
---                       -> GLSceneConfig
-                      -> IO(Triangulation v) -> IO()
-triangViewMain cfg@(TrianglatnRenderCfg{..})
---                sceneCfg@(GLSceneConfig{..})
-               triangGet = do 
+
+data VisualisationRTInfo = VisualisationRTInfo 
+  { totalVisRuntime, timeSinceLastFrame :: NominalDiffTime
+  }
+
+type VisualisationRT = ReaderT VisualisationRTInfo IO
+
+
+glViewMain :: GLSceneConfig -> VisualisationRT() -> IO()
+glViewMain _ render = do 
     (progname, _) <- getArgsAndInitialize
     createWindow "A simple view of a triangulation"
     
     initialDisplayMode $= [WithDepthBuffer, DoubleBuffered]
-    paused <- newIORef False
+    
+    globFrameCount <- newIORef (0 :: Int)
+    
+    pausedTime <- newIORef (Nothing :: Maybe UTCTime)
+    [ttlRunTime, maxFrameWait] <- mapM newIORef [0, 0 :: NominalDiffTime]
+    lastFrameTime <- newIORef =<< getCurrentTime
     
     reshapeCallback $= Just (\(Size w h) ->
          viewport $= (Position (fromIntegral $ (w-h)`div`2) 0, Size h h)
@@ -285,22 +298,55 @@ triangViewMain cfg@(TrianglatnRenderCfg{..})
     
     depthFunc $= Just Less
     
+    let showExitInfo = do
+         ttframes <- readIORef globFrameCount
+         tttime <- readIORef ttlRunTime
+         latency <- readIORef maxFrameWait
+         putStrLn $ "Displayed a total of "++show ttframes++" frames during "
+                  ++show tttime
+                  ++ " (average "++take 4(show $ fromIntegral ttframes/realToFrac tttime)++" FPS,"
+                  ++ " latency "++show latency++")."
+       
+    closeCallback $= Just showExitInfo
+    
     keyboardMouseCallback $= (Just $ \key state modifiers position ->
        case (key, state) of
-         (Char '\ESC', Down) -> exitSuccess
-         (Char ' ', Down)    -> modifyIORef paused not
+         (Char '\ESC', Down) -> showExitInfo >> exitSuccess
+         (Char ' ', Down)    -> do
+            pausedAt <- readIORef pausedTime
+            case pausedAt of
+             Just tp -> do
+                writeIORef lastFrameTime =<< getCurrentTime
+                writeIORef pausedTime Nothing
+             Nothing -> writeIORef pausedTime . Just =<< getCurrentTime
          _                   -> return ()
       )
     
+    
+    
     displayCallback $= do 
-         isPaused <- readIORef paused
-         when(not isPaused) $ do
+         paused <- readIORef pausedTime
+         when(isNothing paused) $ do
             clear [ColorBuffer, DepthBuffer]
             color $ Color3 (0.3::GLfloat) 0.3 0.3
-            triang <- triangGet
-            preservingMatrix $ renderTriangulation cfg triang
+            
+            timeNow <- getCurrentTime
+            timeLF <- readIORef lastFrameTime
+            let thisΔt = timeNow`diffUTCTime`timeLF
+            modifyIORef ttlRunTime (+thisΔt)
+            writeIORef lastFrameTime timeNow
+            modifyIORef maxFrameWait $ max thisΔt
+            
+            ttlRT <- readIORef ttlRunTime
+            
+            preservingMatrix .
+              runReaderT render $ VisualisationRTInfo
+                { totalVisRuntime = ttlRT
+                , timeSinceLastFrame = thisΔt }
             
             swapBuffers
+            
+            modifyIORef globFrameCount (+1)
        
     idleCallback $= Just (postRedisplay Nothing)
     
@@ -337,41 +383,42 @@ instance (Floating a) => TriangleHasNormal (Vertex3 a) where
    
 
 
-data ColourGLvertex vert colour
-       = ColourGLvertex { vertexP :: !vert
-                        , vColour :: !colour }
+data CleverGLvertex vert extraInfo
+       = CleverGLvertex { vertexP :: !vert
+                        , vExtraInfo :: !extraInfo }
              deriving(Eq, Show)
 
-instance (Vertex vert) => Vertex (ColourGLvertex vert cl) where
-  vertex (ColourGLvertex v _) = vertex v
-instance (Color colour) => Color (ColourGLvertex vt colour) where
-  color (ColourGLvertex _ c) = color c
+instance (Vertex vert) => Vertex (CleverGLvertex vert ei) where
+  vertex (CleverGLvertex v _) = vertex v
+instance (Color colour) => Color (CleverGLvertex vt colour) where
+  color (CleverGLvertex _ c) = color c
+instance (Normal normal) => Normal (CleverGLvertex vt normal) where
+  normal (CleverGLvertex _ n) = normal n
 
 
 -- data BrcDiffLimits = BrcDiffLimits
 --       { 
 
-colourGLvertex_brcDiffLimit :: (RealFloat f, InnerSpace f, f~Scalar f) => f -> f
-                         -> Simplex(ColourGLvertex (Vertex3 f) (Color3 f)) -> Bool
-colourGLvertex_brcDiffLimit brcOffLim clDiffLim s = posOk && colourOk
- where (ColourGLvertex (Vertex3 brcx brcy _) (Color3 brcR brcG brcB))
+cleverGLvertex_brcDiffLimit :: ( RealFloat f, InnerSpace f, f~Scalar f
+                               , AffineSpace propty, d~Diff propty
+                               , VectorSpace d, Fractional(Scalar d) )
+                                => f -> (d -> Bool)
+                         -> Simplex(CleverGLvertex (Vertex3 f) propty) -> Bool
+cleverGLvertex_brcDiffLimit brcOffLim propDiffPred s = posOk && proptyOk
+ where (CleverGLvertex (Vertex3 brcx brcy _) brcPropty)
              = simplexBarycenter s
        
        splVerts = fSimplexVertices s
        n = length splVerts
-       n' = recip $ fromIntegral n
        
-       colourOk = all ((<clDiffLim) . abs) $ zipWith(-) [avgR,avgG,avgB] [brcR,brcG,brcB]
-        where (Color3 avgR avgG avgB) = renorm $ foldr addup (Color3 0 0 0) splVerts
-              renorm (Color3 r g b) = Color3(r*n')(g*n')(b*n')
-              addup(ColourGLvertex _ (Color3 r g b))(Color3 r' g' b')
-                        = Color3 (r+r') (g+g') (b+b')
+       proptyOk = propDiffPred avgOff
+        where avgOff = foldr addup zeroV splVerts ^* recip (fromIntegral n)
+              addup(CleverGLvertex _ p) p' = (p .-. brcPropty) ^+^ p'
        
-       posOk = brcInside --  || 
-        where brcInside
-               | n==3       = brcIns3
-               | otherwise  = offDistSq < brcOffLim*brcOffLim
-              brcIns3 = α>0 && α<1 && β>0 && β<1
+       posOk 
+          | n==3       = brcInside3
+          | otherwise  = offDistSq < brcOffLim*brcOffLim
+        where brcInside3 = α>0 && α<1 && β>0 && β<1
                where [p₀,p₁,p₂] = pPoints
                      v₁ = p₁ ^-^ p₀; v₂ = p₂ ^-^ p₀
                      vᵣ = brcP ^-^ p₀
@@ -381,13 +428,13 @@ colourGLvertex_brcDiffLimit brcOffLim clDiffLim s = posOk && colourOk
                      ρ₁₁ = v₁<.>v₁; ρ₁₂ = v₁<.>v₂; ρ₂₂ = v₂<.>v₂
                      κ₁ = vᵣ<.>v₁; κ₂ = vᵣ<.>v₂
               brcP = (brcx,brcy)
-              pPoints = map (\(ColourGLvertex (Vertex3 x y _) _) -> (x,y)) splVerts
+              pPoints = map (\(CleverGLvertex (Vertex3 x y _) _) -> (x,y)) splVerts
               pBrc@(pbx,pby) = midBetween pPoints
               offDistSq = magnitudeSq $ brcP ^-^ pBrc
        
        
           
 --   = simplexLength(fmap vertexP s) <= maxLength
---    && simplexLength(fmap (\(ColourGLvertex _ (Color3 r _ _)) -> r) s) <= maxColourDiff
+--    && simplexLength(fmap (\(CleverGLvertex _ (propty3 r _ _)) -> r) s) <= maxColourDiff
 --    && simplexLength(fmap (\(ColourGLvertex _ (Color3 _ g _)) -> g) s) <= maxColourDiff
 --    && simplexLength(fmap (\(ColourGLvertex _ (Color3 _ _ b)) -> b) s) <= maxColourDiff
