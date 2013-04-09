@@ -278,6 +278,10 @@ data VisualisationRTInfo = VisualisationRTInfo
 
 type VisualisationRT = ReaderT VisualisationRTInfo IO
 
+askTotalVisRuntime, askTimeSinceLastFrame :: VisualisationRT NominalDiffTime
+askTotalVisRuntime = fmap totalVisRuntime ask
+askTimeSinceLastFrame = fmap timeSinceLastFrame ask
+
 
 glViewMain :: GLSceneConfig -> VisualisationRT() -> IO()
 glViewMain _ render = do 
@@ -298,20 +302,20 @@ glViewMain _ render = do
     
     depthFunc $= Just Less
     
-    let showExitInfo = do
+    let printExitInfo = do
          ttframes <- readIORef globFrameCount
          tttime <- readIORef ttlRunTime
          latency <- readIORef maxFrameWait
          putStrLn $ "Displayed a total of "++show ttframes++" frames during "
-                  ++show tttime
-                  ++ " (average "++take 4(show $ fromIntegral ttframes/realToFrac tttime)++" FPS,"
+                  ++show tttime++" of active runtime"
+         putStrLn $ " (average "++take 4(show $ fromIntegral ttframes/realToFrac tttime)++" FPS,"
                   ++ " latency "++show latency++")."
        
-    closeCallback $= Just showExitInfo
+    closeCallback $= Just printExitInfo
     
     keyboardMouseCallback $= (Just $ \key state modifiers position ->
        case (key, state) of
-         (Char '\ESC', Down) -> showExitInfo >> exitSuccess
+         (Char '\ESC', Down) -> printExitInfo >> exitSuccess
          (Char ' ', Down)    -> do
             pausedAt <- readIORef pausedTime
             case pausedAt of
