@@ -16,6 +16,7 @@
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
+{-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
 -- {-# LANGUAGE StandaloneDeriving       #-}
@@ -291,6 +292,11 @@ instance (LtdShow s) => LtdShow (Array s) where
                                       * 2**(-1 - sqrt(fromIntegral i)) ))
                      $ arr
    where l = V.length arr
+         
+instance (LtdShow l, LtdShow r) => LtdShow (l,r) where
+  ltdShow n (l, r) = "(" ++ pShow l ++ ", " ++ pShow r ++ ")"
+   where pShow :: LtdShow s => s->String
+         pShow = ltdShow $ n`quot`2
 
 
 instance (Show p) => LtdShow (Simplex p) where
@@ -329,9 +335,9 @@ fSimplexVertices s = map (getSimplex0 . (`locateSubSimplex`s) . fst)
                       . distinctDim0SubsplxGroups $ simplexDimension s
 
 simplexBoundary :: Simplex p -> Triangulation p
-simplexBoundary (SimplexN bnds _) = Triangulation bnds
+simplexBoundary (SimplexN bnds _) = wronglyDisjointSimplicesTriangulation bnds
 simplexBoundary (PermutedSimplex _ s) = simplexBoundary s
-simplexBoundary s = Triangulation $ V.singleton s
+simplexBoundary s = Triangulation $ V.singleton (s, [])
 
 
 simplexDimension :: Simplex p -> Int
@@ -352,22 +358,6 @@ traceSubsplxPath :: [Int] -> Endomorphism SubSimplexSideShare
 traceSubsplxPath idId sd = foldr ShareInFace sd idId
 
 
-{-
-simplexInnards :: Simplex p -> [[SimplexInnards p]]
-simplexInnards (Simplex0 _) = []
-simplexInnards (SimplexN lds inrs) = [inrs] : map concat(transpose $ map simplexInnards lds)
-
-emptySimplexCone :: p -> Simplex p -> Simplex p
-emptySimplexCone p q@(Simplex0 _) = SimplexN [Simplex0 p, q] undefined
-emptySimplexCone p s@(SimplexN qs _) = SimplexN (s : map (emptySimplexCone p) qs) undefined
-manualfillSimplexCone :: p -> [[SimplexInnards p]] -> Simplex p -> Simplex p
-manualfillSimplexCone [inrs]         p q@(Simplex0 _)       = SimplexN [Simplex0 p,q] inrs
-manualfillSimplexCone ([inrs]:sinrs) p s@(SimplexN qs binr)
-      = SimplexN (s : zipWith manualfillSimplexCone qs contins) inrs
-  where contins = transpose $ map (divide $ length qs) sinrs
--}
-
---               deriving(Eq)
 
 -- | Note that the 'Functor' instances of 'Simplex' and 'Triangulation'
 -- are only vaguely related to the actual category-theoretic /simplicial functor/.
@@ -383,69 +373,83 @@ instance Functor SubSimplex where
   fmap f(SimplexBarycenter p) = SimplexBarycenter $ f p
   fmap f(SubSimplex irs fr) = SubSimplex (fmap f irs) fr
 
+{- TODO:
+instance Comonad Simplex
+-- Should look something like the following: 'extract' retrieves the barycenter,
+-- 'duplicate' replaces the barycenter of each subsimplex /s/ with all of /s/ itself.
+-}
 
-newtype Triangulation p
-  = Triangulation
-    { sComplexSimplices      :: Array (Simplex p)
---     , barycentricSubdivision :: Triangulation p 
-    }       --  -> Triangulation p
+
+data SimplexNeighbourRef = SimplexNeighbourRef
+  { boundarySubsimplexId :: Int
+  , simplexNeighbourIdInTriang :: Int
+  , simplexNeighbourBndSubsplxId :: Int
+  , neighbourSimplexBdnGlueOrientation :: SimplexPermutation
+  }
+
+newtype Triangulation p = Triangulation
+    { simplicialComplex :: Array (Simplex p, [(Int, SimplexPermutation)])
+    }
+
+sComplexSimplices :: Triangulation p -> Array(Simplex p)
+sComplexSimplices = V.map fst . simplicialComplex
 
 instance (Show p) => LtdShow (Triangulation p) where
-  ltdShow n (Triangulation cmplx) = "Triang "++ltdShow n cmplx
+  ltdShow n (Triangulation cmplx)
+      = "Triang "++ltdShow n (V.map (second LtdShow) cmplx)
     
+disjointTriangulation :: Triangulation p -> Triangulation p -> Triangulation p
+disjointTriangulation (Triangulation sps1) (Triangulation sps2)
+   = Triangulation $ sps1 V.++ V.map(second . map $ first(+l1)) sps2
+ where l1 = V.length sps1
 
 autoglueTriangulation :: Eq p => [Simplex p] -> Triangulation p
-autoglueTriangulation = Triangulation . fromList
+autoglueTriangulation = Triangulation . V.map(,[]) . fromList
+
+wronglyDisjointTriangulationCons :: Simplex p -> Triangulation p -> Triangulation p
+wronglyDisjointTriangulationCons s
+     = disjointTriangulation (Triangulation $ V.singleton(s,[]))
+
+wronglyDisjointSimplicesTriangulation :: Array (Simplex p) -> Triangulation p
+wronglyDisjointSimplicesTriangulation = Triangulation . V.map (,[])
+
+singletonTriangulation :: Simplex p -> Triangulation p
+singletonTriangulation = Triangulation . V.singleton . (,[])
 
 infixr 5 ⊿⌧,⊿⊳
 
 (⊿⌧) :: Eq p => Simplex p -> Triangulation p -> Triangulation p
-s ⊿⌧ (Triangulation cmplx) = Triangulation $ s`V.cons`cmplx
+(⊿⌧) = wronglyDisjointTriangulationCons
 
 (⊿⊳) :: Eq p => Simplex p -> Simplex p -> Triangulation p
-s1 ⊿⊳ s2 = Triangulation $ V.fromList [s1, s2]
+s1 ⊿⊳ s2 = wronglyDisjointSimplicesTriangulation $ V.fromList [s1, s2]
 
 
 triangulationVertices :: Eq p => Triangulation p -> [p]
-triangulationVertices (Triangulation sComplex) = nub $ simplexVertices =<< toList sComplex
+triangulationVertices (Triangulation sComplex) 
+    = nub $ simplexVertices =<< toList (V.map fst sComplex)
 
 simplexBarycentricSubdivision :: Simplex p -> Triangulation p
 simplexBarycentricSubdivision s@(SimplexN _ (SimplexInnards subdiv _))
-         = Triangulation $ fmap finalise subdiv
+         = wronglyDisjointSimplicesTriangulation $ fmap finalise subdiv
     where finalise(SubSimplex inrs bounds)
                           = SimplexN (fmap (findSharedSide s) bounds) inrs
- {-  where finalise(SubSimplex inrs bounds)
-             = SimplexN (map (lookupBound faceSubdivs) bounds) inrs
-         lookupBound lds (ShareSubdivider q) = SimplexN bbounds divInr
-          where divInr = dividers !! q
-                bbounds | (SimplexBarycenter _)<-divInr  = []
-                        | otherwise                      = finalise divInr
-         lookupBound lds (ShareInFace f b) = simplicialComplex(faceSubdivs!!f) !! q
-          where reconstrFace = SimplexN (
-         
-         faceSubdivs = map simplexBarycentricSubdivision lds
-         
-             Triangulation sideSubdiv <- map simplexBarycentricSubdivision lds
-             subside <- sideSubdiv
-             return $ emptySimplexCone baryc subside
-             case subside of
-              p@(Simplex0 _)           -> return $ SimplexN [baryc, p]
-              s@(SimplexN lds innards) -> return . SimplexN $ s :           -}
+ 
 simplexBarycentricSubdivision (PermutedSimplex _ s) = simplexBarycentricSubdivision s
-simplexBarycentricSubdivision s0 = Triangulation $ singleton s0
+simplexBarycentricSubdivision s0 = singletonTriangulation s0
 
 barycentricSubdivisions :: Triangulation p -> Triangulation p
-barycentricSubdivisions (Triangulation splxs)
-  = Triangulation $ splxs >>= sComplexSimplices . simplexBarycentricSubdivision
+barycentricSubdivisions t
+  = wronglyDisjointSimplicesTriangulation
+      $ sComplexSimplices t >>= sComplexSimplices . simplexBarycentricSubdivision
 
 nStepBarycentricSubdivisions :: Int -> Triangulation p -> Triangulation p
 nStepBarycentricSubdivisions 0 = id
 nStepBarycentricSubdivisions n = nStepBarycentricSubdivisions (n-1) . barycentricSubdivisions
     
--- deriving instance Eq (Triangulation p)
 
 instance Functor Triangulation where
-  fmap f(Triangulation c) = Triangulation(fmap(fmap f)c)
+  fmap f(Triangulation c) = Triangulation(fmap(first $ fmap f)c)
 
 
 data IndexedVert p = IndexedVert {indexedVertex::p, vertexIndex::Int}
@@ -492,7 +496,8 @@ ballAround :: EuclidSpace v
     =>  Scalar v        -- ^ Size of the ball to be created
      -> v               -- ^ Center of the ball (this also defines what space we're in, and thereby the dimension of the ball)
      -> Triangulation v -- ^ A barycentrically-subdividable simplicial complex triangulating the ball in question
-r `ballAround`p = fmap ((^+^p) . l₁tol₂) $ Triangulation orthoplex
+r `ballAround`p = fmap ((^+^p) . l₁tol₂) 
+                    $ wronglyDisjointSimplicesTriangulation orthoplex
  where orthoplex
         | [] <- vDecomp  = singleton $ Simplex0 p
         | otherwise      = orthSides
@@ -707,62 +712,10 @@ spannedAffineSplx vs subF = result
         isFcPath = null . tail
         isLdsPath = not . null . tail
        
-{-       
- where sides  = map affineSimplex $ gapPositions vs
-       result = SimplexN sides $ innardsBetween sides
-       
-       innardsBetween [s0@(Simplex0 p0), s1@(Simplex0 p1)]
-           = SimplexInnards [ SubSimplex (innardsBetween [s0, barycenter])
-                                         [ ShareInFace 0 $ ShareSubdivision 0
-                                         , ShareSubdivider 0 ]
-                            , SubSimplex (innardsBetween [barycenter, s1])
-                                         [ ShareSubdivider 0
-                                         , ShareInFace 1 $ ShareSubdivision 0 ] ]
-                            [ SubSimplex (SimplexBarycenter barycenter) ]
-        where barycenter = midBetween [p0,p1]
-       innardsBetween sidess = SimplexInnards subdivs dividers
-        where 
-              subdivs = 
               
-              rCones = Map.fromList [ 
-              
-              buildCone (fId, (sId, SubSimplex fsInrs fsBounds))
-                         = SubSimplex coneInnards coneBounds
-               where coneInnards = innardsBetween rSides
-                     rSides = srcFace`findSharedSide`sId
-                                : map ( ... )
-                     srcFace = sidess !! fId
-                                                  
-              nSides = length sidess
-              
-              [sideSubs,sideSubDivs] =
-                  [ concat . zip [0..]
-                        $ map (zip [0..] . sspAccess . simplexNInnards) sidess
-                  | sspAccess <- [ simplexBarySubdivs, simplexBarySubdividers ] ]
-              barycenter
-                    = midBetween $ map simplexBarycenter sidess
-              subinnards = do
-                  SimplexN sSides (SimplexInnards sBaryc sBarysubs) <- sidess
-                  SimplexInnards sBsubBary _ <- sBarysubs
-                  return
-                  sSides : map()
-                  
-       distinctSubfaces s@[SimplexN [s0,s1] _] = [s:[s0,s1]]
-       distinctSubfaces sidess = thisLevel : (thisLevel >>= distinctSubfaces)
-        where thisLevel = [ f | SimplexN(f:_)<-sidess ]
-       subdivided = Triangulation . map snd . snd $ subdivide result
-       
-       subdivide (Simplex0 v)    = (v, [([v],Simplex0 v)])
-       subdivide (SimplexN vs _) = orq $ map subdivide vs
-        where
-              orq ps = ( b, map((\vs -> (vs, affineSimplex vs)) . (b:) )
-                             . orientate . concat $ map (map fst . snd) ps )
-               where b = midBetween $ map fst ps
- -}              
 midBetween :: (VectorSpace v, Fractional(Scalar v)) => [v] -> v
 midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
        
---        orientate = zipWith($) $ cycle [reverse, id]
 
 thisWholeSimplex = SubSplxIndex[]
 
@@ -893,103 +846,7 @@ data ManifoldFromTriangltn a tSpc = ManifoldFromTriangltn
 
 
 
-{-
-affineSimplex [(6,0),(0,6),(0,0) :: (Double,Double)]
- ≈ SN [∘ SN [∘ S0((0,0))∘ S0((0,6)) ∘]
-            (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                 ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
-                [∘ SB (0,3) ∘])
-       ∘ SN [∘ S0((6,0))∘ S0((0,0)) ∘]
-            (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
-                      [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                 ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘])
-                      [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
-                [∘ SB (3,0) ∘])
-       ∘ SN [∘ S0((0,6))∘ S0((6,0)) ∘]
-            (SI [∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 0 (ShareSubdivision 0))... ∘]
-                 ∘ SS (SI [∘∘{2}∘∘] [∘∘{1}∘∘]) [∘ SSS (ShareSubdivider 0)...∘ SSS (ShareInFace 1 (ShareSubdivision 0))... ∘] ∘]
-                [∘ SB (3,3) ∘]) ∘]
-      (SI [∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
-                    [∘ SB (1,1.5)
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
-                [∘ SSS (ShareInFace 0 (ShareSubdivision 0))...
-                 ∘ SSS (ShareSubdivider 0)...
-                 ∘ SSS (ShareSubdivider 4)... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
-                    [∘ SB (1,3.5)
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
-                [∘ SSS (ShareInFace 0 (ShareSubdivision 1))...
-                 ∘ SSS (ShareSubdivider 0)...
-                 ∘ SSS (ShareSubdivider 5)... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
-                    [∘ SB (3.5,1)
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
-                [∘ SSS (ShareInFace 1 (ShareSubdivision 0))...
-                 ∘ SSS (ShareSubdivider 0)...
-                 ∘ SSS (ShareSubdivider 6)... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
-                    [∘ SB (1.5,1)
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘]
-                     ∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
-                [∘ SSS (ShareInFace 1 (ShareSubdivision 1))...∘ SSS (ShareSubdivider 0)...∘ SSS (ShareSubdivider 4)... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
-                    [∘ SB (1.5,3.5)∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
-                [∘ SSS (ShareInFace 2 (ShareSubdivision 0))...∘ SSS (ShareSubdivider 0)...∘ SSS (ShareSubdivider 5)... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘]∘ SS (SI (...) (...)) [∘∘{3}∘∘] ∘]
-                    [∘ SB (3.5,1.5)∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘])
-                [∘ SSS (ShareInFace 2 (ShareSubdivision 1))...∘ SSS (ShareSubdivider 0)...∘ SSS (ShareSubdivider 6)... ∘] ∘]
-          [∘ SB (2,2)
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘]
-                    [∘ SB (1,2.5) ∘])
-                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 0 (ShareSubdivider 0))... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] 
-                    [∘ SB (2.5,1) ∘])
-                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 1 (ShareSubdivider 0))... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] 
-                    [∘ SB (2.5,2.5) ∘])
-                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 2 (ShareSubdivider 0))... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘] 
-                    [∘ SB (1,1) ∘])
-                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 0 (ShareInFace 0 (ShareSubdivision 0)))... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘]
-                    [∘ SB (1,4) ∘])
-                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 0 (ShareInFace 1 (ShareSubdivision 0)))... ∘]
-           ∘ SS (SI [∘ SS (SI (...) (...)) [∘∘{2}∘∘]∘ SS (SI (...) (...)) [∘∘{2}∘∘] ∘]
-                    [∘ SB (4,1) ∘])
-                [∘ SSS (ShareSubdivid..)...∘ SSS (ShareInFace 1 (ShareInFace 0 (ShareSubdivision 0)))... ∘] ∘])
-              
--}
+
  
 
 
