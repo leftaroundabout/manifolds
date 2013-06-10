@@ -168,90 +168,31 @@ sfGroupBy :: (a->a->Ordering) -> [a] -> [[a]]
 sfGroupBy cmp = fastNubByWith (cmp`on`head) (++) . map(:[])
 
 
-
-data Simplex p
-   = Simplex0 { getSimplex0 :: p }
-   | SimplexN { simplexNLDBounds :: Array(Simplex p)
-              , simplexNInnards :: SimplexInnards p  } 
-   | PermutedSimplex { simplexPermutation :: SimplexPermutation 
-                     , thePermutedSimplex :: Simplex p          }
-                     
+data Simplex p = Simplex { subSimplices :: [SimplexInnards p] }
 
 data SimplexInnards p = SimplexInnards
-    { simplexBarySubdivs :: Array(SubSimplex p)
-    , simplexBarySubdividers :: Array(SubSimplex p) }
-    
-    
--- The name \"subsimplex\" is used somewhat ambiguously in this module:
--- 'SubSimplex' is the type for /parts of a simplex' subdivision/; on the
--- other hand many of the functions refer to @subsimplex@ in the more
--- conventional sense, i.e. one of the sides, vertices, or the entirety
--- of a simplex.
-data SubSimplex p
-  = SimplexBarycenter { getSimplexBarycenter :: p }
-  | SubSimplex { subSimplexInnards :: SimplexInnards p
-               , subSimplexBoundaries :: Array(SimplexSideShare) }
---     deriving(Show)
-    
-data SimplexSideShare = SimplexSideShare
-    { sideShareTarget :: SubSimplexSideShare
-    , sharePermutation :: SimplexPermutation }
-    deriving(Eq)
-    
-data SubSimplexSideShare = ShareSubdivider Int
-                         | ShareSubdivision Int
-                         | ShareInFace Int SubSimplexSideShare
-                         deriving (Eq, Ord, Show)
-
-data SimplexPermutation
-  = SimplexIdPermutation
-  | SimplexPermutation { subSimplexRemapping :: Array(Int, SimplexPermutation) }
-  deriving(Eq, Show)
- 
-newtype SubSplxIndex = SubSplxIndex{ getSubSplxIndex::[Int] }
-   deriving (Eq, Ord)
-
-simplexBarycenter :: Simplex p -> p
-simplexBarycenter (Simplex0 p) = p
-simplexBarycenter (SimplexN _ (SimplexInnards _ sdvds))
-  = getSimplexBarycenter . fromJust . V.find ibcsdd $ sdvds
-     where ibcsdd (SimplexBarycenter _) = True; ibcsdd _ = False
-simplexBarycenter (PermutedSimplex _ s) = simplexBarycenter s
- 
-findSharedSide :: Simplex p -> SimplexSideShare -> Simplex p
-findSharedSide s@(Simplex0 _) _ = s
-findSharedSide s@(SimplexN _ (SimplexInnards _ subdividers))
-               (SimplexSideShare (ShareSubdivider n) π)
-    = case subdividers ! n of
-        (SimplexBarycenter b) -> Simplex0 b
-        (SubSimplex sdInn sdBnds)
-          -> π `permuteSimplex` SimplexN ( fmap (findSharedSide s) sdBnds ) sdInn 
-findSharedSide s@(SimplexN _ (SimplexInnards subdivisions _))
-               (SimplexSideShare (ShareSubdivision n) π)
-         = π `permuteSimplex` SimplexN ( fmap (findSharedSide s) sdBnds ) sdInn 
-   where (SubSimplex sdInn sdBnds) = subdivisions ! n
-findSharedSide (SimplexN faces _)
-               (SimplexSideShare (ShareInFace n sshare) perm)
-         = findSharedSide (faces!n) (SimplexSideShare sshare perm)
-findSharedSide (PermutedSimplex _ s) ssh = findSharedSide s ssh
-
-permuteSimplex :: SimplexPermutation -> Simplex p -> Simplex p
-SimplexIdPermutation `permuteSimplex` s = s
-π `permuteSimplex` PermutedSimplex σ s = (π ↺↺ σ) `permuteSimplex` s
-π `permuteSimplex` s = PermutedSimplex π s
+    simplexBarycenter :: p
+  , simplexSubdivs :: [SimplexInnards p]
+  , simplexSubdividers :: [SimplexInnards p]
+  } 
 
 
+-- | Note that the 'Functor' instances of 'Simplex' and 'Triangulation'
+-- are only vaguely related to the actual category-theoretic /simplicial functor/.
+instance Functor Simplex where
+  fmap f(Simplex edges innards) = Simplex (fmap f edges) (fmap (fmap f) innards)
 
-instance Permutation SimplexPermutation where
-  invPerm (SimplexIdPermutation) = SimplexIdPermutation
-  invPerm (SimplexPermutation rm)
-           = SimplexPermutation . fromList
-             . map(\(n, (_,π)) -> (n, invPerm π) )
-             . sortBy (compare `on` fst.snd) . zip[0..] $ toList rm
-  π ↺↺ SimplexIdPermutation = π
-  SimplexIdPermutation ↺↺ π = π
-  SimplexPermutation rm ↺↺ SimplexPermutation rm'
-     = SimplexPermutation $ V.map (\(n, π) -> second (π↺↺) $ rm' ! n ) rm
+instance Functor SimplexInnards where
+  fmap f (SimplexInnards brc divs dvders)
+       = SimplexInnards (f brc) (fmap (fmap f) divs) (fmap (fmap f) dvders)
+
+-- Should look something like the following: 'extract' retrieves the barycenter,
+-- 'duplicate' replaces the barycenter of each subsimplex /s/ with all of /s/ itself.
+instance Comonad Simplex where
+  extract (Simplex (SimplexInnards baryc _ _:_)) = baryc
+  duplicate s@(Simplex inrs) = Simplex $ fmap (lookupSidesIn s) inrs
+
+
 
 
 
@@ -300,9 +241,9 @@ instance (LtdShow l, LtdShow r) => LtdShow (l,r) where
 
 
 instance (Show p) => LtdShow (Simplex p) where
-  ltdShow n (Simplex0 p) = "S0(" ++ show p ++ ")"
-  ltdShow 0 _ = "SN (...) (...)"
-  ltdShow n (SimplexN sss inrs) = "SN " ++ pShow sss
+  ltdShow n (Simplex [p] []) = "S0 (" ++ show p ++ ")"
+  ltdShow 0 _ = "Simplex (...) (...)"
+  ltdShow n (Simplex sss inrs) = "SN " ++ pShow sss
                           ++ " (" ++ pShow inrs ++ ")"
    where pShow :: LtdShow s => s->String
          pShow = ltdShow $ n`quot`2
@@ -314,25 +255,6 @@ instance (Show p) => LtdShow (SimplexInnards p) where
    where pShow :: LtdShow s => s->String
          pShow = ltdShow $ n`quot`2
                                       
-instance (Show p) => LtdShow (SubSimplex p) where
-  ltdShow n (SimplexBarycenter b) = "SB "++ show b
-  ltdShow n (SubSimplex inrs bnds)
-     = "SS ("++ pShow inrs ++ ") " ++ pShow(V.map LtdShow bnds)
-   where pShow :: LtdShow s => s->String
-         pShow = ltdShow $ n`quot`2
-
-instance Show SimplexSideShare where
-  show (SimplexSideShare tgt π) = "SSS ("++show tgt++") ("++show π++")"
-
-simplexVertices :: Eq p => Simplex p -> [p]
-simplexVertices (Simplex0 p) = [p]
-simplexVertices (SimplexN vs _) = nub $ simplexVertices =<< toList vs
-
-
-fSimplexVertices :: Simplex p -> [p]
-fSimplexVertices (Simplex0 p) = [p]
-fSimplexVertices s = map (getSimplex0 . (`locateSubSimplex`s) . fst)
-                      . distinctDim0SubsplxGroups $ simplexDimension s
 
 simplexBoundary :: Simplex p -> Triangulation p
 simplexBoundary (SimplexN bnds _) = wronglyDisjointSimplicesTriangulation bnds
@@ -359,25 +281,6 @@ traceSubsplxPath idId sd = foldr ShareInFace sd idId
 
 
 
--- | Note that the 'Functor' instances of 'Simplex' and 'Triangulation'
--- are only vaguely related to the actual category-theoretic /simplicial functor/.
-instance Functor Simplex where
-  fmap f(Simplex0 p) = Simplex0(f p)
-  fmap f(SimplexN lds innards) = SimplexN (fmap(fmap f) lds) (fmap f innards)
-  fmap f(PermutedSimplex π s) = PermutedSimplex π $ fmap f s
-
-instance Functor SimplexInnards where
-  fmap f(SimplexInnards divs dvders)
-       = SimplexInnards (fmap (fmap f) divs) (fmap (fmap f) dvders)
-instance Functor SubSimplex where
-  fmap f(SimplexBarycenter p) = SimplexBarycenter $ f p
-  fmap f(SubSimplex irs fr) = SubSimplex (fmap f irs) fr
-
-{- TODO:
-instance Comonad Simplex
--- Should look something like the following: 'extract' retrieves the barycenter,
--- 'duplicate' replaces the barycenter of each subsimplex /s/ with all of /s/ itself.
--}
 
 
 data SimplexNeighbourRef = SimplexNeighbourRef
