@@ -40,6 +40,7 @@ import Data.Basis
 import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.Maybe
+import Control.Comonad
 
 import Debug.Trace
 
@@ -168,13 +169,22 @@ sfGroupBy :: (a->a->Ordering) -> [a] -> [[a]]
 sfGroupBy cmp = fastNubByWith (cmp`on`head) (++) . map(:[])
 
 
-data Simplex p = Simplex { subSimplices :: [SimplexInnards p] }
+data Simplex p = Simplex { subSimplexInnards :: Array (SimplexInnards p) }
 
-data SimplexInnards p = SimplexInnards
+data SubdivAccID = SubdivAccID { 
+   subdivFacebasis
+ , sdfbSubdiv
+ , sdfbSubdivFaceID   :: Int
+ }
+
+data SimplexInnards p = SimplexInnards {
     simplexBarycenter :: p
-  , simplexSubdivs :: [SimplexInnards p]
-  , simplexSubdividers :: [SimplexInnards p]
-  } 
+  , simplexSubdivs :: Array (Array (SimplexInnards p))
+  , simplexSubdividers :: [(SimplexInnards p, [SubdivAccID])]
+  }
+
+simplexMainInnard :: Simplex p -> SimplexInnards p
+simplexMainInnard = V.head . subSimplexInnards
 
 
 -- | Note that the 'Functor' instances of 'Simplex' and 'Triangulation'
@@ -189,10 +199,38 @@ instance Functor SimplexInnards where
 -- Should look something like the following: 'extract' retrieves the barycenter,
 -- 'duplicate' replaces the barycenter of each subsimplex /s/ with all of /s/ itself.
 instance Comonad Simplex where
-  extract (Simplex (SimplexInnards baryc _ _:_)) = baryc
-  duplicate s@(Simplex inrs) = Simplex $ fmap (lookupSidesIn s) inrs
+ 
+  extract ( Simplex (SimplexInnards baryc _ _ : _) ) = baryc
+  
+  duplicate s@(Simplex inrs) = duplicat
+   where duplicat = Simplex $ zipWith lookupSides [0..] inrs
+         lookupSides 0 (SimplexInnards baryc sdGroups subdvds)
+           = SimplexInnards s dupdSds dupdSdvds
+          where dupdSds = V.imap recm $ V.zip
+                             sdGroups
+                             ( V.tail $ subSimplexInnards duplicat )
+                dupdSdvds = ( fmap  sdFRecm subdvds )
+                recm i (subdivs, faceBase)
+                  = V.imap recmi $ V.zip subdivs faceSDBases
+                 where recmi j (subdiv, faceSubdiv) = simplexMainInnard dupSub
+                        where sdqFaces = V.filter ((==j) . sdfbSubdiv) sdGFaces
+                              dupSub = duplicate . Simplex $
+                                   subdiv `V.cons` subSimplexInnards faceSubdiv
+                                    V.++ sdqFaces `V.snoc` s
+                       faceSDBases = fmap simplexBarycenter 
+                                       $ subSimplexInnards faceBase
+                       sdGFaces = V.filter ((==i) . subdivFacebasis) subdvds
+                sdFRecm (dividerInrs, (SubdivAccID i j k):_) = simplexMainInnard dupSub
+                 where sdqFaces = V.filter ((==j) . sdfbSubdiv) sdGFaces
+                       sdGFaces = V.filter ((==i) . subdivFacebasis) subdvds
+                       dupSub = duplicate . Simplex $
+                                   dividerInrs `V.cons` subSimplexInnards faceSubdiv
+                                    V.++ sdqFaces `V.snoc` s
+                                
 
 
+-- faceBarycenters :: Simplex p -> [p]
+-- faceBarycenters 
 
 
 
