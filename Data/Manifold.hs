@@ -175,7 +175,7 @@ data SubdivAccID = SubdivAccID {
    subdivFacebasis
  , sdfbSubdiv
  , sdfbSubdivFaceID   :: Int
- }
+ } deriving (Show)
 
 data SimplexInnards p = SimplexInnards {
     simplexBarycenter :: p
@@ -305,10 +305,15 @@ instance (Show p) => LtdShow (SimplexInnards p) where
   ltdShow 0 _ = "SI (...) (...) (...)"
   ltdShow n (SimplexInnards brc sds dvds) = "SI " ++ show brc
                                       ++ pShow sds
-                                      ++ " " ++ pShow dvds
+                                      ++ " " ++ pShow (V.fromList dvds)
    where pShow :: LtdShow s => s->String
          pShow = ltdShow $ n`quot`3
                                       
+instance (Show p) => LtdShow [p] where
+  ltdShow n l = "[" ++ lsh' n l "]"
+   where lsh' 0 _ = ("... "++)
+         lsh' _ [] = id
+         lsh' n (x:xs) = ((show x ++ ", ") ++) . lsh' (n-1) xs
 
       
               
