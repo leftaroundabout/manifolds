@@ -216,8 +216,7 @@ instance Comonad Simplex where
            = SimplexInnards s dupdSds dupdSdvds
           where dupdSds = V.imap recm $ V.zip
                              sdGroups
-                             ( fmap  simplexBarycenter . V.tail 
-                                        $ subSimplexInnards dduplicat )
+                             ( fmap  simplexBarycenter $ V.tail ddsubs )
                 dupdSdvds = fmap  sdFRecm subdvds
                 recm i (subdivs, faceBase)
                   = V.imap recmi $ V.zip subdivs faceSDBases
@@ -236,15 +235,11 @@ instance Comonad Simplex where
                                 . filter (any ((==i) . subdivFacebasis) . snd)
                                 $ subdvds
                 sdFRecm (SimplexInnards b s d, orient) 
-                 | V.null s  = (SimplexInnards (zeroSimplex b) V.empty V.empty, orient)
-                sdFRecm (dividerInrs, orient) = (simplexMainInnard dupSub, orient)
-                 where sdqFaces = V.filter isDivSub subdvds
-                       dupSub = duplicate . Simplex $
-                                         subdiv 
-                                `V.cons` subSimplexInnards faceSubdiv
-                                    V.++ sdqFaces
-                                `V.snoc` zeroSimplexInnards baryc
-                       isDivSub = undefined
+                 | V.null s  = (SimplexInnards (zeroSimplex b) V.empty [], orient)
+                sdFRecm (_, orient@(SubdivAccID i j k : _)) 
+                      = (dupSub, orient)
+                 where dupSub = (subSimplexInnards . duplicate . simplexBarycenter)
+                                  (dupdSds ! i ! j) ! k
                 dimdGreater :: SimplexInnards q -> SimplexInnards q -> Bool
                 dimdGreater = (>) `on` V.length . simplexSubdivs
                                 
@@ -301,19 +296,18 @@ instance (LtdShow l, LtdShow r) => LtdShow (l,r) where
 
 
 instance (Show p) => LtdShow (Simplex p) where
-  ltdShow n (Simplex [p] []) = "S0 (" ++ show p ++ ")"
   ltdShow 0 _ = "Simplex (...) (...)"
-  ltdShow n (Simplex sss inrs) = "SN " ++ pShow sss
-                          ++ " (" ++ pShow inrs ++ ")"
+  ltdShow n (Simplex sinrs) = "Simplex (" ++ pShow sinrs ++ ")"
    where pShow :: LtdShow s => s->String
          pShow = ltdShow $ n`quot`2
 
 instance (Show p) => LtdShow (SimplexInnards p) where
-  ltdShow 0 _ = "SI (...) (...)"
-  ltdShow n (SimplexInnards sds dvds) = "SI " ++ pShow sds
+  ltdShow 0 _ = "SI (...) (...) (...)"
+  ltdShow n (SimplexInnards brc sds dvds) = "SI " ++ show brc
+                                      ++ pShow sds
                                       ++ " " ++ pShow dvds
    where pShow :: LtdShow s => s->String
-         pShow = ltdShow $ n`quot`2
+         pShow = ltdShow $ n`quot`3
                                       
 
       
