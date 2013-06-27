@@ -206,28 +206,26 @@ instance Functor SimplexInnards where
   fmap f (SimplexInnards brc divs dvders)
        = SimplexInnards (f brc) (fmap (fmap (fmap f)) divs) (fmap (first $ fmap f) dvders)
 
--- Should look something like the following: 'extract' retrieves the barycenter,
+-- Works something like the following: 'extract' retrieves the barycenter,
 -- 'duplicate' replaces the barycenter of each subsimplex /s/ with all of /s/ itself.
 instance Comonad Simplex where
  
   extract (Simplex subs)
    | (SimplexInnards baryc _ _, _) <- V.head subs  = baryc
   
-  duplicate = duplicate'
-  
-duplicate' :: forall a . Simplex a -> Simplex (Simplex a)
-duplicate' s@(Simplex inrs) = duplicat
+  duplicate (Simplex inrs) = duplicat
    where duplicat = Simplex $ fmap lookupSides inrs
          
-         dduplicat :: Simplex (Simplex (Simplex a))
          dduplicat@(Simplex ddsubs) = fmap duplicate duplicat
          
          lookupSides (SimplexInnards baryc sdGroups subdvds, subsubIds)
-           = (SimplexInnards s dupdSds dupdSdvds, subsubIds)
+           = (SimplexInnards (Simplex $ V.backpermute inrs subsubIds) 
+                             dupdSds dupdSdvds
+             , subsubIds                                               )
           where dupdSds = V.imap recm $ V.zip
                              sdGroups
-                             ( fmap (simplexBarycenter . fst)
-                                $ V.backpermute ddsubs subsubIds )
+                             ( fmap (simplexBarycenter . fst) thisSubSubs )
+                thisSubSubs = V.backpermute ddsubs subsubIds
                 dupdSdvds = fmap sdFRecm subdvds
                 recm i (subdivs, faceBase)
                   = V.imap recmi $ V.zip subdivs faceSDBases
@@ -251,17 +249,9 @@ duplicate' s@(Simplex inrs) = duplicat
                       = (fst dupSub, orient)
                  where dupSub = (subSimplices . duplicate . simplexBarycenter)
                                   (dupdSds ! i ! j) ! k
-                dimdGreater :: SimplexInnards q -> SimplexInnards q -> Bool
-                dimdGreater = (>) `on` V.length . simplexSubdivs
---          lookupSides n (SimplexInnards baryc sdGroups subdvds)
---           | V.null sdGroups  = SimplexInnards (zeroSimplex baryc) V.empty []
---           | otherwise        = 
                                 
 
 
-
--- faceBarycenters :: Simplex p -> [p]
--- faceBarycenters 
 
                                                                                                                  
 
