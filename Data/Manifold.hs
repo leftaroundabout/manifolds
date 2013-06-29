@@ -170,9 +170,9 @@ sfGroupBy cmp = fastNubByWith (cmp`on`head) (++) . map(:[])
 
 
 data Simplex p = Simplex {
-    subSimplices :: Array ( OpenSimplex p -- The subsimplex' innards
-                          , Array Int        -- Its respective subsimplices
-                          )
+    subSimplicesMkp :: Array ( OpenSimplex p -- The subsimplex' innards
+                             , Array Int        -- Its respective subsimplices
+                             )
   }
 
 data SubdivAccID = SubdivAccID { 
@@ -188,13 +188,22 @@ data OpenSimplex p = SimplexInnards {
   }
 
 simplexMainInnard :: Simplex p -> OpenSimplex p
-simplexMainInnard = fst . V.head . subSimplices
+simplexMainInnard = fst . V.head . subSimplicesMkp
+
+subSimplices :: Simplex p -> Array (Simplex p)
+subSimplices (Simplex subsMkp) = fmap assembleSub subsMkp
+ where assembleSub (innard, sSubRefs)
+          = Simplex $ (innard, V.empty) `V.cons` fmap reIndex sSubRefs
+        where reIndex i = (thisSubInr, V.backpermute fwdRefMap thisSubSrs)
+               where (thisSubInr, thisSubSrs) = subsMkp ! i
+              fwdRefMap = inverseAssoc sSubRefs
 
 zeroSimplex :: p -> Simplex p
 zeroSimplex = Simplex . V.singleton . (, V.empty) . zeroOpenSimplex
 
 zeroOpenSimplex :: p -> OpenSimplex p
 zeroOpenSimplex p = SimplexInnards p V.empty []
+
 
 
 -- | Note that the 'Functor' instances of 'Simplex' and 'Triangulation'
@@ -235,11 +244,11 @@ instance Comonad Simplex where
                                           $ sdGFaces
                               dupSub = duplicate . Simplex . fmap (, undefined) $
                                          subdiv 
-                                `V.cons` fmap fst (subSimplices faceSubdiv)
+                                `V.cons` fmap fst (subSimplicesMkp faceSubdiv)
                                     V.++ sdqFaces
                                 `V.snoc` zeroOpenSimplex baryc
                        faceSDBases = fmap simplexBarycenter 
-                                       $ fmap fst (subSimplices faceBase)
+                                       $ fmap fst (subSimplicesMkp faceBase)
                        sdGFaces = V.fromList
                                 . filter (any ((==i) . subdivFacebasis) . snd)
                                 $ subdvds
@@ -247,13 +256,24 @@ instance Comonad Simplex where
                  | V.null s  = (SimplexInnards (zeroSimplex b) V.empty [], orient)
                 sdFRecm (_, orient@(SubdivAccID i j k : _)) 
                       = (fst dupSub, orient)
-                 where dupSub = (subSimplices . duplicate . simplexBarycenter)
+                 where dupSub = (subSimplicesMkp . duplicate . simplexBarycenter)
                                   (dupdSds ! i ! j) ! k
-                                
 
 
 
-                                                                                                                 
+
+affineSimplexCone :: forall v . EuclidSpace v => v -> Simplex v -> Simplex v
+affineSimplexCone = undefined
+--  p base@(Simplex baseSubs) = Simplex subs
+--  where subs = coneFillSubs V.++ baseSubs' `V.snoc` zeroOpenSimplex p
+--        coneFillSubs = map
+--        baseSubs' = fmap (\(bsinr, bssSubrefs)
+--                           -> ( bsinr, fmap (+ V.length coneFillSubs) bssSubrefs )
+--                         ) baseSubs
+-- 
+affineSimplex :: forall v . EuclidSpace v => [v] -> Simplex v
+affineSimplex (v:vs) = foldr affineSimplexCone (zeroSimplex v) vs
+
 
 
 class LtdShow s where
@@ -336,7 +356,14 @@ sediment = V.map fst . saSortBy(compare`on`fst.snd)
              . V.indexed . saSortBy(compare`on`snd) . V.indexed
 
 
-
+-- | 'inverseAssoc' is basically the inverse of 'Data.Vector.backpermute'.
+inverseAssoc :: Array Int -> Array Int
+inverseAssoc = V.fromList . psFillGaps . V.toList
+                    . saSortBy (compare`on`snd) . V.indexed
+ where psFillGaps [(e,_)] = [e]
+       psFillGaps ( (a,α) : r@((b,β):_) )
+        | β == succ α  = a : psFillGaps r
+        | otherwise    = a : psFillGaps ( (undefined, succ α) : r )
 
 
 
