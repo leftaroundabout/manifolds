@@ -170,7 +170,7 @@ sfGroupBy cmp = fastNubByWith (cmp`on`head) (++) . map(:[])
 
 
 data Simplex p = Simplex {
-    subSimplices :: Array ( SimplexInnards p -- The subsimplex' innards
+    subSimplices :: Array ( OpenSimplex p -- The subsimplex' innards
                           , Array Int        -- Its respective subsimplices
                           )
   }
@@ -181,20 +181,20 @@ data SubdivAccID = SubdivAccID {
  , sdfbSubdivFaceID   :: Int
  } deriving (Show)
 
-data SimplexInnards p = SimplexInnards {
+data OpenSimplex p = SimplexInnards {
     simplexBarycenter :: p
-  , simplexSubdivs :: Array (Array (SimplexInnards p))
-  , simplexSubdividers :: [(SimplexInnards p, [SubdivAccID])]
+  , simplexSubdivs :: Array (Array (OpenSimplex p))
+  , simplexSubdividers :: [(OpenSimplex p, [SubdivAccID])]
   }
 
-simplexMainInnard :: Simplex p -> SimplexInnards p
+simplexMainInnard :: Simplex p -> OpenSimplex p
 simplexMainInnard = fst . V.head . subSimplices
 
 zeroSimplex :: p -> Simplex p
-zeroSimplex = Simplex . V.singleton . (, V.empty) . zeroSimplexInnards
+zeroSimplex = Simplex . V.singleton . (, V.empty) . zeroOpenSimplex
 
-zeroSimplexInnards :: p -> SimplexInnards p
-zeroSimplexInnards p = SimplexInnards p V.empty []
+zeroOpenSimplex :: p -> OpenSimplex p
+zeroOpenSimplex p = SimplexInnards p V.empty []
 
 
 -- | Note that the 'Functor' instances of 'Simplex' and 'Triangulation'
@@ -202,7 +202,7 @@ zeroSimplexInnards p = SimplexInnards p V.empty []
 instance Functor Simplex where
   fmap f(Simplex innards) = Simplex (fmap (first $ fmap f) innards)
 
-instance Functor SimplexInnards where
+instance Functor OpenSimplex where
   fmap f (SimplexInnards brc divs dvders)
        = SimplexInnards (f brc) (fmap (fmap (fmap f)) divs) (fmap (first $ fmap f) dvders)
 
@@ -237,7 +237,7 @@ instance Comonad Simplex where
                                          subdiv 
                                 `V.cons` fmap fst (subSimplices faceSubdiv)
                                     V.++ sdqFaces
-                                `V.snoc` zeroSimplexInnards baryc
+                                `V.snoc` zeroOpenSimplex baryc
                        faceSDBases = fmap simplexBarycenter 
                                        $ fmap fst (subSimplices faceBase)
                        sdGFaces = V.fromList
@@ -306,7 +306,7 @@ instance (Show p) => LtdShow (Simplex p) where
    where pShow :: LtdShow s => s->String
          pShow = ltdShow $ n`quot`2
 
-instance (Show p) => LtdShow (SimplexInnards p) where
+instance (Show p) => LtdShow (OpenSimplex p) where
   ltdShow 0 _ = "SI (...) (...) (...)"
   ltdShow n (SimplexInnards brc sds dvds) = "SI " ++ show brc
                                       ++ pShow sds
