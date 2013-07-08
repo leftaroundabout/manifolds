@@ -170,21 +170,24 @@ sfGroupBy cmp = fastNubByWith (cmp`on`head) (++) . map(:[])
 
 
 data Simplex p = Simplex {
-    subSimplicesMkp :: Array ( OpenSimplex p -- The subsimplex' innards
-                             , Array Int        -- Its respective subsimplices
-                             )
+    subSimplicesMkp :: Array (ClRefSimplex p)
   }
 
 data SubdivAccID = SubdivAccID { 
    subdivFacebasis
  , sdfbSubdiv
  , sdfbSubdivFaceID   :: Int
- } deriving (Show)
+ } deriving (Eq, Show)
+ 
+data ClRefSimplex p = ClRefSimplex {
+    simplexInnards :: OpenSimplex p
+  , simplexClosureRef :: Array Int
+  }
 
 data OpenSimplex p = SimplexInnards {
     simplexBarycenter :: p
-  , simplexSubdivs :: Array (Array (OpenSimplex p))
-  , simplexSubdividers :: [(OpenSimplex p, [SubdivAccID])]
+  , simplexSubdivs :: Array (Array (ClRefSimplex p))
+  , simplexSubdividers :: Array (OpenSimplex p, [SubdivAccID])
   }
 
 simplexMainInnard :: Simplex p -> OpenSimplex p
@@ -204,6 +207,24 @@ zeroSimplex = Simplex . V.singleton . (, V.empty) . zeroOpenSimplex
 zeroOpenSimplex :: p -> OpenSimplex p
 zeroOpenSimplex p = SimplexInnards p V.empty []
 
+openSimplexDimension :: OpenSimplex p -> Int
+openSimplexDimension (SimplexInnards _ subDivs _) 
+   = invFactorial (V.length subDivs) - 1
+
+subdividersWithSubs :: Simplex p -> [(OpenSimplex p, Array (OpenSimplex p))]
+subdividersWithSubs (Simplex subs)
+            = map (second gatherDivSubs) dvds
+ where gatherDivSubs (subSrc@(SubdivAccID{..}):_)
+         = fromSide `V.cons` from lesserDivs
+        where fromSide = subdivGroups ! subdivFacebasis ! sdfbSubdiv
+       (SimplexInnards baryc subdivGroups dvds) = V.head subs
+
+{-# SPECIALIZE invFactorial :: Int -> Int #-}
+invFactorial :: Integral i => i->i
+invFactorial k = invFact 1 1
+ where invFact n j
+        | j >= k   = n
+        | n'<-n+1  = invFact n' $ j*n'
 
 
 -- | Note that the 'Functor' instances of 'Simplex' and 'Triangulation'
@@ -252,7 +273,7 @@ instance Comonad Simplex where
                        sdGFaces = V.fromList
                                 . filter (any ((==i) . subdivFacebasis) . snd)
                                 $ subdvds
-                sdFRecm (SimplexInnards b s d, orient) 
+                sdFRecm (SimplexInnards b s _, orient) 
                  | V.null s  = (SimplexInnards (zeroSimplex b) V.empty [], orient)
                 sdFRecm (_, orient@(SubdivAccID i j k : _)) 
                       = (fst dupSub, orient)
@@ -263,16 +284,63 @@ instance Comonad Simplex where
 
 
 affineSimplexCone :: forall v . EuclidSpace v => v -> Simplex v -> Simplex v
-affineSimplexCone = undefined
---  p base@(Simplex baseSubs) = Simplex subs
---  where subs = coneFillSubs V.++ baseSubs' `V.snoc` zeroOpenSimplex p
---        coneFillSubs = map
---        baseSubs' = fmap (\(bsinr, bssSubrefs)
---                           -> ( bsinr, fmap (+ V.length coneFillSubs) bssSubrefs )
---                         ) baseSubs
--- 
+affineSimplexCone p base@(Simplex baseSubs) = Simplex subs
+ where subs = coneFillSubs V.++ baseSubs' `V.snoc` (zeroOpenSimplex p, V.empty)
+       coneFillSubs = fmap fillConeSub baseSubs
+       fillConeSub (baseSubInr, baseSubqRef) = (csubInr, subqRef)
+        where csubInr = undefined
+              subqRef = undefined
+--                | V.null baseSubqRef
+--                    = SimplexInnards lineBaryc lineSubs V.empty
+--                        where lineBaryc = midBetween [p, simplexBarycenter baseSubInr]
+--                              lineSubs  = undefined
+--                | otherwise
+--                    = simplexMainInnard $ affineSimplexCone p baseSubsimplex
+              
+       baseSubs' = fmap (\(bsinr, bssSubrefs)
+                          -> ( bsinr, fmap (+ V.length coneFillSubs) bssSubrefs )
+                        ) baseSubs
+
 affineSimplex :: forall v . EuclidSpace v => [v] -> Simplex v
 affineSimplex (v:vs) = foldr affineSimplexCone (zeroSimplex v) vs
+
+recalcInnardsAffine :: forall v . EuclidSpace v => Simplex v -> Simplex v
+recalcInnardsAffine (Simplex baseSubs) = Simplex $ baseSubs V.// [(0, reMainInr)]
+ where properSubs = V.tail baseSubs
+       properSubsIds = V.enumFromN 1 $ V.length properSubs
+       dim = openSimplexDimension (V.head properSubs) + 1
+       reMainInr = ( SimplexInnards barycenter subdivs subdvds
+                   , properSubsIds                             ) 
+       barycenter = zeroOpenSimplex . midBetween . V.toList
+                      $ fmap (simplexBarycenter . fst) properSubs
+       subdivs = V.imap bSdGroups properSubs
+        where bSdGroups i = undefined
+       subdvds = V.toList $ V.zip properSubsIds properSubs >>= extrDividers
+        where extrDividers (im1, (sideQInr, sideQRx))
+                = ( if openSimplexDimension sideQInr < dim-1
+                     then 
+                     else id )
+                    $ fmap coneOnSideDvd (simplexSubdividers sideQInr)
+               where 
+                     coneOnSideDvd (sdvdInr, sdvdSrc)
+                      = ( simplexMainInnard $ recalcInnardsAffine hollowDvd
+                        , fmap reref sdvdSrc                                )
+                      where hollowDvd = Simplex $
+                                        undefined
+                                  -- The subdivider's innard (to be filled by 'recalcInnardsAffine' recursively).
+                               `V.cons` undefined
+                                  -- The subdivider's faces, which are lesser subdividers themselves already calculated.
+                               V.++    (sdvdInr, enumFromN (divDim+1) divDim) 
+                                  -- The known face as taken from the given shell.
+                               `V.cons` undefined
+                                  -- The 
+                               `V.snoc` (barycenter, [])
+                                  -- The vertex at the outer simplex' barycenter.
+                            divDim = openSimplexDimension sdvdInr + 1
+                            divInSideSubs = 
+                            completionSrc = head sdvdSrc
+                            (SimplexInnards _ sideSubdGroups sideDividers) = sideQInr
+                  
 
 
 
@@ -406,6 +474,11 @@ type Map = Map.Map
 
 type Array = V.Vector
 
+
+{-# INLINE enumFromN #-}
+enumFromN :: Num a => a -> Int -> [a]
+enumFromN i0 = V.toList . V.enumFromN i0
+
 saSort :: Ord a => Array a -> Array a
 saSort = V.modify VAIns.sort
 
@@ -413,7 +486,7 @@ saSort = V.modify VAIns.sort
 -- that can feasibly be handled will always have low dimension, so the better
 -- complexity of more sophisticated sorting algorithms is no use on the short
 -- vertex arrays.
-{-# inline saSortBy #-}
+{-# INLINE saSortBy #-}
 saSortBy :: VAIns.Comparison a -> Array a -> Array a
 saSortBy cmp = V.modify $ VAIns.sortBy cmp
 
