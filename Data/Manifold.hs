@@ -190,6 +190,14 @@ data OpenSimplex p = SimplexInnards {
   , simplexSubdividers :: Array (OpenSimplex p, [SubdivAccID])
   }
 
+-- class HasSimplices s where
+--   onOpenSimplices :: (OpenSimplex p -> OpenSimplex q) -> s p -> s q
+--   onSimplices :: (Simplex p -> Simplex q) -> s p -> s q
+-- instance HasSimplices Simplex where
+--   onOpenSimplices = fmap . onOpenSimplices
+--   onSimplices = id
+-- 
+
 simplexMainInnard :: Simplex p -> OpenSimplex p
 simplexMainInnard = fst . V.head . subSimplicesMkp
 
@@ -212,13 +220,15 @@ openSimplexDimension (SimplexInnards _ subDivs _)
    = invFactorial (V.length subDivs) - 1
 
 subdividersWithSubs :: Simplex p -> [(OpenSimplex p, Array (OpenSimplex p))]
-subdividersWithSubs (Simplex subs)
-            = map (second gatherDivSubs) dvds
- where gatherDivSubs (subSrc@(SubdivAccID{..}):_)
-         = fromSide `V.cons` from lesserDivs
-        where fromSide = subdivGroups ! subdivFacebasis ! sdfbSubdiv
-       (SimplexInnards baryc subdivGroups dvds) = V.head subs
-
+subdividersWithSubs = undefined
+--   (Simplex subs)
+--             = map (second gatherDivSubs) dvds
+--  where gatherDivSubs (subSrc@(SubdivAccID{..}):_)
+--          = fromSide `V.cons` fromLesserDivs
+--         where fromSide = subdivGroups ! subdivFacebasis ! sdfbSubdiv
+--               fromLesserDivs = 
+--        (SimplexInnards baryc subdivGroups dvds) = V.head subs
+-- 
 {-# SPECIALIZE invFactorial :: Int -> Int #-}
 invFactorial :: Integral i => i->i
 invFactorial k = invFact 1 1
@@ -230,18 +240,33 @@ invFactorial k = invFact 1 1
 -- | Note that the 'Functor' instances of 'Simplex' and 'Triangulation'
 -- are only vaguely related to the actual category-theoretic /simplicial functor/.
 instance Functor Simplex where
-  fmap f(Simplex innards) = Simplex (fmap (first $ fmap f) innards)
+  fmap = fmap . fmap
+
+instance Functor ClRefSimplex where
+  fmap f (ClRefSimplex si srf) = ClRefSimplex (fmap f si) srf
 
 instance Functor OpenSimplex where
   fmap f (SimplexInnards brc divs dvders)
-       = SimplexInnards (f brc) (fmap (fmap (fmap f)) divs) (fmap (first $ fmap f) dvders)
+        = SimplexInnards ( f brc )
+                         ( (fmap.fmap.fmap ) f divs   )
+                         ( (fmap.first.fmap) f dvders )
+
+instance Comonad OpenSimplex where
+  extract (SimplexInnards brc _ _) = brc
+  
+  duplicate s@(SimplexInnards brc sdGroups subDvds)
+   = SimplexInnards s
+         ( (fmap.fmap) 
+             (\(ClRefSimplex si srf) -> ClRefSimplex (duplicate si) srf )
+             sdGroups )
+         ( (fmap.first) duplicate subDvds )
 
 -- Works something like the following: 'extract' retrieves the barycenter,
 -- 'duplicate' replaces the barycenter of each subsimplex /s/ with all of /s/ itself.
 instance Comonad Simplex where
  
   extract (Simplex subs)
-   | (SimplexInnards baryc _ _, _) <- V.head subs  = baryc
+   | ClRefSimplex(SimplexInnards baryc _ _)_ <- V.head subs  = baryc
   
   duplicate (Simplex inrs) = duplicat
    where duplicat = Simplex $ fmap lookupSides inrs
@@ -318,14 +343,15 @@ recalcInnardsAffine (Simplex baseSubs) = Simplex $ baseSubs V.// [(0, reMainInr)
        subdvds = V.toList $ V.zip properSubsIds properSubs >>= extrDividers
         where extrDividers (im1, (sideQInr, sideQRx))
                 = ( if openSimplexDimension sideQInr < dim-1
-                     then 
+                     then undefined
                      else id )
                     $ fmap coneOnSideDvd (simplexSubdividers sideQInr)
                where 
                      coneOnSideDvd (sdvdInr, sdvdSrc)
                       = ( simplexMainInnard $ recalcInnardsAffine hollowDvd
                         , fmap reref sdvdSrc                                )
-                      where hollowDvd = Simplex $
+                      where reref = undefined
+                            hollowDvd = Simplex $
                                         undefined
                                   -- The subdivider's innard (to be filled by 'recalcInnardsAffine' recursively).
                                `V.cons` undefined
@@ -337,7 +363,7 @@ recalcInnardsAffine (Simplex baseSubs) = Simplex $ baseSubs V.// [(0, reMainInr)
                                `V.snoc` (barycenter, [])
                                   -- The vertex at the outer simplex' barycenter.
                             divDim = openSimplexDimension sdvdInr + 1
-                            divInSideSubs = 
+                            divInSideSubs = undefined
                             completionSrc = head sdvdSrc
                             (SimplexInnards _ sideSubdGroups sideDividers) = sideQInr
                   
