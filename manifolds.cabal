@@ -56,3 +56,4 @@ Library
   Exposed-modules:   Data.Manifold
                      Data.Manifold.Visualisation.R3.GLUT
   Other-modules:   Data.List.FastNub
+                   Util.LtdShow
