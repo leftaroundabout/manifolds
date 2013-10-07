@@ -54,7 +54,7 @@ Library
                      , TupleSections
   ghc-options:       -O2
   Exposed-modules:   Data.Manifold
-                     Data.Manifold.Visualisation.R3.GLUT
+                     -- Data.Manifold.Visualisation.R3.GLUT
   Other-modules:   Data.List.FastNub
                    Util.Associate
                    Util.LtdShow
