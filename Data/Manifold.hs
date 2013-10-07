@@ -37,6 +37,9 @@ import qualified Data.Vector.Algorithms.Insertion as VAIns
 import Data.VectorSpace
 import Data.Basis
 
+import Prelude hiding((.), id)
+
+import Control.Category
 import Control.Arrow
 import Control.Monad
 import Control.Monad.Trans.Maybe
@@ -48,8 +51,42 @@ import Util.LtdShow
 
 
 
+data domain :--> codomain where   -- Continuous mapping.
+  Continuous_id :: x:-->x
+  Continuous :: ( Manifold d, Manifold c
+                , v ~ TangentSpace d, u ~ TangentSpace c
+                , s ~ Scalar v, s ~ Scalar u) =>
+        { runContinuous :: d -> (Chart c, u, s -> (Chart d, s)) }
+           -> d :--> c
 
-type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
+infixr 0 --$
+(--$) :: (d:-->c) -> d -> c
+
+Continuous_id --$ x = x
+Continuous f --$ x = y
+ where (tch, v, _) = f x
+       y = chartInMap tch --$ v
+
+
+instance Category (:-->) where
+
+  id = Continuous_id
+  
+  Continuous_id . f = f
+  f . Continuous_id = f
+  Continuous f . Continuous g = Continuous h
+   where h x = (tgtChart, w, qp)
+          where (interChart, v, p) = g x
+                y = chartInMap interChart --$ v 
+                (tgtChart, w, q) = f y
+                qp ε = (srcChart, δ)
+                 where 
+                       (ibChart, δ') = q ε
+             
+          
+
+
+type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v, Manifold v)
 type EqFloating f = (Eq f, Ord f, Floating f)
 
 
@@ -62,8 +99,8 @@ type EqFloating f = (Eq f, Ord f, Floating f)
 -- on /Dⁿ/, and @'chartInMap' . fromJust . 'chartOutMap'@ to @id@ on /Q/.
 data Chart :: * -> * where
   Chart :: (Manifold m, v ~ TangentSpace m) =>
-        { chartInMap :: v -> m
-        , chartOutMap :: m -> Maybe v
+        { chartInMap :: v :--> m
+        , chartOutMap :: m -> Maybe (m:-->v)
         , chartKind :: ChartKind      } -> Chart m
 data ChartKind = LandlockedChart  -- ^ A /M/ ⇆ /Dⁿ/ chart, for ordinary manifolds
                | RimChart         -- ^ A /M/ ⇆ /Hⁿ/ chart, for manifolds with a rim
@@ -107,6 +144,13 @@ class (EuclidSpace(TangentSpace m)) => Manifold m where
 --   triangulation :: m -> Triangulation m
 --   triangulation = autoTriangulation
   
+
+instance EuclidSpace v => Manifold v where
+  type TangentSpace v = v
+  
+  localAtlas v = [Chart { chartInMap  = id
+                        ; chartOutMap = const $ Just id
+                        ; chartKind   = LandlockedChart } ]
 
 
 
