@@ -44,6 +44,8 @@ import Control.Comonad
 
 import Debug.Trace
 
+import Util.LtdShow
+
 
 
 
@@ -200,15 +202,15 @@ simplexSubdivs s@(Simplex subqs)
        assembleSubdGroup (sideID, (sdGroup, side))
          = V.zipWith assembleSubd (sdGroup) (simplexSubdivs side)
         where assembleSubd (ClRefSimplexSubdiv {..}) (Simplex sideSubdSubs)
-                = Simplex $ ClRefSimplex subsimplexinnards refAll
+                = Simplex $ ClRefSimplex subSimplexInnards refAll
                     `V.cons` fmap rerefSubdsubFromFace simplexClosureRefInFace
-                    `V.++`   fmap rerefSubdsubFromSds  simplexClosureRefInSds
+                    V.++     fmap rerefSubdsubFromSds  simplexClosureRefInSds
                where rerefSubdsubFromSds sdID
                         = ClRefSimplex cutWallInr cutWallSubRef
                       where (cutWallInr, cutWallUses) = osimplexSubdividers ! sdID
                             (SubdivAccID{..})
                                  = V.find ((==sideID) . subdivFacebasis) cutWallUses
-                            cutWallSubRef = 
+                            cutWallSubRef = undefined
                      rerefSubdsubFromFace fcID
                         = ClRefSimplex faceSubdInr $ fmap (+1) faceSubdSubRef
                       where (ClRefSimplex faceSubdInr faceSubdSubRef) 

@@ -1,4 +1,4 @@
-module Util.LtdShow where
+module Util.LtdShow (LtdShow(..)) where
 
 import qualified Data.Vector as V
 import Data.Vector(fromList, toList, (!), singleton)
