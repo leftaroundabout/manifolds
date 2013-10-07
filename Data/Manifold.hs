@@ -180,26 +180,19 @@ data SubdivAccID = SubdivAccID {
  } deriving (Eq, Show)
  
 data ClRefSimplex p = ClRefSimplex {
-    simplexInnards :: OpenSimplex p
+    subSimplexInnards :: OpenSimplex p
   , simplexClosureRef :: Array Int
   }
-data ClRefSubSimplex p = ClRefSubSimplex {
-    simplexInnards :: OpenSimplex p
-  , simplexClosureRef :: Array SubdivSubsimplexID
+data ClRefSimplexSubdiv p = ClRefSimplexSubdiv {
+    simplexSubdivInnards :: OpenSimplex p
+  , simplexClosureRefInFace :: Array Int
+  , simplexClosureRefInSds  :: Array Int
   }
-
-data SubdivSubsimplexID
-  = SubdivSubcutSide
-           ( Int  -- ID of the subdivider.
-           , Int  -- ID of our subdivision, as referred to by the subdivider.
-           )
-  | SubdivOutlyerSide 
-           Int    -- ID of the face-subdivision-subsimplex this is equivalent to.
 
 data OpenSimplex p = SimplexInnards {
     osimplexBarycenter :: p
-  , osimplexSubdivs :: Array (Array (ClRefSubSimplex p))
-  , osimplexSubdividers :: Array (ClRefSubSimplex p, Array SubdivAccID)
+  , osimplexSubdivs :: Array (Array (ClRefSimplexSubdiv p))
+  , osimplexSubdividers :: Array (OpenSimplex p, Array SubdivAccID)
   }
 
 -- class HasSimplices s where
@@ -211,7 +204,7 @@ data OpenSimplex p = SimplexInnards {
 -- 
 
 simplexMainInnard :: Simplex p -> OpenSimplex p
-simplexMainInnard = simplexInnards . V.head . subSimplicesMkp
+simplexMainInnard = subSimplexInnards . V.head . subSimplicesMkp
 
 subSimplices :: Simplex p -> Array (Simplex p)
 subSimplices (Simplex subsMkp) = fmap assembleSub subsMkp
@@ -233,21 +226,26 @@ openSimplexDimension (SimplexInnards _ subdivs _)
 
 simplexSubdivs :: Simplex p -> Array(Simplex p)
 simplexSubdivs s@(Simplex subqs) 
-          = V.zip subdivGroups (V.tail subs) >>= assembleSubdGroup
+          = V.indexed (V.zip osimplexSubdivs (V.tail subs)) >>= assembleSubdGroup
  where subs = subSimplices s
        refAll = V.enumFromN 1 $ V.length subqs - 1
-       mainInr@(SimplexInnards baryctr subdivGroups subdvds)
-                                = simplexInnards $ V.head subqs
-       assembleSubdGroup (sdGroup, side)
-         = V.zipWith assembleSubd sdGroup $ simplexSubdivs side
-        where assembleSubd (ClRefSubSimplex subInr sSubRefs) (Simplex sideSubdSubs)
-                = Simplex $ ClRefSimplex subInr refAll
-                    `V.cons` fmap rerefSubdsub sSubRefs
-               where rerefSubdsub (SubdivSubcutSide (sdID, sdPtId))
+       mainInr@(SimplexInnards {..}) = subSimplexInnards $ V.head subqs
+       assembleSubdGroup (sideID, (sdGroup, side))
+         = V.zipWith assembleSubd (sdGroup) (simplexSubdivs side)
+        where assembleSubd (ClRefSimplexSubdiv {..}) (Simplex sideSubdSubs)
+                = Simplex $ ClRefSimplex subsimplexinnards refAll
+                    `V.cons` fmap rerefSubdsubFromFace simplexClosureRefInFace
+                    `V.++`   fmap rerefSubdsubFromSds  simplexClosureRefInSds
+               where rerefSubdsubFromSds sdID
                         = ClRefSimplex cutWallInr cutWallSubRef
-                      where (cutWallInr, cutWallUses) = subdvds ! sdID
-                     rerefSubdsub (SubdivOutlyerSide outsQid)
-                        = undefined
+                      where (cutWallInr, cutWallUses) = osimplexSubdividers ! sdID
+                            (SubdivAccID{..})
+                                 = V.find ((==sideID) . subdivFacebasis) cutWallUses
+                            cutWallSubRef = 
+                     rerefSubdsubFromFace fcID
+                        = ClRefSimplex faceSubdInr $ fmap (+1) faceSubdSubRef
+                      where (ClRefSimplex faceSubdInr faceSubdSubRef) 
+                                                         = sideSubdSubs ! fcID
          
 
 subdividersWithSubs :: Simplex p -> [(OpenSimplex p, Array (OpenSimplex p))]
@@ -311,7 +309,7 @@ instance Comonad Simplex where
                           subsubIds
           where dupdSds = V.zipWith recm
                              sdGroups
-                             ( fmap (osimplexBarycenter . simplexInnards) thisSubSubs )
+                             ( fmap (osimplexBarycenter . subSimplexInnards) thisSubSubs )
                 thisSubSubs = V.backpermute ddsubs subsubIds
                 dupdSdvds = fmap sdFRecm subdvds
                 recm subdivs faceBase
