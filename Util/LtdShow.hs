@@ -48,3 +48,12 @@ instance (LtdShow l, LtdShow r) => LtdShow (l,r) where
   ltdShow n (l, r) = "(" ++ pShow l ++ ", " ++ pShow r ++ ")"
    where pShow :: LtdShow s => s->String
          pShow = ltdShow $ n`quot`2
+
+
+instance (Show p) => LtdShow [p] where
+  ltdShow n l = "[" ++ lsh' n l "]"
+   where lsh' 0 _ = ("... "++)
+         lsh' _ [] = id
+         lsh' n (x:xs) = ((show x ++ ", ") ++) . lsh' (n-1) xs
+
+ 
