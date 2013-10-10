@@ -60,24 +60,7 @@ data domain :--> codomain where
         { runContinuous :: Chart d -> v -> (Chart c, u, ε->δ) }
            -> d :--> c
            
--- | Continuous mapping to a vector space.
-data domain :-->\/ codomain where
-  Continuous2V_id :: x:-->\/x
-  Continuous2V :: ( Manifold d, EuclidSpace c
-                  , v ~ TangentSpace d
-                  , δ ~ Scalar v, ε ~ Scalar c) =>
-        { runContinuous2V :: Chart d -> v -> (c, ε->δ) }
-           -> d :-->\/ c
- 
--- | Continuous mapping from a vector space.
-data domain :\/--> codomain where
-  V2Continuous_id :: x:\/-->x
-  V2Continuous :: ( EuclidSpace d, Manifold c
-                  , u ~ TangentSpace c
-                  , δ ~ Scalar d, ε ~ Scalar u) =>
-        { runV2Continuous :: d -> (Chart c, u, ε->δ) }
-           -> d :\/--> c
-           
+          
 
 infixr 0 --$
 
@@ -97,19 +80,6 @@ Continuous f --$ x = y
        sch = head $ localAtlas x
        u = fromJust (schOut x) --$ x
 
-
-(--$\/) :: (d:\/-->c) -> d -> c
-(\/--$) :: (d:-->\/c) -> d -> c
-(--$\/) = undefined
-(\/--$) = undefined
-{-
-Continuous2V_id \/--$ x = x
-Continuous2V f \/--$ x = y
- where (v, _) = f sch u
-       y = tchIn --$\/ v
-       sch = head $ localAtlas x
-       u = fromJust (tchOut x) --$ x
- -}
 
 
 
@@ -147,28 +117,28 @@ data Chart :: * -> * where
 data ChartKind = LandlockedChart  -- ^ A /M/ ⇆ /Dⁿ/ chart, for ordinary manifolds
                | RimChart         -- ^ A /M/ ⇆ /Hⁿ/ chart, for manifolds with a rim
 
-isInUpperHemi :: EuclidSpace v => v -> Bool
-isInUpperHemi v = (snd . head) (decompose v) >= 0
+-- isInUpperHemi :: EuclidSpace v => v -> Bool
+-- isInUpperHemi v = (snd . head) (decompose v) >= 0
 
-rimGuard :: EuclidSpace v => ChartKind -> v -> Maybe v
-rimGuard LandlockedChart v = Just v
-rimGuard RimChart v
- | isInUpperHemi v = Just v
- | otherwise       = Nothing
+-- rimGuard :: EuclidSpace v => ChartKind -> v -> Maybe v
+-- rimGuard LandlockedChart v = Just v
+-- rimGuard RimChart v
+--  | isInUpperHemi v = Just v
+--  | otherwise       = Nothing
 
-chartEnv :: Manifold m => Chart m
-               -> (TangentSpace m->TangentSpace m)
-               -> m -> Maybe m
-chartEnv (Chart inMap outMap chKind) f 
-   = fmap inMap . (>>=rimGuard chKind) . fmap f . outMap
+-- chartEnv :: Manifold m => Chart m
+--                -> (TangentSpace m->TangentSpace m)
+--                -> m -> Maybe m
+-- chartEnv (Chart inMap outMap chKind) f 
+--    = fmap inMap . (>>=rimGuard chKind) . fmap f . outMap
 
-chartEnv' :: (Manifold m, Monad f) => Chart m
-               -> (TangentSpace m->f(TangentSpace m))
-               -> m -> MaybeT f m
-chartEnv' (Chart inMap outMap chKind) f x
-  = MaybeT $ case outMap x of
-              Just w -> liftM (fmap inMap . rimGuard chKind) $ f w
-              Nothing -> return Nothing
+-- chartEnv' :: (Manifold m, Monad f) => Chart m
+--                -> (TangentSpace m->f(TangentSpace m))
+--                -> m -> MaybeT f m
+-- chartEnv' (Chart inMap outMap chKind) f x
+--   = MaybeT $ case outMap x of
+--               Just w -> liftM (fmap inMap . rimGuard chKind) $ f w
+--               Nothing -> return Nothing
    
 
  
