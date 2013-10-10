@@ -48,7 +48,7 @@ data domain :--> codomain where
   Continuous :: ( Manifold d, Manifold c
                 , v ~ TangentSpace d, u ~ TangentSpace c
                 , δ ~ Scalar v, ε ~ Scalar u, δ ~ ε) =>
-        { runContinuous :: Chart d -> v -> (Chart c, u, ε->δ) }
+        { runContinuous :: Chart d -> v -> (Chart c, u, ε->Maybe δ) }
            -> d :--> c
            
           
@@ -82,7 +82,7 @@ instance Category (:-->) where
   Continuous_id . f = f
   f . Continuous_id = f
   Continuous f . Continuous g = Continuous h
-   where h srcChart u = (tgtChart, w, q.p)
+   where h srcChart u = (tgtChart, w, q>=>p)
           where (interChart, v, p) = g srcChart u
                 (tgtChart, w, q) = f interChart v
              
@@ -107,6 +107,19 @@ data Chart :: * -> * where
         , chartKind :: ChartKind      } -> Chart m
 data ChartKind = LandlockedChart  -- ^ A /M/ ⇆ /Dⁿ/ chart, for ordinary manifolds
                | RimChart         -- ^ A /M/ ⇆ /Hⁿ/ chart, for manifolds with a rim
+
+
+type FlatManifold v = (Manifold v, v~TangentSpace v)
+
+-- | 'idChart' is a special case, partly for efficiency reasons. This is interesting for
+-- continuous mapping betwees vector spaces. In this case the chart maps not between
+-- the space an open disk therein, but just is an \"alias\" for the whole space.
+idChart :: FlatManifold v => Chart v
+idChart = Chart { chartInMap  = id
+                , chartOutMap = const $ Just id
+                , chartKind   = LandlockedChart } 
+
+
 
 isInUpperHemi :: EuclidSpace v => v -> Bool
 isInUpperHemi v = (snd . head) (decompose v) >= 0
@@ -139,10 +152,8 @@ class (EuclidSpace(TangentSpace m)) => Manifold m where
   localAtlas :: m -> Atlas m
 
 
-vectorSpaceAtlas :: (Manifold v, v ~ TangentSpace v) => v -> Atlas v
-vectorSpaceAtlas v = [Chart { chartInMap  = id
-                            , chartOutMap = const $ Just id
-                            , chartKind   = LandlockedChart } ]
+vectorSpaceAtlas :: FlatManifold v => v -> Atlas v
+vectorSpaceAtlas _ = [idChart]
 
 
   
@@ -152,6 +163,24 @@ instance Manifold Float where
   localAtlas = vectorSpaceAtlas
 instance Manifold Double where
   localAtlas = vectorSpaceAtlas
+
+type Representsℝ r = (EqFloating r, FlatManifold r, r~Scalar r)
+
+continuousRealFunction :: (Representsℝ r, ε~r, δ~r) => (r -> (r, ε->Maybe δ)) -> r:-->r
+continuousRealFunction f = Continuous f'
+ where f' (Chart Continuous_id _ _) x = (idChart, y, eps2Delta)
+        where (y, eps2Delta) = f x
+
+sin__ :: Representsℝ r => r :--> r
+sin__ = continuousRealFunction sin'
+ where sin' x = (sin x, eps2Delta)
+        where eps2Delta ε
+               | ε>2        = Nothing
+               | otherwise  = Just $ ε / (dsinx + sqrt ε)
+              dsinx = abs $ cos x
+
+
+
 
 instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
   localAtlas = vectorSpaceAtlas
