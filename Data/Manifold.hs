@@ -19,7 +19,7 @@
 {-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
--- {-# LANGUAGE StandaloneDeriving       #-}
+{-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 
 
@@ -28,7 +28,7 @@ module Data.Manifold where
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
-import Data.Function
+import Data.Function hiding ((.), id)
 
 import qualified Data.Vector as V
 import Data.Vector(fromList, toList, (!), singleton)
@@ -72,9 +72,11 @@ infixr 0 --$
 Continuous_id --$ x = x
 Continuous f --$ x = y
  where (tch, v, _) = f sch u
-       y = chartInMap tch --$ v
+       (tchIn, tchOut) = case tch of
+                          Chart tchIn tchOut _ -> (tchIn, tchOut)
+       y = tchIn --$ v
        sch = head $ localAtlas x
-       u = fromJust (chartOutMap x) --$ x
+       u = fromJust (tchOut x) --$ x
 
 
 instance Category (:-->) where
@@ -91,7 +93,7 @@ instance Category (:-->) where
           
 
 
-type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v, Manifold v)
+type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
 type EqFloating f = (Eq f, Ord f, Floating f)
 
 
@@ -154,8 +156,8 @@ instance EuclidSpace v => Manifold v where
   type TangentSpace v = v
   
   localAtlas v = [Chart { chartInMap  = id
-                        ; chartOutMap = const $ Just id
-                        ; chartKind   = LandlockedChart } ]
+                        , chartOutMap = const $ Just id
+                        , chartKind   = LandlockedChart } ]
 
 
 
