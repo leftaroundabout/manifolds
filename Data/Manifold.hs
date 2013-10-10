@@ -51,21 +51,30 @@ import Util.LtdShow
 
 
 
-data domain :--> codomain where   -- Continuous mapping.
+-- | Continuous mapping.
+data domain :--> codomain where
   Continuous_id :: x:-->x
   Continuous :: ( Manifold d, Manifold c
                 , v ~ TangentSpace d, u ~ TangentSpace c
-                , s ~ Scalar v, s ~ Scalar u) =>
-        { runContinuous :: d -> (Chart c, u, s -> (Chart d, s)) }
+                , δ ~ Scalar v, ε ~ Scalar u) =>
+        { runContinuous :: Chart d -> v -> (Chart c, u, ε->δ) }
            -> d :--> c
 
 infixr 0 --$
+
+
+-- | Function application, like '($)', but for continuous functions.
+--   
+--   From another point of view, this is one side of the forgetful functor from
+--   the category of topological spaces to the category of sets.
 (--$) :: (d:-->c) -> d -> c
 
 Continuous_id --$ x = x
 Continuous f --$ x = y
- where (tch, v, _) = f x
+ where (tch, v, _) = f sch u
        y = chartInMap tch --$ v
+       sch = head $ localAtlas x
+       u = fromJust (chartOutMap x) --$ x
 
 
 instance Category (:-->) where
@@ -75,13 +84,9 @@ instance Category (:-->) where
   Continuous_id . f = f
   f . Continuous_id = f
   Continuous f . Continuous g = Continuous h
-   where h x = (tgtChart, w, qp)
-          where (interChart, v, p) = g x
-                y = chartInMap interChart --$ v 
-                (tgtChart, w, q) = f y
-                qp ε = (srcChart, δ)
-                 where 
-                       (ibChart, δ') = q ε
+   where h srcChart u = (tgtChart, w, q.p)
+          where (interChart, v, p) = g srcChart u
+                (tgtChart, w, q) = f interChart v
              
           
 
@@ -160,74 +165,27 @@ data S2 = S2 { ϑParamS2 :: Double -- [0, π[
              }
 
 
-instance Manifold S2 where
-  type TangentSpace S2 = (Double, Double)
-  localAtlas (S2 ϑ φ)
-   | ϑ<pi-2     = [ Chart (\(x,y)
-                             -> S2(2 * sqrt(x^2+y^2)) (atan2 y x) )
-                          (\(S2 ϑ' φ')
-                             -> let r=ϑ'/2
-                                in guard (r<1) >> Just (r * cos φ', r * sin φ') )
-                          LandlockedChart ]
-   | ϑ>2        = [ Chart (\(x,y)
-                             -> S2(pi - 2*sqrt(x^2+y^2)) (atan2 y x) )
-                          (\(S2 ϑ' φ')
-                             -> let r=(pi-ϑ')/2
-                                in guard (r<1) >> Just (r * cos φ', r * sin φ') )
-                          LandlockedChart ]
-   | otherwise  = localAtlas(S2 0 φ) ++ localAtlas(S2 (2*pi) φ)
+-- instance Manifold S2 where
+--   type TangentSpace S2 = (Double, Double)
+--   localAtlas (S2 ϑ φ)
+--    | ϑ<pi-2     = [ Chart (\(x,y)
+--                              -> S2(2 * sqrt(x^2+y^2)) (atan2 y x) )
+--                           (\(S2 ϑ' φ')
+--                              -> let r=ϑ'/2
+--                                 in guard (r<1) >> Just (r * cos φ', r * sin φ') )
+--                           LandlockedChart ]
+--    | ϑ>2        = [ Chart (\(x,y)
+--                              -> S2(pi - 2*sqrt(x^2+y^2)) (atan2 y x) )
+--                           (\(S2 ϑ' φ')
+--                              -> let r=(pi-ϑ')/2
+--                                 in guard (r<1) >> Just (r * cos φ', r * sin φ') )
+--                           LandlockedChart ]
+--    | otherwise  = localAtlas(S2 0 φ) ++ localAtlas(S2 (2*pi) φ)
+-- 
 
 
 
-
-
-
-{-# INLINE coordMap #-}
-coordMap :: HasBasis v => ([Scalar v] -> [Scalar v]) -> v -> v
-coordMap f = recompose . uncurry zip . second f . unzip . decompose
 
 
 type Endomorphism a = a->a
 
-
-
-data Space2D = Space2D Double Double
-       deriving(Eq, Show)
-data Space2DIndex = X' | Y
-
-instance AdditiveGroup Space2D where
-  zeroV = Space2D 0 0
-  Space2D x y ^+^ Space2D x' y' = Space2D (x+x') (y+y')
-  negateV (Space2D x y) = Space2D (-x) (-y)
-instance VectorSpace Space2D where
-  type Scalar Space2D = Double
-  λ *^ Space2D x y = Space2D (λ*x) (λ*y)
-instance HasBasis Space2D where
-  type Basis Space2D = Space2DIndex
-  basisValue X' = Space2D 1 0
-  basisValue Y  = Space2D 0 1
-  decompose (Space2D x y) = [(X', x), (Y, y)]
-  decompose' (Space2D x _) X' = x
-  decompose' (Space2D _ y) Y  = y
-
-
-data Space3D = Space3D Double Double Double
-       deriving(Eq, Show)
-data Space3DIndex = X'' | Y' | Z
-
-instance AdditiveGroup Space3D where
-  zeroV = Space3D 0 0 0
-  Space3D x y z ^+^ Space3D x' y' z' = Space3D (x+x') (y+y') (z+z')
-  negateV (Space3D x y z) = Space3D (-x) (-y) (-z)
-instance VectorSpace Space3D where
-  type Scalar Space3D = Double
-  λ *^ Space3D x y z = Space3D (λ*x) (λ*y) (λ*z)
-instance HasBasis Space3D where
-  type Basis Space3D = Space3DIndex
-  basisValue X'' = Space3D 1 0 0
-  basisValue Y'  = Space3D 0 1 0
-  basisValue Z   = Space3D 0 0 1
-  decompose (Space3D x y z) = [(X'', x), (Y', y), (Z, z)]
-  decompose' (Space3D x _ _) X'' = x
-  decompose' (Space3D _ y _) Y'  = y
-  decompose' (Space3D _ _ z) Z   = z
