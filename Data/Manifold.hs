@@ -143,8 +143,17 @@ type Atlas m = [Chart m]
 
 class (EuclidSpace(TangentSpace m)) => Manifold m where
   type TangentSpace m :: *
+  type TangentSpace m = m   -- For vector spaces.
   
   localAtlas :: m -> Atlas m
+
+
+vectorSpaceAtlas :: (Manifold v, v ~ TangentSpace v) => v -> Atlas v
+vectorSpaceAtlas v = [Chart { chartInMap  = id
+                            , chartOutMap = const $ Just id
+                            , chartKind   = LandlockedChart } ]
+
+
   
 --   transferSimplex :: Chart m                  -> Chart m
 --                   -> Simplex (TangentSpace m) -> Maybe(Simplex(TangentSpace m))
@@ -153,12 +162,15 @@ class (EuclidSpace(TangentSpace m)) => Manifold m where
 --   triangulation = autoTriangulation
   
 
-instance EuclidSpace v => Manifold v where
-  type TangentSpace v = v
-  
-  localAtlas v = [Chart { chartInMap  = id
-                        , chartOutMap = const $ Just id
-                        , chartKind   = LandlockedChart } ]
+
+-- | At the moment, complex etc. manifolds are not supported (because 'EuclidSpace' requires its scalar to be 'Ord' right now).
+instance Manifold Float where
+  localAtlas = vectorSpaceAtlas
+instance Manifold Double where
+  localAtlas = vectorSpaceAtlas
+
+instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
+  localAtlas = vectorSpaceAtlas
 
 
 
@@ -166,7 +178,7 @@ instance EuclidSpace v => Manifold v where
 data S2 = S2 { ϑParamS2 :: Double -- [0, π[
              , φParamS2 :: Double -- [0, 2π[
              }
-
+ 
 
 -- instance Manifold S2 where
 --   type TangentSpace S2 = (Double, Double)
