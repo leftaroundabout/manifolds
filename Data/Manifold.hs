@@ -26,13 +26,8 @@
 module Data.Manifold where
 
 import Data.List
-import qualified Data.Map as Map
 import Data.Maybe
 import Data.Function hiding ((.), id)
-
-import qualified Data.Vector as V
-import Data.Vector(fromList, toList, (!), singleton)
-import qualified Data.Vector.Algorithms.Insertion as VAIns
 
 import Data.VectorSpace
 import Data.Basis
@@ -42,12 +37,8 @@ import Prelude hiding((.), id)
 import Control.Category
 import Control.Arrow
 import Control.Monad
-import Control.Monad.Trans.Maybe
 import Control.Comonad
 
-import Debug.Trace
-
-import Util.LtdShow
 
 
 
@@ -143,7 +134,7 @@ type Atlas m = [Chart m]
 
 class (EuclidSpace(TangentSpace m)) => Manifold m where
   type TangentSpace m :: *
-  type TangentSpace m = m   -- For vector spaces.
+  type TangentSpace m = m   -- For \"flat\", i.e. vector space manifolds.
   
   localAtlas :: m -> Atlas m
 
@@ -155,13 +146,6 @@ vectorSpaceAtlas v = [Chart { chartInMap  = id
 
 
   
---   transferSimplex :: Chart m                  -> Chart m
---                   -> Simplex (TangentSpace m) -> Maybe(Simplex(TangentSpace m))
-  
---   triangulation :: m -> Triangulation m
---   triangulation = autoTriangulation
-  
-
 
 -- | At the moment, complex etc. manifolds are not supported (because 'EuclidSpace' requires its scalar to be 'Ord' right now).
 instance Manifold Float where
