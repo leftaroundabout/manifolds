@@ -117,29 +117,25 @@ data Chart :: * -> * where
 data ChartKind = LandlockedChart  -- ^ A /M/ ⇆ /Dⁿ/ chart, for ordinary manifolds
                | RimChart         -- ^ A /M/ ⇆ /Hⁿ/ chart, for manifolds with a rim
 
--- isInUpperHemi :: EuclidSpace v => v -> Bool
--- isInUpperHemi v = (snd . head) (decompose v) >= 0
+isInUpperHemi :: EuclidSpace v => v -> Bool
+isInUpperHemi v = (snd . head) (decompose v) >= 0
 
--- rimGuard :: EuclidSpace v => ChartKind -> v -> Maybe v
--- rimGuard LandlockedChart v = Just v
--- rimGuard RimChart v
---  | isInUpperHemi v = Just v
---  | otherwise       = Nothing
+rimGuard :: EuclidSpace v => ChartKind -> v -> Maybe v
+rimGuard LandlockedChart v = Just v
+rimGuard RimChart v
+ | isInUpperHemi v = Just v
+ | otherwise       = Nothing
 
--- chartEnv :: Manifold m => Chart m
---                -> (TangentSpace m->TangentSpace m)
---                -> m -> Maybe m
--- chartEnv (Chart inMap outMap chKind) f 
---    = fmap inMap . (>>=rimGuard chKind) . fmap f . outMap
+chartEnv :: Manifold m => Chart m
+               -> (TangentSpace m->TangentSpace m)
+               -> m -> Maybe m
+chartEnv (Chart inMap outMap chKind) f x = do
+    vGet <- outMap x
+    let v = vGet --$ x
+    v' <- rimGuard chKind v
+    return $ inMap --$ v'
 
--- chartEnv' :: (Manifold m, Monad f) => Chart m
---                -> (TangentSpace m->f(TangentSpace m))
---                -> m -> MaybeT f m
--- chartEnv' (Chart inMap outMap chKind) f x
---   = MaybeT $ case outMap x of
---               Just w -> liftM (fmap inMap . rimGuard chKind) $ f w
---               Nothing -> return Nothing
-   
+  
 
  
 
