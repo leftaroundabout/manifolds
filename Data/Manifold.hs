@@ -56,9 +56,28 @@ data domain :--> codomain where
   Continuous_id :: x:-->x
   Continuous :: ( Manifold d, Manifold c
                 , v ~ TangentSpace d, u ~ TangentSpace c
-                , δ ~ Scalar v, ε ~ Scalar u) =>
+                , δ ~ Scalar v, ε ~ Scalar u, δ ~ ε) =>
         { runContinuous :: Chart d -> v -> (Chart c, u, ε->δ) }
            -> d :--> c
+           
+-- | Continuous mapping to a vector space.
+data domain :-->\/ codomain where
+  Continuous2V_id :: x:-->\/x
+  Continuous2V :: ( Manifold d, EuclidSpace c
+                  , v ~ TangentSpace d
+                  , δ ~ Scalar v, ε ~ Scalar c) =>
+        { runContinuous2V :: Chart d -> v -> (c, ε->δ) }
+           -> d :-->\/ c
+ 
+-- | Continuous mapping from a vector space.
+data domain :\/--> codomain where
+  V2Continuous_id :: x:\/-->x
+  V2Continuous :: ( EuclidSpace d, Manifold c
+                  , u ~ TangentSpace c
+                  , δ ~ Scalar d, ε ~ Scalar u) =>
+        { runV2Continuous :: d -> (Chart c, u, ε->δ) }
+           -> d :\/--> c
+           
 
 infixr 0 --$
 
@@ -72,11 +91,27 @@ infixr 0 --$
 Continuous_id --$ x = x
 Continuous f --$ x = y
  where (tch, v, _) = f sch u
-       (tchIn, tchOut) = case tch of
-                          Chart tchIn tchOut _ -> (tchIn, tchOut)
+       tchIn = case tch of Chart tchIn _ _ -> tchIn
+       schOut = case sch of Chart _ schOut _ -> schOut
        y = tchIn --$ v
        sch = head $ localAtlas x
+       u = fromJust (schOut x) --$ x
+
+
+(--$\/) :: (d:\/-->c) -> d -> c
+(\/--$) :: (d:-->\/c) -> d -> c
+(--$\/) = undefined
+(\/--$) = undefined
+{-
+Continuous2V_id \/--$ x = x
+Continuous2V f \/--$ x = y
+ where (v, _) = f sch u
+       y = tchIn --$\/ v
+       sch = head $ localAtlas x
        u = fromJust (tchOut x) --$ x
+ -}
+
+
 
 
 instance Category (:-->) where
