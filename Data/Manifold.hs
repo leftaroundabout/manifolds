@@ -171,14 +171,30 @@ continuousRealFunction f = Continuous f'
  where f' (Chart Continuous_id _ _) x = (idChart, y, eps2Delta)
         where (y, eps2Delta) = f x
 
-sin__ :: Representsℝ r => r :--> r
+type ContinuousRealFunction = Representsℝ r => r :--> r
+
+sin__, cos__ :: ContinuousRealFunction
 sin__ = continuousRealFunction sin'
  where sin' x = (sin x, eps2Delta)
         where eps2Delta ε
                | ε>2        = Nothing
                | otherwise  = Just $ ε / (dsinx + sqrt ε)
               dsinx = abs $ cos x
+cos__ = continuousRealFunction cos'
+ where cos' x = (cos x, eps2Delta)
+        where eps2Delta ε
+               | ε>2        = Nothing
+               | otherwise  = Just $ ε / (dcosx + sqrt ε)
+              dcosx = abs $ sin x
 
+exp__ :: ContinuousRealFunction
+exp__ = continuousRealFunction exp'
+ where exp' x = (expx, eps2Delta)
+        where expx = exp x
+              eps2Delta ε = Just . log $ (expx + ε)/expx
+-- exp x + ε = exp (x + δ) = exp x * exp δ
+-- δ = ln ( (exp x + ε)/exp x )
+              
 
 
 
