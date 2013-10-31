@@ -242,14 +242,13 @@ cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
                    -> let (y', c'Eps) = runFlatContinuous c'In fu 
                           (y'', c''Eps) = runFlatContinuous c''In gu 
                           (y, epsSplit) = cmb y' y'' 
-                          fullEps ε = getMax $ (Max $ fEps =<< c'Eps ε') 
-                                             <>(Max $ gEps =<< c''Eps ε'')
+                          fullEps ε = fmap getMax $ (fmap Max $ fEps =<< c'Eps ε') 
+                                                  <>(fmap Max $ gEps =<< c''Eps ε'')
                             where (ε', ε'') = epsSplit ε
                       in  (idChart, y, fullEps)
                  -- = case cc' of Chart ccIn _ _ -> let (x, dEps) = runFlatContinuous ccIn w
                  --                                 in undefined
-        where (ζd', w, preEps) = ζnf idChart u
-              (ζc', fu, fEps) = f ζd u
+        where (ζc', fu, fEps) = f ζd u
               (ζc'',gu, gEps) = g ζd u
 
 
