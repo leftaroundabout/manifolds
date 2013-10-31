@@ -235,9 +235,7 @@ cntnFuncsCombine :: forall d v c c' c'' ε .
 cntnFuncsCombine cmb Continuous_id g = cntnFuncsCombine cmb continuous_id' g
 cntnFuncsCombine cmb f Continuous_id = cntnFuncsCombine cmb f continuous_id'
 cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
- where h (Chart Continuous_id _ _) u = undefined
-       h ζd@(Chart (Continuous ζnf) _ _) u
-              = case (ζc', ζc'') of 
+ where h ζd u = case (ζc', ζc'') of 
                  (Chart c'In _ _, Chart c''In _ _)
                    -> let (y', c'Eps) = runFlatContinuous c'In fu 
                           (y'', c''Eps) = runFlatContinuous c''In gu 
