@@ -27,6 +27,7 @@ module Data.Manifold where
 
 import Data.List
 import Data.Maybe
+import Data.Semigroup
 import Data.Function hiding ((.), id)
 
 import Data.VectorSpace
@@ -48,10 +49,10 @@ data domain :--> codomain where
   Continuous :: ( Manifold d, Manifold c
                 , v ~ TangentSpace d, u ~ TangentSpace c
                 , δ ~ Scalar v, ε ~ Scalar u, δ ~ ε) =>
-        { runContinuous :: Chart d -> v -> (Chart c, u, ε->Maybe δ) }
+        { runContinuous :: Chart d -> v -> (Chart c, u, ε->Option δ) }
            -> d :--> c
-           
-          
+   
+
 
 infixr 0 --$
 
@@ -72,7 +73,37 @@ Continuous f --$ x = y
        u = fromJust (schOut x) --$ x
 
 
+continuous_id' ::  Manifold m => m :--> m
+continuous_id' = Continuous id'
+ where id' chart v = (chart, v, return)
 
+
+type HasLocalDistance m d = (Manifold m, d ~ Scalar (TangentSpace m))
+type EqvMetricSpaces a b = Scalar (TangentSpace a) ~ Scalar (TangentSpace b)
+
+const__ :: (Manifold d, Manifold c, Scalar(TangentSpace d)~Scalar(TangentSpace c))
+    => c -> d:-->c
+const__ x = Continuous f
+ where f _ _ = (tgtChart, w, const mzero)
+       tgtChart = head $ localAtlas x
+       tchOut = case tgtChart of Chart _ tchOut _ -> tchOut
+       w = fromJust (tchOut x) --$ x
+
+
+flatContinuous :: (FlatManifold v, FlatManifold w, δ~Scalar v, ε~Scalar w, δ~ε)
+    => (v -> (w, ε -> Option δ)) -> (v:-->w)
+flatContinuous f = Continuous cnt
+ where cnt cct v = case cct of Chart inMap _ _ -> let
+                                       (v', preEps) = runFlatContinuous inMap v
+                                       (w, postEps) = f v'
+                                    in (idChart, w, preEps>=>postEps)
+
+runFlatContinuous :: (FlatManifold v, FlatManifold w, δ~Scalar v, ε~Scalar w, δ~ε)
+    => (v:-->w) -> v -> (w, ε -> Option δ)
+runFlatContinuous Continuous_id v = (v, return)
+runFlatContinuous (Continuous cnf) v = (w, preEps>=>postEps)
+ where (cc', v', preEps) = cnf idChart v
+       (w, postEps) = case cc' of Chart inMap _ _ -> runFlatContinuous inMap v'
 
 
 instance Category (:-->) where
@@ -101,7 +132,7 @@ type EqFloating f = (Eq f, Ord f, Floating f)
 -- Obviously, @fromJust . 'chartOutMap' . 'chartInMap'@ should be equivalent to @id@
 -- on /Dⁿ/, and @'chartInMap' . fromJust . 'chartOutMap'@ to @id@ on /Q/.
 data Chart :: * -> * where
-  Chart :: (Manifold m, v ~ TangentSpace m) =>
+  Chart :: (Manifold m, v ~ TangentSpace m, FlatManifold v) =>
         { chartInMap :: v :--> m
         , chartOutMap :: m -> Maybe (m:-->v)
         , chartKind :: ChartKind      } -> Chart m
@@ -166,35 +197,74 @@ instance Manifold Double where
 
 type Representsℝ r = (EqFloating r, FlatManifold r, r~Scalar r)
 
-continuousRealFunction :: (Representsℝ r, ε~r, δ~r) => (r -> (r, ε->Maybe δ)) -> r:-->r
+continuousRealFunction :: (Representsℝ r, ε~r, δ~r) => (r -> (r, ε->Option δ)) -> r:-->r
 continuousRealFunction f = Continuous f'
  where f' (Chart Continuous_id _ _) x = (idChart, y, eps2Delta)
         where (y, eps2Delta) = f x
 
-type ContinuousRealFunction = Representsℝ r => r :--> r
+type CntnRealFunction = Representsℝ r => r :--> r
 
-sin__, cos__ :: ContinuousRealFunction
+sin__, cos__ :: CntnRealFunction
 sin__ = continuousRealFunction sin'
  where sin' x = (sin x, eps2Delta)
         where eps2Delta ε
-               | ε>2        = Nothing
-               | otherwise  = Just $ ε / (dsinx + sqrt ε)
+               | ε>2        = mzero
+               | otherwise  = return $ ε / (dsinx + sqrt ε)
               dsinx = abs $ cos x
 cos__ = continuousRealFunction cos'
  where cos' x = (cos x, eps2Delta)
         where eps2Delta ε
-               | ε>2        = Nothing
-               | otherwise  = Just $ ε / (dcosx + sqrt ε)
+               | ε>2        = mzero
+               | otherwise  = return $ ε / (dcosx + sqrt ε)
               dcosx = abs $ sin x
 
-exp__ :: ContinuousRealFunction
+exp__ :: CntnRealFunction
 exp__ = continuousRealFunction exp'
  where exp' x = (expx, eps2Delta)
         where expx = exp x
-              eps2Delta ε = Just . log $ (expx + ε)/expx
+              eps2Delta ε = return . log $ (expx + ε)/expx
 -- exp x + ε = exp (x + δ) = exp x * exp δ
 -- δ = ln ( (exp x + ε)/exp x )
-              
+
+
+cntnFuncsCombine :: forall d v c c' c'' ε . 
+         ( Manifold d, v ~ TangentSpace d
+                     , FlatManifold c, FlatManifold c', FlatManifold c''
+                     , ε ~ Scalar c  , ε ~ Scalar c'  , ε ~ Scalar c''   )
+       => (c'->c''->(c, ε->(ε,ε))) -> (d:-->c') -> (d:-->c'') -> d:-->c
+cntnFuncsCombine cmb Continuous_id g = cntnFuncsCombine cmb continuous_id' g
+cntnFuncsCombine cmb f Continuous_id = cntnFuncsCombine cmb f continuous_id'
+cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
+ where h (Chart Continuous_id _ _) u = undefined
+       h ζd@(Chart (Continuous ζnf) _ _) u
+              = case (ζc', ζc'') of 
+                 (Chart c'In _ _, Chart c''In _ _)
+                   -> let (y', c'Eps) = runFlatContinuous c'In fu 
+                          (y'', c''Eps) = runFlatContinuous c''In gu 
+                          (y, epsSplit) = cmb y' y'' 
+                          fullEps ε = getMax $ (Max $ fEps =<< c'Eps ε') 
+                                             <>(Max $ gEps =<< c''Eps ε'')
+                            where (ε', ε'') = epsSplit ε
+                      in  (idChart, y, fullEps)
+                 -- = case cc' of Chart ccIn _ _ -> let (x, dEps) = runFlatContinuous ccIn w
+                 --                                 in undefined
+        where (ζd', w, preEps) = ζnf idChart u
+              (ζc', fu, fEps) = f ζd u
+              (ζc'',gu, gEps) = g ζd u
+
+
+newtype CntnFuncValue d c = CntnFuncValue { runCntnFuncValue :: d :--> c }
+
+continuous :: (CntnFuncValue d d -> CntnFuncValue d c) -> d:-->c
+continuous f = case f $ CntnFuncValue id of CntnFuncValue q -> q
+
+
+
+instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValue d r) where
+  fromInteger = CntnFuncValue . const__ . fromInteger
+  CntnFuncValue f + CntnFuncValue g = CntnFuncValue h
+   where h = undefined
+
 
 
 

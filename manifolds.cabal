@@ -42,6 +42,7 @@ Library
                      , MonadRandom
                      , time>=1.2
                      , comonad
+                     , semigroups
   Extensions:        FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
