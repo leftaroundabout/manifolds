@@ -254,12 +254,18 @@ continuous :: (CntnFuncValue d d -> CntnFuncValue d c) -> d:-->c
 continuous f = case f $ CntnFuncValue id of CntnFuncValue q -> q
 
 
+cntnFnValsCombine :: forall d v c c' c'' ε . 
+         ( Manifold d, v ~ TangentSpace d
+                     , FlatManifold c, FlatManifold c', FlatManifold c''
+                     , ε ~ Scalar c  , ε ~ Scalar c'  , ε ~ Scalar c''   )
+       => (c'->c''->(c, ε->(ε,ε))) 
+         -> CntnFuncValue d c' -> CntnFuncValue d c'' -> CntnFuncValue d c
+cntnFnValsCombine cmb (CntnFuncValue f) (CntnFuncValue g) 
+    = CntnFuncValue $ cntnFuncsCombine cmb f g
 
 instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValue d r) where
   fromInteger = CntnFuncValue . const__ . fromInteger
-  CntnFuncValue f + CntnFuncValue g = CntnFuncValue h
-   where h = undefined
-
+  (+) = cntnFnValsCombine $ \a b -> (a+b, \ε -> (ε/2, ε/2))
 
 
 
