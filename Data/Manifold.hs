@@ -297,6 +297,22 @@ instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, 
 
 
 
+data GraphWindowSpec = GraphWindowSpec {
+    lBound, rBound, bBound, tBound :: Double
+  , xResolution, yResolution :: Int
+  }
+
+finiteGraphContinℝtoℝ :: (Double:-->Double) -> GraphWindowSpec -> [(Double, Double)]
+finiteGraphContinℝtoℝ Continuous_id (GraphWindowSpec{..})
+       = [(x, x) | x<-[lBound, rBound] ]
+finiteGraphContinℝtoℝ fc (GraphWindowSpec{..}) 
+       = refine [(x, f x, δyG) | x<-[lBound, rBound] ] [(rBound, fst $ f rBound)]
+   where refine [(x₁, (y₁, eps₁), ε₁),  (x₂, (y₂, eps₂), ε₂)] = id
+         f = runFlatContinuous fc
+         δyG = (tBound - bBound) / fromIntegral yResolution
+
+
+
 
 data S2 = S2 { ϑParamS2 :: Double -- [0, π[
              , φParamS2 :: Double -- [0, 2π[
