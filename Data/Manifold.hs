@@ -197,21 +197,22 @@ instance Manifold Double where
 
 type Representsℝ r = (EqFloating r, FlatManifold r, r~Scalar r)
 
-continuousRealFunction :: (Representsℝ r, ε~r, δ~r) => (r -> (r, ε->Option δ)) -> r:-->r
-continuousRealFunction f = Continuous f'
+continuousFlatFunction :: (FlatManifold d, FlatManifold c,  ε~Scalar c, δ~Scalar d, δ~ε) 
+                          => (d -> (c, ε->Option δ)) -> d:-->c
+continuousFlatFunction f = Continuous f'
  where f' (Chart Continuous_id _ _) x = (idChart, y, eps2Delta)
         where (y, eps2Delta) = f x
 
 type CntnRealFunction = Representsℝ r => r :--> r
 
 sin__, cos__ :: CntnRealFunction
-sin__ = continuousRealFunction sin'
+sin__ = continuousFlatFunction sin'
  where sin' x = (sin x, eps2Delta)
         where eps2Delta ε
                | ε>2        = mzero
                | otherwise  = return $ ε / (dsinx + sqrt ε)
               dsinx = abs $ cos x
-cos__ = continuousRealFunction cos'
+cos__ = continuousFlatFunction cos'
  where cos' x = (cos x, eps2Delta)
         where eps2Delta ε
                | ε>2        = mzero
@@ -219,7 +220,7 @@ cos__ = continuousRealFunction cos'
               dcosx = abs $ sin x
 
 exp__ :: CntnRealFunction
-exp__ = continuousRealFunction exp'
+exp__ = continuousFlatFunction exp'
  where exp' x = (expx, eps2Delta)
         where expx = exp x
               eps2Delta ε = return . log $ (expx + ε)/expx
@@ -254,6 +255,14 @@ continuous :: (CntnFuncValue d d -> CntnFuncValue d c) -> d:-->c
 continuous f = case f $ CntnFuncValue id of CntnFuncValue q -> q
 
 
+cntnFnValsApply :: (c':-->c) -> CntnFuncValue d c' -> CntnFuncValue d c 
+cntnFnValsApply f (CntnFuncValue x) = CntnFuncValue $ f.x
+
+cntnFnValsFunc :: ( Manifold d, FlatManifold c, FlatManifold c'
+                  , ε~Scalar c, ε~Scalar c' )
+             => (c' -> (c, ε->Option ε)) -> CntnFuncValue d c' -> CntnFuncValue d c
+cntnFnValsFunc = cntnFnValsApply . continuousFlatFunction
+
 cntnFnValsCombine :: forall d v c c' c'' ε . 
          ( Manifold d, v ~ TangentSpace d
                      , FlatManifold c, FlatManifold c', FlatManifold c''
@@ -279,6 +288,9 @@ instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValu
   --   ≤ | ε/sqrt(8) | + | ε/sqrt(8) | + | ε / 4 |
   --   ≈ .96·ε < ε
 
+  negate = cntnFnValsFunc $ \x -> (negate x, return)
+  abs = cntnFnValsFunc $ \x -> (abs x, return)
+  signum = cntnFnValsFunc $ \x -> (signum x, \ε -> if ε>2 then mzero else return $ abs x)
 
 instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
   localAtlas = vectorSpaceAtlas
