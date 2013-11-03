@@ -265,8 +265,19 @@ cntnFnValsCombine cmb (CntnFuncValue f) (CntnFuncValue g)
 
 instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValue d r) where
   fromInteger = CntnFuncValue . const__ . fromInteger
+  
   (+) = cntnFnValsCombine $ \a b -> (a+b, \ε -> (ε/2, ε/2))
-
+  (-) = cntnFnValsCombine $ \a b -> (a-b, \ε -> (ε/2, ε/2))
+  
+  (*) = cntnFnValsCombine $ \a b -> (a*b, 
+                             \ε -> (ε / (2 * sqrt(2*b^2+ε)), ε / (2 * sqrt(2*a^2+ε))))
+  --  |δa| < ε / 2·sqrt(2·b² + ε) ∧ |δb| < ε / 2·sqrt(2·a² + ε)
+  --  ⇒  | (a+δa) · (b+δb) - a·b | = | a·δb + b·δa + δa·δb | 
+  --   ≤ | a·δb | + | b·δa | + | δa·δb |
+  --   ≤ | a·ε/2·sqrt(2·a² + ε) | + | b·ε/2·sqrt(2·b² + ε) | + | ε² / 4·sqrt(2·b² + ε)·sqrt(2·a² + ε) |
+  --   ≤ | a·ε/2·sqrt(2·a²) | + | b·ε/2·sqrt(2·b²) | + | ε² / 4·sqrt(ε)·sqrt(ε) |
+  --   ≤ | ε/sqrt(8) | + | ε/sqrt(8) | + | ε / 4 |
+  --   ≈ .96·ε < ε
 
 
 instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
