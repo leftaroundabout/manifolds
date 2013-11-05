@@ -9,7 +9,7 @@
 -- 
 
 
-{-# LANGUAGE FlexibleInstances        #-}
+{-#LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE UndecidableInstances     #-}
 -- {-# LANGUAGE OverlappingInstances     #-}
 {-# LANGUAGE TypeFamilies             #-}
@@ -21,6 +21,7 @@
 {-# LANGUAGE PatternGuards            #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
+{-# LANGUAGE RecordWildCards          #-}
 
 
 module Data.Manifold where
@@ -302,13 +303,30 @@ data GraphWindowSpec = GraphWindowSpec {
   , xResolution, yResolution :: Int
   }
 
-finiteGraphContinℝtoℝ :: (Double:-->Double) -> GraphWindowSpec -> [(Double, Double)]
-finiteGraphContinℝtoℝ Continuous_id (GraphWindowSpec{..})
+finiteGraphContinℝtoℝ :: GraphWindowSpec -> (Double:-->Double) -> [(Double, Double)]
+finiteGraphContinℝtoℝ (GraphWindowSpec{..}) Continuous_id 
        = [(x, x) | x<-[lBound, rBound] ]
-finiteGraphContinℝtoℝ fc (GraphWindowSpec{..}) 
-       = refine [(x, f x, δyG) | x<-[lBound, rBound] ] [(rBound, fst $ f rBound)]
-   where refine [(x₁, (y₁, eps₁), ε₁),  (x₂, (y₂, eps₂), ε₂)] = id
+finiteGraphContinℝtoℝ (GraphWindowSpec{..}) fc
+       = connect [(x, f x, δyG) | x<-[lBound, rBound] ] [(rBound, fst $ f rBound)]
+   where connect [(x₁, (y₁, eps₁), ε₁),  (x₂, (y₂, eps₂), ε₂)]
+                = case (getOption $ eps₁ ε₁, getOption $ eps₂ ε₂) of
+                   (Nothing, Nothing)                  -> done
+                   (Just δ₁, Nothing) | δ₁>δxS         -> done
+                                      | otherwise      -> refine
+                   (Nothing, Just δ₂) | δ₂>δxS         -> done
+                                      | otherwise      -> refine
+                   (Just δ₁, Just δ₂) | δ₁>δxS, δ₂>δxS -> done
+                                      | otherwise      -> refine
+             where δxS = x₂-x₁
+                   m = x₁ + δxS/2
+                   fm@(ym, _) = f m
+                   done = ((x₁, y₁) :)
+                   refine = connect [(x₁, (y₁, eps₁), ε₁), (m, fm, ε')]
+                          . connect [(m, fm, ε'), (x₂, (y₂, eps₂), ε₂)]
+                   ε' = (if δxS < δxG then max (min (abs $ ym - y₁) (abs $ ym - y₂)) else id)
+                          $ max ε₁ ε₂
          f = runFlatContinuous fc
+         δxG = (rBound - lBound) / fromIntegral xResolution
          δyG = (tBound - bBound) / fromIntegral yResolution
 
 
