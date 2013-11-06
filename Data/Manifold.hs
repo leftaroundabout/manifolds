@@ -293,6 +293,12 @@ instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValu
   abs = cntnFnValsFunc $ \x -> (abs x, return)
   signum = cntnFnValsFunc $ \x -> (signum x, \ε -> if ε>2 then mzero else return $ abs x)
 
+instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Fractional (CntnFuncValue d r) where
+  fromRational = CntnFuncValue . const__ . fromRational
+  recip = cntnFnValsFunc $ \x -> let x¹ = recip x
+                                 in (x¹, \ε -> return $ abs x - recip(ε + abs x¹))
+  -- Readily derived from the worst-case of ε = 1 / (|x| – δ) – 1/|x|.
+
 instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
   localAtlas = vectorSpaceAtlas
 
