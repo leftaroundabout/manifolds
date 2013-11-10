@@ -19,6 +19,7 @@
 {-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
+{-# LANGUAGE LambdaCase               #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE RecordWildCards          #-}
@@ -229,11 +230,11 @@ exp__ = continuousFlatFunction exp'
 -- δ = ln ( (exp x + ε)/exp x )
 
 
-cntnFuncsCombine :: forall d v c c' c'' ε . 
+cntnFuncsCombine :: forall d v c c' c'' ε ε' ε''. 
          ( Manifold d, v ~ TangentSpace d
                      , FlatManifold c, FlatManifold c', FlatManifold c''
-                     , ε ~ Scalar c  , ε ~ Scalar c'  , ε ~ Scalar c''   )
-       => (c'->c''->(c, ε->(ε,ε))) -> (d:-->c') -> (d:-->c'') -> d:-->c
+                     , ε ~ Scalar c  , ε' ~ Scalar c' , ε'' ~ Scalar c'', ε~ε', ε~ε''  )
+       => (c'->c''->(c, ε->(ε',ε''))) -> (d:-->c') -> (d:-->c'') -> d:-->c
 cntnFuncsCombine cmb Continuous_id g = cntnFuncsCombine cmb continuous_id' g
 cntnFuncsCombine cmb f Continuous_id = cntnFuncsCombine cmb f continuous_id'
 cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
@@ -250,31 +251,43 @@ cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
               (ζc'',gu, gEps) = g ζd u
 
 
-newtype CntnFuncValue d c = CntnFuncValue { runCntnFuncValue :: d :--> c }
+data CntnFuncValue d c = CntnFuncValue { runCntnFuncValue :: d :--> c }
+                       | CntnFuncConst c
 
 continuous :: (CntnFuncValue d d -> CntnFuncValue d c) -> d:-->c
-continuous f = case f $ CntnFuncValue id of CntnFuncValue q -> q
+continuous f = case f $ CntnFuncValue id of 
+                          CntnFuncValue q -> q
+                          CntnFuncConst c -> const__ c
 
+constCntnFuncValue :: c -> CntnFuncValue d c
+constCntnFuncValue = CntnFuncConst
 
 cntnFnValsApply :: (c':-->c) -> CntnFuncValue d c' -> CntnFuncValue d c 
 cntnFnValsApply f (CntnFuncValue x) = CntnFuncValue $ f.x
+cntnFnValsApply f (CntnFuncConst x) = CntnFuncConst $ f--$x
 
 cntnFnValsFunc :: ( Manifold d, FlatManifold c, FlatManifold c'
                   , ε~Scalar c, ε~Scalar c' )
              => (c' -> (c, ε->Option ε)) -> CntnFuncValue d c' -> CntnFuncValue d c
 cntnFnValsFunc = cntnFnValsApply . continuousFlatFunction
 
-cntnFnValsCombine :: forall d v c c' c'' ε . 
+cntnFnValsCombine :: forall d v c c' c'' ε ε' ε''. 
          ( Manifold d, v ~ TangentSpace d
                      , FlatManifold c, FlatManifold c', FlatManifold c''
-                     , ε ~ Scalar c  , ε ~ Scalar c'  , ε ~ Scalar c''   )
-       => (c'->c''->(c, ε->(ε,ε))) 
+                     , ε ~ Scalar c  , ε' ~ Scalar c'  , ε'' ~ Scalar c'', ε~ε', ε~ε''  )
+       => (  c' -> c'' -> (c, ε -> (ε',(ε',ε''),ε''))  )
          -> CntnFuncValue d c' -> CntnFuncValue d c'' -> CntnFuncValue d c
 cntnFnValsCombine cmb (CntnFuncValue f) (CntnFuncValue g) 
-    = CntnFuncValue $ cntnFuncsCombine cmb f g
+    = CntnFuncValue $ cntnFuncsCombine (second (>>> \case (_,splε,_)->splε) .: cmb) f g
+cntnFnValsCombine cmb (CntnFuncConst p) (CntnFuncConst q) 
+    = CntnFuncConst . fst $ cmb p q
+cntnFnValsCombine cmb f (CntnFuncConst q) 
+    = cntnFnValsFunc (\c' -> return . second (>>> \case (ε',_,_)->ε') $ cmb c' q) f
+cntnFnValsCombine cmb (CntnFuncConst p) g
+    = cntnFnValsFunc (return . second (>>> \case (_,_,ε'')->ε'') . cmb p) g
 
 instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValue d r) where
-  fromInteger = CntnFuncValue . const__ . fromInteger
+  fromInteger = constCntnFuncValue . fromInteger
   
   (+) = cntnFnValsCombine $ \a b -> (a+b, \ε -> (ε/2, ε/2))
   (-) = cntnFnValsCombine $ \a b -> (a-b, \ε -> (ε/2, ε/2))
@@ -294,10 +307,12 @@ instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValu
   signum = cntnFnValsFunc $ \x -> (signum x, \ε -> if ε>2 then mzero else return $ abs x)
 
 instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Fractional (CntnFuncValue d r) where
-  fromRational = CntnFuncValue . const__ . fromRational
+  fromRational = constCntnFuncValue . fromRational
   recip = cntnFnValsFunc $ \x -> let x¹ = recip x
                                  in (x¹, \ε -> return $ abs x - recip(ε + abs x¹))
   -- Readily derived from the worst-case of ε = 1 / (|x| – δ) – 1/|x|.
+
+-- instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Floating (CntnFuncValue d r) where
 
 instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
   localAtlas = vectorSpaceAtlas
@@ -366,4 +381,8 @@ data S2 = S2 { ϑParamS2 :: Double -- [0, π[
 
 
 type Endomorphism a = a->a
+
+
+(.:) :: (c->d) -> (a->b->c) -> a->b->d 
+(.:) = (.) . (.)
 
