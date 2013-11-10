@@ -50,7 +50,7 @@ data domain :--> codomain where
   Continuous_id :: x:-->x
   Continuous :: ( Manifold d, Manifold c
                 , v ~ TangentSpace d, u ~ TangentSpace c
-                , δ ~ Scalar v, ε ~ Scalar u, δ ~ ε) =>
+                , δ ~ Scalar v, ε ~ Scalar u) =>
         { runContinuous :: Chart d -> v -> (Chart c, u, ε->Option δ) }
            -> d :--> c
    
@@ -83,7 +83,7 @@ continuous_id' = Continuous id'
 type HasLocalDistance m d = (Manifold m, d ~ Scalar (TangentSpace m))
 type EqvMetricSpaces a b = Scalar (TangentSpace a) ~ Scalar (TangentSpace b)
 
-const__ :: (Manifold d, Manifold c, Scalar(TangentSpace d)~Scalar(TangentSpace c))
+const__ :: (Manifold c, Manifold d)
     => c -> d:-->c
 const__ x = Continuous f
  where f _ _ = (tgtChart, w, const mzero)
@@ -254,7 +254,8 @@ cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
 data CntnFuncValue d c = CntnFuncValue { runCntnFuncValue :: d :--> c }
                        | CntnFuncConst c
 
-continuous :: (CntnFuncValue d d -> CntnFuncValue d c) -> d:-->c
+continuous :: (Manifold d, Manifold c)
+              => (CntnFuncValue d d -> CntnFuncValue d c) -> d:-->c
 continuous f = case f $ CntnFuncValue id of 
                           CntnFuncValue q -> q
                           CntnFuncConst c -> const__ c
@@ -278,22 +279,24 @@ cntnFnValsCombine :: forall d v c c' c'' ε ε' ε''.
        => (  c' -> c'' -> (c, ε -> (ε',(ε',ε''),ε''))  )
          -> CntnFuncValue d c' -> CntnFuncValue d c'' -> CntnFuncValue d c
 cntnFnValsCombine cmb (CntnFuncValue f) (CntnFuncValue g) 
-    = CntnFuncValue $ cntnFuncsCombine (second (>>> \case (_,splε,_)->splε) .: cmb) f g
+    = CntnFuncValue $ cntnFuncsCombine (second (>>> \(_,splε,_)->splε) .: cmb) f g
 cntnFnValsCombine cmb (CntnFuncConst p) (CntnFuncConst q) 
     = CntnFuncConst . fst $ cmb p q
 cntnFnValsCombine cmb f (CntnFuncConst q) 
-    = cntnFnValsFunc (\c' -> return . second (>>> \case (ε',_,_)->ε') $ cmb c' q) f
+    = cntnFnValsFunc (\c' -> second (>>> \(ε',_,_)->return ε') $ cmb c' q) f
 cntnFnValsCombine cmb (CntnFuncConst p) g
-    = cntnFnValsFunc (return . second (>>> \case (_,_,ε'')->ε'') . cmb p) g
+    = cntnFnValsFunc (second (>>> \(_,_,ε'')->return ε'') . cmb p) g
 
 instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValue d r) where
   fromInteger = constCntnFuncValue . fromInteger
   
-  (+) = cntnFnValsCombine $ \a b -> (a+b, \ε -> (ε/2, ε/2))
-  (-) = cntnFnValsCombine $ \a b -> (a-b, \ε -> (ε/2, ε/2))
+  (+) = cntnFnValsCombine $ \a b -> (a+b, \ε -> (ε, (ε/2,ε/2), ε))
+  (-) = cntnFnValsCombine $ \a b -> (a-b, \ε -> (ε, (ε/2,ε/2), ε))
   
   (*) = cntnFnValsCombine $ \a b -> (a*b, 
-                             \ε -> (ε / (2 * sqrt(2*b^2+ε)), ε / (2 * sqrt(2*a^2+ε))))
+                             \ε -> ( ε/b
+                                   , (ε / (2 * sqrt(2*b^2+ε)), ε / (2 * sqrt(2*a^2+ε)))
+                                   , ε/a ))
   --  |δa| < ε / 2·sqrt(2·b² + ε) ∧ |δb| < ε / 2·sqrt(2·a² + ε)
   --  ⇒  | (a+δa) · (b+δb) - a·b | = | a·δb + b·δa + δa·δb | 
   --   ≤ | a·δb | + | b·δa | + | δa·δb |
