@@ -363,15 +363,25 @@ instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Floating (CntnFun
                 eps2Delta ε = return $ 
                     if ε > pi/2 - abs asinx
                      then 1 - abs x
-                     else abs $ sin (asinx + ε * signum x) - x
+                     else sin (abs asinx + ε) - abs x
   acos = cntnFnValsApply $ continuousFlatFunction acos'
    where acos' x = (acosx, eps2Delta)
           where acosx = acos x
                 eps2Delta ε = return $ 
-                    if ε > piBy2 - abs (acosx - piBy2)
+                    if ε > pi/2 - abs (acosx - pi/2)
                      then 1 - abs x
-                     else abs $ cos (acosx + ε * signum x) - x
-         piBy2 = pi/2
+                     else cos (abs acosx + ε) - abs x
+  acosh = cntnFnValsApply $ continuousFlatFunction acosh'
+   where acosh' x = (acoshx, eps2Delta)
+          where acoshx = acosh x
+                eps2Delta ε = return $ 
+                    if ε > acoshx
+                     then x - 1
+                     else x - cosh (acoshx - ε)
+  atanh = cntnFnValsApply $ continuousFlatFunction atanh'
+   where atanh' x = (atanhx, eps2Delta)
+          where atanhx = atanh x
+                eps2Delta ε = return $ tanh (abs atanhx + ε) - abs x
 
 instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
   localAtlas = vectorSpaceAtlas
