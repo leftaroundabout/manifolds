@@ -207,21 +207,28 @@ continuousFlatFunction f = Continuous f'
 
 type CntnRealFunction = Representsℝ r => r :--> r
 
-sin__, cos__ :: CntnRealFunction
+sin__, cos__, atan__ ,  exp__ , sinh__, cosh__, tanh__, asinh__ :: CntnRealFunction
 sin__ = continuousFlatFunction sin'
- where sin' x = (sin x, eps2Delta)
+ where sin' x = (sinx, eps2Delta)
         where eps2Delta ε
-               | ε>2        = mzero
-               | otherwise  = return $ ε / (dsinx + sqrt ε)
+               | ε > 1 + abs sinx  = mzero
+               | otherwise         = return $ ε / (dsinx + sqrt ε)
               dsinx = abs $ cos x
+              sinx = sin x
 cos__ = continuousFlatFunction cos'
- where cos' x = (cos x, eps2Delta)
+ where cos' x = (cosx, eps2Delta)
         where eps2Delta ε
-               | ε>2        = mzero
-               | otherwise  = return $ ε / (dcosx + sqrt ε)
+               | ε > 1 + abs cosx  = mzero
+               | otherwise         = return $ ε / (dcosx + sqrt ε)
               dcosx = abs $ sin x
+              cosx = cos x
+atan__ = continuousFlatFunction atan'
+ where atan' x = (atanx, eps2Delta)
+        where eps2Delta ε
+               | ε >= pi/2 + abs atanx  = mzero
+               | otherwise              = return . abs $ tan (atanx + ε * signum x) - x
+              atanx = atan x
 
-exp__ :: CntnRealFunction
 exp__ = continuousFlatFunction exp'
  where exp' x = (expx, eps2Delta)
         where expx = exp x
@@ -229,6 +236,25 @@ exp__ = continuousFlatFunction exp'
 -- exp x + ε = exp (x + δ) = exp x * exp δ
 -- δ = ln ( (exp x + ε)/exp x )
 
+sinh__ = continuousFlatFunction sinh'
+ where sinh' x = (sinhx, eps2Delta)
+        where eps2Delta ε = return $ asinh (abs sinhx + ε) - abs x
+              sinhx = sinh x
+cosh__ = continuousFlatFunction cosh'
+ where cosh' x = (coshx, eps2Delta)
+        where eps2Delta ε = return $ acosh (coshx + ε) - abs x
+              coshx = cosh x
+tanh__ = continuousFlatFunction tanh'
+ where tanh' x = (tanhx, eps2Delta)
+        where eps2Delta ε
+               | ε >= 1 + abs tanhx  = mzero
+               | otherwise           = return . abs $ atanh (tanhx - ε * signum x) - x
+              tanhx = tanh x
+asinh__ = continuousFlatFunction asinh'
+ where asinh' x = (asinhx, eps2Delta)
+        where eps2Delta ε = return . abs $ sinh (asinhx - ε * signum x) - x
+              asinhx = asinh x
+       
 
 cntnFuncsCombine :: forall d v c c' c'' ε ε' ε''. 
          ( Manifold d, v ~ TangentSpace d
@@ -315,7 +341,37 @@ instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Fractional (CntnF
                                  in (x¹, \ε -> return $ abs x - recip(ε + abs x¹))
   -- Readily derived from the worst-case of ε = 1 / (|x| – δ) – 1/|x|.
 
--- instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Floating (CntnFuncValue d r) where
+instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Floating (CntnFuncValue d r) where
+  pi = constCntnFuncValue pi
+  
+  exp = cntnFnValsApply exp__
+  sin = cntnFnValsApply sin__
+  cos = cntnFnValsApply cos__
+  atan = cntnFnValsApply atan__
+  sinh = cntnFnValsApply sinh__
+  cosh = cntnFnValsApply cosh__
+  tanh = cntnFnValsApply tanh__
+  asinh = cntnFnValsApply asinh__
+  
+  log = cntnFnValsApply $ continuousFlatFunction ln'
+   where ln' x = (lnx, eps2Delta)
+          where lnx = log x
+                eps2Delta ε = return $ x - exp (lnx - ε)
+  asin = cntnFnValsApply $ continuousFlatFunction asin'
+   where asin' x = (asinx, eps2Delta)
+          where asinx = asin x
+                eps2Delta ε = return $ 
+                    if ε > pi/2 - abs asinx
+                     then 1 - abs x
+                     else abs $ sin (asinx + ε * signum x) - x
+  acos = cntnFnValsApply $ continuousFlatFunction acos'
+   where acos' x = (acosx, eps2Delta)
+          where acosx = acos x
+                eps2Delta ε = return $ 
+                    if ε > piBy2 - abs (acosx - piBy2)
+                     then 1 - abs x
+                     else abs $ cos (acosx + ε * signum x) - x
+         piBy2 = pi/2
 
 instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
   localAtlas = vectorSpaceAtlas
