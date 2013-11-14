@@ -19,7 +19,6 @@
 {-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
-{-# LANGUAGE LambdaCase               #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE RecordWildCards          #-}
