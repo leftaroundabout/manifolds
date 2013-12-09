@@ -231,7 +231,9 @@ atan__ = continuousFlatFunction atan'
 exp__ = continuousFlatFunction exp'
  where exp' x = (expx, eps2Delta)
         where expx = exp x
-              eps2Delta ε = return . log $ (expx + ε)/expx
+              eps2Delta ε 
+                | x>0, expx*2 == expx  = return 0   -- "Infinity" in floating-point
+                | otherwise            = return $ log (expx + ε) - x
 -- exp x + ε = exp (x + δ) = exp x * exp δ
 -- δ = ln ( (exp x + ε)/exp x )
 
