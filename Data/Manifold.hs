@@ -258,8 +258,7 @@ asinh__ = continuousFlatFunction asinh'
        
 
 cntnFuncsCombine :: forall d v c c' c'' ε ε' ε''. 
-         ( -- Manifold d, v ~ TangentSpace d
-                      FlatManifold c, FlatManifold c', FlatManifold c''
+         (       FlatManifold c, FlatManifold c', FlatManifold c''
                      , ε ~ Scalar c  , ε' ~ Scalar c' , ε'' ~ Scalar c'', ε~ε', ε~ε''  )
        => (c'->c''->(c, ε->(ε',ε''))) -> (d:-->c') -> (d:-->c'') -> d:-->c
 cntnFuncsCombine cmb Continuous_id g = cntnFuncsCombine cmb continuous_id' g
@@ -384,20 +383,19 @@ instance Representsℝ r => Floating (CntnFuncValue d r) where
                 eps2Delta ε = return $ tanh (abs atanhx + ε) - abs x
 
 
--- instance (FlatManifold r) --, Manifold d, EqvMetricSpaces r d) 
---                            => AdditiveGroup (CntnFuncValue d r) where
---   zeroV = constCntnFuncValue zeroV
---   (^+^) = cntnFnValsCombine $ \a b -> (a^+^b, \ε -> (ε, (ε/2,ε/2), ε))
---   negateV = cntnFnValsFunc $ \x -> (negateV x, return)
--- 
--- instance (FlatManifold r)
---                            => VectorSpace (CntnFuncValue d r) where
---   type Scalar (CntnFuncValue d r) = CntnFuncValue d (Scalar r)
---   (*^) = cntnFnValsCombine $ \a b -> (a*^b, 
---                              \ε -> ( ε/b
---                                    , (ε / (2 * sqrt(2*b^2+ε)), ε / (2 * sqrt(2*a^2+ε)))
---                                    , ε/a ))
-  
+instance FlatManifold v => AdditiveGroup (CntnFuncValue d v) where
+  zeroV = constCntnFuncValue zeroV
+  (^+^) = cntnFnValsCombine $ \a b -> (a^+^b, \ε -> (ε, (ε/2,ε/2), ε))
+  negateV = cntnFnValsFunc $ \x -> (negateV x, return)
+
+instance (FlatManifold v, InnerSpace v, Representsℝ (Scalar v)) => VectorSpace (CntnFuncValue d v) where
+  type Scalar (CntnFuncValue d v) = CntnFuncValue d (Scalar v)
+  (*^) = cntnFnValsCombine $ \λ v -> (λ*^v
+                             , \ε -> let l = magnitude v
+                                   in ( ε/l
+                                      , (ε / (2 * sqrt(2*l^2+ε)), ε / (2 * sqrt(2*λ^2+ε)))
+                                      , ε / λ ))
+         
   
 
 
