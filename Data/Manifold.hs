@@ -258,8 +258,8 @@ asinh__ = continuousFlatFunction asinh'
        
 
 cntnFuncsCombine :: forall d v c c' c'' ε ε' ε''. 
-         ( Manifold d, v ~ TangentSpace d
-                     , FlatManifold c, FlatManifold c', FlatManifold c''
+         ( -- Manifold d, v ~ TangentSpace d
+                      FlatManifold c, FlatManifold c', FlatManifold c''
                      , ε ~ Scalar c  , ε' ~ Scalar c' , ε'' ~ Scalar c'', ε~ε', ε~ε''  )
        => (c'->c''->(c, ε->(ε',ε''))) -> (d:-->c') -> (d:-->c'') -> d:-->c
 cntnFuncsCombine cmb Continuous_id g = cntnFuncsCombine cmb continuous_id' g
@@ -294,14 +294,13 @@ cntnFnValsApply :: (c':-->c) -> CntnFuncValue d c' -> CntnFuncValue d c
 cntnFnValsApply f (CntnFuncValue x) = CntnFuncValue $ f.x
 cntnFnValsApply f (CntnFuncConst x) = CntnFuncConst $ f--$x
 
-cntnFnValsFunc :: ( Manifold d, FlatManifold c, FlatManifold c'
+cntnFnValsFunc :: ( FlatManifold c, FlatManifold c'
                   , ε~Scalar c, ε~Scalar c' )
              => (c' -> (c, ε->Option ε)) -> CntnFuncValue d c' -> CntnFuncValue d c
 cntnFnValsFunc = cntnFnValsApply . continuousFlatFunction
 
-cntnFnValsCombine :: forall d v c c' c'' ε ε' ε''. 
-         ( Manifold d, v ~ TangentSpace d
-                     , FlatManifold c, FlatManifold c', FlatManifold c''
+cntnFnValsCombine :: forall d c c' c'' ε ε' ε''. 
+         (             FlatManifold c, FlatManifold c', FlatManifold c''
                      , ε ~ Scalar c  , ε' ~ Scalar c'  , ε'' ~ Scalar c'', ε~ε', ε~ε''  )
        => (  c' -> c'' -> (c, ε -> (ε',(ε',ε''),ε''))  )
          -> CntnFuncValue d c' -> CntnFuncValue d c'' -> CntnFuncValue d c
@@ -314,7 +313,7 @@ cntnFnValsCombine cmb f (CntnFuncConst q)
 cntnFnValsCombine cmb (CntnFuncConst p) g
     = cntnFnValsFunc (second (>>> \(_,_,ε'')->return ε'') . cmb p) g
 
-instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValue d r) where
+instance Representsℝ r => Num (CntnFuncValue d r) where
   fromInteger = constCntnFuncValue . fromInteger
   
   (+) = cntnFnValsCombine $ \a b -> (a+b, \ε -> (ε, (ε/2,ε/2), ε))
@@ -336,13 +335,13 @@ instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Num (CntnFuncValu
   abs = cntnFnValsFunc $ \x -> (abs x, return)
   signum = cntnFnValsFunc $ \x -> (signum x, \ε -> if ε>2 then mzero else return $ abs x)
 
-instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Fractional (CntnFuncValue d r) where
+instance Representsℝ r => Fractional (CntnFuncValue d r) where
   fromRational = constCntnFuncValue . fromRational
   recip = cntnFnValsFunc $ \x -> let x¹ = recip x
                                  in (x¹, \ε -> return $ abs x - recip(ε + abs x¹))
   -- Readily derived from the worst-case of ε = 1 / (|x| – δ) – 1/|x|.
 
-instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Floating (CntnFuncValue d r) where
+instance Representsℝ r => Floating (CntnFuncValue d r) where
   pi = constCntnFuncValue pi
   
   exp = cntnFnValsApply exp__
@@ -383,6 +382,30 @@ instance (Representsℝ r, Manifold d, EqvMetricSpaces r d) => Floating (CntnFun
    where atanh' x = (atanhx, eps2Delta)
           where atanhx = atanh x
                 eps2Delta ε = return $ tanh (abs atanhx + ε) - abs x
+
+
+-- instance (FlatManifold r) --, Manifold d, EqvMetricSpaces r d) 
+--                            => AdditiveGroup (CntnFuncValue d r) where
+--   zeroV = constCntnFuncValue zeroV
+--   (^+^) = cntnFnValsCombine $ \a b -> (a^+^b, \ε -> (ε, (ε/2,ε/2), ε))
+--   negateV = cntnFnValsFunc $ \x -> (negateV x, return)
+-- 
+-- instance (FlatManifold r)
+--                            => VectorSpace (CntnFuncValue d r) where
+--   type Scalar (CntnFuncValue d r) = CntnFuncValue d (Scalar r)
+--   (*^) = cntnFnValsCombine $ \a b -> (a*^b, 
+--                              \ε -> ( ε/b
+--                                    , (ε / (2 * sqrt(2*b^2+ε)), ε / (2 * sqrt(2*a^2+ε)))
+--                                    , ε/a ))
+  
+  
+
+
+
+
+
+
+
 
 instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
   localAtlas = vectorSpaceAtlas
