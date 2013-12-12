@@ -32,12 +32,14 @@ import Data.Semigroup
 import Data.Function hiding ((.), id)
 
 import Data.VectorSpace
+import Data.AffineSpace
 import Data.Basis
 
 import Prelude hiding((.), id)
 
 import Control.Category
 import Control.Arrow
+import Control.Applicative
 import Control.Monad
 import Control.Comonad
 
@@ -286,6 +288,18 @@ continuous f = case f $ CntnFuncValue id of
                           CntnFuncValue q -> q
                           CntnFuncConst c -> const__ c
 
+
+-- continuous1to2 :: (Manifold d, Manifold c₁, Manifold c₂, Manifold (c₁, c₂))
+--                   => (CntnFuncValue d d -> (CntnFuncValue d c₁, CntnFuncValue d ci₂))
+--                                -> d :--> (c₁, c₂)
+-- continuous1to2 f = case f $ CntnFuncValue id of
+--        (CntnFuncConst c₁, CntnFuncConst c₂) -> const__ (c₁, c₂)
+--        (CntnFuncConst c₁, CntnFuncValue Continuous_id)
+--             -> Continuous $ \cht x 
+--        (CntnFuncValue Continuous_id, CntnFuncValue Continuous_id) ->
+-- 
+
+
 constCntnFuncValue :: c -> CntnFuncValue d c
 constCntnFuncValue = CntnFuncConst
 
@@ -440,6 +454,35 @@ finiteGraphContinℝtoℝ (GraphWindowSpec{..}) fc
          f = runFlatContinuous fc
          δxG = (rBound - lBound) / fromIntegral xResolution
          δyG = (tBound - bBound) / fromIntegral yResolution
+
+
+finiteGraphContinℝtoℝ² :: GraphWindowSpec -> (Double:-->(Double, Double)) -> [(Double, Double)]
+finiteGraphContinℝtoℝ² (GraphWindowSpec{..}) fc
+       = connect (tl, f tl) (tu, f tu) [fst $ f tu]
+  where connect n₁@(t₁, (p₁, eps₁)) n₂@(t₂, (p₂, eps₂)) 
+           | and . catMaybes $ map (getOption . fmap( > t₂ - t₁ ) . ($reso)) [eps₁, eps₂]  
+                                                     = (p₁ : )
+           | m <- (id &&& f) $ midBetween [t₁, t₂]   = connect n₁ m . connect m n₂
+        t₀ = firstJust $ zipWith(<|>) (go inRange (-1) 0) (go inRange 1 0)
+        (tl, tu) = (firstJust $ go (not . inRange) (-1) t₀, firstJust $ go (not . inRange) 1 t₀)
+        go ok dir t
+                 | ok p       = [Just t]
+                 | Just s <- getOption(epsP $ distance p m)
+                              = Nothing : go ok dir (t + dir * s)
+           where (p, epsP) = f t
+        f = runFlatContinuous fc
+        inRange (x, y) = x > lBound && x < rBound && y > bBound && y < tBound
+        m = ( midBetween[lBound, rBound], midBetween[bBound, tBound] )
+        reso = magnitude ( (rBound - lBound) / fromIntegral xResolution
+                         , (tBound - bBound) / fromIntegral yResolution )
+        firstJust = head . catMaybes
+
+
+               
+                      
+        
+midBetween :: (VectorSpace v, Fractional(Scalar v)) => [v] -> v
+midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
 
 
 
