@@ -471,14 +471,15 @@ finiteGraphContinℝtoℝ² (GraphWindowSpec{..}) fc
                  concatMap (`explore`dir) start
          where explore t₀ dir
                  | Just ti <- go (\_ -> inRange) reasonable dir t₀
-                 , Just tb <- go (\_ -> not . inRange) (const True) (-dir) ti
-                 , Just te <- go (\t p -> not $ reasonable t && inRange p) (const True) dir ti
+                 , Just tb <- exitWindow (-dir) ti
+                 , Just te <- exitWindow   dir  ti
                               = (if dir > 0 then (tb, te) else (te, tb)) : explore te dir
                  | otherwise  = []
+                where exitWindow = go (\t p -> not $ reasonable t && inRange p) (const True)
                go isDone hasHope dir t
                  | not $ hasHope t  = Nothing
                  | isDone t p       = Just t
-                 | Just s <- getOption(epsP $ distance p center)
+                 | Just s <- getOption(epsP $ mobility p)
                                     = go isDone hasHope dir $ t + dir * s
                  | otherwise        = Nothing
                 where (p, epsP) = f t
@@ -486,7 +487,9 @@ finiteGraphContinℝtoℝ² (GraphWindowSpec{..}) fc
         f = runFlatContinuous fc
         inRange (x, y) = x > lBound && x < rBound && y > bBound && y < tBound
         reasonable = (< 1e+250) . abs
-        center = ( midBetween[lBound, rBound], midBetween[bBound, tBound] )
+        mobility = \p -> sqrt $ max (distanceSq p cp₁) (distanceSq p cp₂) 
+         where cp₁ = ( midBetween[lBound, rBound, rBound], midBetween[bBound, tBound, tBound] )
+               cp₂ = ( midBetween[lBound, lBound, rBound], midBetween[bBound, bBound, tBound] )
         resoSq = reso ^ 2
         reso = min ( (rBound - lBound) / fromIntegral xResolution )
                    ( (tBound - bBound) / fromIntegral yResolution ) * 2
