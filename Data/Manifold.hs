@@ -26,8 +26,9 @@
 
 module Data.Manifold where
 
-import Data.List
+import Data.List hiding (concatMap)
 import Data.Maybe
+import Data.Foldable (concatMap)
 import Data.Semigroup
 import Data.Function hiding ((.), id)
 
@@ -35,7 +36,7 @@ import Data.VectorSpace
 import Data.AffineSpace
 import Data.Basis
 
-import Prelude hiding((.), id)
+import Prelude hiding((.), id, concatMap)
 
 import Control.Category
 import Control.Arrow
@@ -456,26 +457,45 @@ finiteGraphContinℝtoℝ (GraphWindowSpec{..}) fc
          δyG = (tBound - bBound) / fromIntegral yResolution
 
 
-finiteGraphContinℝtoℝ² :: GraphWindowSpec -> (Double:-->(Double, Double)) -> [(Double, Double)]
+finiteGraphContinℝtoℝ² :: GraphWindowSpec -> (Double:-->(Double, Double)) -> [[(Double, Double)]]
 finiteGraphContinℝtoℝ² (GraphWindowSpec{..}) fc
-       = connect (tl, f tl) (tu, f tu) [fst $ f tu]
+       = map (\(tl, tu) -> reCoarsen $ connect (tl, f tl) (tu, f tu) [fst $ f tu]) segments
   where connect n₁@(t₁, (p₁, eps₁)) n₂@(t₂, (p₂, eps₂)) 
            | and . catMaybes $ map (getOption . fmap( > t₂ - t₁ ) . ($reso)) [eps₁, eps₂]  
                                                      = (p₁ : )
            | m <- (id &&& f) $ midBetween [t₁, t₂]   = connect n₁ m . connect m n₂
-        t₀ = firstJust $ zipWith(<|>) (go inRange (-1) 0) (go inRange 1 0)
-        (tl, tu) = (firstJust $ go (not . inRange) (-1) t₀, firstJust $ go (not . inRange) 1 t₀)
-        go ok dir t
-                 | ok p       = [Just t]
-                 | Just s <- getOption(epsP $ distance p m)
-                              = Nothing : go ok dir (t + dir * s)
-           where (p, epsP) = f t
+
+        segments = do
+                 (start, dir) <- [ (Just 0                                 , -1)
+                                 , (go (\_ -> not . inRange) reasonable 1 0, 1 ) ]
+                 concatMap (`explore`dir) start
+         where explore t₀ dir
+                 | Just ti <- go (\_ -> inRange) reasonable dir t₀
+                 , Just tb <- go (\_ -> not . inRange) (const True) (-dir) ti
+                 , Just te <- go (\t p -> not $ reasonable t && inRange p) (const True) dir ti
+                              = (if dir > 0 then (tb, te) else (te, tb)) : explore te dir
+                 | otherwise  = []
+               go isDone hasHope dir t
+                 | not $ hasHope t  = Nothing
+                 | isDone t p       = Just t
+                 | Just s <- getOption(epsP $ distance p center)
+                                    = go isDone hasHope dir $ t + dir * s
+                 | otherwise        = Nothing
+                where (p, epsP) = f t
+
         f = runFlatContinuous fc
         inRange (x, y) = x > lBound && x < rBound && y > bBound && y < tBound
-        m = ( midBetween[lBound, rBound], midBetween[bBound, tBound] )
-        reso = magnitude ( (rBound - lBound) / fromIntegral xResolution
-                         , (tBound - bBound) / fromIntegral yResolution )
+        reasonable = (< 1e+250) . abs
+        center = ( midBetween[lBound, rBound], midBetween[bBound, tBound] )
+        resoSq = reso ^ 2
+        reso = min ( (rBound - lBound) / fromIntegral xResolution )
+                   ( (tBound - bBound) / fromIntegral yResolution ) * 2
         firstJust = head . catMaybes
+
+        reCoarsen (p₁ : p₂ : ps)
+          | distanceSq p₁ p₂ > resoSq  = p₁ : reCoarsen (p₂ : ps)
+          | otherwise                  = reCoarsen (p₁ : ps)
+        reCoarsen ps = ps
 
 
                
