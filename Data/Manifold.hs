@@ -228,7 +228,7 @@ atan__ = continuousFlatFunction atan'
  where atan' x = (atanx, eps2Delta)
         where eps2Delta ε
                | ε >= pi/2 + abs atanx  = mzero
-               | otherwise              = return . abs $ tan (atanx + ε * signum x) - x
+               | otherwise              = return $ abs x - tan (abs atanx - ε)
               atanx = atan x
 
 exp__ = continuousFlatFunction exp'
@@ -252,11 +252,11 @@ tanh__ = continuousFlatFunction tanh'
  where tanh' x = (tanhx, eps2Delta)
         where eps2Delta ε
                | ε >= 1 + abs tanhx  = mzero
-               | otherwise           = return . abs $ atanh (tanhx - ε * signum x) - x
+               | otherwise           = return $ abs x - atanh (abs tanhx - ε)
               tanhx = tanh x
 asinh__ = continuousFlatFunction asinh'
  where asinh' x = (asinhx, eps2Delta)
-        where eps2Delta ε = return . abs $ sinh (asinhx - ε * signum x) - x
+        where eps2Delta ε = return $ abs x - sinh (abs asinhx - ε)
               asinhx = asinh x
        
 
