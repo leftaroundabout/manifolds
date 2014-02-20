@@ -36,13 +36,14 @@ Library
                      , vector
                      , vector-algorithms
                      , containers
-                     , OpenGL
-                     , GLUT
+                     -- , OpenGL
+                     -- , GLUT
                      , random
                      , MonadRandom
                      , time>=1.2
                      , comonad
                      , semigroups
+                     , constrained-categories
   Extensions:        FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
