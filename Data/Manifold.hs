@@ -28,21 +28,18 @@ module Data.Manifold where
 
 import Data.List hiding (concatMap)
 import Data.Maybe
-import Data.Foldable (concatMap)
 import Data.Semigroup
-import Data.Function hiding ((.), id)
+import Data.Function (on)
 
 import Data.VectorSpace
 import Data.AffineSpace
 import Data.Basis
 
-import Prelude hiding((.), id, concatMap)
+import Prelude ()
 
-import Control.Category
-import Control.Arrow
-import Control.Applicative
-import Control.Monad
-import Control.Comonad
+import Control.Category.Constrained.Prelude
+import Control.Arrow.Constrained
+import Control.Monad.Constrained
 
 
 
