@@ -26,7 +26,7 @@
 
 module Data.Manifold where
 
-import Data.List hiding (concatMap)
+import Data.List
 import Data.Maybe
 import Data.Semigroup
 import Data.Function (on)
@@ -40,6 +40,7 @@ import Prelude ()
 import Control.Category.Constrained.Prelude
 import Control.Arrow.Constrained
 import Control.Monad.Constrained
+import Data.Foldable.Constrained
 
 
 
@@ -169,7 +170,7 @@ chartEnv (Chart inMap outMap chKind) f x = do
     vGet <- outMap x
     let v = vGet --$ x
     v' <- rimGuard chKind v
-    return $ inMap --$ v'
+    Just $ inMap --$ v'
 
   
 
@@ -210,50 +211,50 @@ sin__, cos__, atan__ ,  exp__ , sinh__, cosh__, tanh__, asinh__ :: CntnRealFunct
 sin__ = continuousFlatFunction sin'
  where sin' x = (sinx, eps2Delta)
         where eps2Delta ε
-               | ε > 1 + abs sinx  = mzero
-               | otherwise         = return $ ε / (dsinx + sqrt ε)
+               | ε > 1 + abs sinx  = nothing
+               | otherwise         = just $ ε / (dsinx + sqrt ε)
               dsinx = abs $ cos x
               sinx = sin x
 cos__ = continuousFlatFunction cos'
  where cos' x = (cosx, eps2Delta)
         where eps2Delta ε
-               | ε > 1 + abs cosx  = mzero
-               | otherwise         = return $ ε / (dcosx + sqrt ε)
+               | ε > 1 + abs cosx  = nothing
+               | otherwise         = just $ ε / (dcosx + sqrt ε)
               dcosx = abs $ sin x
               cosx = cos x
 atan__ = continuousFlatFunction atan'
  where atan' x = (atanx, eps2Delta)
         where eps2Delta ε
-               | ε >= pi/2 + abs atanx  = mzero
-               | otherwise              = return $ abs x - tan (abs atanx - ε)
+               | ε >= pi/2 + abs atanx  = nothing
+               | otherwise              = just $ abs x - tan (abs atanx - ε)
               atanx = atan x
 
 exp__ = continuousFlatFunction exp'
  where exp' x = (expx, eps2Delta)
         where expx = exp x
               eps2Delta ε 
-                | x>0, expx*2 == expx  = return 0   -- "Infinity" in floating-point
-                | otherwise            = return $ log (expx + ε) - x
+                | x>0, expx*2 == expx  = just 0   -- "Infinity" in floating-point
+                | otherwise            = just $ log (expx + ε) - x
 -- exp x + ε = exp (x + δ) = exp x * exp δ
 -- δ = ln ( (exp x + ε)/exp x )
 
 sinh__ = continuousFlatFunction sinh'
  where sinh' x = (sinhx, eps2Delta)
-        where eps2Delta ε = return $ asinh (abs sinhx + ε) - abs x
+        where eps2Delta ε = just $ asinh (abs sinhx + ε) - abs x
               sinhx = sinh x
 cosh__ = continuousFlatFunction cosh'
  where cosh' x = (coshx, eps2Delta)
-        where eps2Delta ε = return $ acosh (coshx + ε) - abs x
+        where eps2Delta ε = just $ acosh (coshx + ε) - abs x
               coshx = cosh x
 tanh__ = continuousFlatFunction tanh'
  where tanh' x = (tanhx, eps2Delta)
         where eps2Delta ε
-               | ε >= 1 + abs tanhx  = mzero
-               | otherwise           = return $ abs x - atanh (abs tanhx - ε)
+               | ε >= 1 + abs tanhx  = nothing
+               | otherwise           = just $ abs x - atanh (abs tanhx - ε)
               tanhx = tanh x
 asinh__ = continuousFlatFunction asinh'
  where asinh' x = (asinhx, eps2Delta)
-        where eps2Delta ε = return $ abs x - sinh (abs asinhx - ε)
+        where eps2Delta ε = just $ abs x - sinh (abs asinhx - ε)
               asinhx = asinh x
        
 
@@ -344,12 +345,12 @@ instance Representsℝ r => Num (CntnFuncValue d r) where
 
   negate = cntnFnValsFunc $ \x -> (negate x, return)
   abs = cntnFnValsFunc $ \x -> (abs x, return)
-  signum = cntnFnValsFunc $ \x -> (signum x, \ε -> if ε>2 then mzero else return $ abs x)
+  signum = cntnFnValsFunc $ \x -> (signum x, \ε -> if ε>2 then nothing else just $ abs x)
 
 instance Representsℝ r => Fractional (CntnFuncValue d r) where
   fromRational = constCntnFuncValue . fromRational
   recip = cntnFnValsFunc $ \x -> let x¹ = recip x
-                                 in (x¹, \ε -> return $ abs x - recip(ε + abs x¹))
+                                 in (x¹, \ε -> just $ abs x - recip(ε + abs x¹))
   -- Readily derived from the worst-case of ε = 1 / (|x| – δ) – 1/|x|.
 
 instance Representsℝ r => Floating (CntnFuncValue d r) where
@@ -367,32 +368,32 @@ instance Representsℝ r => Floating (CntnFuncValue d r) where
   log = cntnFnValsApply $ continuousFlatFunction ln'
    where ln' x = (lnx, eps2Delta)
           where lnx = log x
-                eps2Delta ε = return $ x - exp (lnx - ε)
+                eps2Delta ε = just $ x - exp (lnx - ε)
   asin = cntnFnValsApply $ continuousFlatFunction asin'
    where asin' x = (asinx, eps2Delta)
           where asinx = asin x
-                eps2Delta ε = return $ 
+                eps2Delta ε = just $ 
                     if ε > pi/2 - abs asinx
                      then 1 - abs x
                      else sin (abs asinx + ε) - abs x
   acos = cntnFnValsApply $ continuousFlatFunction acos'
    where acos' x = (acosx, eps2Delta)
           where acosx = acos x
-                eps2Delta ε = return $ 
+                eps2Delta ε = just $ 
                     if ε > pi/2 - abs (acosx - pi/2)
                      then 1 - abs x
                      else cos (abs acosx + ε) - abs x
   acosh = cntnFnValsApply $ continuousFlatFunction acosh'
    where acosh' x = (acoshx, eps2Delta)
           where acoshx = acosh x
-                eps2Delta ε = return $ 
+                eps2Delta ε = just $ 
                     if ε > acoshx
                      then x - 1
                      else x - cosh (acoshx - ε)
   atanh = cntnFnValsApply $ continuousFlatFunction atanh'
    where atanh' x = (atanhx, eps2Delta)
           where atanhx = atanh x
-                eps2Delta ε = return $ tanh (abs atanhx + ε) - abs x
+                eps2Delta ε = just $ tanh (abs atanhx + ε) - abs x
 
 
 instance FlatManifold v => AdditiveGroup (CntnFuncValue d v) where
@@ -431,7 +432,7 @@ finiteGraphContinℝtoℝ :: GraphWindowSpec -> (Double:-->Double) -> [(Double, 
 finiteGraphContinℝtoℝ (GraphWindowSpec{..}) Continuous_id 
        = [(x, x) | x<-[lBound, rBound] ]
 finiteGraphContinℝtoℝ (GraphWindowSpec{..}) fc
-       = connect [(x, f x, δyG) | x<-[lBound, rBound] ] [(rBound, fst $ f rBound)]
+       = connect [(x, f x, δyG) | x<-[lBound, rBound] ] [(rBound, fst (f rBound))]
    where connect [(x₁, (y₁, eps₁), ε₁),  (x₂, (y₂, eps₂), ε₂)]
                 = case (getOption $ eps₁ ε₁, getOption $ eps₂ ε₂) of
                    (Nothing, Nothing)                  -> done
@@ -456,7 +457,7 @@ finiteGraphContinℝtoℝ (GraphWindowSpec{..}) fc
 
 finiteGraphContinℝtoℝ² :: GraphWindowSpec -> (Double:-->(Double, Double)) -> [[(Double, Double)]]
 finiteGraphContinℝtoℝ² (GraphWindowSpec{..}) fc
-       = map (\(tl, tu) -> reCoarsen $ connect (tl, f tl) (tu, f tu) [fst $ f tu]) segments
+       = map (\(tl, tu) -> reCoarsen $ connect (tl, f tl) (tu, f tu) [fst (f tu)]) segments
   where connect n₁@(t₁, (p₁, eps₁)) n₂@(t₂, (p₂, eps₂)) 
            | and . catMaybes $ map (getOption . fmap( > t₂ - t₁ ) . ($reso)) [eps₁, eps₂]  
                                                      = (p₁ : )
@@ -465,7 +466,7 @@ finiteGraphContinℝtoℝ² (GraphWindowSpec{..}) fc
         segments = do
                  (start, dir) <- [ (Just 0                                 , -1)
                                  , (go (\_ -> not . inRange) reasonable 1 0, 1 ) ]
-                 concatMap (`explore`dir) start
+                 foldMap (`explore`dir) start
          where explore t₀ dir
                  | Just ti <- go (\_ -> inRange) reasonable dir t₀
                  , Just tb <- exitWindow (-dir) ti
@@ -539,4 +540,8 @@ type Endomorphism a = a->a
 
 (.:) :: (c->d) -> (a->b->c) -> a->b->d 
 (.:) = (.) . (.)
+
+
+just = Option . Just
+nothing = Option Nothing
 
