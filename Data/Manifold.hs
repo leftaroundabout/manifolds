@@ -56,23 +56,8 @@ data domain :--> codomain where
    
 
 
-infixr 0 --$
 
 
--- | Function application, like '($)', but for continuous functions.
---   
---   From another point of view, this is one side of the forgetful functor from
---   the category of topological spaces to the category of sets.
-(--$) :: (d:-->c) -> d -> c
-
-Continuous_id --$ x = x
-Continuous f --$ x = y
- where (tch, v, _) = f sch u
-       tchIn = case tch of Chart tchIn _ _ -> tchIn
-       schOut = case sch of Chart _ schOut _ -> schOut
-       y = tchIn --$ v
-       sch = head $ localAtlas x
-       u = fromJust (schOut x) --$ x
 
 
 continuous_id' ::  Manifold m => m :--> m
@@ -88,30 +73,34 @@ const__ :: (Manifold c, Manifold d)
 const__ x = Continuous f
  where f _ _ = (tgtChart, w, const mzero)
        tgtChart = head $ localAtlas x
-       tchOut = case tgtChart of Chart _ tchOut _ -> tchOut
-       w = fromJust (tchOut x) --$ x
+       w = case tgtChart of 
+            IdChart          -> x
+            Chart _ tchOut _ -> fromJust (tchOut x) $ x
 
 
 flatContinuous :: (FlatManifold v, FlatManifold w, δ~Scalar v, ε~Scalar w, δ~ε)
     => (v -> (w, ε -> Option δ)) -> (v:-->w)
 flatContinuous f = Continuous cnt
- where cnt cct v = case cct of Chart inMap _ _ -> let
-                                       (v', preEps) = runFlatContinuous inMap v
-                                       (w, postEps) = f v'
-                                    in (idChart, w, preEps>=>postEps)
+ where cnt IdChart v = let (w, postEps) = f v 
+                       in (IdChart, w, postEps)
+       cnt (Chart inMap _ _) v = let (v', preEps) = runFlatContinuous inMap v
+                                     (w, postEps) = f v'
+                                 in (IdChart, w, preEps>=>postEps)
 
 runFlatContinuous :: (FlatManifold v, FlatManifold w, δ~Scalar v, ε~Scalar w, δ~ε)
     => (v:-->w) -> v -> (w, ε -> Option δ)
 runFlatContinuous Continuous_id v = (v, return)
 runFlatContinuous (Continuous cnf) v = (w, preEps>=>postEps)
- where (cc', v', preEps) = cnf idChart v
-       (w, postEps) = case cc' of Chart inMap _ _ -> runFlatContinuous inMap v'
+ where (cc', v', preEps) = cnf IdChart v
+       (w, postEps) = case cc' of 
+           IdChart         -> (v', return)
+           Chart inMap _ _ -> runFlatContinuous inMap v'
 
 
 instance Category (:-->) where
   type Object (:-->) t = Manifold t
 
-  id = Continuous_id
+  id = Continuous $ \c v -> (c, v, just)
   
   Continuous_id . f = f
   f . Continuous_id = f
@@ -120,8 +109,17 @@ instance Category (:-->) where
           where (interChart, v, p) = g srcChart u
                 (tgtChart, w, q) = f interChart v
              
-          
-
+instance Function (:-->) where
+  Continuous_id $ x = x
+  Continuous f $ x = y
+   where (tch, v, _) = f sch u
+         y = case tch of Chart tchIn _ _ -> tchIn $ v
+                         IdChart         -> v
+         u = case sch of Chart _ schOut _ -> fromJust (schOut x) $ x
+                         IdChart          -> x
+         sch = head $ localAtlas x
+            
+  
 
 type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
 type EqFloating f = (Eq f, Ord f, Floating f)
@@ -135,6 +133,7 @@ type EqFloating f = (Eq f, Ord f, Floating f)
 -- Obviously, @fromJust . 'chartOutMap' . 'chartInMap'@ should be equivalent to @id@
 -- on /Dⁿ/, and @'chartInMap' . fromJust . 'chartOutMap'@ to @id@ on /Q/.
 data Chart :: * -> * where
+  IdChart :: (FlatManifold v) => Chart v
   Chart :: (Manifold m, v ~ TangentSpace m, FlatManifold v) =>
         { chartInMap :: v :--> m
         , chartOutMap :: m -> Maybe (m:-->v)
@@ -145,13 +144,6 @@ data ChartKind = LandlockedChart  -- ^ A /M/ ⇆ /Dⁿ/ chart, for ordinary mani
 
 type FlatManifold v = (Manifold v, v~TangentSpace v)
 
--- | 'idChart' is a special case, partly for efficiency reasons. This is interesting for
--- continuous mapping betwees vector spaces. In this case the chart maps not between
--- the space an open disk therein, but just is an \"alias\" for the whole space.
-idChart :: FlatManifold v => Chart v
-idChart = Chart { chartInMap  = id
-                , chartOutMap = const $ Just id
-                , chartKind   = LandlockedChart } 
 
 
 
@@ -167,11 +159,12 @@ rimGuard RimChart v
 chartEnv :: Manifold m => Chart m
                -> (TangentSpace m->TangentSpace m)
                -> m -> Maybe m
+chartEnv IdChart f x = Just $ f x
 chartEnv (Chart inMap outMap chKind) f x = do
     vGet <- outMap x
-    let v = vGet --$ x
+    let v = vGet $ x
     v' <- rimGuard chKind v
-    Just $ inMap --$ v'
+    Just $ inMap $ v'
 
   
 
@@ -187,7 +180,7 @@ class (EuclidSpace(TangentSpace m)) => Manifold m where
 
 
 vectorSpaceAtlas :: FlatManifold v => v -> Atlas v
-vectorSpaceAtlas _ = [idChart]
+vectorSpaceAtlas _ = [IdChart]
 
 
   
@@ -203,8 +196,11 @@ type Representsℝ r = (EqFloating r, FlatManifold r, r~Scalar r)
 continuousFlatFunction :: (FlatManifold d, FlatManifold c,  ε~Scalar c, δ~Scalar d, δ~ε) 
                           => (d -> (c, ε->Option δ)) -> d:-->c
 continuousFlatFunction f = Continuous f'
- where f' (Chart Continuous_id _ _) x = (idChart, y, eps2Delta)
+ where f' IdChart x = (IdChart, y, eps2Delta)
         where (y, eps2Delta) = f x
+       f' (Chart inMap _ _) v = (IdChart, y, postEps>=>preEps)
+        where (v', preEps) = runFlatContinuous inMap v
+              (y, postEps) = f v'
 
 type CntnRealFunction = Representsℝ r => r :--> r
 
@@ -267,6 +263,26 @@ cntnFuncsCombine cmb Continuous_id g = cntnFuncsCombine cmb continuous_id' g
 cntnFuncsCombine cmb f Continuous_id = cntnFuncsCombine cmb f continuous_id'
 cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
  where h ζd u = case (ζc', ζc'') of 
+                 (IdChart, IdChart) 
+                   -> let (y, epsSplit) = cmb fu gu
+                          fullEps ε = fmap getMin $ (fmap Min $ fEps ε') 
+                                                  <>(fmap Min $ gEps ε'')
+                           where (ε', ε'') = epsSplit ε
+                      in  (IdChart, y, fullEps)
+                 (IdChart, Chart c''In _ _)
+                   -> let (y'', c''Eps) = runFlatContinuous c''In gu
+                          (y, epsSplit) = cmb fu y''
+                          fullEps ε = fmap getMin $ (fmap Min $ fEps ε')
+                                                  <>(fmap Min $ gEps =<< c''Eps ε'')
+                           where (ε', ε'') = epsSplit ε
+                      in  (IdChart, y, fullEps)
+                 (Chart c'In _ _, IdChart)
+                   -> let (y', c'Eps) = runFlatContinuous c'In fu 
+                          (y, epsSplit) = cmb y' gu
+                          fullEps ε = fmap getMin $ (fmap Min $ fEps =<< c'Eps ε') 
+                                                  <>(fmap Min $ gEps ε'')
+                            where (ε', ε'') = epsSplit ε
+                      in  (IdChart, y, fullEps)
                  (Chart c'In _ _, Chart c''In _ _)
                    -> let (y', c'Eps) = runFlatContinuous c'In fu 
                           (y'', c''Eps) = runFlatContinuous c''In gu 
@@ -274,7 +290,7 @@ cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
                           fullEps ε = fmap getMin $ (fmap Min $ fEps =<< c'Eps ε') 
                                                   <>(fmap Min $ gEps =<< c''Eps ε'')
                             where (ε', ε'') = epsSplit ε
-                      in  (idChart, y, fullEps)
+                      in  (IdChart, y, fullEps)
         where (ζc', fu, fEps) = f ζd u
               (ζc'',gu, gEps) = g ζd u
 
