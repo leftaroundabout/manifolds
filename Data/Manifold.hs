@@ -47,7 +47,6 @@ import Data.Foldable.Constrained
 
 -- | Continuous mapping.
 data domain :--> codomain where
-  Continuous_id :: x:-->x
   Continuous :: ( Manifold d, Manifold c
                 , v ~ TangentSpace d, u ~ TangentSpace c
                 , δ ~ Scalar v, ε ~ Scalar u) =>
@@ -89,7 +88,6 @@ flatContinuous f = Continuous cnt
 
 runFlatContinuous :: (FlatManifold v, FlatManifold w, δ~Scalar v, ε~Scalar w, δ~ε)
     => (v:-->w) -> v -> (w, ε -> Option δ)
-runFlatContinuous Continuous_id v = (v, return)
 runFlatContinuous (Continuous cnf) v = (w, preEps>=>postEps)
  where (cc', v', preEps) = cnf IdChart v
        (w, postEps) = case cc' of 
@@ -102,15 +100,12 @@ instance Category (:-->) where
 
   id = Continuous $ \c v -> (c, v, just)
   
-  Continuous_id . f = f
-  f . Continuous_id = f
   Continuous f . Continuous g = Continuous h
    where h srcChart u = (tgtChart, w, q>=>p)
           where (interChart, v, p) = g srcChart u
                 (tgtChart, w, q) = f interChart v
              
 instance Function (:-->) where
-  Continuous_id $ x = x
   Continuous f $ x = y
    where (tch, v, _) = f sch u
          y = case tch of Chart tchIn _ _ -> tchIn $ v
@@ -259,8 +254,6 @@ cntnFuncsCombine :: forall d v c c' c'' ε ε' ε''.
          (       FlatManifold c, FlatManifold c', FlatManifold c''
                      , ε ~ Scalar c  , ε' ~ Scalar c' , ε'' ~ Scalar c'', ε~ε', ε~ε''  )
        => (c'->c''->(c, ε->(ε',ε''))) -> (d:-->c') -> (d:-->c'') -> d:-->c
-cntnFuncsCombine cmb Continuous_id g = cntnFuncsCombine cmb continuous_id' g
-cntnFuncsCombine cmb f Continuous_id = cntnFuncsCombine cmb f continuous_id'
 cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
  where h ζd u = case (ζc', ζc'') of 
                  (IdChart, IdChart) 
@@ -446,8 +439,6 @@ data GraphWindowSpec = GraphWindowSpec {
   }
 
 finiteGraphContinℝtoℝ :: GraphWindowSpec -> (Double:-->Double) -> [(Double, Double)]
-finiteGraphContinℝtoℝ (GraphWindowSpec{..}) Continuous_id 
-       = [(x, x) | x<-[lBound, rBound] ]
 finiteGraphContinℝtoℝ (GraphWindowSpec{..}) fc
        = connect [(x, f x, δyG) | x<-[lBound, rBound] ] [(rBound, fst (f rBound))]
    where connect [(x₁, (y₁, eps₁), ε₁),  (x₂, (y₂, eps₂), ε₂)]
