@@ -288,15 +288,17 @@ cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
               (ζc'',gu, gEps) = g ζd u
 
 
--- data CntnFuncValue d c = CntnFuncValue { runCntnFuncValue :: d :--> c }
---                        | CntnFuncConst c
--- 
--- continuous :: (Manifold d, Manifold c)
---               => (CntnFuncValue d d -> CntnFuncValue d c) -> d:-->c
--- continuous f = case f $ CntnFuncValue id of 
---                           CntnFuncValue q -> q
---                           CntnFuncConst c -> const__ c
--- 
+data CntnFuncValue d c = CntnFuncValue { runCntnFuncValue :: d :--> c }
+                       | CntnFuncConst c
+
+instance HasProxy (:-->) where
+  type ProxyVal (:-->) d c = CntnFuncValue d c
+  alg f = case f $ CntnFuncValue id of 
+                          CntnFuncValue q -> q
+                          CntnFuncConst c -> const__ c
+  f $~ CntnFuncValue g = CntnFuncValue $ f . g
+  f $~ CntnFuncConst c = CntnFuncConst $ f $ c
+
 
 -- continuous1to2 :: (Manifold d, Manifold c₁, Manifold c₂, Manifold (c₁, c₂))
 --                   => (CntnFuncValue d d -> (CntnFuncValue d c₁, CntnFuncValue d ci₂))
