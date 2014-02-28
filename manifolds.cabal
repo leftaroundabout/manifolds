@@ -43,6 +43,7 @@ Library
                      , time>=1.2
                      , comonad
                      , semigroups
+                     , void
                      , constrained-categories
   Extensions:        FlexibleInstances
                      , TypeFamilies

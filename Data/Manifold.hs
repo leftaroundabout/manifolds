@@ -35,6 +35,8 @@ import Data.VectorSpace
 import Data.AffineSpace
 import Data.Basis
 
+import Data.Void
+
 import Prelude ()
 
 import Control.Category.Constrained.Prelude
@@ -113,6 +115,22 @@ instance Function (:-->) where
          u = case sch of Chart _ schOut _ -> fromJust (schOut x) $ x
                          IdChart          -> x
          sch = head $ localAtlas x
+
+
+instance Cartesian (:-->) where
+  type PairObject (:-->) a b = ( FlatManifold a, FlatManifold b
+                               , Scalar (TangentSpace a) ~ ℝ
+                               , Scalar (TangentSpace b) ~ ℝ )
+  swap = Continuous $ \c (v,w) -> case c of
+           IdChart -> (IdChart, (w,v), return)
+  attachUnit = Continuous $ \c v -> case c of
+           IdChart -> (IdChart, (v,()), return)
+  detachUnit = Continuous $ \c (v,()) -> case c of
+           IdChart -> (IdChart, v, return)
+  regroup = Continuous $ \c (u,(v,w)) -> case c of
+           IdChart -> (IdChart, ((u,v),w), return)
+  
+  
             
   
 
@@ -179,12 +197,25 @@ vectorSpaceAtlas _ = [IdChart]
 
 
   
+instance Manifold () where
+  type TangentSpace () = ()
+  localAtlas = vectorSpaceAtlas
 
 -- | At the moment, complex etc. manifolds are not supported (because 'EuclidSpace' requires its scalar to be 'Ord' right now).
 instance Manifold Float where
   localAtlas = vectorSpaceAtlas
 instance Manifold Double where
   localAtlas = vectorSpaceAtlas
+  
+instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
+  localAtlas = vectorSpaceAtlas
+
+
+
+
+
+
+
 
 type Representsℝ r = (EqFloating r, FlatManifold r, r~Scalar r)
 
@@ -430,9 +461,6 @@ instance HasProxy (:-->) where
 
 
 
-instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
-  localAtlas = vectorSpaceAtlas
-
 
 
 data GraphWindowSpec = GraphWindowSpec {
@@ -554,4 +582,18 @@ type Endomorphism a = a->a
 
 just = Option . Just
 nothing = Option Nothing
+
+
+
+type ℝ = Double
+
+instance VectorSpace () where
+  type Scalar () = ℝ
+  _ *^ () = ()
+
+instance HasBasis () where
+  type Basis () = Void
+  basisValue = absurd
+  decompose () = []
+  decompose' () = absurd
 
