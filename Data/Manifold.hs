@@ -122,14 +122,23 @@ instance Cartesian (:-->) where
   type PairObject (:-->) a b = ( FlatManifold a, FlatManifold b
                                , Scalar (TangentSpace a) ~ ℝ
                                , Scalar (TangentSpace b) ~ ℝ )
-  swap = Continuous $ \c (v,w) -> case c of
-           IdChart -> (IdChart, (w,v), return)
+  swap = Continuous $ \c t -> case c of
+           IdChart         -> let (v,w) = t in (IdChart, (w,v), return)
+           Chart inMap _ _ -> let ((v,w), epsP) = runFlatContinuous inMap t 
+                              in  (IdChart, (w,v), epsP)
   attachUnit = Continuous $ \c v -> case c of
-           IdChart -> (IdChart, (v,()), return)
-  detachUnit = Continuous $ \c (v,()) -> case c of
-           IdChart -> (IdChart, v, return)
-  regroup = Continuous $ \c (u,(v,w)) -> case c of
-           IdChart -> (IdChart, ((u,v),w), return)
+           IdChart         -> (IdChart, (v,()), return)
+           Chart inMap _ _ -> let (v', epsP) = runFlatContinuous inMap v
+                              in  (IdChart, (v',()), epsP)
+  detachUnit = Continuous $ \c t -> case c of
+           IdChart         -> let (v,()) = t in (IdChart, v, return)
+           Chart inMap _ _ -> let ((v,()), epsP) = runFlatContinuous inMap t
+                              in  (IdChart, v, epsP)
+  regroup = Continuous $ \c t -> case c of
+           IdChart         -> let (u,(v,w)) = t in (IdChart, ((u,v),w), return)
+           Chart inMap _ _ -> let ((u,(v,w)), epsP) = runFlatContinuous inMap t
+                              in  (IdChart, ((u,v),w), epsP)
+
   
   
             
