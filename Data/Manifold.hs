@@ -13,6 +13,7 @@
 {-# LANGUAGE UndecidableInstances     #-}
 -- {-# LANGUAGE OverlappingInstances     #-}
 {-# LANGUAGE TypeFamilies             #-}
+{-# LANGUAGE FunctionalDependencies   #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
@@ -107,8 +108,8 @@ instance Category (:-->) where
           where (interChart, v, p) = g srcChart u
                 (tgtChart, w, q) = f interChart v
              
-instance Function (:-->) where
-  Continuous f $ x = y
+instance EnhancedCat (->) (:-->) where
+  Continuous f `arr` x = y
    where (tch, v, _) = f sch u
          y = case tch of Chart tchIn _ _ -> tchIn $ v
                          IdChart         -> v
