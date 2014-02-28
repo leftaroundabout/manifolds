@@ -139,10 +139,28 @@ instance Cartesian (:-->) where
            Chart inMap _ _ -> let ((u,(v,w)), epsP) = runFlatContinuous inMap t
                               in  (IdChart, ((u,v),w), epsP)
 
-  
-  
-            
-  
+instance Morphism (:-->) where
+  first (Continuous f) = Continuous $ \c t -> case c of
+           IdChart -> let (v,w) = t
+                          (IdChart, v', epsP) = f IdChart v
+                      in  (IdChart, (v',w), (/ sqrt 2) >>> 
+                                            \ε -> fmap getMin $ (fmap Min $ epsP ε)
+                                                              <>(just $ Min ε)      )
+  second (Continuous g) = Continuous $ \c t -> case c of
+           IdChart -> let (v,w) = t
+                          (IdChart, w', epsP) = g IdChart w
+                      in  (IdChart, (v,w'), (/ sqrt 2) >>> 
+                                            \ε -> fmap getMin $ (just $ Min ε)
+                                                              <>(fmap Min $ epsP ε) )
+  Continuous f *** Continuous g = Continuous $ \c t -> case c of
+           IdChart -> let (v,w) = t
+                          (IdChart, v', epsPv) = f IdChart v
+                          (IdChart, w', epsPw) = g IdChart w
+                      in  (IdChart, (v',w'), (/ sqrt 2) >>> 
+                                            \ε -> fmap getMin $ (fmap Min $ epsPv ε)
+                                                              <>(fmap Min $ epsPw ε) )
+
+
 
 type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
 type EqFloating f = (Eq f, Ord f, Floating f)
