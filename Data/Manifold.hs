@@ -358,15 +358,15 @@ instance HasProxy (:-->) where
   f $~ CntnFuncValue g = CntnFuncValue $ f . g
   f $~ CntnFuncConst c = CntnFuncConst $ f $ c
 
+instance PointProxy CntnFuncValue (:-->) d c where
+  point = CntnFuncConst
 
--- continuous1to2 :: (Manifold d, Manifold c₁, Manifold c₂, Manifold (c₁, c₂))
---                   => (CntnFuncValue d d -> (CntnFuncValue d c₁, CntnFuncValue d ci₂))
---                                -> d :--> (c₁, c₂)
--- continuous1to2 f = case f $ CntnFuncValue id of
+-- instance CartesianProxy (:-->) where
+--   alg1to2 f = case f $ CntnFuncValue id of
 --        (CntnFuncConst c₁, CntnFuncConst c₂) -> const__ (c₁, c₂)
---        (CntnFuncConst c₁, CntnFuncValue Continuous_id)
---             -> Continuous $ \cht x 
---        (CntnFuncValue Continuous_id, CntnFuncValue Continuous_id) ->
+--        (CntnFuncConst c₁, CntnFuncValue f₂)
+--             -> Continuous $ \IdChart x -> let (fx, epsP) = runFlatContinuous f₂ x
+--                                           in (IdChart, (c₁, fx), epsP) 
 -- 
 
 
