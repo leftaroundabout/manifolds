@@ -35,7 +35,7 @@ import Data.Function (on)
 import Data.VectorSpace
 import Data.AffineSpace
 import Data.Basis
-
+import Data.Complex
 import Data.Void
 
 import Prelude ()
@@ -624,4 +624,20 @@ instance HasBasis () where
   basisValue = absurd
   decompose () = []
   decompose' () = absurd
+
+class (VectorSpace v) => MetricSpace v where
+  metric :: v -> ℝ
+  metric = sqrt . metricSq
+  metricSq :: v -> ℝ
+  metricSq = (^2) . metric
+
+instance MetricSpace () where
+  metric = const 0
+instance MetricSpace ℝ where
+  metric = id
+instance (RealFloat r, MetricSpace r) => MetricSpace (Complex r) where
+  metricSq (a :+ b) = metricSq a + metricSq b
+instance ( InnerSpace v, MetricSpace (Scalar v)
+         , InnerSpace w, Scalar v ~ Scalar w    ) => MetricSpace (v,w) where
+  metricSq (v,w) = metric (magnitudeSq v) + metric (magnitudeSq w)
 
