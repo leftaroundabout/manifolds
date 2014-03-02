@@ -52,7 +52,7 @@ import Data.Foldable.Constrained
 data domain :--> codomain where
   Continuous :: ( Manifold d, Manifold c
                 , v ~ TangentSpace d, u ~ TangentSpace c
-                , δ ~ Scalar v, ε ~ Scalar u) =>
+                , δ ~ Metric v, ε ~ Metric u, ε~ℝ, δ~ℝ   ) =>
         { runContinuous :: Chart d -> v -> (Chart c, u, ε->Option δ) }
            -> d :--> c
    
@@ -80,7 +80,7 @@ const__ x = Continuous f
             Chart _ tchOut _ -> fromJust (tchOut x) $ x
 
 
-flatContinuous :: (FlatManifold v, FlatManifold w, δ~Scalar v, ε~Scalar w, δ~ε)
+flatContinuous :: ( FlatManifold v, FlatManifold w, δ~Metric v, ε~Metric w )
     => (v -> (w, ε -> Option δ)) -> (v:-->w)
 flatContinuous f = Continuous cnt
  where cnt IdChart v = let (w, postEps) = f v 
@@ -89,7 +89,7 @@ flatContinuous f = Continuous cnt
                                      (w, postEps) = f v'
                                  in (IdChart, w, preEps>=>postEps)
 
-runFlatContinuous :: (FlatManifold v, FlatManifold w, δ~Scalar v, ε~Scalar w, δ~ε)
+runFlatContinuous :: ( FlatManifold v, FlatManifold w, δ~Metric v, ε~Metric w )
     => (v:-->w) -> v -> (w, ε -> Option δ)
 runFlatContinuous (Continuous cnf) v = (w, preEps>=>postEps)
  where (cc', v', preEps) = cnf IdChart v
@@ -118,48 +118,46 @@ instance EnhancedCat (->) (:-->) where
          sch = head $ localAtlas x
 
 
-instance Cartesian (:-->) where
-  type PairObject (:-->) a b = ( FlatManifold a, FlatManifold b
-                               , Scalar (TangentSpace a) ~ ℝ
-                               , Scalar (TangentSpace b) ~ ℝ )
-  swap = Continuous $ \c t -> case c of
-           IdChart         -> let (v,w) = t in (IdChart, (w,v), return)
-           Chart inMap _ _ -> let ((v,w), epsP) = runFlatContinuous inMap t 
-                              in  (IdChart, (w,v), epsP)
-  attachUnit = Continuous $ \c v -> case c of
-           IdChart         -> (IdChart, (v,()), return)
-           Chart inMap _ _ -> let (v', epsP) = runFlatContinuous inMap v
-                              in  (IdChart, (v',()), epsP)
-  detachUnit = Continuous $ \c t -> case c of
-           IdChart         -> let (v,()) = t in (IdChart, v, return)
-           Chart inMap _ _ -> let ((v,()), epsP) = runFlatContinuous inMap t
-                              in  (IdChart, v, epsP)
-  regroup = Continuous $ \c t -> case c of
-           IdChart         -> let (u,(v,w)) = t in (IdChart, ((u,v),w), return)
-           Chart inMap _ _ -> let ((u,(v,w)), epsP) = runFlatContinuous inMap t
-                              in  (IdChart, ((u,v),w), epsP)
-
-instance Morphism (:-->) where
-  first (Continuous f) = Continuous $ \c t -> case c of
-           IdChart -> let (v,w) = t
-                          (IdChart, v', epsP) = f IdChart v
-                      in  (IdChart, (v',w), (/ sqrt 2) >>> 
-                                            \ε -> fmap getMin $ (fmap Min $ epsP ε)
-                                                              <>(just $ Min ε)      )
-  second (Continuous g) = Continuous $ \c t -> case c of
-           IdChart -> let (v,w) = t
-                          (IdChart, w', epsP) = g IdChart w
-                      in  (IdChart, (v,w'), (/ sqrt 2) >>> 
-                                            \ε -> fmap getMin $ (just $ Min ε)
-                                                              <>(fmap Min $ epsP ε) )
-  Continuous f *** Continuous g = Continuous $ \c t -> case c of
-           IdChart -> let (v,w) = t
-                          (IdChart, v', epsPv) = f IdChart v
-                          (IdChart, w', epsPw) = g IdChart w
-                      in  (IdChart, (v',w'), (/ sqrt 2) >>> 
-                                            \ε -> fmap getMin $ (fmap Min $ epsPv ε)
-                                                              <>(fmap Min $ epsPw ε) )
-
+-- instance Cartesian (:-->) where
+--   type PairObject (:-->) a b = ( FlatManifold a, FlatManifold b )
+--   swap = Continuous $ \c t -> case c of
+--            IdChart         -> let (v,w) = t in (IdChart, (w,v), return)
+--            Chart inMap _ _ -> let ((v,w), epsP) = runFlatContinuous inMap t 
+--                               in  (IdChart, (w,v), epsP)
+--   attachUnit = Continuous $ \c v -> case c of
+--            IdChart         -> (IdChart, (v,()), return)
+--            Chart inMap _ _ -> let (v', epsP) = runFlatContinuous inMap v
+--                               in  (IdChart, (v',()), epsP)
+--   detachUnit = Continuous $ \c t -> case c of
+--            IdChart         -> let (v,()) = t in (IdChart, v, return)
+--            Chart inMap _ _ -> let ((v,()), epsP) = runFlatContinuous inMap t
+--                               in  (IdChart, v, epsP)
+--   regroup = Continuous $ \c t -> case c of
+--            IdChart         -> let (u,(v,w)) = t in (IdChart, ((u,v),w), return)
+--            Chart inMap _ _ -> let ((u,(v,w)), epsP) = runFlatContinuous inMap t
+--                               in  (IdChart, ((u,v),w), epsP)
+-- 
+-- instance Morphism (:-->) where
+--   first (Continuous f) = Continuous $ \c t -> case c of
+--            IdChart -> let (v,w) = t
+--                           (IdChart, v', epsP) = f IdChart v
+--                       in  (IdChart, (v',w), (/ sqrt 2) >>> 
+--                                             \ε -> fmap getMin $ (fmap Min $ epsP ε)
+--                                                               <>(just $ Min ε)      )
+--   second (Continuous g) = Continuous $ \c t -> case c of
+--            IdChart -> let (v,w) = t
+--                           (IdChart, w', epsP) = g IdChart w
+--                       in  (IdChart, (v,w'), (/ sqrt 2) >>> 
+--                                             \ε -> fmap getMin $ (just $ Min ε)
+--                                                               <>(fmap Min $ epsP ε) )
+--   Continuous f *** Continuous g = Continuous $ \c t -> case c of
+--            IdChart -> let (v,w) = t
+--                           (IdChart, v', epsPv) = f IdChart v
+--                           (IdChart, w', epsPw) = g IdChart w
+--                       in  (IdChart, (v',w'), (/ sqrt 2) >>> 
+--                                             \ε -> fmap getMin $ (fmap Min $ epsPv ε)
+--                                                               <>(fmap Min $ epsPw ε) )
+-- 
 
 
 type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
@@ -183,7 +181,7 @@ data ChartKind = LandlockedChart  -- ^ A /M/ ⇆ /Dⁿ/ chart, for ordinary mani
                | RimChart         -- ^ A /M/ ⇆ /Hⁿ/ chart, for manifolds with a rim
 
 
-type FlatManifold v = (Manifold v, v~TangentSpace v)
+type FlatManifold v = (MetricSpace v, Manifold v, v~TangentSpace v)
 
 
 
@@ -191,29 +189,29 @@ type FlatManifold v = (Manifold v, v~TangentSpace v)
 isInUpperHemi :: EuclidSpace v => v -> Bool
 isInUpperHemi v = (snd . head) (decompose v) >= 0
 
-rimGuard :: EuclidSpace v => ChartKind -> v -> Maybe v
-rimGuard LandlockedChart v = Just v
-rimGuard RimChart v
- | isInUpperHemi v = Just v
- | otherwise       = Nothing
-
-chartEnv :: Manifold m => Chart m
-               -> (TangentSpace m->TangentSpace m)
-               -> m -> Maybe m
-chartEnv IdChart f x = Just $ f x
-chartEnv (Chart inMap outMap chKind) f x = do
-    vGet <- outMap x
-    let v = vGet $ x
-    v' <- rimGuard chKind v
-    Just $ inMap $ v'
-
+-- rimGuard :: EuclidSpace v => ChartKind -> v -> Maybe v
+-- rimGuard LandlockedChart v = Just v
+-- rimGuard RimChart v
+--  | isInUpperHemi v = Just v
+--  | otherwise       = Nothing
+-- 
+-- chartEnv :: Manifold m => Chart m
+--                -> (TangentSpace m->TangentSpace m)
+--                -> m -> Maybe m
+-- chartEnv IdChart f x = Just $ f x
+-- chartEnv (Chart inMap outMap chKind) f x = do
+--     vGet <- outMap x
+--     let v = vGet $ x
+--     v' <- rimGuard chKind v
+--     Just $ inMap $ v'
+-- 
   
 
  
 
 type Atlas m = [Chart m]
 
-class (EuclidSpace(TangentSpace m)) => Manifold m where
+class (MetricSpace(TangentSpace m), Metric(TangentSpace m) ~ ℝ) => Manifold m where
   type TangentSpace m :: *
   type TangentSpace m = m   -- For \"flat\", i.e. vector space manifolds.
   
@@ -229,13 +227,12 @@ instance Manifold () where
   type TangentSpace () = ()
   localAtlas = vectorSpaceAtlas
 
--- | At the moment, complex etc. manifolds are not supported (because 'EuclidSpace' requires its scalar to be 'Ord' right now).
-instance Manifold Float where
-  localAtlas = vectorSpaceAtlas
 instance Manifold Double where
   localAtlas = vectorSpaceAtlas
   
-instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, v2) where
+instance ( FlatManifold v1, FlatManifold v2, Scalar v1~Scalar v2
+         , MetricSpace (Scalar v1), Metric (Scalar v1)~ℝ
+         ) => Manifold (v1, v2) where
   localAtlas = vectorSpaceAtlas
 
 
@@ -245,9 +242,9 @@ instance (EuclidSpace v1, EuclidSpace v2, Scalar v1~Scalar v2) => Manifold (v1, 
 
 
 
-type Representsℝ r = (EqFloating r, FlatManifold r, r~Scalar r)
+type Representsℝ r = (EqFloating r, FlatManifold r, r~Scalar r, r~Metric r)
 
-continuousFlatFunction :: (FlatManifold d, FlatManifold c,  ε~Scalar c, δ~Scalar d, δ~ε) 
+continuousFlatFunction :: ( FlatManifold d, FlatManifold c,  ε~Metric c, δ~Metric d ) 
                           => (d -> (c, ε->Option δ)) -> d:-->c
 continuousFlatFunction f = Continuous f'
  where f' IdChart x = (IdChart, y, eps2Delta)
@@ -311,7 +308,7 @@ asinh__ = continuousFlatFunction asinh'
 
 cntnFuncsCombine :: forall d v c c' c'' ε ε' ε''. 
          (       FlatManifold c, FlatManifold c', FlatManifold c''
-                     , ε ~ Scalar c  , ε' ~ Scalar c' , ε'' ~ Scalar c'', ε~ε', ε~ε''  )
+                     , ε ~ Metric c  , ε' ~ Metric c' , ε'' ~ Metric c'', ε~ε', ε~ε''  )
        => (c'->c''->(c, ε->(ε',ε''))) -> (d:-->c') -> (d:-->c'') -> d:-->c
 cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
  where h ζd u = case (ζc', ζc'') of 
@@ -624,20 +621,38 @@ instance HasBasis () where
   basisValue = absurd
   decompose () = []
   decompose' () = absurd
+instance InnerSpace () where
+  () <.> () = 0
 
-class (VectorSpace v) => MetricSpace v where
-  metric :: v -> ℝ
+class (RealFloat (Metric v), InnerSpace v) => MetricSpace v where
+  type Metric v :: *
+  type Metric v = ℝ
+  metric :: v -> Metric v
   metric = sqrt . metricSq
-  metricSq :: v -> ℝ
+  metricSq :: v -> Metric v
   metricSq = (^2) . metric
+  (|*^) :: Metric v -> v -> v
+  μ |*^ v = metricToScalar v μ *^ v 
+  metricToScalar :: v -> Metric v -> Scalar v
+  
 
 instance MetricSpace () where
   metric = const 0
+  metricToScalar = const id
 instance MetricSpace ℝ where
   metric = id
-instance (RealFloat r, MetricSpace r) => MetricSpace (Complex r) where
+  metricToScalar = const id
+instance ( RealFloat r, MetricSpace r, Scalar (Complex r)~Metric r ) 
+             => MetricSpace (Complex r) where
+  type Metric (Complex r) = Metric r
   metricSq (a :+ b) = metricSq a + metricSq b
-instance ( InnerSpace v, MetricSpace (Scalar v)
-         , InnerSpace w, Scalar v ~ Scalar w    ) => MetricSpace (v,w) where
+  metricToScalar = const id
+instance ( MetricSpace v, MetricSpace (Scalar v)
+         , MetricSpace w, Scalar v~Scalar w
+         , Metric v~Metric (Scalar v), Metric w~Metric v
+         , Metric(Scalar w)~Metric v, RealFloat (Metric v)
+         ) => MetricSpace (v,w) where
+  type Metric (v,w) = Metric v
   metricSq (v,w) = metric (magnitudeSq v) + metric (magnitudeSq w)
+  metricToScalar (v,_) = metricToScalar v
 
