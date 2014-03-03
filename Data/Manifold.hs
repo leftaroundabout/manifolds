@@ -52,7 +52,7 @@ import Data.Foldable.Constrained
 data domain :--> codomain where
   Continuous :: ( Manifold d, Manifold c
                 , v ~ TangentSpace d, u ~ TangentSpace c
-                , δ ~ Metric v, ε ~ Metric u, ε~ℝ, δ~ℝ   ) =>
+                , δ ~ Metric v, ε ~ Metric u   ) =>
         { runContinuous :: Chart d -> v -> (Chart c, u, ε->Option δ) }
            -> d :--> c
    
@@ -66,9 +66,6 @@ continuous_id' ::  Manifold m => m :--> m
 continuous_id' = Continuous id'
  where id' chart v = (chart, v, return)
 
-
-type HasLocalDistance m d = (Manifold m, d ~ Scalar (TangentSpace m))
-type EqvMetricSpaces a b = Scalar (TangentSpace a) ~ Scalar (TangentSpace b)
 
 const__ :: (Manifold c, Manifold d)
     => c -> d:-->c
@@ -118,46 +115,46 @@ instance EnhancedCat (->) (:-->) where
          sch = head $ localAtlas x
 
 
--- instance Cartesian (:-->) where
---   type PairObject (:-->) a b = ( FlatManifold a, FlatManifold b )
---   swap = Continuous $ \c t -> case c of
---            IdChart         -> let (v,w) = t in (IdChart, (w,v), return)
---            Chart inMap _ _ -> let ((v,w), epsP) = runFlatContinuous inMap t 
---                               in  (IdChart, (w,v), epsP)
---   attachUnit = Continuous $ \c v -> case c of
---            IdChart         -> (IdChart, (v,()), return)
---            Chart inMap _ _ -> let (v', epsP) = runFlatContinuous inMap v
---                               in  (IdChart, (v',()), epsP)
---   detachUnit = Continuous $ \c t -> case c of
---            IdChart         -> let (v,()) = t in (IdChart, v, return)
---            Chart inMap _ _ -> let ((v,()), epsP) = runFlatContinuous inMap t
---                               in  (IdChart, v, epsP)
---   regroup = Continuous $ \c t -> case c of
---            IdChart         -> let (u,(v,w)) = t in (IdChart, ((u,v),w), return)
---            Chart inMap _ _ -> let ((u,(v,w)), epsP) = runFlatContinuous inMap t
---                               in  (IdChart, ((u,v),w), epsP)
--- 
--- instance Morphism (:-->) where
---   first (Continuous f) = Continuous $ \c t -> case c of
---            IdChart -> let (v,w) = t
---                           (IdChart, v', epsP) = f IdChart v
---                       in  (IdChart, (v',w), (/ sqrt 2) >>> 
---                                             \ε -> fmap getMin $ (fmap Min $ epsP ε)
---                                                               <>(just $ Min ε)      )
---   second (Continuous g) = Continuous $ \c t -> case c of
---            IdChart -> let (v,w) = t
---                           (IdChart, w', epsP) = g IdChart w
---                       in  (IdChart, (v,w'), (/ sqrt 2) >>> 
---                                             \ε -> fmap getMin $ (just $ Min ε)
---                                                               <>(fmap Min $ epsP ε) )
---   Continuous f *** Continuous g = Continuous $ \c t -> case c of
---            IdChart -> let (v,w) = t
---                           (IdChart, v', epsPv) = f IdChart v
---                           (IdChart, w', epsPw) = g IdChart w
---                       in  (IdChart, (v',w'), (/ sqrt 2) >>> 
---                                             \ε -> fmap getMin $ (fmap Min $ epsPv ε)
---                                                               <>(fmap Min $ epsPw ε) )
--- 
+instance Cartesian (:-->) where
+  type PairObject (:-->) a b = ( FlatManifold a, FlatManifold b, Manifold(a,b) )
+  swap = Continuous $ \c t -> case c of
+           IdChart         -> let (v,w) = t in (IdChart, (w,v), return)
+           Chart inMap _ _ -> let ((v,w), epsP) = runFlatContinuous inMap t 
+                              in  (IdChart, (w,v), epsP)
+  attachUnit = Continuous $ \c v -> case c of
+           IdChart         -> (IdChart, (v,()), return)
+           Chart inMap _ _ -> let (v', epsP) = runFlatContinuous inMap v
+                              in  (IdChart, (v',()), epsP)
+  detachUnit = Continuous $ \c t -> case c of
+           IdChart         -> let (v,()) = t in (IdChart, v, return)
+           Chart inMap _ _ -> let ((v,()), epsP) = runFlatContinuous inMap t
+                              in  (IdChart, v, epsP)
+  regroup = Continuous $ \c t -> case c of
+           IdChart         -> let (u,(v,w)) = t in (IdChart, ((u,v),w), return)
+           Chart inMap _ _ -> let ((u,(v,w)), epsP) = runFlatContinuous inMap t
+                              in  (IdChart, ((u,v),w), epsP)
+
+instance Morphism (:-->) where
+  first (Continuous f) = Continuous $ \c t -> case c of
+           IdChart -> let (v,w) = t
+                          (IdChart, v', epsP) = f IdChart v
+                      in  (IdChart, (v',w), (/ sqrt 2) >>> 
+                                            \ε -> fmap getMin $ (fmap Min $ epsP ε)
+                                                              <>(just $ Min ε)      )
+  second (Continuous g) = Continuous $ \c t -> case c of
+           IdChart -> let (v,w) = t
+                          (IdChart, w', epsP) = g IdChart w
+                      in  (IdChart, (v,w'), (/ sqrt 2) >>> 
+                                            \ε -> fmap getMin $ (just $ Min ε)
+                                                              <>(fmap Min $ epsP ε) )
+  Continuous f *** Continuous g = Continuous $ \c t -> case c of
+           IdChart -> let (v,w) = t
+                          (IdChart, v', epsPv) = f IdChart v
+                          (IdChart, w', epsPw) = g IdChart w
+                      in  (IdChart, (v',w'), (/ sqrt 2) >>> 
+                                            \ε -> fmap getMin $ (fmap Min $ epsPv ε)
+                                                              <>(fmap Min $ epsPw ε) )
+
 
 
 type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
