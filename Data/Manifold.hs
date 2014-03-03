@@ -155,6 +155,22 @@ instance Morphism (:-->) where
                                             \ε -> fmap getMin $ (fmap Min $ epsPv ε)
                                                               <>(fmap Min $ epsPw ε) )
 
+instance PreArrow (:-->) where
+  terminal = const__ ()
+  Continuous f &&& Continuous g = Continuous $ \c v -> case c of
+           IdChart -> let (IdChart, v', epsPv) = f IdChart v
+                          (IdChart, w', epsPw) = g IdChart v
+                      in  (IdChart, (v',w'), (/ sqrt 2) >>> 
+                                            \ε -> fmap getMin $ (fmap Min $ epsPv ε)
+                                                              <>(fmap Min $ epsPw ε) )
+  fst = Continuous $ \c t -> case c of
+           IdChart -> let (v,_) = t
+                      in  (IdChart, v, return)
+  snd = Continuous $ \c t -> case c of
+           IdChart -> let (_,v) = t
+                      in  (IdChart, v, return)
+  
+
 
 
 type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
@@ -227,9 +243,10 @@ instance Manifold () where
 instance Manifold Double where
   localAtlas = vectorSpaceAtlas
   
-instance ( FlatManifold v1, FlatManifold v2, Scalar v1~Scalar v2
-         , MetricSpace (Scalar v1), Metric (Scalar v1)~ℝ
-         ) => Manifold (v1, v2) where
+instance ( FlatManifold v₁, FlatManifold v₂, Scalar v₁~Scalar v₂
+         , MetricSpace (Scalar v₁), Metric (Scalar v₁)~ℝ
+         , VectorSpace (v₁,v₂), Scalar (v₁,v₂) ~ Scalar v₁
+         ) => Manifold (v₁,v₂) where
   localAtlas = vectorSpaceAtlas
 
 
@@ -355,13 +372,21 @@ instance HasProxy (:-->) where
 instance PointProxy CntnFuncValue (:-->) d c where
   point = CntnFuncConst
 
--- instance CartesianProxy (:-->) where
---   alg1to2 f = case f $ CntnFuncValue id of
---        (CntnFuncConst c₁, CntnFuncConst c₂) -> const__ (c₁, c₂)
---        (CntnFuncConst c₁, CntnFuncValue f₂)
---             -> Continuous $ \IdChart x -> let (fx, epsP) = runFlatContinuous f₂ x
---                                           in (IdChart, (c₁, fx), epsP) 
--- 
+instance CartesianProxy (:-->) where
+  alg1to2 f = case f $ CntnFuncValue id of
+       (CntnFuncConst c₁, CntnFuncConst c₂) -> const__ (c₁, c₂)
+       (CntnFuncConst c₁, CntnFuncValue f₂)
+            -> Continuous $ \IdChart x -> let (fx, epsP) = runFlatContinuous f₂ x
+                                          in (IdChart, (c₁, fx), epsP) 
+  alg2to1 f = case f (CntnFuncValue fst) (CntnFuncValue snd) of
+               CntnFuncConst c -> const__ c
+               CntnFuncValue f -> f
+  alg2to2 f = case f (CntnFuncValue fst) (CntnFuncValue snd) of
+       (CntnFuncConst c₁, CntnFuncConst c₂) -> const__ (c₁, c₂)
+       (CntnFuncConst c₁, CntnFuncValue f₂)
+            -> Continuous $ \IdChart x -> let (fx, epsP) = runFlatContinuous f₂ x
+                                          in (IdChart, (c₁, fx), epsP) 
+
 
 
 -- constCntnFuncValue :: c -> CntnFuncValue d c
