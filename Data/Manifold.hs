@@ -35,7 +35,7 @@ import Data.Function (on)
 import Data.VectorSpace
 import Data.AffineSpace
 import Data.Basis
-import Data.Complex
+import Data.Complex hiding (magnitude)
 import Data.Void
 
 import Prelude ()
@@ -389,116 +389,114 @@ instance CartesianProxy (:-->) where
 
 
 
--- constCntnFuncValue :: c -> CntnFuncValue d c
--- constCntnFuncValue = CntnFuncConst
--- 
--- cntnFnValsApply :: (c':-->c) -> CntnFuncValue d c' -> CntnFuncValue d c 
--- cntnFnValsApply f (CntnFuncValue x) = CntnFuncValue $ f.x
--- cntnFnValsApply f (CntnFuncConst x) = CntnFuncConst $ f--$x
--- 
--- cntnFnValsFunc :: ( FlatManifold c, FlatManifold c'
---                   , ε~Scalar c, ε~Scalar c' )
---              => (c' -> (c, ε->Option ε)) -> CntnFuncValue d c' -> CntnFuncValue d c
--- cntnFnValsFunc = cntnFnValsApply . continuousFlatFunction
--- 
--- cntnFnValsCombine :: forall d c c' c'' ε ε' ε''. 
---          (             FlatManifold c, FlatManifold c', FlatManifold c''
---                      , ε ~ Scalar c  , ε' ~ Scalar c'  , ε'' ~ Scalar c'', ε~ε', ε~ε''  )
---        => (  c' -> c'' -> (c, ε -> (ε',(ε',ε''),ε''))  )
---          -> CntnFuncValue d c' -> CntnFuncValue d c'' -> CntnFuncValue d c
--- cntnFnValsCombine cmb (CntnFuncValue f) (CntnFuncValue g) 
---     = CntnFuncValue $ cntnFuncsCombine (second (>>> \(_,splε,_)->splε) .: cmb) f g
--- cntnFnValsCombine cmb (CntnFuncConst p) (CntnFuncConst q) 
---     = CntnFuncConst . fst $ cmb p q
--- cntnFnValsCombine cmb f (CntnFuncConst q) 
---     = cntnFnValsFunc (\c' -> second (>>> \(ε',_,_)->return ε') $ cmb c' q) f
--- cntnFnValsCombine cmb (CntnFuncConst p) g
---     = cntnFnValsFunc (second (>>> \(_,_,ε'')->return ε'') . cmb p) g
--- 
--- instance Representsℝ r => Num (CntnFuncValue d r) where
---   fromInteger = constCntnFuncValue . fromInteger
---   
---   (+) = cntnFnValsCombine $ \a b -> (a+b, \ε -> (ε, (ε/2,ε/2), ε))
---   (-) = cntnFnValsCombine $ \a b -> (a-b, \ε -> (ε, (ε/2,ε/2), ε))
---   
---   (*) = cntnFnValsCombine $ \a b -> (a*b, 
---                              \ε -> ( ε/b
---                                    , (ε / (2 * sqrt(2*b^2+ε)), ε / (2 * sqrt(2*a^2+ε)))
---                                    , ε/a ))
---   --  |δa| < ε / 2·sqrt(2·b² + ε) ∧ |δb| < ε / 2·sqrt(2·a² + ε)
---   --  ⇒  | (a+δa) · (b+δb) - a·b | = | a·δb + b·δa + δa·δb | 
---   --   ≤ | a·δb | + | b·δa | + | δa·δb |
---   --   ≤ | a·ε/2·sqrt(2·a² + ε) | + | b·ε/2·sqrt(2·b² + ε) | + | ε² / 4·sqrt(2·b² + ε)·sqrt(2·a² + ε) |
---   --   ≤ | a·ε/2·sqrt(2·a²) | + | b·ε/2·sqrt(2·b²) | + | ε² / 4·sqrt(ε)·sqrt(ε) |
---   --   ≤ | ε/sqrt(8) | + | ε/sqrt(8) | + | ε / 4 |
---   --   ≈ .96·ε < ε
--- 
---   negate = cntnFnValsFunc $ \x -> (negate x, return)
---   abs = cntnFnValsFunc $ \x -> (abs x, return)
---   signum = cntnFnValsFunc $ \x -> (signum x, \ε -> if ε>2 then nothing else just $ abs x)
--- 
--- instance Representsℝ r => Fractional (CntnFuncValue d r) where
---   fromRational = constCntnFuncValue . fromRational
---   recip = cntnFnValsFunc $ \x -> let x¹ = recip x
---                                  in (x¹, \ε -> just $ abs x - recip(ε + abs x¹))
---   -- Readily derived from the worst-case of ε = 1 / (|x| – δ) – 1/|x|.
--- 
--- instance Representsℝ r => Floating (CntnFuncValue d r) where
---   pi = constCntnFuncValue pi
---   
---   exp = cntnFnValsApply exp__
---   sin = cntnFnValsApply sin__
---   cos = cntnFnValsApply cos__
---   atan = cntnFnValsApply atan__
---   sinh = cntnFnValsApply sinh__
---   cosh = cntnFnValsApply cosh__
---   tanh = cntnFnValsApply tanh__
---   asinh = cntnFnValsApply asinh__
---   
---   log = cntnFnValsApply $ continuousFlatFunction ln'
---    where ln' x = (lnx, eps2Delta)
---           where lnx = log x
---                 eps2Delta ε = just $ x - exp (lnx - ε)
---   asin = cntnFnValsApply $ continuousFlatFunction asin'
---    where asin' x = (asinx, eps2Delta)
---           where asinx = asin x
---                 eps2Delta ε = just $ 
---                     if ε > pi/2 - abs asinx
---                      then 1 - abs x
---                      else sin (abs asinx + ε) - abs x
---   acos = cntnFnValsApply $ continuousFlatFunction acos'
---    where acos' x = (acosx, eps2Delta)
---           where acosx = acos x
---                 eps2Delta ε = just $ 
---                     if ε > pi/2 - abs (acosx - pi/2)
---                      then 1 - abs x
---                      else cos (abs acosx + ε) - abs x
---   acosh = cntnFnValsApply $ continuousFlatFunction acosh'
---    where acosh' x = (acoshx, eps2Delta)
---           where acoshx = acosh x
---                 eps2Delta ε = just $ 
---                     if ε > acoshx
---                      then x - 1
---                      else x - cosh (acoshx - ε)
---   atanh = cntnFnValsApply $ continuousFlatFunction atanh'
---    where atanh' x = (atanhx, eps2Delta)
---           where atanhx = atanh x
---                 eps2Delta ε = just $ tanh (abs atanhx + ε) - abs x
--- 
--- 
--- instance FlatManifold v => AdditiveGroup (CntnFuncValue d v) where
---   zeroV = constCntnFuncValue zeroV
---   (^+^) = cntnFnValsCombine $ \a b -> (a^+^b, \ε -> (ε, (ε/2,ε/2), ε))
---   negateV = cntnFnValsFunc $ \x -> (negateV x, return)
--- 
--- instance (FlatManifold v, InnerSpace v, Representsℝ (Scalar v)) => VectorSpace (CntnFuncValue d v) where
---   type Scalar (CntnFuncValue d v) = CntnFuncValue d (Scalar v)
---   (*^) = cntnFnValsCombine $ \λ v -> (λ*^v
---                              , \ε -> let l = magnitude v
---                                    in ( ε/l
---                                       , (ε / (2 * sqrt(2*l^2+ε)), ε / (2 * sqrt(2*λ^2+ε)))
---                                       , ε / λ ))
---          
+cntnFnValsFunc :: ( FlatManifold c, FlatManifold c', Manifold d
+                  , ε~Metric c, ε~Metric c'                     )
+             => (c' -> (c, ε->Option ε)) -> CntnFuncValue d c' -> CntnFuncValue d c
+cntnFnValsFunc = ($~) . continuousFlatFunction
+
+cntnFnValsCombine :: forall d c c' c'' ε ε' ε''. 
+         (             FlatManifold c, FlatManifold c', FlatManifold c'', Manifold d
+                     , ε ~ Metric c  , ε' ~ Metric c'  , ε'' ~ Metric c'', ε~ε', ε~ε''  )
+       => (  c' -> c'' -> (c, ε -> (ε',(ε',ε''),ε''))  )
+         -> CntnFuncValue d c' -> CntnFuncValue d c'' -> CntnFuncValue d c
+cntnFnValsCombine cmb (CntnFuncValue f) (CntnFuncValue g) 
+    = CntnFuncValue $ cntnFuncsCombine (second (>>> \(_,splε,_)->splε) .: cmb) f g
+cntnFnValsCombine cmb (CntnFuncConst p) (CntnFuncConst q) 
+    = CntnFuncConst . fst $ cmb p q
+cntnFnValsCombine cmb f (CntnFuncConst q) 
+    = cntnFnValsFunc (\c' -> second (>>> \(ε',_,_)->return ε') $ cmb c' q) f
+cntnFnValsCombine cmb (CntnFuncConst p) g
+    = cntnFnValsFunc (second (>>> \(_,_,ε'')->return ε'') . cmb p) g
+
+instance (Representsℝ r, Manifold d) => Num (CntnFuncValue d r) where
+  fromInteger = point . fromInteger
+  
+  (+) = cntnFnValsCombine $ \a b -> (a+b, \ε -> (ε, (ε/2,ε/2), ε))
+  (-) = cntnFnValsCombine $ \a b -> (a-b, \ε -> (ε, (ε/2,ε/2), ε))
+  
+  (*) = cntnFnValsCombine $ \a b -> (a*b, 
+                             \ε -> ( ε/b
+                                   , (ε / (2 * sqrt(2*b^2+ε)), ε / (2 * sqrt(2*a^2+ε)))
+                                   , ε/a ))
+  --  |δa| < ε / 2·sqrt(2·b² + ε) ∧ |δb| < ε / 2·sqrt(2·a² + ε)
+  --  ⇒  | (a+δa) · (b+δb) - a·b | = | a·δb + b·δa + δa·δb | 
+  --   ≤ | a·δb | + | b·δa | + | δa·δb |
+  --   ≤ | a·ε/2·sqrt(2·a² + ε) | + | b·ε/2·sqrt(2·b² + ε) | + | ε² / 4·sqrt(2·b² + ε)·sqrt(2·a² + ε) |
+  --   ≤ | a·ε/2·sqrt(2·a²) | + | b·ε/2·sqrt(2·b²) | + | ε² / 4·sqrt(ε)·sqrt(ε) |
+  --   ≤ | ε/sqrt(8) | + | ε/sqrt(8) | + | ε / 4 |
+  --   ≈ .96·ε < ε
+
+  negate = cntnFnValsFunc $ \x -> (negate x, return)
+  abs = cntnFnValsFunc $ \x -> (abs x, return)
+  signum = cntnFnValsFunc $ \x -> (signum x, \ε -> if ε>2 then nothing else just $ abs x)
+
+instance (Representsℝ r, Manifold d) => Fractional (CntnFuncValue d r) where
+  fromRational = point . fromRational
+  recip = cntnFnValsFunc $ \x -> let x¹ = recip x
+                                 in (x¹, \ε -> just $ abs x - recip(ε + abs x¹))
+  -- Readily derived from the worst-case of ε = 1 / (|x| – δ) – 1/|x|.
+
+instance (Representsℝ r, Manifold d) => Floating (CntnFuncValue d r) where
+  pi = point pi
+  
+  exp x = exp__$~ x
+  sin x = sin__$~ x
+  cos x = cos__$~ x
+  atan x = atan__$~ x
+  sinh x = sinh__$~ x
+  cosh x = cosh__$~ x
+  tanh x = tanh__$~ x
+  asinh x = asinh__$~ x
+  
+  log x = continuousFlatFunction ln' $~ x
+   where ln' x = (lnx, eps2Delta)
+          where lnx = log x
+                eps2Delta ε = just $ x - exp (lnx - ε)
+  asin x = continuousFlatFunction asin' $~ x
+   where asin' x = (asinx, eps2Delta)
+          where asinx = asin x
+                eps2Delta ε = just $ 
+                    if ε > pi/2 - abs asinx
+                     then 1 - abs x
+                     else sin (abs asinx + ε) - abs x
+  acos x = continuousFlatFunction acos' $~ x
+   where acos' x = (acosx, eps2Delta)
+          where acosx = acos x
+                eps2Delta ε = just $ 
+                    if ε > pi/2 - abs (acosx - pi/2)
+                     then 1 - abs x
+                     else cos (abs acosx + ε) - abs x
+  acosh x = continuousFlatFunction acosh' $~ x
+   where acosh' x = (acoshx, eps2Delta)
+          where acoshx = acosh x
+                eps2Delta ε = just $ 
+                    if ε > acoshx
+                     then x - 1
+                     else x - cosh (acoshx - ε)
+  atanh x = continuousFlatFunction atanh' $~ x
+   where atanh' x = (atanhx, eps2Delta)
+          where atanhx = atanh x
+                eps2Delta ε = just $ tanh (abs atanhx + ε) - abs x
+
+
+instance (FlatManifold v, Manifold d) => AdditiveGroup (CntnFuncValue d v) where
+  zeroV = point zeroV
+  (^+^) = cntnFnValsCombine $ \a b -> (a^+^b, \ε -> (ε, (ε/2,ε/2), ε))
+  negateV = cntnFnValsFunc $ \x -> (negateV x, return)
+
+instance ( FlatManifold v, MetricSpace v, Metric v~ℝ, FlatManifold (Scalar v)
+         , MetricSpace (Scalar v), Metric (Scalar v) ~ ℝ, Manifold d ) 
+               => VectorSpace (CntnFuncValue d v) where
+  type Scalar (CntnFuncValue d v) = CntnFuncValue d (Scalar v)
+  (*^) = cntnFnValsCombine 
+           $ \λ v -> ( λ*^v
+                     , \ε -> let l = metric v
+                                 λ' = metric λ
+                             in ( ε/l
+                                , ( ε / (2 * sqrt(2 * l^2 + ε))
+                                  , ε / (2 * sqrt(2 * λ'^2 + ε)))
+                                , ε / λ' ))
+         
   
 
 
