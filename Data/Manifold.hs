@@ -38,13 +38,12 @@ import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
 
-import Prelude ()
+import qualified Prelude
 
-import Control.Category.Constrained.Prelude
+import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
-
 
 
 
@@ -116,7 +115,7 @@ instance EnhancedCat (->) (:-->) where
 
 
 instance Cartesian (:-->) where
-  type PairObject (:-->) a b = ( FlatManifold a, FlatManifold b, Manifold(a,b) )
+  type PairObjects (:-->) a b = ( FlatManifold a, FlatManifold b, Manifold(a,b) )
   swap = Continuous $ \c t -> case c of
            IdChart         -> let (v,w) = t in (IdChart, (w,v), return)
            Chart inMap _ _ -> let ((v,w), epsP) = runFlatContinuous inMap t 
@@ -378,6 +377,10 @@ instance CartesianProxy (:-->) where
        (CntnFuncConst c₁, CntnFuncValue f₂)
             -> Continuous $ \IdChart x -> let (fx, epsP) = runFlatContinuous f₂ x
                                           in (IdChart, (c₁, fx), epsP) 
+       (CntnFuncValue f₁, CntnFuncConst c₂)
+            -> Continuous $ \IdChart x -> let (fx, epsP) = runFlatContinuous f₁ x
+                                          in (IdChart, (fx, c₂), epsP) 
+       (CntnFuncValue f₁, CntnFuncValue f₂) -> f₁ &&& f₂ 
   alg2to1 f = case f (CntnFuncValue fst) (CntnFuncValue snd) of
                CntnFuncConst c -> const__ c
                CntnFuncValue f -> f
@@ -386,6 +389,10 @@ instance CartesianProxy (:-->) where
        (CntnFuncConst c₁, CntnFuncValue f₂)
             -> Continuous $ \IdChart x -> let (fx, epsP) = runFlatContinuous f₂ x
                                           in (IdChart, (c₁, fx), epsP) 
+       (CntnFuncValue f₁, CntnFuncConst c₂)
+            -> Continuous $ \IdChart x -> let (fx, epsP) = runFlatContinuous f₁ x
+                                          in (IdChart, (fx, c₂), epsP) 
+       (CntnFuncValue f₁, CntnFuncValue f₂) -> f₁ &&& f₂ 
 
 
 
@@ -675,4 +682,13 @@ instance ( MetricSpace v, MetricSpace (Scalar v)
   type Metric (v,w) = Metric v
   metricSq (v,w) = metric (magnitudeSq v) + metric (magnitudeSq w)
   metricToScalar (v,_) = metricToScalar v
+
+
+
+
+
+
+
+(^) :: Num a => a -> Int -> a
+(^) = (Prelude.^)
 
