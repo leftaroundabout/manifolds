@@ -132,6 +132,10 @@ instance Cartesian (:-->) where
            IdChart         -> let (u,(v,w)) = t in (IdChart, ((u,v),w), return)
            Chart inMap _ _ -> let ((u,(v,w)), epsP) = runFlatContinuous inMap t
                               in  (IdChart, ((u,v),w), epsP)
+  regroup' = Continuous $ \c t -> case c of
+           IdChart         -> let ((u,v),w) = t in (IdChart, (u,(v,w)), return)
+           Chart inMap _ _ -> let (((u,v),w), epsP) = runFlatContinuous inMap t
+                              in  (IdChart, (u,(v,w)), epsP)
 
 instance Morphism (:-->) where
   first (Continuous f) = Continuous $ \c t -> case c of
