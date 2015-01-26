@@ -1,3 +1,8 @@
+{-# LANGUAGE FlexibleInstances        #-}
+{-# LANGUAGE ConstraintKinds          #-}
+
+
+
 module Util.LtdShow (LtdShow(..)) where
 
 import qualified Data.Vector as V

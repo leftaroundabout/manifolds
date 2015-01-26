@@ -1,7 +1,7 @@
 Name:                manifolds
-Version:             0.1
+Version:             0.1.0.0
 Category:            Math
-Synopsis:            Types for working with manifolds without needing to embed into vectorspaces or approximate by finite meshes.
+Synopsis:            Working with manifolds in a direct, embedding-free way.
 Description:         Manifolds, a generalisation of the notion of \"smooth curves\" or sufaces,
                      are topological spaces /locally homeomorphic to a vector space/. This gives
                      rise to what is actually the most natural / mathematically elegant way of dealing
@@ -25,27 +25,24 @@ Description:         Manifolds, a generalisation of the notion of \"smooth curve
 License:             GPL-3
 License-file:        COPYING
 Author:              Justus Sagemüller
-Maintainer:          (@) sagemuej $ smail.uni-koeln.de
+Maintainer:          (@) sagemueller $ geo.uni-koeln.de
 Build-Type:          Simple
-Cabal-Version:       >=1.2
+Cabal-Version:       >=1.10
 
 Library
-  Build-Depends:     base>=4.5
+  Build-Depends:     base>=4.5 && < 6
                      , transformers
                      , vector-space>=0.8
                      , vector
                      , vector-algorithms
                      , containers
-                     -- , OpenGL
-                     -- , GLUT
                      , random
                      , MonadRandom
-                     , time>=1.2
                      , comonad
                      , semigroups
                      , void
                      , constrained-categories
-  Extensions:        FlexibleInstances
+  other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
                      , GADTs
@@ -61,3 +58,4 @@ Library
   Other-modules:   Data.List.FastNub
                    Util.Associate
                    Util.LtdShow
+  default-language: Haskell2010

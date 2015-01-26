@@ -1,3 +1,6 @@
+{-# LANGUAGE ConstraintKinds          #-}
+
+
 module Data.List.FastNub where
 
 
