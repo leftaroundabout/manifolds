@@ -41,6 +41,7 @@ import Data.AffineSpace
 import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
+import Data.Manifold.Types
 
 import qualified Prelude
 
@@ -180,8 +181,6 @@ instance PreArrow (:-->) where
 
 
 
-type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
-type EqFloating f = (Eq f, Ord f, Floating f)
 
 
 -- | A chart is a homeomorphism from a connected, open subset /Q/ ⊂ /M/ of
@@ -523,10 +522,6 @@ instance ( FlatManifold v, MetricSpace v, Metric v~ℝ, FlatManifold (Scalar v)
 
 
 
-data GraphWindowSpec = GraphWindowSpec {
-    lBound, rBound, bBound, tBound :: Double
-  , xResolution, yResolution :: Int
-  }
 
 finiteGraphContinℝtoℝ :: GraphWindowSpec -> (Double:-->Double) -> [(Double, Double)]
 finiteGraphContinℝtoℝ (GraphWindowSpec{..}) fc
@@ -606,10 +601,6 @@ midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
 
 
 
-data S2 = S2 { ϑParamS2 :: Double -- [0, π[
-             , φParamS2 :: Double -- [0, 2π[
-             }
- 
 
 -- instance Manifold S2 where
 --   type TangentSpace S2 = (Double, Double)
@@ -633,7 +624,6 @@ data S2 = S2 { ϑParamS2 :: Double -- [0, π[
 
 
 
-type Endomorphism a = a->a
 
 
 (.:) :: (c->d) -> (a->b->c) -> a->b->d 
@@ -645,19 +635,7 @@ nothing = Option Nothing
 
 
 
-type ℝ = Double
 
-instance VectorSpace () where
-  type Scalar () = ℝ
-  _ *^ () = ()
-
-instance HasBasis () where
-  type Basis () = Void
-  basisValue = absurd
-  decompose () = []
-  decompose' () = absurd
-instance InnerSpace () where
-  () <.> () = 0
 
 class (RealFloat (Metric v), InnerSpace v) => MetricSpace v where
   type Metric v :: *
@@ -697,6 +675,4 @@ instance ( MetricSpace v, MetricSpace (Scalar v)
 
 
 
-(^) :: Num a => a -> Int -> a
-(^) = (Prelude.^)
 
