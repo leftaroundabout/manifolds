@@ -60,11 +60,38 @@ data GraphWindowSpec = GraphWindowSpec {
 
 
 
-newtype S¹ = S¹ { φParamS¹ :: Double -- [0, 2π[
-                }
-data S² = S² { ϑParamS² :: Double -- [0, π[
-             , φParamS² :: Double -- [0, 2π[
-             }
+data S⁰ = PositiveHalfSphere | NegativeHalfSphere deriving(Eq, Show)
+newtype S¹ = S¹ { φParamS¹ :: Double -- [-π, π[
+                } deriving (Show)
+data S² = S² { ϑParamS² :: !Double -- [0, π[
+             , φParamS² :: !Double -- [-π, π[
+             } deriving (Show)
+
+
+class NaturallyEmbedded m v where
+  embed :: m -> v
+  coEmbed :: v -> m
+  
+
+instance (VectorSpace y) => NaturallyEmbedded x (x,y) where
+  embed x = (x, zeroV)
+  coEmbed (x,_) = x
+instance (VectorSpace y, VectorSpace z) => NaturallyEmbedded x ((x,y),z) where
+  embed x = (embed x, zeroV)
+  coEmbed (x,_) = coEmbed x
+
+instance NaturallyEmbedded S⁰ ℝ where
+  embed PositiveHalfSphere = 1
+  embed NegativeHalfSphere = -1
+  coEmbed x | x>=0       = PositiveHalfSphere
+            | otherwise  = NegativeHalfSphere
+instance NaturallyEmbedded S¹ ℝ² where
+  embed (S¹ φ) = (cos φ, sin φ)
+  coEmbed (x,y) = S¹ $ atan2 y x
+instance NaturallyEmbedded S² ℝ³ where
+  embed (S² ϑ φ) = ((cos φ * sin ϑ, sin φ * sin ϑ), cos ϑ)
+  coEmbed ((x,y),z) = S² (acos $ z/r) (atan2 y x)
+   where r = sqrt $ x^2 + y^2 + z^2
  
 
 
@@ -74,6 +101,8 @@ type Endomorphism a = a->a
 
 
 type ℝ = Double
+type ℝ² = (ℝ,ℝ)
+type ℝ³ = (ℝ²,ℝ)
 
 instance VectorSpace () where
   type Scalar () = ℝ

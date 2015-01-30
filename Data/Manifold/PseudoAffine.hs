@@ -22,6 +22,7 @@ import Data.List
 import Data.Maybe
 import Data.Semigroup
 import Data.Function (on)
+import Data.Fixed
 
 import Data.VectorSpace
 import Data.AffineSpace
@@ -88,13 +89,36 @@ instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c
 
 instance PseudoAffine S¹ where
   type PseudoDiff S¹ = ℝ
-  S¹ φ₁ .-~. S¹ φ₂
+  S¹ φ₁ .-~. S¹ φ₀
      | δφ > pi     = δφ - 2*pi
      | δφ < (-pi)  = δφ + 2*pi
      | otherwise   = δφ
-   where δφ = φ₂ - φ₁
+   where δφ = φ₁ - φ₀
   S¹ φ₀ .+~^ δφ
-     | φ' < 0     = S¹ $ φ' + 2*pi
-     | φ' > 2*pi  = S¹ $ φ' - 2*pi
+     | φ' < 0     = S¹ $ φ' + tau
      | otherwise  = S¹ $ φ'
-   where φ' = φ₀ + δφ
+   where φ' = (φ₀ + δφ)`mod'`tau
+
+instance PseudoAffine S² where
+  type PseudoDiff S² = ℝ²
+  S² ϑ₁ φ₁ .-~. S² ϑ₀ φ₀
+     | ϑ₀ < pi/2  = ϑ₁*^embed(S¹ φ₁) ^-^ ϑ₀*^embed(S¹ φ₀)
+     | otherwise  = (pi-ϑ₁)*^embed(S¹ φ₁) ^-^ (pi-ϑ₀)*^embed(S¹ φ₀)
+  S² ϑ₀ φ₀ .+~^ δv
+     | ϑ₀ < pi/2  = sphereFold PositiveHalfSphere $ ϑ₀*^embed(S¹ φ₀) ^+^ δv
+     | otherwise  = sphereFold NegativeHalfSphere $ (pi-ϑ₀)*^embed(S¹ φ₀) ^+^ δv
+
+sphereFold :: S⁰ -> ℝ² -> S²
+sphereFold hfSphere v
+   | ϑ₀ > pi     = S² (inv $ tau - ϑ₀) ((φ₀+pi)`mod'`tau)
+   | otherwise  = S² (inv ϑ₀) φ₀
+ where S¹ φ₀ = coEmbed v
+       ϑ₀ = magnitude v `mod'` tau
+       inv ϑ = case hfSphere of PositiveHalfSphere -> ϑ
+                                NegativeHalfSphere -> pi - ϑ
+
+
+
+tau :: Double
+tau = 2 * pi
+              
