@@ -1,5 +1,5 @@
 Name:                manifolds
-Version:             0.1.0.0
+Version:             0.1.0.1
 Category:            Math
 Synopsis:            Working with manifolds in a direct, embedding-free way.
 Description:         Manifolds, a generalisation of the notion of \"smooth curves\" or sufaces,
@@ -56,6 +56,7 @@ Library
   ghc-options:       -O2
   Exposed-modules:   Data.Manifold
                      Data.Manifold.PseudoAffine
+                     Data.LinearMap.HerMetric
                      -- Data.Manifold.Visualisation.R3.GLUT
   Other-modules:   Data.Manifold.Types
                    Data.List.FastNub
