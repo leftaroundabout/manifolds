@@ -33,6 +33,7 @@ Library
   Build-Depends:     base>=4.5 && < 6
                      , transformers
                      , vector-space>=0.8
+                     , MemoTrie
                      , vector
                      , vector-algorithms
                      , containers
