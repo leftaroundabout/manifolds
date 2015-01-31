@@ -29,7 +29,7 @@
 {-# LANGUAGE RecordWildCards          #-}
 
 
-module Data.Manifold where
+module Data.Manifold (module Data.Manifold, module Data.Manifold.Types) where
 
 import Data.List
 import Data.Maybe
