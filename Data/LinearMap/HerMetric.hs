@@ -19,13 +19,12 @@ module Data.LinearMap.HerMetric (
   -- * Defining metrics by projectors
   , projector, projector'
   -- * Utility
-  , metriScale
   , adjoint
-  , transformMetric
-  , transformMetric'
+  , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
   , HasMetric(..)
   , (^<.>)
+  , metriScale, metriScale'
   ) where
     
 
@@ -116,6 +115,9 @@ metric' (HerMetric' m) u = sqrt $ lapply m u ^<.> u
 
 metriScale :: HasMetric v => HerMetric v -> v -> v
 metriScale m v = metric m v *^ v
+
+metriScale' :: HasMetric v => HerMetric' v -> DualSpace v -> DualSpace v
+metriScale' m v = metric' m v *^ v
 
 
 -- | Square-sum over the metrics for each dual-space vector.

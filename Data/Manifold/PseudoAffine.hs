@@ -130,25 +130,26 @@ tau = 2 * pi
 
 
 
-newtype d --> c
+newtype Differentiable s d c
    = Differentiable { getDifferentiable ::
                         d -> ( c
                              , PseudoDiff d :-* PseudoDiff c
                              , Option (HerMetric(PseudoDiff c)->HerMetric(PseudoDiff d)) ) }
 
 
--- instance Category (-->) where
---   type Object (-->) o = ( PseudoAffine o
---                         , HasBasis (PseudoDiff o)
---                         , HasTrie (Basis (PseudoDiff o)) )
---   id = Differentiable $ \x -> (x, idL, Option Nothing)
---   Differentiable f . Differentiable g = Differentiable $
---      \x -> let (y, y', devg) = g x
---                (z, z', devf) = f y
---                devfg = Option $ case (getOption devf, getOption devg) of
---                         (Nothing, Nothing) -> Nothing
---                         (Just devf', Nothing) -> Just $
---                           \δz -> let δy = devf' δz
---                                  in transformMetric y' δy
---            in (z, z'*.*y', devfg)
+instance (RealFloat s) => Category (Differentiable s) where
+  type Object (Differentiable s) o
+         = ( PseudoAffine o, HasMetric (PseudoDiff o), Scalar (PseudoDiff o) ~ s )
+  id = Differentiable $ \x -> (x, idL, Option Nothing)
+  Differentiable f . Differentiable g = Differentiable $
+     \x -> let (y, y', devg) = g x
+               (z, z', devf) = f y
+               devfg = Option $ case (getOption devf, getOption devg) of
+                        (Nothing, Nothing) -> Nothing
+                        (Just devf', Nothing) -> Just $ transformMetric y' . devf'
+                        (Nothing, Just devg') -> Just $ devg' . transformMetric z'
+                        (Just devf', Just devg') -> Just $ \δz ->
+                           (devg' $ transformMetric z' δz)
+                              ^+^ (transformMetric y' $ devf' δz)
+           in (z, z'*.*y', devfg)
               
