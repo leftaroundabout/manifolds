@@ -142,7 +142,7 @@ newtype Differentiable s d c
 type (-->) = Differentiable ℝ
 
 
-instance (RealFloat s) => Category (Differentiable s) where
+instance (VectorSpace s) => Category (Differentiable s) where
   type Object (Differentiable s) o
          = ( PseudoAffine o, HasMetric (PseudoDiff o), Scalar (PseudoDiff o) ~ s )
   id = Differentiable $ \x -> (x, idL, Option Nothing)
@@ -159,7 +159,7 @@ instance (RealFloat s) => Category (Differentiable s) where
            in (z, z'*.*y', devfg)
 
 
-instance (RealFloat s) => Cartesian (Differentiable s) where
+instance (VectorSpace s) => Cartesian (Differentiable s) where
   type UnitObject (Differentiable s) = ZeroDim s
   swap = Differentiable $ \(x,y) -> ((y,x), lSwap, Option Nothing)
    where lSwap = linear swap

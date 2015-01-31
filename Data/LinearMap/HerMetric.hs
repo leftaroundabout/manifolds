@@ -108,16 +108,17 @@ metricSq' (HerMetric' m) u = lapply m u ^<.> u
 --   mathematical metric, i.e. positive definite &#x2013; otherwise the internally used
 --   square root may get negative arguments (though it can still produce results if the
 --   scalars are complex; however, complex spaces aren't supported yet).
-metric :: HasMetric v => HerMetric v -> v -> Scalar v
+metric :: (HasMetric v, Floating (Scalar v)) => HerMetric v -> v -> Scalar v
 metric (HerMetric m) v = sqrt $ lapply m v <.>^ v
 
-metric' :: HasMetric v => HerMetric' v -> DualSpace v -> Scalar v
+metric' :: (HasMetric v, Floating (Scalar v)) => HerMetric' v -> DualSpace v -> Scalar v
 metric' (HerMetric' m) u = sqrt $ lapply m u ^<.> u
 
-metriScale :: HasMetric v => HerMetric v -> v -> v
+metriScale :: (HasMetric v, Floating (Scalar v)) => HerMetric v -> v -> v
 metriScale m v = metric m v *^ v
 
-metriScale' :: HasMetric v => HerMetric' v -> DualSpace v -> DualSpace v
+metriScale' :: (HasMetric v, Floating (Scalar v))
+                 => HerMetric' v -> DualSpace v -> DualSpace v
 metriScale' m v = metric' m v *^ v
 
 
@@ -126,10 +127,10 @@ metriScale' m v = metric' m v *^ v
 -- @
 -- metrics m vs &#x2261; sqrt . sum $ metricSq m '<$>' vs
 -- @
-metrics :: HasMetric v => HerMetric v -> [v] -> Scalar v
+metrics :: (HasMetric v, Floating (Scalar v)) => HerMetric v -> [v] -> Scalar v
 metrics m vs = sqrt . sum $ metricSq m <$> vs
 
-metrics' :: HasMetric v => HerMetric' v -> [DualSpace v] -> Scalar v
+metrics' :: (HasMetric v, Floating (Scalar v)) => HerMetric' v -> [DualSpace v] -> Scalar v
 metrics' m vs = sqrt . sum $ metricSq' m <$> vs
 
 
@@ -153,7 +154,7 @@ dualiseMetric' (HerMetric' m) = HerMetric $ linear doubleDual *.* m
 
 -- | While the main purpose of this class is to express 'HerMetric', it's actually
 --   all about dual spaces.
-class ( HasBasis v, RealFloat (Scalar v), HasTrie (Basis v)
+class ( HasBasis v, VectorSpace (Scalar v), HasTrie (Basis v)
       , VectorSpace (DualSpace v), HasBasis (DualSpace v)
       , Scalar v ~ Scalar (DualSpace v), Basis v ~ Basis (DualSpace v) )
     => HasMetric v where
@@ -190,8 +191,8 @@ class ( HasBasis v, RealFloat (Scalar v), HasTrie (Basis v)
 (^<.>) :: HasMetric v => v -> DualSpace v -> Scalar v
 ket ^<.> bra = bra <.>^ ket
 
-instance (RealFloat k) => HasMetric (ZeroDim k) where
-  Origin<.>^Origin = 0
+instance (VectorSpace k) => HasMetric (ZeroDim k) where
+  Origin<.>^Origin = zeroV
   functional _ = Origin
   doubleDual = id; doubleDual'= id
 instance HasMetric Double where
@@ -203,7 +204,7 @@ instance ( HasMetric v, HasMetric w, Scalar v ~ Scalar w
          , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
          ) => HasMetric (v,w) where
   type DualSpace (v,w) = (DualSpace v, DualSpace w)
-  (v,w)<.>^(v',w') = v<.>^v' + w<.>^w'
+  (v,w)<.>^(v',w') = v<.>^v' ^+^ w<.>^w'
   functional f = (functional $ f . (,zeroV), functional $ f . (zeroV,))
   doubleDual = id; doubleDual'= id
 
