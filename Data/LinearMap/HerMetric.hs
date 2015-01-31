@@ -13,7 +13,7 @@
 
 module Data.LinearMap.HerMetric (
   -- * Metric operator types
-    HerMetric, HerMetric'(..)
+    HerMetric, HerMetric'
   -- * Evaluating metrics
   , metricSq, metricSq', metric, metric', metrics, metrics'
   -- * Defining metrics by projectors
@@ -23,6 +23,7 @@ module Data.LinearMap.HerMetric (
   , adjoint
   , transformMetric
   , transformMetric'
+  , dualiseMetric, dualiseMetric'
   , HasMetric(..)
   , (^<.>)
   ) where
@@ -69,14 +70,14 @@ instance HasMetric v => VectorSpace (HerMetric v) where
 -- 
 --   Prime-versions of the functions in this module target those dual-space metrics, so
 --   we can avoid some explicit handling of double-dual spaces.
-newtype HerMetric' v = HerMetric' { dualMetric :: HerMetric (DualSpace v) }
-instance (HasMetric v, HasMetric (DualSpace v)) => AdditiveGroup (HerMetric' v) where
-  zeroV = HerMetric' (HerMetric zeroV)
-  negateV (HerMetric' (HerMetric m)) = HerMetric' . HerMetric $ negateV m
-  HerMetric' (HerMetric m) ^+^ HerMetric' (HerMetric n) = HerMetric' . HerMetric $ m ^+^ n
-instance (HasMetric v, HasMetric (DualSpace v)) => VectorSpace (HerMetric' v) where
+newtype HerMetric' v = HerMetric' { dualMetric :: DualSpace v :-* v }
+instance (HasMetric v) => AdditiveGroup (HerMetric' v) where
+  zeroV = HerMetric' zeroV
+  negateV (HerMetric' m) = HerMetric' $ negateV m
+  HerMetric' m ^+^ HerMetric' n = HerMetric' $ m ^+^ n
+instance (HasMetric v) => VectorSpace (HerMetric' v) where
   type Scalar (HerMetric' v) = Scalar v
-  s *^ (HerMetric' (HerMetric m)) = HerMetric' . HerMetric $ s *^ m 
+  s *^ (HerMetric' m) = HerMetric' $ s *^ m 
     
 
 -- | A metric on @v@ that simply yields the squared overlap of a vector with the
@@ -90,8 +91,8 @@ instance (HasMetric v, HasMetric (DualSpace v)) => VectorSpace (HerMetric' v) wh
 projector :: HasMetric v => DualSpace v -> HerMetric v
 projector u = HerMetric (linear $ \v -> u ^* (u<.>^v))
 
-projector' :: (HasMetric v, HasMetric (DualSpace v)) => v -> HerMetric' v
-projector' v = HerMetric' . HerMetric . linear $ \u -> doubleDual $ v ^* (doubleDual v<.>^u)
+projector' :: HasMetric v => v -> HerMetric' v
+projector' v = HerMetric' . linear $ \u -> v ^* (v^<.>u)
 
 
 
@@ -100,9 +101,8 @@ projector' v = HerMetric' . HerMetric . linear $ \u -> doubleDual $ v ^* (double
 metricSq :: HasMetric v => HerMetric v -> v -> Scalar v
 metricSq (HerMetric m) v = lapply m v <.>^ v
 
-metricSq' :: forall v . (HasMetric v, HasMetric (DualSpace v))
-                     => HerMetric' v -> DualSpace v -> Scalar v
-metricSq' (HerMetric' (HerMetric m)) u = (unDoubleDual (lapply m u) :: v) ^<.> u
+metricSq' :: HasMetric v => HerMetric' v -> DualSpace v -> Scalar v
+metricSq' (HerMetric' m) u = lapply m u ^<.> u
 
 -- | Evaluate a vector's &#x201c;magnitude&#x201d; through a metric. This assumes an actual
 --   mathematical metric, i.e. positive definite &#x2013; otherwise the internally used
@@ -111,9 +111,8 @@ metricSq' (HerMetric' (HerMetric m)) u = (unDoubleDual (lapply m u) :: v) ^<.> u
 metric :: HasMetric v => HerMetric v -> v -> Scalar v
 metric (HerMetric m) v = sqrt $ lapply m v <.>^ v
 
-metric' :: forall v . (HasMetric v, HasMetric (DualSpace v))
-                        => HerMetric' v -> DualSpace v -> Scalar v
-metric' (HerMetric' (HerMetric m)) u = sqrt $ (unDoubleDual (lapply m u) :: v) ^<.> u
+metric' :: HasMetric v => HerMetric' v -> DualSpace v -> Scalar v
+metric' (HerMetric' m) u = sqrt $ lapply m u ^<.> u
 
 metriScale :: HasMetric v => HerMetric v -> v -> v
 metriScale m v = metric m v *^ v
@@ -127,8 +126,7 @@ metriScale m v = metric m v *^ v
 metrics :: HasMetric v => HerMetric v -> [v] -> Scalar v
 metrics m vs = sqrt . sum $ metricSq m <$> vs
 
-metrics' :: forall v . (HasMetric v, HasMetric (DualSpace v))
-                          => HerMetric' v -> [DualSpace v] -> Scalar v
+metrics' :: HasMetric v => HerMetric' v -> [DualSpace v] -> Scalar v
 metrics' m vs = sqrt . sum $ metricSq' m <$> vs
 
 
@@ -136,13 +134,18 @@ transformMetric :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
            => (w :-* v) -> HerMetric v -> HerMetric w
 transformMetric t (HerMetric m) = HerMetric $ adjoint t *.* m *.* t
 
-transformMetric' :: ( HasMetric v, HasMetric w
-                    , HasMetric (DualSpace v), HasMetric (DualSpace w)
-                    , Scalar v ~ Scalar w )
-           => (DualSpace w :-* DualSpace v) -> HerMetric' v -> HerMetric' w
-transformMetric' t (HerMetric' (HerMetric m))
-    = HerMetric' . HerMetric $ adjoint t *.* m *.* t
+transformMetric' :: ( HasMetric v, HasMetric w, Scalar v ~ Scalar w )
+           => (v :-* w) -> HerMetric' v -> HerMetric' w
+transformMetric' t (HerMetric' m)
+    = HerMetric' $ t *.* m *.* adjoint t
 
+dualiseMetric :: (HasMetric v, HasMetric (DualSpace v))
+      => HerMetric (DualSpace v) -> HerMetric' v
+dualiseMetric (HerMetric m) = HerMetric' $ linear doubleDual' *.* m
+
+dualiseMetric' :: (HasMetric v, HasMetric (DualSpace v))
+      => HerMetric' v -> HerMetric (DualSpace v)
+dualiseMetric' (HerMetric' m) = HerMetric $ linear doubleDual *.* m
 
 
 -- | While the main purpose of this class is to express 'HerMetric', it's actually
@@ -176,7 +179,7 @@ class ( HasBasis v, RealFloat (Scalar v), HasTrie (Basis v)
   --   the tuple instance actually assumes this to be able to offer an efficient
   --   implementation (namely, 'id') of the isomorphisms.
   doubleDual :: HasMetric (DualSpace v) => v -> DualSpace (DualSpace v)
-  unDoubleDual :: HasMetric (DualSpace v) => DualSpace (DualSpace v) -> v
+  doubleDual' :: HasMetric (DualSpace v) => DualSpace (DualSpace v) -> v
   
   
 
@@ -187,8 +190,7 @@ ket ^<.> bra = bra <.>^ ket
 instance HasMetric Double where
   (<.>^) = (<.>)
   functional f = f 1
-  doubleDual = id
-  unDoubleDual = id
+  doubleDual = id; doubleDual'= id
 instance ( HasMetric v, HasMetric w, Scalar v ~ Scalar w
          , HasMetric (DualSpace v), DualSpace (DualSpace v) ~ v
          , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
@@ -196,8 +198,7 @@ instance ( HasMetric v, HasMetric w, Scalar v ~ Scalar w
   type DualSpace (v,w) = (DualSpace v, DualSpace w)
   (v,w)<.>^(v',w') = v<.>^v' + w<.>^w'
   functional f = (functional $ f . (,zeroV), functional $ f . (zeroV,))
-  doubleDual = id
-  unDoubleDual=id
+  doubleDual = id; doubleDual'= id
 
 
 
