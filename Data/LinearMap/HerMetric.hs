@@ -22,6 +22,7 @@ module Data.LinearMap.HerMetric (
   , metriScale
   , adjoint
   , transformMetric
+  , transformMetric'
   , HasMetric(..)
   , (^<.>)
   ) where
@@ -55,13 +56,6 @@ infixr 7 <.>^, ^<.>
 newtype HerMetric v = HerMetric { getHerMetric :: v :-* DualSpace v }
 
 
--- | A metric on the dual space; equivalent to a linear mapping from the dual space
---   to the original vector space.
--- 
---   Prime-versions of the functions in this module target those dual-space metrics, so
---   we can avoid some explicit handling of double-dual spaces.
-newtype HerMetric' v = HerMetric' { dualMetric :: HerMetric (DualSpace v) }
-
 instance HasMetric v => AdditiveGroup (HerMetric v) where
   zeroV = HerMetric zeroV
   negateV (HerMetric m) = HerMetric $ negateV m
@@ -69,6 +63,21 @@ instance HasMetric v => AdditiveGroup (HerMetric v) where
 instance HasMetric v => VectorSpace (HerMetric v) where
   type Scalar (HerMetric v) = Scalar v
   s *^ (HerMetric m) = HerMetric $ s *^ m 
+
+-- | A metric on the dual space; equivalent to a linear mapping from the dual space
+--   to the original vector space.
+-- 
+--   Prime-versions of the functions in this module target those dual-space metrics, so
+--   we can avoid some explicit handling of double-dual spaces.
+newtype HerMetric' v = HerMetric' { dualMetric :: HerMetric (DualSpace v) }
+instance (HasMetric v, HasMetric (DualSpace v)) => AdditiveGroup (HerMetric' v) where
+  zeroV = HerMetric' (HerMetric zeroV)
+  negateV (HerMetric' (HerMetric m)) = HerMetric' . HerMetric $ negateV m
+  HerMetric' (HerMetric m) ^+^ HerMetric' (HerMetric n) = HerMetric' . HerMetric $ m ^+^ n
+instance (HasMetric v, HasMetric (DualSpace v)) => VectorSpace (HerMetric' v) where
+  type Scalar (HerMetric' v) = Scalar v
+  s *^ (HerMetric' (HerMetric m)) = HerMetric' . HerMetric $ s *^ m 
+    
 
 -- | A metric on @v@ that simply yields the squared overlap of a vector with the
 --   given dual-space reference.
@@ -86,7 +95,7 @@ projector' v = HerMetric' . HerMetric . linear $ \u -> doubleDual $ v ^* (double
 
 
 
--- | Evaluate a (dual) vector through a metric. For the canonical metric on a Hilbert space,
+-- | Evaluate a vector through a metric. For the canonical metric on a Hilbert space,
 --   this will be simply 'magnitudeSq'.
 metricSq :: HasMetric v => HerMetric v -> v -> Scalar v
 metricSq (HerMetric m) v = lapply m v <.>^ v
@@ -126,6 +135,13 @@ metrics' m vs = sqrt . sum $ metricSq' m <$> vs
 transformMetric :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
            => (w :-* v) -> HerMetric v -> HerMetric w
 transformMetric t (HerMetric m) = HerMetric $ adjoint t *.* m *.* t
+
+transformMetric' :: ( HasMetric v, HasMetric w
+                    , HasMetric (DualSpace v), HasMetric (DualSpace w)
+                    , Scalar v ~ Scalar w )
+           => (DualSpace w :-* DualSpace v) -> HerMetric' v -> HerMetric' w
+transformMetric' t (HerMetric' (HerMetric m))
+    = HerMetric' . HerMetric $ adjoint t *.* m *.* t
 
 
 
