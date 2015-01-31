@@ -26,6 +26,7 @@ import Data.Fixed
 
 import Data.VectorSpace
 import Data.LinearMap
+import Data.LinearMap.HerMetric
 import Data.MemoTrie (HasTrie)
 import Data.AffineSpace
 import Data.Basis
@@ -133,20 +134,21 @@ newtype d --> c
    = Differentiable { getDifferentiable ::
                         d -> ( c
                              , PseudoDiff d :-* PseudoDiff c
-                             , Option (Scalar (PseudoDiff c) -> Scalar (PseudoDiff d)) ) }
+                             , Option (HerMetric(PseudoDiff c)->HerMetric(PseudoDiff d)) ) }
 
 
--- instance Category (-->) where
---   type Object (-->) o = ( PseudoAffine o
---                         , HasBasis (PseudoDiff o)
---                         , HasTrie (Basis (PseudoDiff o)) )
---   id = Differentiable $ \x -> (x, idL, Option Nothing)
---   Differentiable f . Differentiable g = Differentiable $
---      \x -> let (y, y', dxf') = g x
---                (z, z', dyf') = f y
---                dyxf' = Option $ case (getOption dxf', getOption dyf') of
---                         (Nothing, Option Nothing) -> Nothing
---                         (Just dxf, Nothing) -> Just $
---                           \δz -> let δy = 
---            in (z, z'*.*y', dzf)
+instance Category (-->) where
+  type Object (-->) o = ( PseudoAffine o
+                        , HasBasis (PseudoDiff o)
+                        , HasTrie (Basis (PseudoDiff o)) )
+  id = Differentiable $ \x -> (x, idL, Option Nothing)
+  Differentiable f . Differentiable g = Differentiable $
+     \x -> let (y, y', devg) = g x
+               (z, z', devf) = f y
+               devfg = Option $ case (getOption devf, getOption devg) of
+                        (Nothing, Nothing) -> Nothing
+                        (Just devf', Nothing) -> Just $
+                          \δz -> let δy = devf' δz
+                                 in transformMetric y' δy
+           in (z, z'*.*y', devfg)
               

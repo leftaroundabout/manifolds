@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE StandaloneDeriving         #-}
@@ -14,6 +15,7 @@ module Data.LinearMap.HerMetric (
   , projector
   , metricSq, metric, metrics
   , metriScale
+  , transformMetric
   , HasMetric(..)
   , (^<.>)
   ) where
@@ -86,6 +88,12 @@ metrics m vs = sqrt . sum $ metricSq m <$> vs
 
 
 
+transformMetric :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
+           => (v:-*w) -> HerMetric v -> HerMetric w
+transformMetric t (HerMetric m) = HerMetric $ t *.* m *.* adjoint t
+
+
+
 class ( HasBasis v, RealFloat (Scalar v), HasTrie (Basis v)
       , VectorSpace (DualSpace v), HasBasis (DualSpace v)
       , Scalar v ~ Scalar (DualSpace v), Basis v ~ Basis (DualSpace v) )
@@ -93,6 +101,8 @@ class ( HasBasis v, RealFloat (Scalar v), HasTrie (Basis v)
   type DualSpace v :: *
   type DualSpace v = v
   (<.>^) :: DualSpace v -> v -> Scalar v
+  adjoint :: (HasMetric w, Scalar w ~ Scalar v)
+       => (v:-*w) -> DualSpace w :-* DualSpace v
   
 
 (^<.>) :: HasMetric v => v -> DualSpace v -> Scalar v
@@ -100,8 +110,16 @@ ket ^<.> bra = bra <.>^ ket
 
 instance HasMetric Double where
   (<.>^) = (<.>)
+  adjoint m = linear (<.>^ lapply m 1)
 instance (HasMetric v, HasMetric w, Scalar v ~ Scalar w) => HasMetric (v,w) where
   type DualSpace (v,w) = (DualSpace v, DualSpace w)
   (v,w)<.>^(v',w') = v<.>^v' + w<.>^w'
+  adjoint m = linear
+     $ \xd -> ( lapply (adjoint $ linear $ lapply m . (,zeroV)) xd
+              , lapply (adjoint $ linear $ lapply m . (zeroV,)) xd )
+
+
+
+
 
 
