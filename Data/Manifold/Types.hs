@@ -33,6 +33,7 @@ import Data.AffineSpace
 import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
+import Data.Monoid
 
 import qualified Prelude
 
@@ -59,6 +60,22 @@ data GraphWindowSpec = GraphWindowSpec {
 
 
 
+data ZeroDim k = Origin deriving(Eq, Show)
+instance Monoid (ZeroDim k) where
+  mempty = Origin
+  mappend Origin Origin = Origin
+instance AdditiveGroup (ZeroDim k) where
+  zeroV = Origin
+  Origin ^+^ Origin = Origin
+  negateV Origin = Origin
+instance VectorSpace (ZeroDim k) where
+  type Scalar (ZeroDim k) = k
+  _ *^ Origin = Origin
+instance HasBasis (ZeroDim k) where
+  type Basis (ZeroDim k) = Void
+  basisValue = absurd
+  decompose Origin = []
+  decompose' Origin = absurd
 
 data S⁰ = PositiveHalfSphere | NegativeHalfSphere deriving(Eq, Show)
 newtype S¹ = S¹ { φParamS¹ :: Double -- [-π, π[

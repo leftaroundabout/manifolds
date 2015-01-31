@@ -37,6 +37,7 @@ import Data.MemoTrie
 
 import Control.Applicative
     
+import Data.Manifold.Types
 
 
 infixr 7 <.>^, ^<.>
@@ -189,6 +190,10 @@ class ( HasBasis v, RealFloat (Scalar v), HasTrie (Basis v)
 (^<.>) :: HasMetric v => v -> DualSpace v -> Scalar v
 ket ^<.> bra = bra <.>^ ket
 
+instance (RealFloat k) => HasMetric (ZeroDim k) where
+  Origin<.>^Origin = 0
+  functional _ = Origin
+  doubleDual = id; doubleDual'= id
 instance HasMetric Double where
   (<.>^) = (<.>)
   functional f = f 1

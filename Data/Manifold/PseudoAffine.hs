@@ -80,6 +80,10 @@ instance PseudoAffine t where {   \
 deriveAffine(Double)
 deriveAffine(Rational)
 
+instance PseudoAffine (ZeroDim k) where
+  type PseudoDiff (ZeroDim k) = ZeroDim k
+  Origin .-~. Origin = Origin
+  Origin .+~^ Origin = Origin
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   type PseudoDiff (a,b) = (PseudoDiff a, PseudoDiff b)
   (a,b).-~.(c,d) = (a.-~.c, b.-~.d)
@@ -135,6 +139,7 @@ newtype Differentiable s d c
                         d -> ( c
                              , PseudoDiff d :-* PseudoDiff c
                              , Option (HerMetric(PseudoDiff c)->HerMetric(PseudoDiff d)) ) }
+type (-->) = Differentiable ℝ
 
 
 instance (RealFloat s) => Category (Differentiable s) where
@@ -152,4 +157,19 @@ instance (RealFloat s) => Category (Differentiable s) where
                            (devg' $ transformMetric z' δz)
                               ^+^ (transformMetric y' $ devf' δz)
            in (z, z'*.*y', devfg)
+
+
+instance (RealFloat s) => Cartesian (Differentiable s) where
+  type UnitObject (Differentiable s) = ZeroDim s
+  swap = Differentiable $ \(x,y) -> ((y,x), lSwap, Option Nothing)
+   where lSwap = linear swap
+  attachUnit = Differentiable $ \x -> ((x, Origin), lAttachUnit, Option Nothing)
+   where lAttachUnit = linear $ \x ->  (x, Origin)
+  detachUnit = Differentiable $ \(x, Origin) -> (x, lDetachUnit, Option Nothing)
+   where lDetachUnit = linear $ \(x, Origin) ->  x
+  regroup = Differentiable $ \(x,(y,z)) -> (((x,y),z), lRegroup, Option Nothing)
+   where lRegroup = linear regroup
+  regroup' = Differentiable $ \((x,y),z) -> ((x,(y,z)), lRegroup, Option Nothing)
+   where lRegroup = linear regroup'
+
               
