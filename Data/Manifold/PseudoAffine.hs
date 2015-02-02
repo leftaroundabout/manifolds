@@ -133,51 +133,49 @@ tau = 2 * pi
 
 
 
+type LinDevPropag d c = HerMetric (PseudoDiff c) -> HerMetric (PseudoDiff d)
 
 newtype Differentiable s d c
    = Differentiable { getDifferentiable ::
-                        d -> ( c
-                             , PseudoDiff d :-* PseudoDiff c
-                             , HerMetric(PseudoDiff c) -> Option(HerMetric(PseudoDiff d)) ) 
-                    }
+                        d -> ( c, PseudoDiff d :-* PseudoDiff c, LinDevPropag d c ) }
 type (-->) = Differentiable ℝ
 
 
 instance (VectorSpace s) => Category (Differentiable s) where
   type Object (Differentiable s) o
          = ( PseudoAffine o, HasMetric (PseudoDiff o), Scalar (PseudoDiff o) ~ s )
-  id = Differentiable $ \x -> (x, idL, const $ Option Nothing)
+  id = Differentiable $ \x -> (x, idL, const zeroV)
   Differentiable f . Differentiable g = Differentiable $
      \x -> let (y, g', devg) = g x
                (z, f', devf) = f y
                devfg δz = let δy = transformMetric f' δz
-                          in case getOption $ devf δz of
-                               Nothing -> devg δy
-                               Just δy' -> Option . Just $
-                                            let δx' = transformMetric g' δy'
-                                            in case getOption $ devg δy of
-                                                Nothing -> δx'
-                                                Just δx'' -> δx' ^+^ δx''
+                              εy = devf δz
+                          in transformMetric g' εy ^+^ devg δy ^+^ devg εy
            in (z, f'*.*g', devfg)
 
 
 instance (VectorSpace s) => Cartesian (Differentiable s) where
   type UnitObject (Differentiable s) = ZeroDim s
-  swap = Differentiable $ \(x,y) -> ((y,x), lSwap, const $ Option Nothing)
+  swap = Differentiable $ \(x,y) -> ((y,x), lSwap, const zeroV)
    where lSwap = linear swap
-  attachUnit = Differentiable $ \x -> ((x, Origin), lAttachUnit, const $ Option Nothing)
+  attachUnit = Differentiable $ \x -> ((x, Origin), lAttachUnit, const zeroV)
    where lAttachUnit = linear $ \x ->  (x, Origin)
-  detachUnit = Differentiable $ \(x, Origin) -> (x, lDetachUnit, const $ Option Nothing)
+  detachUnit = Differentiable $ \(x, Origin) -> (x, lDetachUnit, const zeroV)
    where lDetachUnit = linear $ \(x, Origin) ->  x
-  regroup = Differentiable $ \(x,(y,z)) -> (((x,y),z), lRegroup, const $ Option Nothing)
+  regroup = Differentiable $ \(x,(y,z)) -> (((x,y),z), lRegroup, const zeroV)
    where lRegroup = linear regroup
-  regroup' = Differentiable $ \((x,y),z) -> ((x,(y,z)), lRegroup, const $ Option Nothing)
+  regroup' = Differentiable $ \((x,y),z) -> ((x,(y,z)), lRegroup, const zeroV)
    where lRegroup = linear regroup'
 
 
--- instance (VectorSpace s) => Morphism (Differentiable s) where
---   Differentiable f *** Differentiable g = Differentiable h
---    where h (x,y) = ((fx, gy), linear $ lapply f'***lapply g', devfg)
---           where (fx, f', devf) = f x
---                 (gy, g', devg) = g x
---                 devfg = 
+instance (VectorSpace s) => Morphism (Differentiable s) where
+  Differentiable f *** Differentiable g = Differentiable h
+   where h (x,y) = ((fx, gy), linear $ lapply f'***lapply g', devfg)
+          where (fx, f', devf) = f x
+                (gy, g', devg) = g y
+                devfg δs = transformMetric lfst δx 
+                           ^+^ transformMetric lsnd δy
+                  where δx = devf $ transformMetric lcofst δs
+                        δy = devg $ transformMetric lcosnd δs
+         lfst = linear fst; lsnd = linear snd
+         lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
