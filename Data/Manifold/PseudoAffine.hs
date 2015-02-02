@@ -170,12 +170,29 @@ instance (VectorSpace s) => Cartesian (Differentiable s) where
 
 instance (VectorSpace s) => Morphism (Differentiable s) where
   Differentiable f *** Differentiable g = Differentiable h
-   where h (x,y) = ((fx, gy), linear $ lapply f'***lapply g', devfg)
+   where h (x,y) = ((fx, gy), lPar, devfg)
           where (fx, f', devf) = f x
                 (gy, g', devg) = g y
                 devfg δs = transformMetric lfst δx 
                            ^+^ transformMetric lsnd δy
                   where δx = devf $ transformMetric lcofst δs
                         δy = devg $ transformMetric lcosnd δs
+                lPar = linear $ lapply f'***lapply g'
          lfst = linear fst; lsnd = linear snd
+         lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
+
+
+instance (VectorSpace s) => PreArrow (Differentiable s) where
+  terminal = Differentiable $ \_ -> (Origin, zeroV, const zeroV)
+  fst = Differentiable $ \(x,_) -> (x, lfst, const zeroV)
+   where lfst = linear fst
+  snd = Differentiable $ \(_,y) -> (y, lsnd, const zeroV)
+   where lsnd = linear snd
+  Differentiable f &&& Differentiable g = Differentiable h
+   where h x = ((fx, gx), lFanout, devfg)
+          where (fx, f', devf) = f x
+                (gx, g', devg) = g x
+                devfg δs = (devf $ transformMetric lcofst δs)
+                           ^+^ (devg $ transformMetric lcosnd δs)
+                lFanout = linear $ lapply f'&&&lapply g'
          lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
