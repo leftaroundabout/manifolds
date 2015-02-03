@@ -196,3 +196,4 @@ instance (VectorSpace s) => PreArrow (Differentiable s) where
                            ^+^ (devg $ transformMetric lcosnd δs)
                 lFanout = linear $ lapply f'&&&lapply g'
          lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
+

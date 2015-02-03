@@ -83,11 +83,12 @@ instance (HasMetric v) => VectorSpace (HerMetric' v) where
 -- | A metric on @v@ that simply yields the squared overlap of a vector with the
 --   given dual-space reference.
 --   
---   It will perhaps be the most common way of defining 'Hermetric' values to start
+--   It will perhaps be the most common way of defining 'HerMetric' values to start
 --   with such dual-space vectors and superimpose the projectors using the 'VectorSpace'
 --   instance; e.g. @'projector' (1,0) '^+^' 'projector' (0,2)@ yields a hermitian operator
 --   describing the ellipsoid span of the vectors /e/&#x2080; and 2&#x22c5;/e/&#x2081;.
---   Metrics generated this way are always positive definite.
+--   Metrics generated this way are positive definite if no negative coefficients have
+--   been introduced with the '*^' scaling operator or with '^-^'.
 projector :: HasMetric v => DualSpace v -> HerMetric v
 projector u = HerMetric (linear $ \v -> u ^* (u<.>^v))
 
