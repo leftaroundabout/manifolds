@@ -32,6 +32,7 @@ import Data.AffineSpace
 import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
+import Data.Tagged
 import Data.Manifold.Types
 
 import qualified Prelude
@@ -62,6 +63,18 @@ class PseudoAffine x where
   type PseudoDiff x :: *
   (.-~.) :: x -> x -> PseudoDiff x
   (.+~^) :: x -> PseudoDiff x -> x
+
+
+type LocallyScalable s x = ( PseudoAffine x, (PseudoDiff x) ~ PseudoDiff x
+                           , HasMetric (PseudoDiff x)
+                           , DualSpace (PseudoDiff x) ~ DualSpace (PseudoDiff x)
+                           , HasMetric (DualSpace (PseudoDiff x))
+                           , PseudoDiff x ~ DualSpace (DualSpace (PseudoDiff x))
+                           , s ~ Scalar (PseudoDiff x)
+                           , s ~ Scalar (DualSpace (PseudoDiff x)) )
+type LinearManifold s x = ( PseudoAffine x, PseudoDiff x ~ x
+                          , HasMetric x, s ~ Scalar x, s ~ Scalar (DualSpace x) )
+
 
 
 palerp :: (PseudoAffine x, VectorSpace (PseudoDiff x))
@@ -142,8 +155,7 @@ type (-->) = Differentiable ℝ
 
 
 instance (VectorSpace s) => Category (Differentiable s) where
-  type Object (Differentiable s) o
-         = ( PseudoAffine o, HasMetric (PseudoDiff o), Scalar (PseudoDiff o) ~ s )
+  type Object (Differentiable s) o = LocallyScalable s o
   id = Differentiable $ \x -> (x, idL, const zeroV)
   Differentiable f . Differentiable g = Differentiable $
      \x -> let (y, g', devg) = g x
@@ -197,3 +209,71 @@ instance (VectorSpace s) => PreArrow (Differentiable s) where
                 lFanout = linear $ lapply f'&&&lapply g'
          lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
 
+
+instance (VectorSpace s) => WellPointed (Differentiable s) where
+  unit = Tagged Origin
+  globalElement x = Differentiable $ \Origin -> (x, zeroV, const zeroV)
+  const x = Differentiable $ \_ -> (x, zeroV, const zeroV)
+
+
+
+type DfblFuncValue s = GenericProxy (Differentiable s)
+
+instance (VectorSpace s) => HasProxy (Differentiable s) where
+  alg = genericAlg
+  ($~) = genericProxyMap
+instance (VectorSpace s) => CartesianProxy (Differentiable s) where
+  alg1to2 = genericAlg1to2
+  alg2to1 = genericAlg2to1
+  alg2to2 = genericAlg2to2
+instance (VectorSpace s)
+      => PointProxy (DfblFuncValue s) (Differentiable s) a x where
+  point = genericPoint
+
+
+
+actuallyLinear :: ( LinearManifold s x, LinearManifold s y )
+            => (x:-*y) -> Differentiable s x y
+actuallyLinear f = Differentiable $ \x -> (lapply f x, f, const zeroV)
+
+
+dfblFnValsFunc :: ( LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
+                  , v ~ PseudoDiff c, v' ~ PseudoDiff c'
+                  , ε ~ HerMetric v, ε ~ HerMetric v' )
+             => (c' -> (c, v':-*v, ε->ε)) -> DfblFuncValue s d c' -> DfblFuncValue s d c
+dfblFnValsFunc f = (Differentiable f $~)
+
+dfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
+         ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
+         ,  LocallyScalable s d
+         , v ~ PseudoDiff c, v' ~ PseudoDiff c', v'' ~ PseudoDiff c''
+         , ε ~ HerMetric v  , ε' ~ HerMetric v'  , ε'' ~ HerMetric v'', ε~ε', ε~ε''  )
+       => (  c' -> c'' -> (c, (v',v''):-*v, ε -> (ε',ε''))  )
+         -> DfblFuncValue s d c' -> DfblFuncValue s d c'' -> DfblFuncValue s d c
+dfblFnValsCombine cmb (GenericProxy (Differentiable f))
+                      (GenericProxy (Differentiable g)) 
+    = GenericProxy . Differentiable $
+        \d -> let (c', f', devf) = f d
+                  (c'', g', devg) = g d
+                  (c, h', devh) = cmb c' c''
+                  h'l = h' *.* lcofst; h'r = h' *.* lcosnd
+              in ( c
+                 , h' *.* linear (lapply f' &&& lapply g')
+                 , \εc -> let εc' = transformMetric h'l εc
+                              εc'' = transformMetric h'r εc
+                              (δc',δc'') = devh εc 
+                          in devf εc' ^+^ devg εc''
+                               ^+^ transformMetric f' δc'
+                               ^+^ transformMetric g' δc''
+                 )
+ where lcofst = linear(,zeroV)
+       lcosnd = linear(zeroV,) 
+-- 
+-- 
+-- instance (LinearManifold s x, LocallyScalable s a)
+--     => AdditiveGroup (GenericProxy (Differentiable s) a x) where
+--   zeroV = point zeroV
+--   (^+^) = curry . ($~) . Differentiable $
+--     \(p,q) -> (p^+^q, 
+  
+  

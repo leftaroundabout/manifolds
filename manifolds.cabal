@@ -42,6 +42,7 @@ Library
                      , comonad
                      , semigroups
                      , void
+                     , tagged
                      , constrained-categories
   other-extensions:  FlexibleInstances
                      , TypeFamilies
