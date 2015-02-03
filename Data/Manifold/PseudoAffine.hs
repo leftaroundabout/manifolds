@@ -73,7 +73,9 @@ type LocallyScalable s x = ( PseudoAffine x, (PseudoDiff x) ~ PseudoDiff x
                            , s ~ Scalar (PseudoDiff x)
                            , s ~ Scalar (DualSpace (PseudoDiff x)) )
 type LinearManifold s x = ( PseudoAffine x, PseudoDiff x ~ x
-                          , HasMetric x, s ~ Scalar x, s ~ Scalar (DualSpace x) )
+                          , HasMetric x, HasMetric (DualSpace x)
+                          , DualSpace (DualSpace x) ~ x
+                          , s ~ Scalar x, s ~ Scalar (DualSpace x) )
 
 
 
@@ -268,12 +270,17 @@ dfblFnValsCombine cmb (GenericProxy (Differentiable f))
                  )
  where lcofst = linear(,zeroV)
        lcosnd = linear(zeroV,) 
--- 
--- 
--- instance (LinearManifold s x, LocallyScalable s a)
---     => AdditiveGroup (GenericProxy (Differentiable s) a x) where
---   zeroV = point zeroV
---   (^+^) = curry . ($~) . Differentiable $
---     \(p,q) -> (p^+^q, 
+
+
+
+
+
+instance (LinearManifold s x, LocallyScalable s a, Floating s)
+    => AdditiveGroup (GenericProxy (Differentiable s) a x) where
+  zeroV = point zeroV
+  (^+^) = dfblFnValsCombine $ \a b -> (a^+^b, lPlus, \ε -> (ε ^* sqrt 2, ε ^* sqrt 2))
+      where lPlus = linear $ uncurry (^+^)
+  negateV = dfblFnValsFunc $ \a -> (negateV a, lNegate, const zeroV)
+      where lNegate = linear negateV
   
   
