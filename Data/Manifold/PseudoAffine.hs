@@ -150,6 +150,10 @@ tau = 2 * pi
 
 type LinDevPropag d c = HerMetric (PseudoDiff c) -> HerMetric (PseudoDiff d)
 
+dev_ε_δ :: (RealFloat a, LinearManifold a a, a ~ DualSpace a)
+                => (a -> a) -> LinDevPropag a a
+dev_ε_δ f d = let ε = 1 / metric d 1 in projector $ 1 / sqrt (f ε)
+
 newtype Differentiable s d c
    = Differentiable { getDifferentiable ::
                         d -> ( c, PseudoDiff d :-* PseudoDiff c, LinDevPropag d c ) }
@@ -275,12 +279,41 @@ dfblFnValsCombine cmb (GenericProxy (Differentiable f))
 
 
 
-instance (LinearManifold s x, LocallyScalable s a, Floating s)
-    => AdditiveGroup (GenericProxy (Differentiable s) a x) where
+instance (LinearManifold s v, LocallyScalable s a, Floating s)
+    => AdditiveGroup (DfblFuncValue s a v) where
   zeroV = point zeroV
-  (^+^) = dfblFnValsCombine $ \a b -> (a^+^b, lPlus, \ε -> (ε ^* sqrt 2, ε ^* sqrt 2))
+  (^+^) = dfblFnValsCombine $ \a b -> (a^+^b, lPlus, const zeroV)
       where lPlus = linear $ uncurry (^+^)
   negateV = dfblFnValsFunc $ \a -> (negateV a, lNegate, const zeroV)
       where lNegate = linear negateV
   
+instance (LocallyScalable Double a) => Num (DfblFuncValue Double a Double) where
+  fromInteger i = point $ fromInteger i
+  (+) = dfblFnValsCombine $ \a b -> (a+b, lPlus, const zeroV)
+      where lPlus = linear $ uncurry (+)
+  (*) = dfblFnValsCombine $
+          \a b -> ( a*b
+                  , linear $ \(da,db) -> a*db + b*da
+                  , \d -> let d² = error "Metric-pow undefined in Num DfblFuncValue."
+                          in (d²,d²)
+                           -- ε δa δb = (a+δa)*(b+δb) - (a*b + (a*δa + b*δb)) 
+                           --         = δa·δb
+                  )
+  negate = dfblFnValsFunc $ \a -> (negate a, lNegate, const zeroV)
+      where lNegate = linear negate
+  abs = dfblFnValsFunc dfblAbs
+   where dfblAbs a
+          | a>0        = (a, idL, dev_ε_δ $ \ε -> a + ε/2) 
+          | a<0        = (-a, negateV idL, dev_ε_δ $ \ε -> ε/2 - a)
+          | otherwise  = (0, zeroV, (^/ sqrt 2))
+  signum = dfblFnValsFunc dfblSgn
+   where dfblSgn a
+          | a>0        = (1, zeroV, dev_ε_δ $ const a)
+          | a<0        = (-1, zeroV, dev_ε_δ $ \_ -> -a)
+          | otherwise  = (0, zeroV, const $ projector 1)
+-- instance (LinearManifold s v, LocallyScalable s a, Floating s)
+--       => VectorSpace (DfblFuncValue s a v) where
+--   type Scalar (DfblFuncValue s a v) = DfblFuncValue s a (Scalar v)
+--   (*^) = dfblFnValsCombine $ \μ v -> (μ*^v, lScl, \ε -> (ε ^* sqrt 2, ε ^* sqrt 2))
+--       where lScl = linear $ uncurry (*^)
   
