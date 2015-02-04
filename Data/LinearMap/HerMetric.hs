@@ -30,6 +30,8 @@ module Data.LinearMap.HerMetric (
 
     
 
+import Prelude hiding ((^))
+
 import Data.VectorSpace
 import Data.LinearMap
 import Data.Basis
@@ -221,3 +223,47 @@ adjoint :: (HasMetric v, HasMetric w, Scalar w ~ Scalar v)
 adjoint m = linear $ \w -> functional $ \v
                      -> w <.>^lapply m v
 
+
+
+metrConst :: (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Scalar v -> HerMetric v
+metrConst = HerMetric . linear . (*^)
+
+instance (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Num (HerMetric v) where
+  fromInteger = metrConst . fromInteger
+  (+) = (^+^)
+  negate = negateV
+           
+  -- | This does /not/ work correctly if the metrics don't share an eigenbasis!
+  HerMetric m * HerMetric n = HerMetric $ m *.* n
+                              
+  -- | Undefined, though it could actually be done.
+  abs = error "abs undefined for HerMetric"
+  signum = error "signum undefined for HerMetric"
+
+
+metrNumFun :: (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Num v)
+      => (v -> v) -> HerMetric v -> HerMetric v
+metrNumFun f (HerMetric m) = HerMetric . linear . (*^) . f $ lapply m 1
+
+instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Fractional v) 
+            => Fractional (HerMetric v) where
+  fromRational = metrConst . fromRational
+  recip = metrNumFun recip
+
+instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
+            => Floating (HerMetric v) where
+  pi = metrConst pi
+  sqrt = metrNumFun sqrt
+  exp = metrNumFun exp
+  log = metrNumFun log
+  sin = metrNumFun sin
+  cos = metrNumFun cos
+  tan = metrNumFun tan
+  asin = metrNumFun asin
+  acos = metrNumFun acos
+  atan = metrNumFun atan
+  sinh = metrNumFun sinh
+  cosh = metrNumFun cosh
+  asinh = metrNumFun asinh
+  atanh = metrNumFun atanh
+  acosh = metrNumFun acosh

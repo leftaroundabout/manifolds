@@ -150,7 +150,7 @@ tau = 2 * pi
 
 type LinDevPropag d c = HerMetric (PseudoDiff c) -> HerMetric (PseudoDiff d)
 
-dev_ε_δ :: (RealFloat a, LinearManifold a a, a ~ DualSpace a)
+dev_ε_δ :: (Floating a, LinearManifold a a, a ~ DualSpace a)
                 => (a -> a) -> LinDevPropag a a
 dev_ε_δ f d = let ε = 1 / metric d 1 in projector $ 1 / sqrt (f ε)
 
@@ -287,17 +287,18 @@ instance (LinearManifold s v, LocallyScalable s a, Floating s)
   negateV = dfblFnValsFunc $ \a -> (negateV a, lNegate, const zeroV)
       where lNegate = linear negateV
   
-instance (LocallyScalable Double a) => Num (DfblFuncValue Double a Double) where
+instance (LinearManifold n n, n ~ DualSpace n, LocallyScalable n a, Floating n)
+            => Num (DfblFuncValue n a n) where
   fromInteger i = point $ fromInteger i
   (+) = dfblFnValsCombine $ \a b -> (a+b, lPlus, const zeroV)
       where lPlus = linear $ uncurry (+)
   (*) = dfblFnValsCombine $
           \a b -> ( a*b
                   , linear $ \(da,db) -> a*db + b*da
-                  , \d -> let d² = error "Metric-pow undefined in Num DfblFuncValue."
-                          in (d²,d²)
-                           -- ε δa δb = (a+δa)*(b+δb) - (a*b + (a*δa + b*δb)) 
+                  , \d -> let d¹₂ = sqrt d in (d¹₂,d¹₂)
+                           -- ε δa δb = (a+δa)·(b+δb) - (a·b + (a·δa + b·δb)) 
                            --         = δa·δb
+                           --   so choose δa = δb = √ε
                   )
   negate = dfblFnValsFunc $ \a -> (negate a, lNegate, const zeroV)
       where lNegate = linear negate
@@ -311,6 +312,9 @@ instance (LocallyScalable Double a) => Num (DfblFuncValue Double a Double) where
           | a>0        = (1, zeroV, dev_ε_δ $ const a)
           | a<0        = (-1, zeroV, dev_ε_δ $ \_ -> -a)
           | otherwise  = (0, zeroV, const $ projector 1)
+
+
+
 -- instance (LinearManifold s v, LocallyScalable s a, Floating s)
 --       => VectorSpace (DfblFuncValue s a v) where
 --   type Scalar (DfblFuncValue s a v) = DfblFuncValue s a (Scalar v)
