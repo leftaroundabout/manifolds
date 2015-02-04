@@ -49,7 +49,7 @@ infix 6 .-~.
 infixl 6 .+~^
 
 -- | 'PseudoAffine' is intended as an alternative class for 'Manifold's. The interface
---   is actually identical to the better-known 'AffineSpace' class, but unlike in the
+--   is almost identical to the better-known 'AffineSpace' class, but unlike in the
 --   standard mathematical definition of affine spaces we don't require associativity of
 --   '.+~^' with '^+^', except in an asymptotic sense for small vectors.
 --   
@@ -58,10 +58,10 @@ infixl 6 .+~^
 --   designated origin, a pseudo-affine space can have nontrivial topology on the global
 --   scale, and yet be used in practically the same way as an affine space. At least the
 --   usual spheres and tori make good instances, perhaps the class is in fact equivalent to
---   /parallelisable path-connected manifolds/.
+--   /parallelisable manifolds/.
 class PseudoAffine x where
   type PseudoDiff x :: *
-  (.-~.) :: x -> x -> PseudoDiff x
+  (.-~.) :: x -> x -> Option (PseudoDiff x)
   (.+~^) :: x -> PseudoDiff x -> x
 
 
@@ -80,16 +80,15 @@ type LinearManifold s x = ( PseudoAffine x, PseudoDiff x ~ x
 
 
 palerp :: (PseudoAffine x, VectorSpace (PseudoDiff x))
-    => x -> x -> Scalar (PseudoDiff x) -> x
-palerp p1 p2 = \t -> p1 .+~^ t *^ v
- where v = p2 .-~. p1
+    => x -> x -> Option (Scalar (PseudoDiff x) -> x)
+palerp p1 p2 = fmap (\v t -> p1 .+~^ t *^ v) $ p2 .-~. p1
 
 
 
 #define deriveAffine(t)          \
 instance PseudoAffine t where {   \
   type PseudoDiff t = Diff t;      \
-  (.-~.) = (.-.);                   \
+  a.-~.b = pure (a.-.b);            \
   (.+~^) = (.+^)  }
 
 deriveAffine(Double)
@@ -97,24 +96,24 @@ deriveAffine(Rational)
 
 instance PseudoAffine (ZeroDim k) where
   type PseudoDiff (ZeroDim k) = ZeroDim k
-  Origin .-~. Origin = Origin
+  Origin .-~. Origin = pure Origin
   Origin .+~^ Origin = Origin
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   type PseudoDiff (a,b) = (PseudoDiff a, PseudoDiff b)
-  (a,b).-~.(c,d) = (a.-~.c, b.-~.d)
+  (a,b).-~.(c,d) = liftA2 (,) (a.-~.c) (b.-~.d)
   (a,b).+~^(v,w) = (a.+~^v, b.+~^w)
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
   type PseudoDiff (a,b,c) = (PseudoDiff a, PseudoDiff b, PseudoDiff c)
-  (a,b,c).-~.(d,e,f) = (a.-~.d, b.-~.e, c.-~.f)
+  (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
   (a,b,c).+~^(v,w,x) = (a.+~^v, b.+~^w, c.+~^x)
 
 
 instance PseudoAffine S¹ where
   type PseudoDiff S¹ = ℝ
   S¹ φ₁ .-~. S¹ φ₀
-     | δφ > pi     = δφ - 2*pi
-     | δφ < (-pi)  = δφ + 2*pi
-     | otherwise   = δφ
+     | δφ > pi     = pure (δφ - 2*pi)
+     | δφ < (-pi)  = pure (δφ + 2*pi)
+     | otherwise   = pure δφ
    where δφ = φ₁ - φ₀
   S¹ φ₀ .+~^ δφ
      | φ' < 0     = S¹ $ φ' + tau
@@ -124,8 +123,8 @@ instance PseudoAffine S¹ where
 instance PseudoAffine S² where
   type PseudoDiff S² = ℝ²
   S² ϑ₁ φ₁ .-~. S² ϑ₀ φ₀
-     | ϑ₀ < pi/2  = ϑ₁*^embed(S¹ φ₁) ^-^ ϑ₀*^embed(S¹ φ₀)
-     | otherwise  = (pi-ϑ₁)*^embed(S¹ φ₁) ^-^ (pi-ϑ₀)*^embed(S¹ φ₀)
+     | ϑ₀ < pi/2  = pure ( ϑ₁*^embed(S¹ φ₁) ^-^ ϑ₀*^embed(S¹ φ₀) )
+     | otherwise  = pure ( (pi-ϑ₁)*^embed(S¹ φ₁) ^-^ (pi-ϑ₀)*^embed(S¹ φ₀) )
   S² ϑ₀ φ₀ .+~^ δv
      | ϑ₀ < pi/2  = sphereFold PositiveHalfSphere $ ϑ₀*^embed(S¹ φ₀) ^+^ δv
      | otherwise  = sphereFold NegativeHalfSphere $ (pi-ϑ₀)*^embed(S¹ φ₀) ^+^ δv
@@ -150,7 +149,7 @@ tau = 2 * pi
 
 type LinDevPropag d c = HerMetric (PseudoDiff c) -> HerMetric (PseudoDiff d)
 
-dev_ε_δ :: (Floating a, LinearManifold a a, a ~ DualSpace a)
+dev_ε_δ :: (RealFloat a, LinearManifold a a, a ~ DualSpace a)
                 => (a -> a) -> LinDevPropag a a
 dev_ε_δ f d = let ε = 1 / metric d 1 in projector $ 1 / sqrt (f ε)
 
@@ -287,7 +286,7 @@ instance (LinearManifold s v, LocallyScalable s a, Floating s)
   negateV = dfblFnValsFunc $ \a -> (negateV a, lNegate, const zeroV)
       where lNegate = linear negateV
   
-instance (LinearManifold n n, n ~ DualSpace n, LocallyScalable n a, Floating n)
+instance (LinearManifold n n, n ~ DualSpace n, LocallyScalable n a, RealFloat n)
             => Num (DfblFuncValue n a n) where
   fromInteger i = point $ fromInteger i
   (+) = dfblFnValsCombine $ \a b -> (a+b, lPlus, const zeroV)
