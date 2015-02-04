@@ -314,6 +314,11 @@ instance (LinearManifold n n, n ~ DualSpace n, LocallyScalable n a, RealFloat n)
 
 
 
+-- VectorSpace instance is more problematic than you'd think: multiplication
+-- requires the allowed-deviation backpropagators to be split as square
+-- roots, but the square root of a nontrivial-vector-space metric requires
+-- an eigenbasis transform, which we have not implemented yet.
+-- 
 -- instance (LinearManifold s v, LocallyScalable s a, Floating s)
 --       => VectorSpace (DfblFuncValue s a v) where
 --   type Scalar (DfblFuncValue s a v) = DfblFuncValue s a (Scalar v)
