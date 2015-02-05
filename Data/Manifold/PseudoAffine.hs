@@ -76,6 +76,9 @@ type LinearManifold s x = ( PseudoAffine x, PseudoDiff x ~ x
                           , HasMetric x, HasMetric (DualSpace x)
                           , DualSpace (DualSpace x) ~ x
                           , s ~ Scalar x, s ~ Scalar (DualSpace x) )
+type RealDimension r = ( PseudoAffine r, PseudoDiff r ~ r
+                       , HasMetric r, DualSpace r ~ r, Scalar r ~ r
+                       , RealFloat r )
 
 
 
@@ -149,12 +152,12 @@ tau = 2 * pi
 
 type LinDevPropag d c = HerMetric (PseudoDiff c) -> HerMetric (PseudoDiff d)
 
-dev_ε_δ :: (RealFloat a, LinearManifold a a, a ~ DualSpace a)
+dev_ε_δ :: RealDimension a
                 => (a -> a) -> LinDevPropag a a
 dev_ε_δ f d = let ε = 1 / metric d 1 in projector $ 1 / sqrt (f ε)
 
 newtype Differentiable s d c
-   = Differentiable { getDifferentiable ::
+   = Differentiable { runDifferentiable ::
                         d -> ( c, PseudoDiff d :-* PseudoDiff c, LinDevPropag d c ) }
 type (-->) = Differentiable ℝ
 
@@ -286,7 +289,7 @@ instance (LinearManifold s v, LocallyScalable s a, Floating s)
   negateV = dfblFnValsFunc $ \a -> (negateV a, lNegate, const zeroV)
       where lNegate = linear negateV
   
-instance (LinearManifold n n, n ~ DualSpace n, LocallyScalable n a, RealFloat n)
+instance (RealDimension n, LocallyScalable n a)
             => Num (DfblFuncValue n a n) where
   fromInteger i = point $ fromInteger i
   (+) = dfblFnValsCombine $ \a b -> (a+b, lPlus, const zeroV)
@@ -324,4 +327,57 @@ instance (LinearManifold n n, n ~ DualSpace n, LocallyScalable n a, RealFloat n)
 --   type Scalar (DfblFuncValue s a v) = DfblFuncValue s a (Scalar v)
 --   (*^) = dfblFnValsCombine $ \μ v -> (μ*^v, lScl, \ε -> (ε ^* sqrt 2, ε ^* sqrt 2))
 --       where lScl = linear $ uncurry (*^)
-  
+
+
+-- | Important special operator needed to compute intersection of 'Region's.
+minDblfuncs :: (LocallyScalable s m, RealDimension s)
+     => Differentiable s m s -> Differentiable s m s -> Differentiable s m s
+minDblfuncs (Differentiable f) (Differentiable g) = Differentiable h
+ where h x
+         | fx==gx   = ( fx, (f'^+^g')^/2
+                      , \d -> devf d ^+^ devg d
+                               ^+^ transformMetric (f'^-^g')
+                                                   (projector $ metric d 1) )
+         | fx < gx   = ( fx, f'
+                       , \d -> devf d
+                               ^+^ transformMetric (f'^-^g')
+                                                   (projector $ metric d 1 + gx - fx) )
+        where (fx, f', devf) = f x
+              (gx, g', devg) = g x
+
+
+
+data Region s m where
+  GlobalRegion :: Region s m
+  Interval :: Real n => n -> n -> Region n n
+  Region :: m                      -- Some point /p/ in the region.
+         -> (Differentiable s m s) -- A function that is positive at /p/, decreases
+                                   --  and crosses zero at the region boundaries.
+                                   --  (If it goes positive again somewhere else,
+                                   --  these areas shall /not/ be considered belonging
+                                   --  to the (by definition connected) region.)
+         -> Region s m
+
+
+newtype PWDiffable s d c
+   = PWDiffable {
+        getDfblDomain :: d -> (Region s d, Differentiable s d c) }
+
+
+
+instance (RealDimension s) => Category (PWDiffable s) where
+  type Object (PWDiffable s) o = LocallyScalable s o
+  id = PWDiffable $ \x -> (GlobalRegion, id)
+  PWDiffable f . PWDiffable g = PWDiffable h
+   where h x₀ = case g x₀ of
+                 (Interval l r, gr) -> undefined
+                 (Region _ rx, gr)
+                  -> let (y₀,_,_) = runDifferentiable gr x₀
+                     in case f y₀ of
+                         (Interval l' r', fr) -> undefined
+                         (Region _ ry, fr)
+                               -> ( Region x₀ $ minDblfuncs (ry . gr) rx
+                                  , fr . gr )
+          where (rx, gr) = g x₀
+                
+
