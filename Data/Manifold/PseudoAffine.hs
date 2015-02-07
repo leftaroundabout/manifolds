@@ -349,7 +349,6 @@ minDblfuncs (Differentiable f) (Differentiable g) = Differentiable h
 
 data Region s m where
   GlobalRegion :: Region s m
-  -- Interval :: Real n => n -> n -> Region n n
   Region :: m                      -- Some point /p/ in the region.
          -> (Differentiable s m s) -- A function that is positive at /p/, decreases
                                    --  and crosses zero at the region boundaries.
@@ -374,21 +373,12 @@ instance (RealDimension s) => Category (PWDiffable s) where
                   -> let (y₀,_,_) = runDifferentiable gr x₀
                      in case f y₀ of
                          (GlobalRegion, fr) -> (GlobalRegion, fr . gr)
---                          (Interval l' r', fr) -> undefined
                          (Region _ ry, fr)
                                -> ( Region x₀ $ ry . gr, fr . gr )
---                  (Interval l r, gr)
---                   -> let (y₀,_,_) = runDifferentiable gr x₀
---                      in case f y₀ of
---                          (GlobalRegion, fr) -> (Interval l r, fr . gr)
---                          (Interval l' r', fr) -> undefined
---                          (Region _ ry, fr)
---                                -> ( Region x₀ $ ry . gr, fr . gr )
                  (Region _ rx, gr)
                   -> let (y₀,_,_) = runDifferentiable gr x₀
                      in case f y₀ of
                          (GlobalRegion, fr) -> (Region x₀ rx, fr . gr)
---                          (Interval l' r', fr) -> undefined
                          (Region _ ry, fr)
                                -> ( Region x₀ $ minDblfuncs (ry . gr) rx
                                   , fr . gr )
