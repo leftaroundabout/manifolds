@@ -438,4 +438,7 @@ instance (RealDimension s) => PreArrow (PWDiffable s) where
    where h x = (unsafePreRegionIntersect rfx rgx, dff &&& dfg)
           where (rfx, dff) = f x
                 (rgx, dfg) = g x
+  terminal = globalDiffable terminal
+  fst = globalDiffable fst
+  snd = globalDiffable snd
 
