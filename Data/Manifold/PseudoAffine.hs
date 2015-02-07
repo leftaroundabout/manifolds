@@ -358,23 +358,6 @@ data Region s m where
                                    --  to the (by definition connected) region.)
          -> Region s m
 
--- | 'regionImage' should really be the 'fmap' implementation of
--- 
--- @
--- instance (RealDimension s) => Functor (Region s) (Differentiable s) (->) where
--- @
--- 
---   but that instance overlaps, due to functional dependencies, with
--- 
--- @
--- instance Prelude.Functor f => Functor f (->) (->)
--- @
--- 
---   from the constrained-categories package.
-regionImage :: RealDimension s => Differentiable s c d -> Region s d -> Region s c
-regionImage f (Region x₀ r) = Region y₀ r'
- where r' = r . f
-       (y₀, _, _) = runDifferentiable f x₀
 
 
 newtype PWDiffable s d c
