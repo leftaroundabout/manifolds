@@ -358,6 +358,12 @@ data Region s m where
                                    --  to the (by definition connected) region.)
          -> Region s m
 
+regionProd :: (RealDimension s, LocallyScalable s a, LocallyScalable s b)
+                  => Region s a -> Region s b -> Region s (a,b)
+regionProd GlobalRegion GlobalRegion = GlobalRegion
+regionProd (Region a₀ ra) (Region b₀ rb)
+     = Region (a₀, b₀) (minDblfuncs (ra.fst) (rb.snd))
+
 
 
 newtype PWDiffable s d c
@@ -402,6 +408,8 @@ instance (RealDimension s) => Cartesian (PWDiffable s) where
   
 instance (RealDimension s) => Morphism (PWDiffable s) where
   PWDiffable f *** PWDiffable g = PWDiffable h
-   where h xy = undefined
+   where h (x,y) = (regionProd rfx rgy, dff *** dfg)
+          where (rfx, dff) = f x
+                (rgy, dfg) = g y
 
 
