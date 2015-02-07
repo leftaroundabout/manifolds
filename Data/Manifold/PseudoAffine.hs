@@ -348,27 +348,48 @@ minDblfuncs (Differentiable f) (Differentiable g) = Differentiable h
 
 
 -- | A pathwise connected subset of a manifold @m@ of tangent space over scalar @s@.
-data Region s m where
-  GlobalRegion :: Region s m
-  Region :: m                      -- Some point /p/ in the region.
-         -> (Differentiable s m s) -- A function that is positive at /p/, decreases
-                                   --  and crosses zero at the region boundaries.
-                                   --  (If it goes positive again somewhere else,
-                                   --  these areas shall /not/ be considered belonging
-                                   --  to the (by definition connected) region.)
-         -> Region s m
+data Region s m = Region { regionRefPoint :: m
+                         , regionRDef :: PreRegion s m }
 
+-- | A 'PreRegion' needs to be associated with a certain reference point ('Region'
+--   includes that point) to define a connected subset of a manifold.
+data PreRegion s m where
+  GlobalRegion :: PreRegion s m
+  PreRegion :: (Differentiable s m s) -- A function that is positive at reference point /p/,
+                                      -- decreases and crosses zero at the region's
+                                      -- boundaries. (If it goes positive again somewhere
+                                      -- else, these areas shall /not/ be considered
+                                      -- belonging to the (by definition connected) region.)
+         -> PreRegion s m
+
+-- | Set-intersection of regions would not be guaranteed to yield a connected result
+--   or even have the reference point of one region contained in the other. This
+--   combinator assumes (unchecked) that the references are in a connected
+--   sub-intersection, which is used as the result.
+unsafePreRegionIntersect :: (RealDimension s, LocallyScalable s a)
+                  => PreRegion s a -> PreRegion s a -> PreRegion s a
+unsafePreRegionIntersect GlobalRegion r = r
+unsafePreRegionIntersect r GlobalRegion = r
+unsafePreRegionIntersect (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs ra rb
+
+-- | Cartesian product of two regions.
 regionProd :: (RealDimension s, LocallyScalable s a, LocallyScalable s b)
                   => Region s a -> Region s b -> Region s (a,b)
-regionProd GlobalRegion GlobalRegion = GlobalRegion
-regionProd (Region a₀ ra) (Region b₀ rb)
-     = Region (a₀, b₀) (minDblfuncs (ra.fst) (rb.snd))
+regionProd (Region a₀ ra) (Region b₀ rb) = Region (a₀,b₀) (preRegionProd ra rb)
+
+-- | Cartesian product of two pre-regions.
+preRegionProd :: (RealDimension s, LocallyScalable s a, LocallyScalable s b)
+                  => PreRegion s a -> PreRegion s b -> PreRegion s (a,b)
+preRegionProd GlobalRegion GlobalRegion = GlobalRegion
+preRegionProd GlobalRegion (PreRegion rb) = PreRegion $ rb . snd
+preRegionProd (PreRegion ra) GlobalRegion = PreRegion $ ra . fst
+preRegionProd (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs (ra.fst) (rb.snd)
 
 
 
 newtype PWDiffable s d c
    = PWDiffable {
-        getDfblDomain :: d -> (Region s d, Differentiable s d c) }
+        getDfblDomain :: d -> (PreRegion s d, Differentiable s d c) }
 
 
 
@@ -381,14 +402,14 @@ instance (RealDimension s) => Category (PWDiffable s) where
                   -> let (y₀,_,_) = runDifferentiable gr x₀
                      in case f y₀ of
                          (GlobalRegion, fr) -> (GlobalRegion, fr . gr)
-                         (Region _ ry, fr)
-                               -> ( Region x₀ $ ry . gr, fr . gr )
-                 (Region _ rx, gr)
+                         (PreRegion ry, fr)
+                               -> ( PreRegion $ ry . gr, fr . gr )
+                 (PreRegion rx, gr)
                   -> let (y₀,_,_) = runDifferentiable gr x₀
                      in case f y₀ of
-                         (GlobalRegion, fr) -> (Region x₀ rx, fr . gr)
-                         (Region _ ry, fr)
-                               -> ( Region x₀ $ minDblfuncs (ry . gr) rx
+                         (GlobalRegion, fr) -> (PreRegion rx, fr . gr)
+                         (PreRegion ry, fr)
+                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
                                   , fr . gr )
           where (rx, gr) = g x₀
 
@@ -408,8 +429,13 @@ instance (RealDimension s) => Cartesian (PWDiffable s) where
   
 instance (RealDimension s) => Morphism (PWDiffable s) where
   PWDiffable f *** PWDiffable g = PWDiffable h
-   where h (x,y) = (regionProd rfx rgy, dff *** dfg)
+   where h (x,y) = (preRegionProd rfx rgy, dff *** dfg)
           where (rfx, dff) = f x
                 (rgy, dfg) = g y
 
+instance (RealDimension s) => PreArrow (PWDiffable s) where
+  PWDiffable f &&& PWDiffable g = PWDiffable h
+   where h x = (unsafePreRegionIntersect rfx rgx, dff &&& dfg)
+          where (rfx, dff) = f x
+                (rgx, dfg) = g x
 
