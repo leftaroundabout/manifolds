@@ -383,5 +383,19 @@ instance (RealDimension s) => Category (PWDiffable s) where
                                -> ( Region x₀ $ minDblfuncs (ry . gr) rx
                                   , fr . gr )
           where (rx, gr) = g x₀
+
+globalDiffable :: Differentiable s a b -> PWDiffable s a b
+globalDiffable f = PWDiffable $ const (GlobalRegion, f)
+
+instance (RealDimension s) => EnhancedCat (PWDiffable s) (Differentiable s) where
+  arr = globalDiffable
                 
+instance (RealDimension s) => Cartesian (PWDiffable s) where
+  type UnitObject (PWDiffable s) = ZeroDim s
+  swap = globalDiffable swap
+  attachUnit = globalDiffable attachUnit
+  detachUnit = globalDiffable detachUnit
+  regroup = globalDiffable regroup
+  regroup' = globalDiffable regroup'
+  
 
