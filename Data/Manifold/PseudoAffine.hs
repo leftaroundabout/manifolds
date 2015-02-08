@@ -388,7 +388,7 @@ preRegionProd (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs (ra.fst) (
 
 positivePreRegion, negativePreRegion :: (RealDimension s) => PreRegion s s
 positivePreRegion = PreRegion $ Differentiable prr
- where prr x = (1 - 1/xp1, (1/xp1^2) *^ idL, dev_ε_δ δ )
+ where prr x = (1 - 1/xp1, (1/xp1²) *^ idL, dev_ε_δ δ )
                  -- ε = (1 − 1/(1+x)) + (-δ · 1/(x+1)²) − (1 − 1/(1+x−δ))
                  --   = 1/(1+x−δ) − 1/(1+x) − δ · 1/(x+1)²
                  -- ε·(1+x−δ) = 1 − (1+x−δ)/(1+x) − δ·(1+x-δ)/(x+1)²
@@ -402,7 +402,9 @@ positivePreRegion = PreRegion $ Differentiable prr
                     in mph + sqrt(mph^2 - q)
               xp1 = (x+1)
               xp1² = xp1 ^ 2
-negativePreRegion = undefined
+negativePreRegion = PreRegion $ ppr . ngt
+ where PreRegion ppr = positivePreRegion
+       ngt = actuallyLinear $ linear negate
 
 
 
@@ -536,9 +538,6 @@ instance (RealDimension n, LocallyScalable n a)
           \a b -> ( a*b
                   , linear $ \(da,db) -> a*db + b*da
                   , \d -> let d¹₂ = sqrt d in (d¹₂,d¹₂)
-                           -- ε δa δb = (a+δa)·(b+δb) - (a·b + (a·δa + b·δb)) 
-                           --         = δa·δb
-                           --   so choose δa = δb = √ε
                   )
   negate = gpwDfblFnValsFunc $ \a -> (negate a, lNegate, const zeroV)
       where lNegate = linear negate
@@ -552,3 +551,22 @@ instance (RealDimension n, LocallyScalable n a)
    where sgnPW a₀
           | a₀<0       = (negativePreRegion, const 1)
           | otherwise  = (positivePreRegion, const $ -1)
+
+instance (RealDimension n, LocallyScalable n a)
+            => Fractional (PWDfblFuncValue n a n) where
+  fromRational i = point $ fromRational i
+  recip = (PWDiffable rcipPW $~)
+   where rcipPW a₀
+          | a₀<0       = (negativePreRegion, Differentiable negp)
+          | otherwise  = (positivePreRegion, Differentiable posp)
+         negp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+                 -- ε = 1/x − δ/x² − 1/(x+δ)
+                 -- ε·x + ε·δ = 1 + δ/x − δ/x − δ²/x² − 1
+                 --           = -δ²/x²
+                 -- 0 = δ² + ε·x²·δ + ε·x³
+                 -- δ = let mph = -ε·x²/2 in mph + sqrt (mph² − ε·x³)
+          where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 - ε*x^3)
+                x'¹ = recip x
+         posp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+          where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 + ε*x^3)
+                x'¹ = recip x
