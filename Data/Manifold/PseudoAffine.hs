@@ -386,6 +386,25 @@ preRegionProd (PreRegion ra) GlobalRegion = PreRegion $ ra . fst
 preRegionProd (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs (ra.fst) (rb.snd)
 
 
+positivePreRegion, negativePreRegion :: (RealDimension s) => PreRegion s s
+positivePreRegion = PreRegion $ Differentiable prr
+ where prr x = (1 - 1/xp1, (1/xp1^2) *^ idL, dev_ε_δ δ )
+                 -- ε = (1 − 1/(1+x)) + (-δ · 1/(x+1)²) − (1 − 1/(1+x−δ))
+                 --   = 1/(1+x−δ) − 1/(1+x) − δ · 1/(x+1)²
+                 -- ε·(1+x−δ) = 1 − (1+x−δ)/(1+x) − δ·(1+x-δ)/(x+1)²
+                 -- ε + ε·x − ε·δ = 1 − 1/(1+x) + x/(1+x) − δ/(1+x) − δ/(x+1)² − δ·x/(x+1)² + δ²/(x+1)²
+                 -- 0 = δ² + (ε·(x+1)² − (x+1) − x)·δ + ((1 − ε·(x+1))·(x+1)² + (x−1)·(x+1))
+                 -- δ = let mph = x + (1 − ε·(x+1)²)/2
+                 --         q = (1 − ε·(x+1))·(x+1)² + x² - 1
+                 --     in mph + sqrt(mph² - q)
+        where δ ε = let mph = x + (1 - ε*xp1²)/2
+                        q = (1 - ε*xp1)*xp1² + x^2 - 1
+                    in mph + sqrt(mph^2 - q)
+              xp1 = (x+1)
+              xp1² = xp1 ^ 2
+negativePreRegion = undefined
+
+
 
 newtype PWDiffable s d c
    = PWDiffable {
@@ -500,3 +519,36 @@ gpwDfblFnValsCombine cmb (GenericAgent (PWDiffable fpcs))
        lcosnd = linear(zeroV,) 
 
 
+instance (LinearManifold s v, LocallyScalable s a, RealDimension s)
+    => AdditiveGroup (PWDfblFuncValue s a v) where
+  zeroV = point zeroV
+  (^+^) = gpwDfblFnValsCombine $ \a b -> (a^+^b, lPlus, const zeroV)
+      where lPlus = linear $ uncurry (^+^)
+  negateV = gpwDfblFnValsFunc $ \a -> (negateV a, lNegate, const zeroV)
+      where lNegate = linear negateV
+
+instance (RealDimension n, LocallyScalable n a)
+            => Num (PWDfblFuncValue n a n) where
+  fromInteger i = point $ fromInteger i
+  (+) = gpwDfblFnValsCombine $ \a b -> (a+b, lPlus, const zeroV)
+      where lPlus = linear $ uncurry (+)
+  (*) = gpwDfblFnValsCombine $
+          \a b -> ( a*b
+                  , linear $ \(da,db) -> a*db + b*da
+                  , \d -> let d¹₂ = sqrt d in (d¹₂,d¹₂)
+                           -- ε δa δb = (a+δa)·(b+δb) - (a·b + (a·δa + b·δb)) 
+                           --         = δa·δb
+                           --   so choose δa = δb = √ε
+                  )
+  negate = gpwDfblFnValsFunc $ \a -> (negate a, lNegate, const zeroV)
+      where lNegate = linear negate
+  abs = (PWDiffable absPW $~)
+   where absPW a₀
+          | a₀<0       = (negativePreRegion, desc)
+          | otherwise  = (positivePreRegion, asc)
+         desc = actuallyLinear $ linear negate
+         asc = actuallyLinear idL
+  signum = (PWDiffable sgnPW $~)
+   where sgnPW a₀
+          | a₀<0       = (negativePreRegion, const 1)
+          | otherwise  = (positivePreRegion, const $ -1)
