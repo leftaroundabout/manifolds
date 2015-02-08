@@ -225,17 +225,17 @@ instance (VectorSpace s) => WellPointed (Differentiable s) where
 
 
 
-type DfblFuncValue s = GenericProxy (Differentiable s)
+type DfblFuncValue s = GenericAgent (Differentiable s)
 
-instance (VectorSpace s) => HasProxy (Differentiable s) where
+instance (VectorSpace s) => HasAgent (Differentiable s) where
   alg = genericAlg
-  ($~) = genericProxyMap
-instance (VectorSpace s) => CartesianProxy (Differentiable s) where
+  ($~) = genericAgentMap
+instance (VectorSpace s) => CartesianAgent (Differentiable s) where
   alg1to2 = genericAlg1to2
   alg2to1 = genericAlg2to1
   alg2to2 = genericAlg2to2
 instance (VectorSpace s)
-      => PointProxy (DfblFuncValue s) (Differentiable s) a x where
+      => PointAgent (DfblFuncValue s) (Differentiable s) a x where
   point = genericPoint
 
 
@@ -258,9 +258,9 @@ dfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s.
          , ε ~ HerMetric v  , ε' ~ HerMetric v'  , ε'' ~ HerMetric v'', ε~ε', ε~ε''  )
        => (  c' -> c'' -> (c, (v',v''):-*v, ε -> (ε',ε''))  )
          -> DfblFuncValue s d c' -> DfblFuncValue s d c'' -> DfblFuncValue s d c
-dfblFnValsCombine cmb (GenericProxy (Differentiable f))
-                      (GenericProxy (Differentiable g)) 
-    = GenericProxy . Differentiable $
+dfblFnValsCombine cmb (GenericAgent (Differentiable f))
+                      (GenericAgent (Differentiable g)) 
+    = GenericAgent . Differentiable $
         \d -> let (c', f', devf) = f d
                   (c'', g', devg) = g d
                   (c, h', devh) = cmb c' c''
@@ -449,15 +449,54 @@ instance (RealDimension s) => WellPointed (PWDiffable s) where
   const x = PWDiffable $ \_ -> (GlobalRegion, const x)
 
 
-type PWDfblFuncValue s = GenericProxy (PWDiffable s)
+type PWDfblFuncValue s = GenericAgent (PWDiffable s)
 
-instance RealDimension s => HasProxy (PWDiffable s) where
+instance RealDimension s => HasAgent (PWDiffable s) where
   alg = genericAlg
-  ($~) = genericProxyMap
-instance RealDimension s => CartesianProxy (PWDiffable s) where
+  ($~) = genericAgentMap
+instance RealDimension s => CartesianAgent (PWDiffable s) where
   alg1to2 = genericAlg1to2
   alg2to1 = genericAlg2to1
   alg2to2 = genericAlg2to2
 instance (RealDimension s)
-      => PointProxy (PWDfblFuncValue s) (PWDiffable s) a x where
+      => PointAgent (PWDfblFuncValue s) (PWDiffable s) a x where
   point = genericPoint
+
+gpwDfblFnValsFunc
+     :: ( RealDimension s
+        , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
+        , v ~ PseudoDiff c, v' ~ PseudoDiff c'
+        , ε ~ HerMetric v, ε ~ HerMetric v' )
+             => (c' -> (c, v':-*v, ε->ε)) -> PWDfblFuncValue s d c' -> PWDfblFuncValue s d c
+gpwDfblFnValsFunc f = (PWDiffable (\_ -> (GlobalRegion, Differentiable f)) $~)
+
+gpwDfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
+         ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
+         , LocallyScalable s d, RealDimension s
+         , v ~ PseudoDiff c, v' ~ PseudoDiff c', v'' ~ PseudoDiff c''
+         , ε ~ HerMetric v  , ε' ~ HerMetric v'  , ε'' ~ HerMetric v'', ε~ε', ε~ε''  )
+       => (  c' -> c'' -> (c, (v',v''):-*v, ε -> (ε',ε''))  )
+         -> PWDfblFuncValue s d c' -> PWDfblFuncValue s d c'' -> PWDfblFuncValue s d c
+gpwDfblFnValsCombine cmb (GenericAgent (PWDiffable fpcs))
+                         (GenericAgent (PWDiffable gpcs)) 
+    = GenericAgent . PWDiffable $
+        \d₀ -> let (rc', Differentiable f) = fpcs d₀
+                   (rc'',Differentiable g) = gpcs d₀
+               in (unsafePreRegionIntersect rc' rc'',) . Differentiable $
+                    \d -> let (c', f', devf) = f d
+                              (c'',g', devg) = g d
+                              (c, h', devh) = cmb c' c''
+                              h'l = h' *.* lcofst; h'r = h' *.* lcosnd
+                          in ( c
+                             , h' *.* linear (lapply f' &&& lapply g')
+                             , \εc -> let εc' = transformMetric h'l εc
+                                          εc'' = transformMetric h'r εc
+                                          (δc',δc'') = devh εc 
+                                      in devf εc' ^+^ devg εc''
+                                           ^+^ transformMetric f' δc'
+                                           ^+^ transformMetric g' δc''
+                             )
+ where lcofst = linear(,zeroV)
+       lcosnd = linear(zeroV,) 
+
+

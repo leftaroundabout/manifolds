@@ -367,18 +367,18 @@ cntnFuncsCombine cmb (Continuous f) (Continuous g) = Continuous h
 data CntnFuncValue d c = CntnFuncValue { runCntnFuncValue :: d :--> c }
                        | CntnFuncConst c
 
-instance HasProxy (:-->) where
-  type ProxyVal (:-->) d c = CntnFuncValue d c
+instance HasAgent (:-->) where
+  type AgentVal (:-->) d c = CntnFuncValue d c
   alg f = case f $ CntnFuncValue id of 
                           CntnFuncValue q -> q
                           CntnFuncConst c -> const__ c
   f $~ CntnFuncValue g = CntnFuncValue $ f . g
   f $~ CntnFuncConst c = CntnFuncConst $ f $ c
 
-instance PointProxy CntnFuncValue (:-->) d c where
+instance PointAgent CntnFuncValue (:-->) d c where
   point = CntnFuncConst
 
-instance CartesianProxy (:-->) where
+instance CartesianAgent (:-->) where
   alg1to2 f = case f $ CntnFuncValue id of
        (CntnFuncConst c₁, CntnFuncConst c₂) -> const__ (c₁, c₂)
        (CntnFuncConst c₁, CntnFuncValue f₂)
