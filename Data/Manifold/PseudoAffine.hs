@@ -448,3 +448,16 @@ instance (RealDimension s) => WellPointed (PWDiffable s) where
   globalElement x = PWDiffable $ \Origin -> (GlobalRegion, globalElement x)
   const x = PWDiffable $ \_ -> (GlobalRegion, const x)
 
+
+type PWDfblFuncValue s = GenericProxy (PWDiffable s)
+
+instance RealDimension s => HasProxy (PWDiffable s) where
+  alg = genericAlg
+  ($~) = genericProxyMap
+instance RealDimension s => CartesianProxy (PWDiffable s) where
+  alg1to2 = genericAlg1to2
+  alg2to1 = genericAlg2to1
+  alg2to2 = genericAlg2to2
+instance (RealDimension s)
+      => PointProxy (PWDfblFuncValue s) (PWDiffable s) a x where
+  point = genericPoint
