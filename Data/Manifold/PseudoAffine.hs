@@ -442,3 +442,9 @@ instance (RealDimension s) => PreArrow (PWDiffable s) where
   fst = globalDiffable fst
   snd = globalDiffable snd
 
+
+instance (RealDimension s) => WellPointed (PWDiffable s) where
+  unit = Tagged Origin
+  globalElement x = PWDiffable $ \Origin -> (GlobalRegion, globalElement x)
+  const x = PWDiffable $ \_ -> (GlobalRegion, const x)
+
