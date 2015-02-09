@@ -392,14 +392,14 @@ positivePreRegion = PreRegion $ Differentiable prr
                  -- ε = (1 − 1/(1+x)) + (-δ · 1/(x+1)²) − (1 − 1/(1+x−δ))
                  --   = 1/(1+x−δ) − 1/(1+x) − δ · 1/(x+1)²
                  -- ε·(1+x−δ) = 1 − (1+x−δ)/(1+x) − δ·(1+x-δ)/(x+1)²
-                 -- ε + ε·x − ε·δ = 1 − 1/(1+x) + x/(1+x) − δ/(1+x) − δ/(x+1)² − δ·x/(x+1)² + δ²/(x+1)²
-                 -- 0 = δ² + (ε·(x+1)² − (x+1) − x)·δ + ((1 − ε·(x+1))·(x+1)² + (x−1)·(x+1))
-                 -- δ = let mph = x + (1 − ε·(x+1)²)/2
-                 --         q = (1 − ε·(x+1))·(x+1)² + x² - 1
-                 --     in mph + sqrt(mph² - q)
-        where δ ε = let mph = x + (1 - ε*xp1²)/2
-                        q = (1 - ε*xp1)*xp1² + x^2 - 1
-                    in mph + sqrt(mph^2 - q)
+                 -- ε + ε·x − ε·δ = 1 − 1/(1+x) − x/(1+x) + δ/(1+x) − δ/(x+1) + δ²/(x+1)²
+                 --               = 1 − 1/(1+x) − x/(1+x) + δ²/(x+1)²
+                 --               = (1+x − 1 − x)/(1+x) + δ²/(x+1)²
+                 -- 0 = δ² + ε·(x+1)²·δ + ε·(x+1)³
+                 -- δ = let mph = -ε·(x+1)²/2
+                 --     in mph + sqrt(mph² - ε·(x+1)³)
+        where δ ε = let mph = -ε*xp1²/2
+                    in mph + sqrt(mph^2 - ε * xp1² * xp1)
               xp1 = (x+1)
               xp1² = xp1 ^ 2
 negativePreRegion = PreRegion $ ppr . ngt
