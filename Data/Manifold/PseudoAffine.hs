@@ -570,3 +570,16 @@ instance (RealDimension n, LocallyScalable n a)
          posp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
           where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 + ε*x^3)
                 x'¹ = recip x
+
+instance (RealDimension n, LocallyScalable n a)
+            => Floating (PWDfblFuncValue n a n) where
+  pi = point pi
+  exp = gpwDfblFnValsFunc
+    $ \x -> let ex = exp x
+            in ( ex, ex *^ idL, dev_ε_δ $ \ε -> acosh(ε/(2*ex) + 1) )
+                 -- ε = e^(x+δ) − eˣ − eˣ·δ 
+                 --   = eˣ·(e^δ − 1 − δ) 
+                 --   ≤ eˣ · (e^δ − 1 + e^(-δ) − 1)
+                 --   = eˣ · 2·(cosh(δ) − 1)
+                 -- cosh(δ) ≥ ε/(2·eˣ) + 1
+                 -- δ ≥ acosh(ε/(2·eˣ) + 1)
