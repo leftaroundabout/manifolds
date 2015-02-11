@@ -583,3 +583,15 @@ instance (RealDimension n, LocallyScalable n a)
                  --   = eˣ · 2·(cosh(δ) − 1)
                  -- cosh(δ) ≥ ε/(2·eˣ) + 1
                  -- δ ≥ acosh(ε/(2·eˣ) + 1)
+  log = pwDfblFnValsFunc
+    $ \x -> let lnx = log x
+            in ( lnx, recip x *^ idL, dev_ε_δ $ \ε -> x * sqrt(1 - exp(-ε)) )
+                 -- ε = ln x + (-δ)/x − ln(x−δ)
+                 --   = ln (x / ((x−δ) · exp(δ/x)))
+                 -- x/e^ε = (x−δ) · exp(δ/x)
+                 -- let γ = δ/x ∈ [0,1[
+                 -- exp(-ε) = (1−γ) · e^γ
+                 --         ≥ (1−γ) · (1+γ)
+                 --         = 1 − γ²
+                 -- γ ≥ sqrt(1 − exp(-ε)) 
+                 -- δ ≥ x · sqrt(1 − exp(-ε)) 
