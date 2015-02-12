@@ -752,10 +752,61 @@ grwDfblFnValsCombine cmb (GenericAgent (RWDiffable fpcs))
 
 
 
+instance (LinearManifold s v, LocallyScalable s a, RealDimension s)
+    => AdditiveGroup (RWDfblFuncValue s a v) where
+  zeroV = point zeroV
+  (^+^) = grwDfblFnValsCombine $ \a b -> (a^+^b, lPlus, const zeroV)
+      where lPlus = linear $ uncurry (^+^)
+  negateV = grwDfblFnValsFunc $ \a -> (negateV a, lNegate, const zeroV)
+      where lNegate = linear negateV
+
 instance (RealDimension n, LocallyScalable n a)
-            => Floating (PWDfblFuncValue n a n) where
+            => Num (RWDfblFuncValue n a n) where
+  fromInteger i = point $ fromInteger i
+  (+) = grwDfblFnValsCombine $ \a b -> (a+b, lPlus, const zeroV)
+      where lPlus = linear $ uncurry (+)
+  (*) = grwDfblFnValsCombine $
+          \a b -> ( a*b
+                  , linear $ \(da,db) -> a*db + b*da
+                  , \d -> let d¹₂ = sqrt d in (d¹₂,d¹₂)
+                  )
+  negate = grwDfblFnValsFunc $ \a -> (negate a, lNegate, const zeroV)
+      where lNegate = linear negate
+  abs = (RWDiffable absPW $~)
+   where absPW a₀
+          | a₀<0       = (negativePreRegion, pure desc)
+          | otherwise  = (positivePreRegion, pure asc)
+         desc = actuallyLinear $ linear negate
+         asc = actuallyLinear idL
+  signum = (RWDiffable sgnPW $~)
+   where sgnPW a₀
+          | a₀<0       = (negativePreRegion, pure (const 1))
+          | otherwise  = (positivePreRegion, pure (const $ -1))
+
+instance (RealDimension n, LocallyScalable n a)
+            => Fractional (RWDfblFuncValue n a n) where
+  fromRational i = point $ fromRational i
+  recip = (RWDiffable rcipPW $~)
+   where rcipPW a₀
+          | a₀<0       = (negativePreRegion, pure (Differentiable negp))
+          | otherwise  = (positivePreRegion, pure (Differentiable posp))
+         negp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+                 -- ε = 1/x − δ/x² − 1/(x+δ)
+                 -- ε·x + ε·δ = 1 + δ/x − δ/x − δ²/x² − 1
+                 --           = -δ²/x²
+                 -- 0 = δ² + ε·x²·δ + ε·x³
+                 -- δ = let mph = -ε·x²/2 in mph + sqrt (mph² − ε·x³)
+          where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 - ε*x^3)
+                x'¹ = recip x
+         posp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+          where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 + ε*x^3)
+                x'¹ = recip x
+
+
+instance (RealDimension n, LocallyScalable n a)
+            => Floating (RWDfblFuncValue n a n) where
   pi = point pi
-  exp = gpwDfblFnValsFunc
+  exp = grwDfblFnValsFunc
     $ \x -> let ex = exp x
             in ( ex, ex *^ idL, dev_ε_δ $ \ε -> acosh(ε/(2*ex) + 1) )
                  -- ε = e^(x+δ) − eˣ − eˣ·δ 
