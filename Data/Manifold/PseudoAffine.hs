@@ -1,3 +1,23 @@
+-- |
+-- Module      : Data.Manifold.PseudoAffine
+-- Copyright   : (c) Justus Sagemüller 2015
+-- License     : GPL v3
+-- 
+-- Maintainer  : (@) sagemueller $ geo.uni-koeln.de
+-- Stability   : experimental
+-- Portability : portable
+-- 
+-- This is the second prototype of a manifold class. It appears to give considerable
+-- advantages over 'Data.Manifold.Manifold', so that class will probably soon be replaced
+-- with the one we define here (though 'PseudoAffine' does not follow the standard notion
+-- of a manifold very closely, it should work quite equivalently for pretty much all
+-- Haskell types that qualify as manifolds).
+-- 
+-- Manifolds are interesting as objects of various categories, from continuous to
+-- diffeomorphic. At the moment, we mainly focus on /region-wise differentiable functions/,
+-- which are a promising compromise between flexibility of definition and provability of
+-- analytic properties. In particular, they are well-suited for visualisation purposes.
+
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE UndecidableInstances     #-}
 {-# LANGUAGE TypeFamilies             #-}
@@ -14,7 +34,14 @@
 {-# LANGUAGE CPP                      #-}
 
 
-module Data.Manifold.PseudoAffine where
+module Data.Manifold.PseudoAffine (
+            -- * Manifold class
+              PseudoAffine(..)
+            -- * Hierarchy of manifold-categories
+            , Differentiable
+            , Region
+            , PWDiffable, RWDiffable
+            ) where
     
 
 
@@ -48,10 +75,10 @@ import Data.Foldable.Constrained
 infix 6 .-~.
 infixl 6 .+~^
 
--- | 'PseudoAffine' is intended as an alternative class for 'Manifold's. The interface
---   is almost identical to the better-known 'AffineSpace' class, but unlike in the
---   standard mathematical definition of affine spaces we don't require associativity of
---   '.+~^' with '^+^', except in an asymptotic sense for small vectors.
+-- | 'PseudoAffine' is intended as an alternative class for 'Data.Manifold.Manifold's.
+--   The interface is almost identical to the better-known 'AffineSpace' class, but unlike
+--   in the mathematical definition of affine spaces we don't require associativity 
+--   of '.+~^' with '^+^' &#x2013; except in an asymptotic sense for small vectors.
 --   
 --   That innocent-looking change makes the class applicable to vastly more general types:
 --   while an affine space is basically nothing but a vector space without particularly
@@ -347,7 +374,7 @@ minDblfuncs (Differentiable f) (Differentiable g) = Differentiable h
 
 
 
--- | A pathwise connected subset of a manifold @m@ of tangent space over scalar @s@.
+-- | A pathwise connected subset of a manifold @m@, whose tangent space has scalar @s@.
 data Region s m = Region { regionRefPoint :: m
                          , regionRDef :: PreRegion s m }
 
@@ -580,7 +607,7 @@ instance (RealDimension n, LocallyScalable n a)
 
 -- | Category of functions that, where defined, have an open region in
 --   which they are continuously differentiable. Hence /RegionWiseDiff'able/.
---   Basically these are partial `PWDiffable` functions.
+--   Basically these are partial version of `PWDiffable`.
 newtype RWDiffable s d c
    = RWDiffable {
         tryDfblDomain :: d -> (PreRegion s d, Option (Differentiable s d c)) }
