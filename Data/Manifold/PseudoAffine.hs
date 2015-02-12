@@ -653,7 +653,102 @@ instance (RealDimension s) => Category (RWDiffable s) where
           where (rx, gr) = g x₀
 
 
+globalDiffable' :: Differentiable s a b -> RWDiffable s a b
+globalDiffable' f = RWDiffable $ const (GlobalRegion, pure f)
 
+pwDiffable :: PWDiffable s a b -> RWDiffable s a b
+pwDiffable (PWDiffable q) = RWDiffable $ \x₀ -> let (r₀,f₀) = q x₀ in (r₀, pure f₀)
+
+
+
+instance (RealDimension s) => EnhancedCat (RWDiffable s) (Differentiable s) where
+  arr = globalDiffable'
+instance (RealDimension s) => EnhancedCat (RWDiffable s) (PWDiffable s) where
+  arr = pwDiffable
+                
+instance (RealDimension s) => Cartesian (RWDiffable s) where
+  type UnitObject (RWDiffable s) = ZeroDim s
+  swap = globalDiffable' swap
+  attachUnit = globalDiffable' attachUnit
+  detachUnit = globalDiffable' detachUnit
+  regroup = globalDiffable' regroup
+  regroup' = globalDiffable' regroup'
+  
+instance (RealDimension s) => Morphism (RWDiffable s) where
+  RWDiffable f *** RWDiffable g = RWDiffable h
+   where h (x,y) = (preRegionProd rfx rgy, liftA2 (***) dff dfg)
+          where (rfx, dff) = f x
+                (rgy, dfg) = g y
+
+instance (RealDimension s) => PreArrow (RWDiffable s) where
+  RWDiffable f &&& RWDiffable g = RWDiffable h
+   where h x = (unsafePreRegionIntersect rfx rgx, liftA2 (&&&) dff dfg)
+          where (rfx, dff) = f x
+                (rgx, dfg) = g x
+  terminal = globalDiffable' terminal
+  fst = globalDiffable' fst
+  snd = globalDiffable' snd
+
+
+instance (RealDimension s) => WellPointed (RWDiffable s) where
+  unit = Tagged Origin
+  globalElement x = RWDiffable $ \Origin -> (GlobalRegion, pure (globalElement x))
+  const x = RWDiffable $ \_ -> (GlobalRegion, pure (const x))
+
+
+type RWDfblFuncValue s = GenericAgent (RWDiffable s)
+
+instance RealDimension s => HasAgent (RWDiffable s) where
+  alg = genericAlg
+  ($~) = genericAgentMap
+instance RealDimension s => CartesianAgent (RWDiffable s) where
+  alg1to2 = genericAlg1to2
+  alg2to1 = genericAlg2to1
+  alg2to2 = genericAlg2to2
+instance (RealDimension s)
+      => PointAgent (RWDfblFuncValue s) (RWDiffable s) a x where
+  point = genericPoint
+
+grwDfblFnValsFunc
+     :: ( RealDimension s
+        , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
+        , v ~ PseudoDiff c, v' ~ PseudoDiff c'
+        , ε ~ HerMetric v, ε ~ HerMetric v' )
+             => (c' -> (c, v':-*v, ε->ε)) -> RWDfblFuncValue s d c' -> RWDfblFuncValue s d c
+grwDfblFnValsFunc f = (RWDiffable (\_ -> (GlobalRegion, pure (Differentiable f))) $~)
+
+grwDfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
+         ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
+         , LocallyScalable s d, RealDimension s
+         , v ~ PseudoDiff c, v' ~ PseudoDiff c', v'' ~ PseudoDiff c''
+         , ε ~ HerMetric v  , ε' ~ HerMetric v'  , ε'' ~ HerMetric v'', ε~ε', ε~ε''  )
+       => (  c' -> c'' -> (c, (v',v''):-*v, ε -> (ε',ε''))  )
+         -> RWDfblFuncValue s d c' -> RWDfblFuncValue s d c'' -> RWDfblFuncValue s d c
+grwDfblFnValsCombine cmb (GenericAgent (RWDiffable fpcs))
+                         (GenericAgent (RWDiffable gpcs)) 
+    = GenericAgent . RWDiffable $
+        \d₀ -> let (rc', fmay) = fpcs d₀
+                   (rc'',gmay) = gpcs d₀
+               in (unsafePreRegionIntersect rc' rc'',) $
+                    case (fmay,gmay) of
+                      (Option(Just(Differentiable f)), Option(Just(Differentiable g))) ->
+                        pure . Differentiable $ \d
+                         -> let (c', f', devf) = f d
+                                (c'',g', devg) = g d
+                                (c, h', devh) = cmb c' c''
+                                h'l = h' *.* lcofst; h'r = h' *.* lcosnd
+                            in ( c
+                               , h' *.* linear (lapply f' &&& lapply g')
+                               , \εc -> let εc' = transformMetric h'l εc
+                                            εc'' = transformMetric h'r εc
+                                            (δc',δc'') = devh εc 
+                                        in devf εc' ^+^ devg εc''
+                                             ^+^ transformMetric f' δc'
+                                             ^+^ transformMetric g' δc''
+                               )
+                      _ -> notDefinedHere
+ where lcofst = linear(,zeroV)
+       lcosnd = linear(zeroV,) 
 
 
 
