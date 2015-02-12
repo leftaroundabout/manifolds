@@ -815,9 +815,10 @@ instance (RealDimension n, LocallyScalable n a)
                  --   = eˣ · 2·(cosh(δ) − 1)
                  -- cosh(δ) ≥ ε/(2·eˣ) + 1
                  -- δ ≥ acosh(ε/(2·eˣ) + 1)
-  log = undefined {- pwDfblFnValsFunc
-    $ \x -> let lnx = log x
-            in ( lnx, recip x *^ idL, dev_ε_δ $ \ε -> x * sqrt(1 - exp(-ε)) ) -}
+  log = (RWDiffable lnRW $~)
+   where lnRW x | x > 0      = (positivePreRegion, pure (Differentiable lnPosR))
+                | otherwise  = (negativePreRegion, notDefinedHere)
+         lnPosR x = ( log x, recip x *^ idL, dev_ε_δ $ \ε -> x * sqrt(1 - exp(-ε)) )
                  -- ε = ln x + (-δ)/x − ln(x−δ)
                  --   = ln (x / ((x−δ) · exp(δ/x)))
                  -- x/e^ε = (x−δ) · exp(δ/x)
@@ -827,3 +828,20 @@ instance (RealDimension n, LocallyScalable n a)
                  --         = 1 − γ²
                  -- γ ≥ sqrt(1 − exp(-ε)) 
                  -- δ ≥ x · sqrt(1 − exp(-ε)) 
+  sin = grwDfblFnValsFunc sinDfb
+   where sinDfb x = ( sx, cx *^ idL, dev_ε_δ δ )
+          where sx = sin x; cx = cos x
+                δ ε = let δ₀ = sqrt $ 2 * ε / (abs sx + abs cx/3)
+                      in if δ₀ < 1 -- TODO: confirm selection of δ-definition range.
+                          then δ₀
+                          else max 1 $ (ε - abs sx - 1) / cos x
+                 -- When sin x ≥ 0, cos x ≥ 0, δ ∈ [0,1[
+                 -- ε = sin x + δ · cos x − sin(x+δ)
+                 --   = sin x + δ · cos x − sin x · cos δ − cos x · sin δ
+                 --   ≤ sin x + δ · cos x − sin x · (1−δ²/2) − cos x · (δ − δ³/6)
+                 --   = sin x · δ²/2 + cos x · δ³/6
+                 --   ≤ δ² · (sin x / 2 + cos x / 6)
+                 -- δ ≥ sqrt(2 · ε / (sin x + cos x / 3))
+                 -- For general δ≥0,
+                 -- ε ≤ δ · cos x + sin x + 1
+                 -- δ ≥ (ε − sin x − 1) / cos x
