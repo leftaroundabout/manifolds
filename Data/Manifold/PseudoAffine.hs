@@ -408,6 +408,8 @@ negativePreRegion = PreRegion $ ppr . ngt
 
 
 
+-- | Category of functions that almost everywhere have an open region in
+--   which they are continuously differentiable, i.e. /PieceWiseDiff'able/.
 newtype PWDiffable s d c
    = PWDiffable {
         getDfblDomain :: d -> (PreRegion s d, Differentiable s d c) }
@@ -571,6 +573,63 @@ instance (RealDimension n, LocallyScalable n a)
           where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 + ε*x^3)
                 x'¹ = recip x
 
+
+
+
+
+
+-- | Category of functions that, where defined, have an open region in
+--   which they are continuously differentiable. Hence /RegionWiseDiff'able/.
+--   Basically these are partial `PWDiffable` functions.
+newtype RWDiffable s d c
+   = RWDiffable {
+        tryDfblDomain :: d -> (PreRegion s d, Option (Differentiable s d c)) }
+
+notDefinedHere :: Option (Differentiable s d c)
+notDefinedHere = Option Nothing
+
+
+
+instance (RealDimension s) => Category (RWDiffable s) where
+  type Object (RWDiffable s) o = LocallyScalable s o
+  id = RWDiffable $ \x -> (GlobalRegion, pure id)
+  RWDiffable f . RWDiffable g = RWDiffable h
+   where h x₀ = case g x₀ of
+                 (GlobalRegion, Option Nothing)
+                  -> (GlobalRegion, notDefinedHere)
+                 (GlobalRegion, Option (Just gr))
+                  -> let (y₀,_,_) = runDifferentiable gr x₀
+                     in case f y₀ of
+                         (GlobalRegion, Option Nothing)
+                               -> (GlobalRegion, notDefinedHere)
+                         (GlobalRegion, Option (Just fr))
+                               -> (GlobalRegion, pure (fr . gr))
+                         (PreRegion ry, Option Nothing)
+                               -> ( PreRegion $ ry . gr, Option Nothing )
+                         (PreRegion ry, Option (Just fr))
+                               -> ( PreRegion $ ry . gr, pure (fr . gr) )
+                 (PreRegion rx, Option Nothing)
+                  -> (PreRegion rx, notDefinedHere)
+                 (PreRegion rx, Option (Just gr))
+                  -> let (y₀,_,_) = runDifferentiable gr x₀
+                     in case f y₀ of
+                         (GlobalRegion, Option Nothing)
+                               -> (PreRegion rx, notDefinedHere)
+                         (GlobalRegion, Option (Just fr))
+                               -> (PreRegion rx, pure (fr . gr))
+                         (PreRegion ry, Option Nothing)
+                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
+                                  , notDefinedHere )
+                         (PreRegion ry, Option (Just fr))
+                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
+                                  , pure (fr . gr) )
+          where (rx, gr) = g x₀
+
+
+
+
+
+
 instance (RealDimension n, LocallyScalable n a)
             => Floating (PWDfblFuncValue n a n) where
   pi = point pi
@@ -583,9 +642,9 @@ instance (RealDimension n, LocallyScalable n a)
                  --   = eˣ · 2·(cosh(δ) − 1)
                  -- cosh(δ) ≥ ε/(2·eˣ) + 1
                  -- δ ≥ acosh(ε/(2·eˣ) + 1)
-  log = pwDfblFnValsFunc
+  log = undefined {- pwDfblFnValsFunc
     $ \x -> let lnx = log x
-            in ( lnx, recip x *^ idL, dev_ε_δ $ \ε -> x * sqrt(1 - exp(-ε)) )
+            in ( lnx, recip x *^ idL, dev_ε_δ $ \ε -> x * sqrt(1 - exp(-ε)) ) -}
                  -- ε = ln x + (-δ)/x − ln(x−δ)
                  --   = ln (x / ((x−δ) · exp(δ/x)))
                  -- x/e^ε = (x−δ) · exp(δ/x)
