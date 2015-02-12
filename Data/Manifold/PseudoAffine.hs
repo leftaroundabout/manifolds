@@ -271,6 +271,10 @@ actuallyLinear :: ( LinearManifold s x, LinearManifold s y )
             => (x:-*y) -> Differentiable s x y
 actuallyLinear f = Differentiable $ \x -> (lapply f x, f, const zeroV)
 
+actuallyAffine :: ( LinearManifold s x, LinearManifold s y )
+            => y -> (x:-*y) -> Differentiable s x y
+actuallyAffine y₀ f = Differentiable $ \x -> (y₀ ^+^ lapply f x, f, const zeroV)
+
 
 dfblFnValsFunc :: ( LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
                   , v ~ PseudoDiff c, v' ~ PseudoDiff c'
@@ -806,6 +810,7 @@ instance (RealDimension n, LocallyScalable n a)
 instance (RealDimension n, LocallyScalable n a)
             => Floating (RWDfblFuncValue n a n) where
   pi = point pi
+  
   exp = grwDfblFnValsFunc
     $ \x -> let ex = exp x
             in ( ex, ex *^ idL, dev_ε_δ $ \ε -> acosh(ε/(2*ex) + 1) )
@@ -828,6 +833,7 @@ instance (RealDimension n, LocallyScalable n a)
                  --         = 1 − γ²
                  -- γ ≥ sqrt(1 − exp(-ε)) 
                  -- δ ≥ x · sqrt(1 − exp(-ε)) 
+  
   sin = grwDfblFnValsFunc sinDfb
    where sinDfb x = ( sx, cx *^ idL, dev_ε_δ δ )
           where sx = sin x; cx = cos x
@@ -845,3 +851,22 @@ instance (RealDimension n, LocallyScalable n a)
                  -- For general δ≥0,
                  -- ε ≤ δ · cos x + sin x + 1
                  -- δ ≥ (ε − sin x − 1) / cos x
+  cos = sin . (globalDiffable' (actuallyAffine (pi/2) idL) $~)
+  
+  sinh x = (exp x - exp (-x))/2 {- = grwDfblFnValsFunc sinhDfb
+   where sinhDfb x = ( sx, cx *^ idL, dev_ε_δ δ )
+          where sx = sinh x; cx = cosh x
+                δ ε = undefined -}
+                 -- ε = sinh x + δ · cosh x − sinh(x+δ)
+                 --   = ½ · ( eˣ − e⁻ˣ + δ · (eˣ + e⁻ˣ) − exp(x+δ) + exp(-x−δ) )
+                 --                  = ½·e⁻ˣ · ( e²ˣ − 1 + δ · (e²ˣ + 1) − e²ˣ·e^δ + e^-δ )
+                 --   = ½ · ( eˣ − e⁻ˣ + δ · (eˣ + e⁻ˣ) − exp(x+δ) + exp(-x−δ) )
+  cosh x = (exp x + exp (-x))/2
+  tanh x = (exp x - exp (-x)) / (exp x + exp (-x))
+
+--   atan = grwDfblFnValsFunc atanDfb
+--    where atanDfb x = ( atnx, idL ^/ (1+x^2), dev_ε_δ δ )
+--           where atnx = atan x
+--                 δ ε =
+--                  -- ε = atn x + δ/(1 + x²) − atn(x+δ)
+--                  --   = atn x + δ/(1 + x²) − atn(x+δ)
