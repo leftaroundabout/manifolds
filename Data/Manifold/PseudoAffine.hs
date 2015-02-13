@@ -853,7 +853,8 @@ instance (RealDimension n, LocallyScalable n a)
                  -- δ ≥ (ε − sin x − 1) / cos x
   cos = sin . (globalDiffable' (actuallyAffine (pi/2) idL) $~)
   
-  sinh x = (exp x - exp (-x))/2 {- = grwDfblFnValsFunc sinhDfb
+  sinh x = (exp x - exp (-x))/2
+    {- = grwDfblFnValsFunc sinhDfb
    where sinhDfb x = ( sx, cx *^ idL, dev_ε_δ δ )
           where sx = sinh x; cx = cosh x
                 δ ε = undefined -}
@@ -864,9 +865,13 @@ instance (RealDimension n, LocallyScalable n a)
   cosh x = (exp x + exp (-x))/2
   tanh x = (exp x - exp (-x)) / (exp x + exp (-x))
 
---   atan = grwDfblFnValsFunc atanDfb
---    where atanDfb x = ( atnx, idL ^/ (1+x^2), dev_ε_δ δ )
---           where atnx = atan x
---                 δ ε =
---                  -- ε = atn x + δ/(1 + x²) − atn(x+δ)
---                  --   = atn x + δ/(1 + x²) − atn(x+δ)
+  atan = grwDfblFnValsFunc atanDfb
+   where atanDfb x = ( atnx, idL ^/ (1+x^2), dev_ε_δ δ )
+          where atnx = atan x
+                δ ε = undefined
+                 -- When x > 1,
+                 -- ε = atn x + δ/(1 + x²) − atn(x+δ)
+                 --   = atn x + δ/(1 + x²) − atn(x+δ)
+
+
+
