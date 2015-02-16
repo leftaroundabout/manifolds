@@ -868,10 +868,8 @@ instance (RealDimension n, LocallyScalable n a)
   atan = grwDfblFnValsFunc atanDfb
    where atanDfb x = ( atnx, idL ^/ (1+x^2), dev_ε_δ δ )
           where atnx = atan x
-                δ ε = undefined
-                 -- When x > 1,
-                 -- ε = atn x + δ/(1 + x²) − atn(x+δ)
-                 --   = atn x + δ/(1 + x²) − atn(x+δ)
+                δ ε = (1 + abs x/2) * (sqrt ε + ε)
+                 -- COMPLETELY EMPIRICAL
 
 
 
