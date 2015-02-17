@@ -868,8 +868,23 @@ instance (RealDimension n, LocallyScalable n a)
   atan = grwDfblFnValsFunc atanDfb
    where atanDfb x = ( atnx, idL ^/ (1+x^2), dev_ε_δ δ )
           where atnx = atan x
-                δ ε = (1 + abs x/2) * (sqrt ε + ε)
-                 -- COMPLETELY EMPIRICAL
+                c = (atnx*2/pi)^2
+                p = 1 + abs x/(2*pi)
+                δ ε = p * (sqrt ε + ε * c)
+                 -- Empirically obtained: with
+                 -- @
+                 -- plotWindow [ fnPlot atan
+                 --            , plot $ \(ViewXCenter xc) x
+                 --                 -> let δ = x-xc
+                 --                        δ'=abs δ/(1+xc/(2*pi))
+                 --                        y0 = atan xc
+                 --                        c=(y0*2/pi)^2+1e-9
+                 --                        ε = (1+2*c*δ'-sqrt(1+4*c*δ'))/(2*c^2)
+                 --                    in y0 + d'/(1+xc^2) - ε]
+                 -- @
+                 -- it was observed that this function is (for xc≥0) a lower bound
+                 -- to the arctangent. That ε, as a function of δ, is the inverse
+                 -- to δ as defined above.
 
 
 
