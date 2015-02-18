@@ -437,6 +437,15 @@ negativePreRegion = PreRegion $ ppr . ngt
  where PreRegion ppr = positivePreRegion
        ngt = actuallyLinear $ linear negate
 
+preRegionToInfFrom, preRegionFromMinInfTo :: RealDimension s => s -> PreRegion s s
+preRegionToInfFrom xs = PreRegion $ ppr . trl
+ where PreRegion ppr = positivePreRegion
+       trl = actuallyAffine (-xs) idL
+preRegionFromMinInfTo xe = PreRegion $ ppr . flp
+ where PreRegion ppr = positivePreRegion
+       flp = actuallyAffine (-xe) (linear negate)
+
+
 
 
 -- | Category of functions that almost everywhere have an open region in
@@ -880,11 +889,39 @@ instance (RealDimension n, LocallyScalable n a)
                  --                        y0 = atan xc
                  --                        c=(y0*2/pi)^2+1e-9
                  --                        ε = (1+2*c*δ'-sqrt(1+4*c*δ'))/(2*c^2)
-                 --                    in y0 + d'/(1+xc^2) - ε]
+                 --                    in y0 + δ/(1+xc^2) - ε]
                  -- @
                  -- it was observed that this function is (for xc≥0) a lower bound
                  -- to the arctangent. That ε, as a function of δ, is the inverse
                  -- to δ as defined above.
+   
+  asin = (RWDiffable asinRW $~)
+   where asinRW x | x < (-1)    = (preRegionFromMinInfTo (-1), notDefinedHere)  
+                  | x > 1       = (preRegionToInfFrom 1, notDefinedHere)
+                  | otherwise   = (positivePreRegion, pure (Differentiable asinDefdR))
+         asinDefdR x = ( asinx, asin'x *^ idL, dev_ε_δ δ )
+          where asinx = asinx; asin'x = recip (sqrt $ 1 - x^2)
+                c = 1 - x^2 
+                δ ε = sqrt ε * c
+                 -- Empirical, upper bound
+                 -- @
+                 -- plotWindow [ fnPlot asin
+                 --            , plot $ \(ViewXCenter xc) x
+                 --                 -> let δ = x-xc
+                 --                        δ' = abs δ
+                 --                        y0 = asin xc
+                 --                        c = 1 - xc^2
+                 --                        ε = (δ'/c)^2
+                 --                    in y0 + δ'/sqrt(1-xc^2) + ε]
+                 -- @
 
+  acos = (RWDiffable acosRW $~)
+   where acosRW x | x < (-1)    = (preRegionFromMinInfTo (-1), notDefinedHere)  
+                  | x > 1       = (preRegionToInfFrom 1, notDefinedHere)
+                  | otherwise   = (positivePreRegion, pure (Differentiable acosDefdR))
+         acosDefdR x = ( acosx, acos'x *^ idL, dev_ε_δ δ )
+          where acosx = acosx; acos'x = - recip (sqrt $ 1 - x^2)
+                c = 1 - x^2
+                δ ε = sqrt ε * c -- Like for asin – it's just a translation/reflection.
 
 
