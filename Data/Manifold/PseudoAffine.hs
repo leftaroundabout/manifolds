@@ -816,6 +816,17 @@ instance (RealDimension n, LocallyScalable n a)
                 x'¹ = recip x
 
 
+
+
+
+-- Helper for checking ε-estimations in GHCi with dynamic-plot:
+-- epsEst (f,f') εsgn δf (ViewXCenter xc) (ViewHeight h)
+--    = let δfxc = δf xc
+--      in tracePlot $ reverse [ (xc - δ, f xc - δ * f' xc + εsgn*ε) |
+--                               ε <- [0, h/500 .. h], let δ = δfxc ε]
+--                          ++ [ (xc + δ, f xc + δ * f' xc + εsgn*ε) |
+--                               ε <- [0, h/500 .. h], let δ = δfxc ε] 
+
 instance (RealDimension n, LocallyScalable n a)
             => Floating (RWDfblFuncValue n a n) where
   pi = point pi
@@ -880,20 +891,12 @@ instance (RealDimension n, LocallyScalable n a)
                 c = (atnx*2/pi)^2
                 p = 1 + abs x/(2*pi)
                 δ ε = p * (sqrt ε + ε * c)
-                 -- Empirically obtained: with
-                 -- @
-                 -- plotWindow [ fnPlot atan
-                 --            , plot $ \(ViewXCenter xc) x
-                 --                 -> let δ = x-xc
-                 --                        δ'=abs δ/(1+xc/(2*pi))
-                 --                        y0 = atan xc
-                 --                        c=(y0*2/pi)^2+1e-9
-                 --                        ε = (1+2*c*δ'-sqrt(1+4*c*δ'))/(2*c^2)
-                 --                    in y0 + δ/(1+xc^2) - ε]
-                 -- @
-                 -- it was observed that this function is (for xc≥0) a lower bound
-                 -- to the arctangent. That ε, as a function of δ, is the inverse
-                 -- to δ as defined above.
+                 -- Semi-empirically obtained: with the epsEst helper,
+                 -- it is observed that this function is (for xc≥0) a lower bound
+                 -- to the arctangent. The growth of the p coefficient makes sense
+                 -- and holds for arbitrarily large xc, because those move us linearly
+                 -- away from the only place where the function is not virtually constant
+                 -- (around 0).
    
   asin = (RWDiffable asinRW $~)
    where asinRW x | x < (-1)    = (preRegionFromMinInfTo (-1), notDefinedHere)  
@@ -903,17 +906,7 @@ instance (RealDimension n, LocallyScalable n a)
           where asinx = asinx; asin'x = recip (sqrt $ 1 - x^2)
                 c = 1 - x^2 
                 δ ε = sqrt ε * c
-                 -- Empirical, upper bound
-                 -- @
-                 -- plotWindow [ fnPlot asin
-                 --            , plot $ \(ViewXCenter xc) x
-                 --                 -> let δ = x-xc
-                 --                        δ' = abs δ
-                 --                        y0 = asin xc
-                 --                        c = 1 - xc^2
-                 --                        ε = (δ'/c)^2
-                 --                    in y0 + δ'/sqrt(1-xc^2) + ε]
-                 -- @
+                 -- Empirical, with epsEst upper bound.
 
   acos = (RWDiffable acosRW $~)
    where acosRW x | x < (-1)    = (preRegionFromMinInfTo (-1), notDefinedHere)  
