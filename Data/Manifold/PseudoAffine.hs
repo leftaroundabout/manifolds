@@ -917,4 +917,10 @@ instance (RealDimension n, LocallyScalable n a)
                 c = 1 - x^2
                 δ ε = sqrt ε * c -- Like for asin – it's just a translation/reflection.
 
+  asinh = grwDfblFnValsFunc asinhDfb
+   where asinhDfb x = ( asinhx, idL ^/ sqrt(1+x^2), dev_ε_δ δ )
+          where asinhx = asinh x
+                δ ε = abs x * sqrt((1 - exp(-ε))*0.8 + ε^2/(3*abs x)) + sqrt(ε/(abs x+0.5))
+                 -- Empirical, modified from log function (the hyperbolic arcsine
+                 -- resembles two logarithmic lobes), with epsEst-checked lower bound.
 
