@@ -445,6 +445,13 @@ preRegionFromMinInfTo xe = PreRegion $ ppr . flp
  where PreRegion ppr = positivePreRegion
        flp = actuallyAffine (-xe) (linear negate)
 
+intervalPreRegion :: RealDimension s => (s,s) -> PreRegion s s
+intervalPreRegion (lb,rb) = PreRegion $ Differentiable prr
+ where m = lb + radius; radius = (rb - lb)/2
+       prr x = ( 1 - ((x-m)/radius)^2
+               , (2*(m-x)/radius^2) *^ idL
+               , dev_ε_δ $ (*radius) . sqrt )
+
 
 
 
@@ -620,7 +627,7 @@ instance (RealDimension n, LocallyScalable n a)
 
 -- | Category of functions that, where defined, have an open region in
 --   which they are continuously differentiable. Hence /RegionWiseDiff'able/.
---   Basically these are partial version of `PWDiffable`.
+--   Basically these are the partial version of `PWDiffable`.
 newtype RWDiffable s d c
    = RWDiffable {
         tryDfblDomain :: d -> (PreRegion s d, Option (Differentiable s d c)) }
@@ -826,6 +833,8 @@ instance (RealDimension n, LocallyScalable n a)
 --                               ε <- [0, h/500 .. h], let δ = δfxc ε]
 --                          ++ [ (xc + δ, f xc + δ * f' xc + εsgn*ε) |
 --                               ε <- [0, h/500 .. h], let δ = δfxc ε] 
+-- Golfed version:
+-- epsEst(f,d)s φ(ViewXCenter ξ)(ViewHeight h)=let ζ=φ ξ in tracePlot$[(ξ-δ,f ξ-δ*d ξ+s*abs ε)|ε<-[-h,-0.998*h..h],let δ=ζ(abs ε)*signum ε]
 
 instance (RealDimension n, LocallyScalable n a)
             => Floating (RWDfblFuncValue n a n) where
@@ -853,6 +862,13 @@ instance (RealDimension n, LocallyScalable n a)
                  --         = 1 − γ²
                  -- γ ≥ sqrt(1 − exp(-ε)) 
                  -- δ ≥ x · sqrt(1 − exp(-ε)) 
+                    
+  sqrt = (RWDiffable sqrtRW $~)
+   where sqrtRW x | x > 0      = (positivePreRegion, pure (Differentiable sqrtPosR))
+                  | otherwise  = (negativePreRegion, notDefinedHere)
+         sqrtPosR x = ( sx, idL ^/ (2*sx), dev_ε_δ $
+                          \ε -> 2 * (s2 * sqrt sx^3 * sqrt ε + signum (ε-sx/2) * sx * ε) )
+          where sx = sqrt x; s2 = sqrt 2
   
   sin = grwDfblFnValsFunc sinDfb
    where sinDfb x = ( sx, cx *^ idL, dev_ε_δ δ )
@@ -899,9 +915,9 @@ instance (RealDimension n, LocallyScalable n a)
                  -- (around 0).
    
   asin = (RWDiffable asinRW $~)
-   where asinRW x | x < (-1)    = (preRegionFromMinInfTo (-1), notDefinedHere)  
-                  | x > 1       = (preRegionToInfFrom 1, notDefinedHere)
-                  | otherwise   = (positivePreRegion, pure (Differentiable asinDefdR))
+   where asinRW x | x < (-1)   = (preRegionFromMinInfTo (-1), notDefinedHere)  
+                  | x > 1      = (preRegionToInfFrom 1, notDefinedHere)
+                  | otherwise  = (intervalPreRegion (-1,1), pure (Differentiable asinDefdR))
          asinDefdR x = ( asinx, asin'x *^ idL, dev_ε_δ δ )
           where asinx = asinx; asin'x = recip (sqrt $ 1 - x^2)
                 c = 1 - x^2 
@@ -909,9 +925,9 @@ instance (RealDimension n, LocallyScalable n a)
                  -- Empirical, with epsEst upper bound.
 
   acos = (RWDiffable acosRW $~)
-   where acosRW x | x < (-1)    = (preRegionFromMinInfTo (-1), notDefinedHere)  
-                  | x > 1       = (preRegionToInfFrom 1, notDefinedHere)
-                  | otherwise   = (positivePreRegion, pure (Differentiable acosDefdR))
+   where acosRW x | x < (-1)   = (preRegionFromMinInfTo (-1), notDefinedHere)  
+                  | x > 1      = (preRegionToInfFrom 1, notDefinedHere)
+                  | otherwise  = (intervalPreRegion (-1,1), pure (Differentiable acosDefdR))
          acosDefdR x = ( acosx, acos'x *^ idL, dev_ε_δ δ )
           where acosx = acosx; acos'x = - recip (sqrt $ 1 - x^2)
                 c = 1 - x^2
