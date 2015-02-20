@@ -867,8 +867,9 @@ instance (RealDimension n, LocallyScalable n a)
    where sqrtRW x | x > 0      = (positivePreRegion, pure (Differentiable sqrtPosR))
                   | otherwise  = (negativePreRegion, notDefinedHere)
          sqrtPosR x = ( sx, idL ^/ (2*sx), dev_ε_δ $
-                          \ε -> 2 * (s2 * sqrt sx^3 * sqrt ε + signum (ε-sx/2) * sx * ε) )
+                          \ε -> 2 * (s2 * sqrt sx^3 * sqrt ε + signum (ε*2-sx) * sx * ε) )
           where sx = sqrt x; s2 = sqrt 2
+                 -- Exact inverse of O(δ²) remainder.
   
   sin = grwDfblFnValsFunc sinDfb
    where sinDfb x = ( sx, cx *^ idL, dev_ε_δ δ )
@@ -937,6 +938,20 @@ instance (RealDimension n, LocallyScalable n a)
    where asinhDfb x = ( asinhx, idL ^/ sqrt(1+x^2), dev_ε_δ δ )
           where asinhx = asinh x
                 δ ε = abs x * sqrt((1 - exp(-ε))*0.8 + ε^2/(3*abs x)) + sqrt(ε/(abs x+0.5))
-                 -- Empirical, modified from log function (the hyperbolic arcsine
+                 -- Empirical, modified from log function (the area hyperbolic sine
                  -- resembles two logarithmic lobes), with epsEst-checked lower bound.
+  
+  acosh = (RWDiffable acoshRW $~)
+   where acoshRW x | x > 0      = (positivePreRegion, pure (Differentiable acoshDfb))
+                  | otherwise  = (negativePreRegion, notDefinedHere)
+         acoshDfb x = ( acosh x, idL ^/ sqrt(x^2 - 2), dev_ε_δ δ )
+          where δ ε = (2 - 1/sqrt x) * (s2 * sqrt sx^3 * sqrt(ε/s2) + signum (ε*s2-sx) * sx * ε/s2) 
+                sx = sqrt(x-1)
+                s2 = sqrt 2
+                 -- Empirical, modified from sqrt function – the area hyperbolic cosine
+                 -- strongly resembles \x -> sqrt(2 · (x-1)).
+                    
+  
+  
+  
 
