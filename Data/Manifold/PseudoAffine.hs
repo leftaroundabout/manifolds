@@ -920,7 +920,7 @@ instance (RealDimension n, LocallyScalable n a)
                   | x > 1      = (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  = (intervalPreRegion (-1,1), pure (Differentiable asinDefdR))
          asinDefdR x = ( asinx, asin'x *^ idL, dev_ε_δ δ )
-          where asinx = asinx; asin'x = recip (sqrt $ 1 - x^2)
+          where asinx = asin x; asin'x = recip (sqrt $ 1 - x^2)
                 c = 1 - x^2 
                 δ ε = sqrt ε * c
                  -- Empirical, with epsEst upper bound.
@@ -930,7 +930,7 @@ instance (RealDimension n, LocallyScalable n a)
                   | x > 1      = (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  = (intervalPreRegion (-1,1), pure (Differentiable acosDefdR))
          acosDefdR x = ( acosx, acos'x *^ idL, dev_ε_δ δ )
-          where acosx = acosx; acos'x = - recip (sqrt $ 1 - x^2)
+          where acosx = acos x; acos'x = - recip (sqrt $ 1 - x^2)
                 c = 1 - x^2
                 δ ε = sqrt ε * c -- Like for asin – it's just a translation/reflection.
 
@@ -951,6 +951,12 @@ instance (RealDimension n, LocallyScalable n a)
                  -- Empirical, modified from sqrt function – the area hyperbolic cosine
                  -- strongly resembles \x -> sqrt(2 · (x-1)).
                     
+  atanh = (RWDiffable atnhRW $~)
+   where atnhRW x | x < (-1)   = (preRegionFromMinInfTo (-1), notDefinedHere)  
+                  | x > 1      = (preRegionToInfFrom 1, notDefinedHere)
+                  | otherwise  = (intervalPreRegion (-1,1), pure (Differentiable atnhDefdR))
+         atnhDefdR x = ( atanh x, recip(1-x^2) *^ idL, dev_ε_δ $ \ε -> sqrt(tanh ε)*(1-abs x) )
+                 -- Empirical, with epsEst upper bound.
   
   
   
