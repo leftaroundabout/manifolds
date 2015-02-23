@@ -58,7 +58,9 @@ import Data.Foldable.Constrained
 data Shade x = Shade { shadeCtr :: x
                      , shadeExpanse :: HerMetric' (PseudoDiff x) }
 
-class PseudoAffine x => HasTreeCover x where
+class ( PseudoAffine x
+      , HasMetric (PseudoDiff x), HasMetric (DualSpace (PseudoDiff x))
+      ) => HasTreeCover x where
   branchShades :: Shade x -> [Shade x]
   
   -- | This basically amounts to requiring an 'InnerSpace' instance
@@ -86,20 +88,29 @@ instance HasTreeCover ℝ where
          in [ Shade (x-r) δ₂, Shade (x+r) δ₂ ]
   occlusion = innerOcclusion
 
-instance (HasTreeCover x, HasTreeCover y) => HasTreeCover (x,y) where
+instance ( HasTreeCover x, HasTreeCover y
+         , v ~ PseudoDiff x, w ~ PseudoDiff y
+         , Scalar v ~ Scalar w
+         , DualSpace (DualSpace v) ~ v, DualSpace (DualSpace w) ~ w
+ --        , Basis (DualSpace v) ~ Basis v, Basis (DualSpace w) ~ Basis w
+         , Scalar (DualSpace v) ~ Scalar v, Scalar (DualSpace w) ~ Scalar w
+         ) => HasTreeCover (x,y) where
   branchShades = brcs
-   where brch (Shade (x,y) δ)
-           = let δx = transformMetric lfst δ
-                 δx0 = transformMetric lcofst δx
-                 δy = transformMetric lsnd δ
-                 δ0y = transformMetric lcosnd δy
+   where brcs (Shade (x,y) δ)
+           = let δx = transformMetric' lfst δ
+                 δx0 = transformMetric' lcofst δx
+                 δy = transformMetric' lsnd δ
+                 δ0y = transformMetric' lcosnd δy
                  shxs = fmap (\(Shade x' δx')
-                           -> Shade (x',y) (transformMetric lcofst δx' ^+^ δ0y)
+                           -> Shade (x',y) (transformMetric' lcofst δx' ^+^ δ0y)
                          ) $ branchShades (Shade x δx)
-                 shxs = fmap (\(Shade y' δy')
-                           -> Shade (x,y') (δx0 ^+^ transformMetric lcosnd δy')
-                         ) $ branchShades (Shade x δx)
-             in intlv (fmap 
+                 shys = fmap (\(Shade y' δy')
+                           -> Shade (x,y') (δx0 ^+^ transformMetric' lcosnd δy')
+                         ) $ branchShades (Shade y δy)
+             in intlv shxs shys
+         intlv [] r = r
+         intlv l [] = l
+         intlv (a:l) (b:r) = a : b : intlv l r
          lfst = linear fst; lsnd = linear snd
          lcofst = linear(,zeroV); lcosnd = linear(zeroV,)
   
