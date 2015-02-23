@@ -42,6 +42,8 @@ module Data.Manifold.PseudoAffine (
             -- * Hierarchy of manifold-categories
             , Differentiable
             , PWDiffable, RWDiffable
+            -- * Helper constraints
+            , RealDimension
             ) where
     
 

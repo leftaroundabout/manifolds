@@ -41,6 +41,7 @@ import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
 import Data.Tagged
+
 import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
 
@@ -55,15 +56,36 @@ import Data.Foldable.Constrained
 
 
 data Shade v = Shade { shadeCtr :: v
-                     , shadeExpanse :: Metric' (PseudoDiff v) }
+                     , shadeExpanse :: HerMetric' (PseudoDiff v) }
 
 class PseudoAffine v => HasTreeCover v where
   branchShades :: Shade v -> [Shade v]
-  occludes :: Shade v -> v -> Bool
+  -- | This basically amounts to requiring an 'InnerSpace' instance with real scalars.
+  occlusion :: Shade v -> v -> ℝ
 
-instance (RealDimension s) => HasTreeCover (ZeroDim s)
-  brachShades _ = []
-  occludes _ _ = True
+innerOcclusion :: ( PseudoAffine m, v~PseudoDiff m
+                  , HasMetric v, InnerSpace v, v~DualSpace v, Scalar v~ℝ)
+        => Shade m -> m -> ℝ
+innerOcclusion (Shade p₀ δ) p
+   = case p .-~. p₀ of
+      Option(Just vd) -> metricSq' δ vd / magnitudeSq vd^2
+      _               -> 0
+
+instance (RealDimension s) => HasTreeCover (ZeroDim s) where
+  branchShades _ = []
+  occlusion _ _ = 1
+
+instance HasTreeCover ℝ where
+  branchShades (Shade x δ)
+       = let r = 1 / metric' δ 1
+             δ₂ = projector' $ r/2
+         in [ Shade (x-r) δ₂, Shade (x+r) δ₂ ]
+  occlusion = innerOcclusion
+
+-- instance (HasTreeCover x, HasTreeCover y) => HasTreeCover (x,y) where
+--   branchShades (Shade xy δ)
+--        = let δx = transformMetric
+  
   
 --   data TreeCovMap v p :: *
 --   fromList :: (v,p) -> TreeCovMap v p
