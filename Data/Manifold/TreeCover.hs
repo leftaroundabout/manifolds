@@ -55,13 +55,17 @@ import Data.Foldable.Constrained
 
 
 
-data Shade v = Shade { shadeCtr :: v
-                     , shadeExpanse :: HerMetric' (PseudoDiff v) }
+data Shade x = Shade { shadeCtr :: x
+                     , shadeExpanse :: HerMetric' (PseudoDiff x) }
 
-class PseudoAffine v => HasTreeCover v where
-  branchShades :: Shade v -> [Shade v]
-  -- | This basically amounts to requiring an 'InnerSpace' instance with real scalars.
-  occlusion :: Shade v -> v -> ℝ
+class PseudoAffine x => HasTreeCover x where
+  branchShades :: Shade x -> [Shade x]
+  
+  -- | This basically amounts to requiring an 'InnerSpace' instance
+  --   with real scalars, and then performing @<v|δ|v> / |v|⁴@; but actually
+  --   it is more general. At least, it is possible for physical-quantity
+  --   spaces, though these are not equal to their dual/reciprocals.
+  occlusion :: Shade x -> x -> ℝ
 
 innerOcclusion :: ( PseudoAffine m, v~PseudoDiff m
                   , HasMetric v, InnerSpace v, v~DualSpace v, Scalar v~ℝ)
@@ -82,9 +86,22 @@ instance HasTreeCover ℝ where
          in [ Shade (x-r) δ₂, Shade (x+r) δ₂ ]
   occlusion = innerOcclusion
 
--- instance (HasTreeCover x, HasTreeCover y) => HasTreeCover (x,y) where
---   branchShades (Shade xy δ)
---        = let δx = transformMetric
+instance (HasTreeCover x, HasTreeCover y) => HasTreeCover (x,y) where
+  branchShades = brcs
+   where brch (Shade (x,y) δ)
+           = let δx = transformMetric lfst δ
+                 δx0 = transformMetric lcofst δx
+                 δy = transformMetric lsnd δ
+                 δ0y = transformMetric lcosnd δy
+                 shxs = fmap (\(Shade x' δx')
+                           -> Shade (x',y) (transformMetric lcofst δx' ^+^ δ0y)
+                         ) $ branchShades (Shade x δx)
+                 shxs = fmap (\(Shade y' δy')
+                           -> Shade (x,y') (δx0 ^+^ transformMetric lcosnd δy')
+                         ) $ branchShades (Shade x δx)
+             in intlv (fmap 
+         lfst = linear fst; lsnd = linear snd
+         lcofst = linear(,zeroV); lcosnd = linear(zeroV,)
   
   
 --   data TreeCovMap v p :: *
