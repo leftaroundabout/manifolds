@@ -74,8 +74,8 @@ occlusion (Shade p₀ δ) p
       Option(Just vd) -> metricSq' δ $ innerRecip vd
       _               -> zeroV
 
-instance (RealDimension s) => HasTreeCover (ZeroDim s) where
-  branchShades _ = []
+-- instance (RealDimension s) => HasTreeCover (ZeroDim s) where
+  -- branchShades _ = []
 
 instance HasTreeCover ℝ where
   branchShades (Shade x δ)
@@ -85,7 +85,9 @@ instance HasTreeCover ℝ where
 
 instance ( HasTreeCover x, HasTreeCover y
          , v ~ PseudoDiff x, w ~ PseudoDiff y
-         , Scalar v ~ Scalar w
+         , v ~ DualSpace v, w ~ DualSpace w
+         , InnerSpace v, InnerSpace w
+         , s~Scalar v, s~Scalar w, Fractional s
          , DualSpace (DualSpace v) ~ v, DualSpace (DualSpace w) ~ w
          , Scalar (DualSpace v) ~ Scalar v, Scalar (DualSpace w) ~ Scalar w
          ) => HasTreeCover (x,y) where
