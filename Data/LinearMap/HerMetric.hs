@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -309,3 +310,17 @@ instance (VectorSpace k) => HasReciprocal (ZeroDim k) where
   partialShade = ps
    where ps f Origin m = f $ transformMetric lcosnd m
          lcosnd = linear (Origin,)
+
+instance HasReciprocal ℝ where
+  innerRecip = id
+  reciProject = projector
+  reciProject' = projector'
+  partialShade f a = ps
+   where ps m = f $ transformMetric lcosnd m
+         lcosnd = linear (a,)
+
+instance ( HasReciprocal v, HasReciprocal w, Scalar v ~ Scalar w
+         , HasMetric (DualSpace v), DualSpace (DualSpace v) ~ v
+         , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
+         ) => HasReciprocal (v,w) where
+
