@@ -18,13 +18,16 @@ module Data.LinearMap.HerMetric (
   , metricSq, metricSq', metric, metric', metrics, metrics'
   -- * Defining metrics by projectors
   , projector, projector'
-  -- * Utility
+  -- * Utility for metrics
   , adjoint
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
+  , metriScale, metriScale'
+  -- * The dual-space class
   , HasMetric(..)
   , (^<.>)
-  , metriScale, metriScale'
+  -- * Reciprocal spaces
+  , HasReciprocal(..)
   ) where
     
 
@@ -267,3 +270,42 @@ instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
   asinh = metrNumFun asinh
   atanh = metrNumFun atanh
   acosh = metrNumFun acosh
+
+
+
+
+-- | Even if a space does not have a (bilinear) inner product that maps directly into
+--   the scalar, it can still have another mapping into the scalar that
+--   sort-of expresses the /quotient/ of the vectors; obviously this is
+--   /not/ bilinear but has other useful properties.
+--   It is not quite clear how much more general this class really is than 'InnerSpace';
+--   at least, it has instances for physical-quantity
+--   spaces, though these are not inner spaces / equal to their dual/reciprocals.
+class (HasMetric v) => HasReciprocal v where
+  -- | For `InnerSpace`s, this simply maps @\\v -> v ^/ magnitudeSq v@.
+  innerRecip :: v -> DualSpace v
+  
+  -- | Is is often tought very explicitly that vectors can /not/ be divided,
+  --   but... they sort of can: for Hilbert spaces,
+  -- 
+  -- @
+  -- v ^/^ w = (v<.>w) / magnitudeSq w
+  --         = v ^<.> 'innerRecip' w
+  -- @
+  (^/^) :: v -> v -> Scalar v
+  v ^/^ w = v ^<.> innerRecip w
+  
+  reciProject :: v -> HerMetric v
+  reciProject' :: DualSpace v -> HerMetric' v
+  
+  partialShade :: ( s ~ Scalar v, s ~ Scalar w, HasMetric w
+                  , dw~DualSpace w, HasMetric dw, DualSpace dw~w )
+           => (HerMetric w -> s) -> v -> HerMetric (v,w) -> s
+
+instance (VectorSpace k) => HasReciprocal (ZeroDim k) where
+  innerRecip Origin = Origin
+  reciProject Origin = HerMetric zeroV
+  reciProject' Origin = HerMetric' zeroV
+  partialShade = ps
+   where ps f Origin m = f $ transformMetric lcosnd m
+         lcosnd = linear (Origin,)

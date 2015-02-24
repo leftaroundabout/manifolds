@@ -59,40 +59,34 @@ data Shade x = Shade { shadeCtr :: x
                      , shadeExpanse :: HerMetric' (PseudoDiff x) }
 
 class ( PseudoAffine x
-      , HasMetric (PseudoDiff x), HasMetric (DualSpace (PseudoDiff x))
+      , HasReciprocal (PseudoDiff x), HasMetric (DualSpace (PseudoDiff x))
+      , Scalar (DualSpace (PseudoDiff x)) ~ Scalar (PseudoDiff x)
       ) => HasTreeCover x where
   branchShades :: Shade x -> [Shade x]
   
-  -- | This basically amounts to requiring an 'InnerSpace' instance
-  --   with real scalars, and then performing @<v|δ|v> / |v|⁴@; but actually
-  --   it is more general. At least, it is possible for physical-quantity
-  --   spaces, though these are not equal to their dual/reciprocals.
-  occlusion :: Shade x -> x -> ℝ
-
-innerOcclusion :: ( PseudoAffine m, v~PseudoDiff m
-                  , HasMetric v, InnerSpace v, v~DualSpace v, Scalar v~ℝ)
-        => Shade m -> m -> ℝ
-innerOcclusion (Shade p₀ δ) p
+-- | This basically amounts to requiring an 'InnerSpace' instance
+--   with real scalars, and then performing @<v|δ|v> / |v|⁴@; but actually
+--   it is more general, works for any 'HasReciprocal' instance.
+occlusion :: (HasTreeCover x, s ~ Scalar (PseudoDiff x), RealDimension s)
+                => Shade x -> x -> s
+occlusion (Shade p₀ δ) p
    = case p .-~. p₀ of
-      Option(Just vd) -> metricSq' δ vd / magnitudeSq vd^2
-      _               -> 0
+      Option(Just vd) -> metricSq' δ $ innerRecip vd
+      _               -> zeroV
 
 instance (RealDimension s) => HasTreeCover (ZeroDim s) where
   branchShades _ = []
-  occlusion _ _ = 1
 
 instance HasTreeCover ℝ where
   branchShades (Shade x δ)
        = let r = 1 / metric' δ 1
              δ₂ = projector' $ r/2
          in [ Shade (x-r) δ₂, Shade (x+r) δ₂ ]
-  occlusion = innerOcclusion
 
 instance ( HasTreeCover x, HasTreeCover y
          , v ~ PseudoDiff x, w ~ PseudoDiff y
          , Scalar v ~ Scalar w
          , DualSpace (DualSpace v) ~ v, DualSpace (DualSpace w) ~ w
- --        , Basis (DualSpace v) ~ Basis v, Basis (DualSpace w) ~ Basis w
          , Scalar (DualSpace v) ~ Scalar v, Scalar (DualSpace w) ~ Scalar w
          ) => HasTreeCover (x,y) where
   branchShades = brcs
@@ -113,6 +107,7 @@ instance ( HasTreeCover x, HasTreeCover y
          intlv (a:l) (b:r) = a : b : intlv l r
          lfst = linear fst; lsnd = linear snd
          lcofst = linear(,zeroV); lcosnd = linear(zeroV,)
+
   
   
 --   data TreeCovMap v p :: *
