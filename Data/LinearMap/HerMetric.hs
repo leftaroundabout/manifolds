@@ -275,6 +275,33 @@ instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
 
 
 
+class (HasMetric v) => ReciprocalMetric v where
+  -- | Should be completely invariant, in the sense that
+  --   @recipMetricSq (sum $ map 'projector' vs) w@ should stay the same
+  --   if all @vs@ and @w@ are transformed by means of the same
+  --   (not nessecarily orthogonal!) linear mapping.
+  recipMetricSq :: HerMetric' v -> v -> Scalar v
+
+instance (VectorSpace k, Num k) => ReciprocalMetric (ZeroDim k) where
+  recipMetricSq _ Origin = 1
+
+instance ReciprocalMetric ℝ where
+  recipMetricSq = trueReciprocalMetricSq
+
+instance ( ReciprocalMetric v, ReciprocalMetric w, Scalar v ~ Scalar w
+         , HasMetric (DualSpace v), DualSpace (DualSpace v) ~ v
+         , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
+         ) => ReciprocalMetric (v,w) where
+  recipMetricSq = reMeSqP
+   where reMeSqP m ab = recipMetricSq
+
+recipMetric :: (ReciprocalMetric v, Floating (Scalar v)) => HerMetric' v -> v -> Scalar v
+recipMetric m v = sqrt $ recipMetricSq m v
+
+trueReciprocalMetricSq :: HasReciprocal v => HerMetric' v -> v -> Scalar v
+trueReciprocalMetricSq m v = metricSq' m $ innerRecip v
+
+    
 -- <rubbish>Even if a space does not have a (bilinear) inner product that maps directly into
 --   the scalar, it can still have another mapping into the scalar that
 --   sort-of expresses the /quotient/ of the vectors; obviously this is
@@ -283,8 +310,8 @@ instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
 --   at least, it has instances for physical-quantity
 --   spaces, though these are not inner spaces / equal to their dual/reciprocals.</rubbish>
 
--- | At the moment, this is little more than 'InnerSpace' plus one dimensional vector spaces
---   which explicitly prevent '<.>', i.e. spaces with physical dimension.
+-- | At the moment, this is little more than 'InnerSpace' plus such one dimensional vector spaces
+--   that explicitly prevent '<.>', i.e. spaces with physical dimension.
 -- 
 --   We would like it to be considerably more general, so it encompasses at least also
 --   tuples of such physical quantities. This is not possible for 'innerRecip', but should
@@ -293,7 +320,7 @@ class (HasMetric v) => HasReciprocal v where
   -- | For `InnerSpace`s, this simply maps @\\v -> v ^/ magnitudeSq v@.
   innerRecip :: v -> DualSpace v
   
-  -- | Is is often tought very explicitly that vectors can /not/ be divided,
+  -- | Is is often taught very explicitly that vectors can /not/ be divided,
   --   but... they sort of can: for @v, w≠0@ in a Hilbert space,
   -- 
   -- @
