@@ -1,5 +1,5 @@
 Name:                manifolds
-Version:             0.1.0.2
+Version:             0.1.1.0
 Category:            Math
 Synopsis:            Working with manifolds in a direct, embedding-free way.
 Description:         Manifolds, a generalisation of the notion of \"smooth curves\" or sufaces,

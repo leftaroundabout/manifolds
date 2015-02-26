@@ -27,7 +27,9 @@ module Data.LinearMap.HerMetric (
   -- * The dual-space class
   , HasMetric(..)
   , (^<.>)
+  -- * Fundamental requirements
   , MetricScalar
+  , FiniteDimensional(..)
   -- * Reciprocal spaces
   , HasReciprocal(..)
   ) where
