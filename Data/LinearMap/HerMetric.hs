@@ -41,6 +41,7 @@ import Data.LinearMap
 import Data.Basis
 import Data.MemoTrie
 import Data.Tagged
+import Data.Void
 
 import Control.Applicative
     
@@ -115,11 +116,11 @@ instance HasMetric v => VectorSpace (HerMetric' v) where
 --   been introduced with the '*^' scaling operator or with '^-^'.
 projector :: HasMetric v => DualSpace v -> HerMetric v
 projector u = matrixMetric $ HMat.outer uDecomp uDecomp
- where uDecomp = HMat.fromList $ snd <$> decompose u
+ where uDecomp = asPackedVector u
 
 projector' :: HasMetric v => v -> HerMetric' v
 projector' v = matrixMetric' $ HMat.outer vDecomp vDecomp
- where vDecomp = HMat.fromList $ snd <$> decompose v
+ where vDecomp = asPackedVector v
 
 
 
@@ -128,7 +129,7 @@ projector' v = matrixMetric' $ HMat.outer vDecomp vDecomp
 metricSq :: HasMetric v => HerMetric v -> v -> Scalar v
 metricSq (HerMetric Nothing) _ = 0
 metricSq (HerMetric (Just m)) v = vDecomp `HMat.dot` HMat.app m vDecomp
- where vDecomp = HMat.fromList $ snd <$> decompose v
+ where vDecomp = asPackedVector v
 
 
 metricSq' :: HasMetric v => HerMetric' v -> DualSpace v -> Scalar v
@@ -194,6 +195,7 @@ class ( HasBasis v, HasTrie (Basis v), HMat.Numeric (Scalar v), Num (HMat.Vector
       ) => FiniteDimensional v where
   dimension :: Tagged v Int
   basisIndex :: Tagged v (Basis v -> Int)
+  -- | Index must be in @[0 .. dimension-1]@, otherwise this is undefined.
   indexBasis :: Tagged v (Int -> Basis v)
   completeBasis :: Tagged v [Basis v]
   completeBasis = liftA2 (\dim f -> f <$> [0 .. dim - 1]) dimension indexBasis
@@ -207,28 +209,64 @@ class ( HasBasis v, HasTrie (Basis v), HMat.Numeric (Scalar v), Num (HMat.Vector
 
 instance (HMat.Numeric k, Num (HMat.Vector k)) => FiniteDimensional (ZeroDim k) where
   dimension = Tagged 0
+  basisIndex = Tagged absurd
+  indexBasis = Tagged $ const undefined
+  completeBasis = Tagged []
+  asPackedVector Origin = HMat.fromList []
 instance FiniteDimensional ℝ where
   dimension = Tagged 1
+  basisIndex = Tagged $ \() -> 0
+  indexBasis = Tagged $ \0 -> ()
+  completeBasis = Tagged [()]
+  asPackedVector x = HMat.fromList [x]
+  asPackedMatrix f = HMat.asRow . asPackedVector $ atBasis f ()
 instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
             => FiniteDimensional (a,b) where
   dimension = tupDim
    where tupDim :: forall a b.(FiniteDimensional a,FiniteDimensional b)=>Tagged(a,b)Int
          tupDim = Tagged $ da+db
           where (Tagged da)=dimension::Tagged a Int; (Tagged db)=dimension::Tagged b Int
+  basisIndex = basId
+   where basId :: forall a b . (FiniteDimensional a, FiniteDimensional b)
+                     => Tagged (a,b) (Either (Basis a) (Basis b) -> Int)
+         basId = Tagged basId'
+          where basId' (Left ba) = basIda ba
+                basId' (Right bb) = da + basIdb bb
+                (Tagged da) = dimension :: Tagged a Int
+                (Tagged basIda) = basisIndex :: Tagged a (Basis a->Int)
+                (Tagged basIdb) = basisIndex :: Tagged b (Basis b->Int)
+  indexBasis = basId
+   where basId :: forall a b . (FiniteDimensional a, FiniteDimensional b)
+                     => Tagged (a,b) (Int -> Either (Basis a) (Basis b))
+         basId = Tagged basId'
+          where basId' i | i < da     = Left $ basIda i
+                         | otherwise  = Right . basIdb $ i - da
+                (Tagged da) = dimension :: Tagged a Int
+                (Tagged basIda) = indexBasis :: Tagged a (Int->Basis a)
+                (Tagged basIdb) = indexBasis :: Tagged b (Int->Basis b)
+  completeBasis = cb
+   where cb :: forall a b . (FiniteDimensional a, FiniteDimensional b)
+                     => Tagged (a,b) [Either (Basis a) (Basis b)]
+         cb = Tagged $ map Left cba ++ map Right cbb
+          where (Tagged cba) = completeBasis :: Tagged a [Basis a]
+                (Tagged cbb) = completeBasis :: Tagged b [Basis b]
+  asPackedVector (a,b) = HMat.vjoin [asPackedVector a, asPackedVector b]
+              
+  
+                                                          
 
 
 
+{-# INLINE defaultAsPackedMatrix #-}
 defaultAsPackedMatrix :: forall v w s .
       (FiniteDimensional v, FiniteDimensional w, s~Scalar v, s~Scalar w)
                 => (v :-* w) -> HMat.Matrix s
-defaultAsPackedMatrix m = (dw HMat.>< dv) $ fmap snd . decompose . atBasis m =<< cb
- where (Tagged dv) = dimension :: Tagged v Int
-       (Tagged dw) = dimension :: Tagged w Int
-       (Tagged cb) = completeBasis :: Tagged v [Basis v]
+defaultAsPackedMatrix m = HMat.fromRows $ asPackedVector . atBasis m <$> cb
+ where (Tagged cb) = completeBasis :: Tagged v [Basis v]
 
 -- | While the main purpose of this class is to express 'HerMetric', it's actually
 --   all about dual spaces.
-class ( FiniteDimensional v
+class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
       , VectorSpace (DualSpace v), HasBasis (DualSpace v)
       , Scalar v ~ Scalar (DualSpace v), Basis v ~ Basis (DualSpace v) )
     => HasMetric v where
@@ -298,7 +336,7 @@ adjoint m = linear $ \w -> functional $ \v
 
 metrConst :: forall v. (HasMetric v, v ~ DualSpace v, Num (Scalar v))
                  => Scalar v -> HerMetric v
-metrConst μ = matrixMetric . HMat.scale μ $ HMat.ident dim
+metrConst μ = matrixMetric $ HMat.scale μ (HMat.ident dim)
  where (Tagged dim) = dimension :: Tagged v Int
 
 -- instance (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Num (HerMetric v) where
