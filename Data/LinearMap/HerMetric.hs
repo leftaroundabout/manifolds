@@ -191,7 +191,9 @@ dualiseMetric' (HerMetric' m) = HerMetric m
 
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
-type MetricScalar s = (VectorSpace s, HMat.Numeric s, Num(HMat.Vector s))
+--   It is somewhat wise to just assume this class contains only the type 'Double'.
+type MetricScalar s = ( VectorSpace s, HMat.Numeric s
+                      , Num(HMat.Vector s), HMat.Indexable(HMat.Vector s)s )
 
 
 class (HasBasis v, HasTrie (Basis v), MetricScalar (Scalar v)) => FiniteDimensional v where
@@ -304,7 +306,7 @@ class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
 (^<.>) :: HasMetric v => v -> DualSpace v -> Scalar v
 ket ^<.> bra = bra <.>^ ket
 
-instance (VectorSpace k, HMat.Numeric k, Num (HMat.Vector k)) => HasMetric (ZeroDim k) where
+instance (MetricScalar k) => HasMetric (ZeroDim k) where
   Origin<.>^Origin = zeroV
   functional _ = Origin
   doubleDual = id; doubleDual'= id
@@ -340,45 +342,46 @@ metrConst :: forall v. (HasMetric v, v ~ DualSpace v, Num (Scalar v))
 metrConst μ = matrixMetric $ HMat.scale μ (HMat.ident dim)
  where (Tagged dim) = dimension :: Tagged v Int
 
--- instance (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Num (HerMetric v) where
---   fromInteger = metrConst . fromInteger
---   (+) = (^+^)
---   negate = negateV
---            
---   -- | This does /not/ work correctly if the metrics don't share an eigenbasis!
---   HerMetric m * HerMetric n = HerMetric $ liftA2 (HMat.<>) m n
---                               
---   -- | Undefined, though it could actually be done.
---   abs = error "abs undefined for HerMetric"
---   signum = error "signum undefined for HerMetric"
--- 
--- 
--- metrNumFun :: (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Num v)
---       => (v -> v) -> HerMetric v -> HerMetric v
--- metrNumFun f (HerMetric m) = HerMetric . linear . (*^) . f $ lapply m 1
--- 
--- instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Fractional v) 
---             => Fractional (HerMetric v) where
---   fromRational = metrConst . fromRational
---   recip = metrNumFun recip
--- 
--- instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
---             => Floating (HerMetric v) where
---   pi = metrConst pi
---   sqrt = metrNumFun sqrt
---   exp = metrNumFun exp
---   log = metrNumFun log
---   sin = metrNumFun sin
---   cos = metrNumFun cos
---   tan = metrNumFun tan
---   asin = metrNumFun asin
---   acos = metrNumFun acos
---   atan = metrNumFun atan
---   sinh = metrNumFun sinh
---   cosh = metrNumFun cosh
---   asinh = metrNumFun asinh
---   atanh = metrNumFun atanh
---   acosh = metrNumFun acosh
+instance (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Num (HerMetric v) where
+  fromInteger = metrConst . fromInteger
+  (+) = (^+^)
+  negate = negateV
+           
+  -- | This does /not/ work correctly if the metrics don't share an eigenbasis!
+  HerMetric m * HerMetric n = HerMetric $ liftA2 (HMat.<>) m n
+                              
+  -- | Undefined, though it could actually be done.
+  abs = error "abs undefined for HerMetric"
+  signum = error "signum undefined for HerMetric"
+
+
+metrNumFun :: (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Num v)
+      => (v -> v) -> HerMetric v -> HerMetric v
+metrNumFun f (HerMetric Nothing) = matrixMetric . HMat.scalar $ f 0
+metrNumFun f (HerMetric (Just m)) = matrixMetric . HMat.scalar . f $ m HMat.! 0 HMat.! 0
+
+instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Fractional v) 
+            => Fractional (HerMetric v) where
+  fromRational = metrConst . fromRational
+  recip = metrNumFun recip
+
+instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
+            => Floating (HerMetric v) where
+  pi = metrConst pi
+  sqrt = metrNumFun sqrt
+  exp = metrNumFun exp
+  log = metrNumFun log
+  sin = metrNumFun sin
+  cos = metrNumFun cos
+  tan = metrNumFun tan
+  asin = metrNumFun asin
+  acos = metrNumFun acos
+  atan = metrNumFun atan
+  sinh = metrNumFun sinh
+  cosh = metrNumFun cosh
+  asinh = metrNumFun asinh
+  atanh = metrNumFun atanh
+  acosh = metrNumFun acosh
 
 
 
