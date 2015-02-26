@@ -205,6 +205,19 @@ class ( HasBasis v, HasTrie (Basis v), HMat.Numeric (Scalar v), Num (HMat.Vector
                        => (v :-* w) -> HMat.Matrix (Scalar v)
   asPackedMatrix = defaultAsPackedMatrix
 
+instance (HMat.Numeric k, Num (HMat.Vector k)) => FiniteDimensional (ZeroDim k) where
+  dimension = Tagged 0
+instance FiniteDimensional ℝ where
+  dimension = Tagged 1
+instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
+            => FiniteDimensional (a,b) where
+  dimension = tupDim
+   where tupDim :: forall a b.(FiniteDimensional a,FiniteDimensional b)=>Tagged(a,b)Int
+         tupDim = Tagged $ da+db
+          where (Tagged da)=dimension::Tagged a Int; (Tagged db)=dimension::Tagged b Int
+
+
+
 defaultAsPackedMatrix :: forall v w s .
       (FiniteDimensional v, FiniteDimensional w, s~Scalar v, s~Scalar w)
                 => (v :-* w) -> HMat.Matrix s
@@ -252,7 +265,7 @@ class ( FiniteDimensional v
 (^<.>) :: HasMetric v => v -> DualSpace v -> Scalar v
 ket ^<.> bra = bra <.>^ ket
 
-instance (VectorSpace k) => HasMetric (ZeroDim k) where
+instance (VectorSpace k, HMat.Numeric k, Num (HMat.Vector k)) => HasMetric (ZeroDim k) where
   Origin<.>^Origin = zeroV
   functional _ = Origin
   doubleDual = id; doubleDual'= id
@@ -265,7 +278,7 @@ instance ( HasMetric v, HasMetric w, Scalar v ~ Scalar w
          , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
          ) => HasMetric (v,w) where
   type DualSpace (v,w) = (DualSpace v, DualSpace w)
-  (v,w)<.>^(v',w') = v<.>^v' ^+^ w<.>^w'
+  (v,w)<.>^(v',w') = v<.>^v' + w<.>^w'
   functional f = (functional $ f . (,zeroV), functional $ f . (zeroV,))
   doubleDual = id; doubleDual'= id
 
@@ -283,64 +296,66 @@ adjoint m = linear $ \w -> functional $ \v
 
 
 
-metrConst :: (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Scalar v -> HerMetric v
-metrConst = HerMetric . linear . (*^)
+metrConst :: forall v. (HasMetric v, v ~ DualSpace v, Num (Scalar v))
+                 => Scalar v -> HerMetric v
+metrConst μ = matrixMetric . HMat.scale μ $ HMat.ident dim
+ where (Tagged dim) = dimension :: Tagged v Int
 
-instance (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Num (HerMetric v) where
-  fromInteger = metrConst . fromInteger
-  (+) = (^+^)
-  negate = negateV
-           
-  -- | This does /not/ work correctly if the metrics don't share an eigenbasis!
-  HerMetric m * HerMetric n = HerMetric $ m *.* n
-                              
-  -- | Undefined, though it could actually be done.
-  abs = error "abs undefined for HerMetric"
-  signum = error "signum undefined for HerMetric"
+-- instance (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Num (HerMetric v) where
+--   fromInteger = metrConst . fromInteger
+--   (+) = (^+^)
+--   negate = negateV
+--            
+--   -- | This does /not/ work correctly if the metrics don't share an eigenbasis!
+--   HerMetric m * HerMetric n = HerMetric $ liftA2 (HMat.<>) m n
+--                               
+--   -- | Undefined, though it could actually be done.
+--   abs = error "abs undefined for HerMetric"
+--   signum = error "signum undefined for HerMetric"
+-- 
+-- 
+-- metrNumFun :: (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Num v)
+--       => (v -> v) -> HerMetric v -> HerMetric v
+-- metrNumFun f (HerMetric m) = HerMetric . linear . (*^) . f $ lapply m 1
+-- 
+-- instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Fractional v) 
+--             => Fractional (HerMetric v) where
+--   fromRational = metrConst . fromRational
+--   recip = metrNumFun recip
+-- 
+-- instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
+--             => Floating (HerMetric v) where
+--   pi = metrConst pi
+--   sqrt = metrNumFun sqrt
+--   exp = metrNumFun exp
+--   log = metrNumFun log
+--   sin = metrNumFun sin
+--   cos = metrNumFun cos
+--   tan = metrNumFun tan
+--   asin = metrNumFun asin
+--   acos = metrNumFun acos
+--   atan = metrNumFun atan
+--   sinh = metrNumFun sinh
+--   cosh = metrNumFun cosh
+--   asinh = metrNumFun asinh
+--   atanh = metrNumFun atanh
+--   acosh = metrNumFun acosh
 
 
-metrNumFun :: (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Num v)
-      => (v -> v) -> HerMetric v -> HerMetric v
-metrNumFun f (HerMetric m) = HerMetric . linear . (*^) . f $ lapply m 1
-
-instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Fractional v) 
-            => Fractional (HerMetric v) where
-  fromRational = metrConst . fromRational
-  recip = metrNumFun recip
-
-instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
-            => Floating (HerMetric v) where
-  pi = metrConst pi
-  sqrt = metrNumFun sqrt
-  exp = metrNumFun exp
-  log = metrNumFun log
-  sin = metrNumFun sin
-  cos = metrNumFun cos
-  tan = metrNumFun tan
-  asin = metrNumFun asin
-  acos = metrNumFun acos
-  atan = metrNumFun atan
-  sinh = metrNumFun sinh
-  cosh = metrNumFun cosh
-  asinh = metrNumFun asinh
-  atanh = metrNumFun atanh
-  acosh = metrNumFun acosh
 
 
-
-
-class (HasMetric v) => ReciprocalMetric v where
-  -- | Should be completely invariant, in the sense that
-  --   @recipMetricSq (sum $ map 'projector' vs) w@ should stay the same
-  --   if all @vs@ and @w@ are transformed by means of the same
-  --   (not nessecarily orthogonal!) linear mapping.
-  recipMetricSq :: HerMetric' v -> v -> Scalar v
-
-instance (VectorSpace k, Num k) => ReciprocalMetric (ZeroDim k) where
-  recipMetricSq _ Origin = 1
-
-instance ReciprocalMetric ℝ where
-  recipMetricSq = trueReciprocalMetricSq
+-- class (HasMetric v) => ReciprocalMetric v where
+--   -- | Should be completely invariant, in the sense that
+--   --   @recipMetricSq (sum $ map 'projector' vs) w@ should stay the same
+--   --   if all @vs@ and @w@ are transformed by means of the same
+--   --   (not nessecarily orthogonal!) linear mapping.
+--   recipMetricSq :: HerMetric' v -> v -> Scalar v
+-- 
+-- instance (VectorSpace k, Num k) => ReciprocalMetric (ZeroDim k) where
+--   recipMetricSq _ Origin = 1
+-- 
+-- instance ReciprocalMetric ℝ where
+--   recipMetricSq = trueReciprocalMetricSq
 
 -- instance ( ReciprocalMetric v, ReciprocalMetric w, Scalar v ~ Scalar w
 --          , HasMetric (DualSpace v), DualSpace (DualSpace v) ~ v
@@ -349,11 +364,11 @@ instance ReciprocalMetric ℝ where
 --   recipMetricSq = reMeSqP
 --    where reMeSqP m ab = recipMetricSq
 
-recipMetric :: (ReciprocalMetric v, Floating (Scalar v)) => HerMetric' v -> v -> Scalar v
-recipMetric m v = sqrt $ recipMetricSq m v
-
-trueReciprocalMetricSq :: HasReciprocal v => HerMetric' v -> v -> Scalar v
-trueReciprocalMetricSq m v = metricSq' m $ innerRecip v
+-- recipMetric :: (ReciprocalMetric v, Floating (Scalar v)) => HerMetric' v -> v -> Scalar v
+-- recipMetric m v = sqrt $ recipMetricSq m v
+-- 
+-- trueReciprocalMetricSq :: HasReciprocal v => HerMetric' v -> v -> Scalar v
+-- trueReciprocalMetricSq m v = metricSq' m $ innerRecip v
 
     
 -- <rubbish>Even if a space does not have a (bilinear) inner product that maps directly into
