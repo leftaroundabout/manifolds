@@ -36,6 +36,7 @@ Library
                      , MemoTrie
                      , vector
                      , vector-algorithms
+                     , hmatrix >= 0.16 && < 0.18
                      , containers
                      , random
                      , MonadRandom

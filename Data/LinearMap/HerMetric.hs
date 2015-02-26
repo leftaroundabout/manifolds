@@ -40,10 +40,13 @@ import Data.VectorSpace
 import Data.LinearMap
 import Data.Basis
 import Data.MemoTrie
+import Data.Tagged
 
 import Control.Applicative
     
 import Data.Manifold.Types
+
+import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 
 infixr 7 <.>^, ^<.>
@@ -60,30 +63,45 @@ infixr 7 <.>^, ^<.>
 --   
 --   Yet other possible interpretations of this type include /density matrix/ (as in
 --   quantum mechanics), /standard range of statistical fluctuations/, and /volume element/.
-newtype HerMetric v = HerMetric { getHerMetric :: v :-* DualSpace v }
+newtype HerMetric v = HerMetric {
+   -- morally:  @getHerMetric :: v :-* DualSpace v@.
+          metricMatrix :: Maybe (HMat.Matrix (Scalar v)) -- @Nothing@ for zero metric.
+                      }
 
+matrixMetric :: HasMetric v => HMat.Matrix (Scalar v) -> HerMetric v
+matrixMetric = HerMetric . Just
 
-instance HasMetric v => AdditiveGroup (HerMetric v) where
-  zeroV = HerMetric zeroV
-  negateV (HerMetric m) = HerMetric $ negateV m
-  HerMetric m ^+^ HerMetric n = HerMetric $ m ^+^ n
+instance (HasMetric v) => AdditiveGroup (HerMetric v) where
+  zeroV = HerMetric Nothing
+  negateV (HerMetric m) = HerMetric $ negate <$> m
+  HerMetric Nothing ^+^ HerMetric n = HerMetric n
+  HerMetric m ^+^ HerMetric Nothing = HerMetric m
+  HerMetric (Just m) ^+^ HerMetric (Just n) = HerMetric . Just $ m + n
 instance HasMetric v => VectorSpace (HerMetric v) where
   type Scalar (HerMetric v) = Scalar v
-  s *^ (HerMetric m) = HerMetric $ s *^ m 
+  s *^ (HerMetric m) = HerMetric $ HMat.scale s <$> m 
 
 -- | A metric on the dual space; equivalent to a linear mapping from the dual space
 --   to the original vector space.
 -- 
 --   Prime-versions of the functions in this module target those dual-space metrics, so
 --   we can avoid some explicit handling of double-dual spaces.
-newtype HerMetric' v = HerMetric' { dualMetric :: DualSpace v :-* v }
+newtype HerMetric' v = HerMetric' {
+          metricMatrix' :: Maybe (HMat.Matrix (Scalar v))
+                      }
+
+matrixMetric' :: HasMetric v => HMat.Matrix (Scalar v) -> HerMetric' v
+matrixMetric' = HerMetric' . Just
+
 instance (HasMetric v) => AdditiveGroup (HerMetric' v) where
-  zeroV = HerMetric' zeroV
-  negateV (HerMetric' m) = HerMetric' $ negateV m
-  HerMetric' m ^+^ HerMetric' n = HerMetric' $ m ^+^ n
-instance (HasMetric v) => VectorSpace (HerMetric' v) where
+  zeroV = HerMetric' Nothing
+  negateV (HerMetric' m) = HerMetric' $ negate <$> m
+  HerMetric' Nothing ^+^ HerMetric' n = HerMetric' n
+  HerMetric' m ^+^ HerMetric' Nothing = HerMetric' m
+  HerMetric' (Just m) ^+^ HerMetric' (Just n) = matrixMetric' $ m + n
+instance HasMetric v => VectorSpace (HerMetric' v) where
   type Scalar (HerMetric' v) = Scalar v
-  s *^ (HerMetric' m) = HerMetric' $ s *^ m 
+  s *^ (HerMetric' m) = HerMetric' $ HMat.scale s <$> m 
     
 
 -- | A metric on @v@ that simply yields the squared overlap of a vector with the
@@ -96,30 +114,37 @@ instance (HasMetric v) => VectorSpace (HerMetric' v) where
 --   Metrics generated this way are positive definite if no negative coefficients have
 --   been introduced with the '*^' scaling operator or with '^-^'.
 projector :: HasMetric v => DualSpace v -> HerMetric v
-projector u = HerMetric (linear $ \v -> u ^* (u<.>^v))
+projector u = matrixMetric $ HMat.outer uDecomp uDecomp
+ where uDecomp = HMat.fromList $ snd <$> decompose u
 
 projector' :: HasMetric v => v -> HerMetric' v
-projector' v = HerMetric' . linear $ \u -> v ^* (v^<.>u)
+projector' v = matrixMetric' $ HMat.outer vDecomp vDecomp
+ where vDecomp = HMat.fromList $ snd <$> decompose v
 
 
 
 -- | Evaluate a vector through a metric. For the canonical metric on a Hilbert space,
 --   this will be simply 'magnitudeSq'.
 metricSq :: HasMetric v => HerMetric v -> v -> Scalar v
-metricSq (HerMetric m) v = lapply m v <.>^ v
+metricSq (HerMetric Nothing) _ = 0
+metricSq (HerMetric (Just m)) v = vDecomp `HMat.dot` HMat.app m vDecomp
+ where vDecomp = HMat.fromList $ snd <$> decompose v
+
 
 metricSq' :: HasMetric v => HerMetric' v -> DualSpace v -> Scalar v
-metricSq' (HerMetric' m) u = lapply m u ^<.> u
+metricSq' (HerMetric' Nothing) _ = 0
+metricSq' (HerMetric' (Just m)) u = uDecomp `HMat.dot` HMat.app m uDecomp
+ where uDecomp = HMat.fromList $ snd <$> decompose u
 
 -- | Evaluate a vector's &#x201c;magnitude&#x201d; through a metric. This assumes an actual
 --   mathematical metric, i.e. positive definite &#x2013; otherwise the internally used
 --   square root may get negative arguments (though it can still produce results if the
 --   scalars are complex; however, complex spaces aren't supported yet).
 metric :: (HasMetric v, Floating (Scalar v)) => HerMetric v -> v -> Scalar v
-metric (HerMetric m) v = sqrt $ lapply m v <.>^ v
+metric m = sqrt . metricSq m
 
 metric' :: (HasMetric v, Floating (Scalar v)) => HerMetric' v -> DualSpace v -> Scalar v
-metric' (HerMetric' m) u = sqrt $ lapply m u ^<.> u
+metric' m = sqrt . metricSq' m
 
 metriScale :: (HasMetric v, Floating (Scalar v)) => HerMetric v -> v -> v
 metriScale m v = metric m v *^ v
@@ -143,25 +168,54 @@ metrics' m vs = sqrt . sum $ metricSq' m <$> vs
 
 transformMetric :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
            => (w :-* v) -> HerMetric v -> HerMetric w
-transformMetric t (HerMetric m) = HerMetric $ adjoint t *.* m *.* t
+transformMetric _ (HerMetric Nothing) = HerMetric Nothing
+transformMetric t (HerMetric (Just m)) = matrixMetric $ HMat.tr tmat HMat.<> m HMat.<> tmat
+ where tmat = asPackedMatrix t
 
 transformMetric' :: ( HasMetric v, HasMetric w, Scalar v ~ Scalar w )
            => (v :-* w) -> HerMetric' v -> HerMetric' w
-transformMetric' t (HerMetric' m)
-    = HerMetric' $ t *.* m *.* adjoint t
+transformMetric' _ (HerMetric' Nothing) = HerMetric' Nothing
+transformMetric' t (HerMetric' (Just m))
+                      = matrixMetric' $ HMat.tr tmat HMat.<> m HMat.<> tmat
+ where tmat = asPackedMatrix t
 
 dualiseMetric :: (HasMetric v, HasMetric (DualSpace v))
       => HerMetric (DualSpace v) -> HerMetric' v
-dualiseMetric (HerMetric m) = HerMetric' $ linear doubleDual' *.* m
+dualiseMetric (HerMetric m) = HerMetric' m
 
 dualiseMetric' :: (HasMetric v, HasMetric (DualSpace v))
       => HerMetric' v -> HerMetric (DualSpace v)
-dualiseMetric' (HerMetric' m) = HerMetric $ linear doubleDual *.* m
+dualiseMetric' (HerMetric' m) = HerMetric m
 
+
+
+
+class ( HasBasis v, HasTrie (Basis v), HMat.Numeric (Scalar v), Num (HMat.Vector (Scalar v))
+      ) => FiniteDimensional v where
+  dimension :: Tagged v Int
+  basisIndex :: Tagged v (Basis v -> Int)
+  indexBasis :: Tagged v (Int -> Basis v)
+  completeBasis :: Tagged v [Basis v]
+  completeBasis = liftA2 (\dim f -> f <$> [0 .. dim - 1]) dimension indexBasis
+  
+  asPackedVector :: v -> HMat.Vector (Scalar v)
+  asPackedVector v = HMat.fromList $ snd <$> decompose v
+  
+  asPackedMatrix :: (FiniteDimensional w, Scalar w ~ Scalar v)
+                       => (v :-* w) -> HMat.Matrix (Scalar v)
+  asPackedMatrix = defaultAsPackedMatrix
+
+defaultAsPackedMatrix :: forall v w s .
+      (FiniteDimensional v, FiniteDimensional w, s~Scalar v, s~Scalar w)
+                => (v :-* w) -> HMat.Matrix s
+defaultAsPackedMatrix m = (dw HMat.>< dv) $ fmap snd . decompose . atBasis m =<< cb
+ where (Tagged dv) = dimension :: Tagged v Int
+       (Tagged dw) = dimension :: Tagged w Int
+       (Tagged cb) = completeBasis :: Tagged v [Basis v]
 
 -- | While the main purpose of this class is to express 'HerMetric', it's actually
 --   all about dual spaces.
-class ( HasBasis v, VectorSpace (Scalar v), HasTrie (Basis v)
+class ( FiniteDimensional v
       , VectorSpace (DualSpace v), HasBasis (DualSpace v)
       , Scalar v ~ Scalar (DualSpace v), Basis v ~ Basis (DualSpace v) )
     => HasMetric v where
@@ -288,12 +342,12 @@ instance (VectorSpace k, Num k) => ReciprocalMetric (ZeroDim k) where
 instance ReciprocalMetric ℝ where
   recipMetricSq = trueReciprocalMetricSq
 
-instance ( ReciprocalMetric v, ReciprocalMetric w, Scalar v ~ Scalar w
-         , HasMetric (DualSpace v), DualSpace (DualSpace v) ~ v
-         , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
-         ) => ReciprocalMetric (v,w) where
-  recipMetricSq = reMeSqP
-   where reMeSqP m ab = recipMetricSq
+-- instance ( ReciprocalMetric v, ReciprocalMetric w, Scalar v ~ Scalar w
+--          , HasMetric (DualSpace v), DualSpace (DualSpace v) ~ v
+--          , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
+--          ) => ReciprocalMetric (v,w) where
+--   recipMetricSq = reMeSqP
+--    where reMeSqP m ab = recipMetricSq
 
 recipMetric :: (ReciprocalMetric v, Floating (Scalar v)) => HerMetric' v -> v -> Scalar v
 recipMetric m v = sqrt $ recipMetricSq m v
