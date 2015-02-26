@@ -27,6 +27,7 @@ module Data.LinearMap.HerMetric (
   -- * The dual-space class
   , HasMetric(..)
   , (^<.>)
+  , MetricScalar
   -- * Reciprocal spaces
   , HasReciprocal(..)
   ) where
@@ -189,10 +190,11 @@ dualiseMetric' :: (HasMetric v, HasMetric (DualSpace v))
 dualiseMetric' (HerMetric' m) = HerMetric m
 
 
+-- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
+type MetricScalar s = (VectorSpace s, HMat.Numeric s, Num(HMat.Vector s))
 
 
-class ( HasBasis v, HasTrie (Basis v), HMat.Numeric (Scalar v), Num (HMat.Vector (Scalar v))
-      ) => FiniteDimensional v where
+class (HasBasis v, HasTrie (Basis v), MetricScalar (Scalar v)) => FiniteDimensional v where
   dimension :: Tagged v Int
   basisIndex :: Tagged v (Basis v -> Int)
   -- | Index must be in @[0 .. dimension-1]@, otherwise this is undefined.
@@ -206,8 +208,13 @@ class ( HasBasis v, HasTrie (Basis v), HMat.Numeric (Scalar v), Num (HMat.Vector
   asPackedMatrix :: (FiniteDimensional w, Scalar w ~ Scalar v)
                        => (v :-* w) -> HMat.Matrix (Scalar v)
   asPackedMatrix = defaultAsPackedMatrix
+   where defaultAsPackedMatrix :: forall v w s .
+               (FiniteDimensional v, FiniteDimensional w, s~Scalar v, s~Scalar w)
+                         => (v :-* w) -> HMat.Matrix s
+         defaultAsPackedMatrix m = HMat.fromRows $ asPackedVector . atBasis m <$> cb
+          where (Tagged cb) = completeBasis :: Tagged v [Basis v]
 
-instance (HMat.Numeric k, Num (HMat.Vector k)) => FiniteDimensional (ZeroDim k) where
+instance (MetricScalar k) => FiniteDimensional (ZeroDim k) where
   dimension = Tagged 0
   basisIndex = Tagged absurd
   indexBasis = Tagged $ const undefined
@@ -257,12 +264,6 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
 
 
 
-{-# INLINE defaultAsPackedMatrix #-}
-defaultAsPackedMatrix :: forall v w s .
-      (FiniteDimensional v, FiniteDimensional w, s~Scalar v, s~Scalar w)
-                => (v :-* w) -> HMat.Matrix s
-defaultAsPackedMatrix m = HMat.fromRows $ asPackedVector . atBasis m <$> cb
- where (Tagged cb) = completeBasis :: Tagged v [Basis v]
 
 -- | While the main purpose of this class is to express 'HerMetric', it's actually
 --   all about dual spaces.

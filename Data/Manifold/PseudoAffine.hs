@@ -225,7 +225,7 @@ newtype Differentiable s d c
 type (-->) = Differentiable ℝ
 
 
-instance (VectorSpace s) => Category (Differentiable s) where
+instance (MetricScalar s) => Category (Differentiable s) where
   type Object (Differentiable s) o = LocallyScalable s o
   id = Differentiable $ \x -> (x, idL, const zeroV)
   Differentiable f . Differentiable g = Differentiable $
@@ -237,7 +237,7 @@ instance (VectorSpace s) => Category (Differentiable s) where
            in (z, f'*.*g', devfg)
 
 
-instance (VectorSpace s) => Cartesian (Differentiable s) where
+instance (MetricScalar s) => Cartesian (Differentiable s) where
   type UnitObject (Differentiable s) = ZeroDim s
   swap = Differentiable $ \(x,y) -> ((y,x), lSwap, const zeroV)
    where lSwap = linear swap
@@ -251,7 +251,7 @@ instance (VectorSpace s) => Cartesian (Differentiable s) where
    where lRegroup = linear regroup'
 
 
-instance (VectorSpace s) => Morphism (Differentiable s) where
+instance (MetricScalar s) => Morphism (Differentiable s) where
   Differentiable f *** Differentiable g = Differentiable h
    where h (x,y) = ((fx, gy), lPar, devfg)
           where (fx, f', devf) = f x
@@ -265,7 +265,7 @@ instance (VectorSpace s) => Morphism (Differentiable s) where
          lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
 
 
-instance (VectorSpace s) => PreArrow (Differentiable s) where
+instance (MetricScalar s) => PreArrow (Differentiable s) where
   terminal = Differentiable $ \_ -> (Origin, zeroV, const zeroV)
   fst = Differentiable $ \(x,_) -> (x, lfst, const zeroV)
    where lfst = linear fst
@@ -281,7 +281,7 @@ instance (VectorSpace s) => PreArrow (Differentiable s) where
          lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
 
 
-instance (VectorSpace s) => WellPointed (Differentiable s) where
+instance (MetricScalar s) => WellPointed (Differentiable s) where
   unit = Tagged Origin
   globalElement x = Differentiable $ \Origin -> (x, zeroV, const zeroV)
   const x = Differentiable $ \_ -> (x, zeroV, const zeroV)
@@ -290,14 +290,14 @@ instance (VectorSpace s) => WellPointed (Differentiable s) where
 
 type DfblFuncValue s = GenericAgent (Differentiable s)
 
-instance (VectorSpace s) => HasAgent (Differentiable s) where
+instance (MetricScalar s) => HasAgent (Differentiable s) where
   alg = genericAlg
   ($~) = genericAgentMap
-instance (VectorSpace s) => CartesianAgent (Differentiable s) where
+instance (MetricScalar s) => CartesianAgent (Differentiable s) where
   alg1to2 = genericAlg1to2
   alg2to1 = genericAlg2to1
   alg2to2 = genericAlg2to2
-instance (VectorSpace s)
+instance (MetricScalar s)
       => PointAgent (DfblFuncValue s) (Differentiable s) a x where
   point = genericPoint
 
