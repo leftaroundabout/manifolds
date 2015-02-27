@@ -20,18 +20,17 @@ module Data.LinearMap.HerMetric (
   -- * Defining metrics by projectors
   , projector, projector'
   -- * Utility for metrics
-  , adjoint
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
+  , recipMetric, recipMetric'
   , metriScale, metriScale'
+  , adjoint
   -- * The dual-space class
   , HasMetric(..)
   , (^<.>)
   -- * Fundamental requirements
   , MetricScalar
   , FiniteDimensional(..)
-  -- * Reciprocal spaces
-  , HasReciprocal(..)
   ) where
     
 
@@ -420,105 +419,4 @@ instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
 
 
 
--- class (HasMetric v) => ReciprocalMetric v where
---   -- | Should be completely invariant, in the sense that
---   --   @recipMetricSq (sum $ map 'projector' vs) w@ should stay the same
---   --   if all @vs@ and @w@ are transformed by means of the same
---   --   (not nessecarily orthogonal!) linear mapping.
---   recipMetricSq :: HerMetric' v -> v -> Scalar v
--- 
--- instance (VectorSpace k, Num k) => ReciprocalMetric (ZeroDim k) where
---   recipMetricSq _ Origin = 1
--- 
--- instance ReciprocalMetric ℝ where
---   recipMetricSq = trueReciprocalMetricSq
-
--- instance ( ReciprocalMetric v, ReciprocalMetric w, Scalar v ~ Scalar w
---          , HasMetric (DualSpace v), DualSpace (DualSpace v) ~ v
---          , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
---          ) => ReciprocalMetric (v,w) where
---   recipMetricSq = reMeSqP
---    where reMeSqP m ab = recipMetricSq
-
--- recipMetric :: (ReciprocalMetric v, Floating (Scalar v)) => HerMetric' v -> v -> Scalar v
--- recipMetric m v = sqrt $ recipMetricSq m v
--- 
--- trueReciprocalMetricSq :: HasReciprocal v => HerMetric' v -> v -> Scalar v
--- trueReciprocalMetricSq m v = metricSq' m $ innerRecip v
-
-    
--- <rubbish>Even if a space does not have a (bilinear) inner product that maps directly into
---   the scalar, it can still have another mapping into the scalar that
---   sort-of expresses the /quotient/ of the vectors; obviously this is
---   /not/ bilinear but has other useful properties.
---   It is not quite clear how much more general this class really is than 'InnerSpace';
---   at least, it has instances for physical-quantity
---   spaces, though these are not inner spaces / equal to their dual/reciprocals.</rubbish>
-
--- | At the moment, this is little more than 'InnerSpace' plus such one dimensional vector spaces
---   that explicitly prevent '<.>', i.e. spaces with physical dimension.
--- 
---   We would like it to be considerably more general, so it encompasses at least also
---   tuples of such physical quantities. This is not possible for 'innerRecip', but should
---   be possible for something similar to 'reciProject'.
-class (HasMetric v) => HasReciprocal v where
-  -- | For `InnerSpace`s, this simply maps @\\v -> v ^/ magnitudeSq v@.
-  innerRecip :: v -> DualSpace v
-  
-  -- | Is is often taught very explicitly that vectors can /not/ be divided,
-  --   but... they sort of can: for @v, w≠0@ in a Hilbert space,
-  -- 
-  -- @
-  -- v ^/^ w = (v<.>w) / magnitudeSq w
-  --         = v ^<.> 'innerRecip' w
-  -- @
-  (^/^) :: v -> v -> Scalar v
-  v ^/^ w = v ^<.> innerRecip w
-  
-  reciProject :: v -> HerMetric v
-  reciProject = projector . innerRecip
-  reciProject' :: DualSpace v -> HerMetric' v
-  
-  partialShade :: ( s ~ Scalar v, s ~ Scalar w, HasMetric w
-                  , dw~DualSpace w, HasMetric dw, DualSpace dw~w )
-           => (HerMetric w -> r) -> v -> HerMetric (v,w) -> r
-
-innerSpaceRecip :: (InnerSpace v, Fractional (Scalar v)) => v -> v
-innerSpaceRecip v = v ^/ magnitudeSq v
-
-innerSpaceRProj :: ( InnerSpace v, HasMetric v, Scalar(DualSpace v)~Scalar v
-                   , Fractional (Scalar v))
-           => v -> HerMetric v
-innerSpaceRProj = projector . functional . (<.>)
-
---   This actually doesn't make sense, since all vectors are
---   zero (and thus @v<.>w ≡ 0 ≠ 1@).
--- instance (VectorSpace k) => HasReciprocal (ZeroDim k) where
---   innerRecip Origin = Origin
---   reciProject Origin = HerMetric zeroV
---   reciProject' Origin = HerMetric' zeroV
---   partialShade = ps
---    where ps f Origin m = f $ transformMetric lcosnd m
---          lcosnd = linear (Origin,)
-
-instance HasReciprocal ℝ where
-  innerRecip = recip
-  reciProject = projector
-  reciProject' = projector'
-  partialShade f a = ps
-   where ps m = f $ transformMetric lcosnd m
-         lcosnd = linear (a,)
-
-instance ( HasReciprocal v, HasReciprocal w
-         , InnerSpace v, InnerSpace w
-         , v ~ DualSpace v, w ~ DualSpace w
-         , s ~ Scalar v, s ~ Scalar w, Fractional s
-         , HasMetric (DualSpace v), DualSpace (DualSpace v) ~ v
-         , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
-         ) => HasReciprocal (v,w) where
-  innerRecip = innerSpaceRecip
---  reciProject = innerSpaceRProj
-  reciProject' = dualiseMetric . innerSpaceRProj
---  (a,b) ^/^ (c,d) = partialShade _ c (projector' (a,b))
---  reciProject (a,b) = partialShade id 
 

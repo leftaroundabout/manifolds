@@ -59,20 +59,19 @@ data Shade x = Shade { shadeCtr :: x
                      , shadeExpanse :: HerMetric' (PseudoDiff x) }
 
 class ( PseudoAffine x
-      , HasReciprocal (PseudoDiff x), HasMetric (DualSpace (PseudoDiff x))
+      , HasMetric (PseudoDiff x), HasMetric (DualSpace (PseudoDiff x))
       , Scalar (DualSpace (PseudoDiff x)) ~ Scalar (PseudoDiff x)
       ) => HasTreeCover x where
   branchShades :: Shade x -> [Shade x]
   
--- | This basically amounts to requiring an 'InnerSpace' instance
---   with real scalars, and then performing @<v|δ|v> / |v|⁴@; but actually
---   it is more general, works for any 'HasReciprocal' instance.
+-- | Check the statistical likelyhood of a point being within a shade.
 occlusion :: (HasTreeCover x, s ~ Scalar (PseudoDiff x), RealDimension s)
                 => Shade x -> x -> s
-occlusion (Shade p₀ δ) p
-   = case p .-~. p₀ of
-      Option(Just vd) -> metricSq' δ $ innerRecip vd
-      _               -> zeroV
+occlusion (Shade p₀ δ) = occ
+ where occ p = case p .-~. p₀ of
+         Option(Just vd) -> exp . negate $ metricSq δinv vd
+         _               -> zeroV
+       δinv = recipMetric δ
 
 -- instance (RealDimension s) => HasTreeCover (ZeroDim s) where
   -- branchShades _ = []
