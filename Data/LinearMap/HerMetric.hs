@@ -126,6 +126,14 @@ projector' v = matrixMetric' $ HMat.outer vDecomp vDecomp
  where vDecomp = asPackedVector v
 
 
+singularMetric :: forall v . HasMetric v => HerMetric v
+singularMetric = matrixMetric $ HMat.scale (1/0) (HMat.ident dim)
+ where (Tagged dim) = dimension :: Tagged v Int
+singularMetric' :: forall v . HasMetric v => HerMetric' v
+singularMetric' = matrixMetric' $ HMat.scale (1/0) (HMat.ident dim)
+ where (Tagged dim) = dimension :: Tagged v Int
+
+
 
 -- | Evaluate a vector through a metric. For the canonical metric on a Hilbert space,
 --   this will be simply 'magnitudeSq'.
@@ -192,9 +200,33 @@ dualiseMetric' :: (HasMetric v, HasMetric (DualSpace v))
 dualiseMetric' (HerMetric' m) = HerMetric m
 
 
+-- | The inverse mapping of a metric tensor. Since a metric maps from
+--   a space to its dual, the inverse maps from the dual into the
+--   (double-dual) space &#x2013; i.e., it is a metric on the dual space.
+recipMetric' :: (HasMetric v, HasMetric (DualSpace v))
+      => HerMetric v -> HerMetric' v
+recipMetric' (HerMetric Nothing) = singularMetric'
+recipMetric' (HerMetric (Just m))
+          | isInfinite' detm  = singularMetric'
+          | otherwise         = matrixMetric' minv
+ where (minv, (detm, _)) = HMat.invlndet m
+
+recipMetric :: (HasMetric v, HasMetric (DualSpace v))
+      => HerMetric' v -> HerMetric v
+recipMetric (HerMetric' Nothing) = singularMetric
+recipMetric (HerMetric' (Just m))
+          | isInfinite' detm  = singularMetric
+          | otherwise         = matrixMetric minv
+ where (minv, (detm, _)) = HMat.invlndet m
+
+isInfinite' :: (Eq a, Num a) => a -> Bool
+isInfinite' x = x==x*2
+
+
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
 --   It is somewhat wise to just assume this class contains only the type 'Double'.
-type MetricScalar s = ( VectorSpace s, HMat.Numeric s
+type MetricScalar s = ( VectorSpace s, HMat.Numeric s, HMat.Field s
+                      , Eq s  -- ^ We really rather wouldn't require this...
                       , Num(HMat.Vector s), HMat.Indexable(HMat.Vector s)s )
 
 
