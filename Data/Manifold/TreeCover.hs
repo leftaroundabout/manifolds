@@ -85,8 +85,7 @@ instance HasTreeCover ℝ where
 instance ( HasTreeCover x, HasTreeCover y
          , v ~ PseudoDiff x, w ~ PseudoDiff y
          , v ~ DualSpace v, w ~ DualSpace w
-         , InnerSpace v, InnerSpace w
-         , s~Scalar v, s~Scalar w, Fractional s
+         , s~Scalar v, s~Scalar w
          , DualSpace (DualSpace v) ~ v, DualSpace (DualSpace w) ~ w
          , Scalar (DualSpace v) ~ Scalar v, Scalar (DualSpace w) ~ Scalar w
          ) => HasTreeCover (x,y) where

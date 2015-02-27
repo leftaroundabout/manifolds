@@ -23,7 +23,7 @@ module Data.LinearMap.HerMetric (
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
   , recipMetric, recipMetric'
-  , metriScale, metriScale'
+  , metriScale', metriScale
   , adjoint
   -- * The dual-space class
   , HasMetric(..)
@@ -190,6 +190,8 @@ transformMetric' t (HerMetric' (Just m))
                       = matrixMetric' $ HMat.tr tmat HMat.<> m HMat.<> tmat
  where tmat = asPackedMatrix t
 
+-- | This doesn't really do anything at all, since @'HerMetric' v@ is essentially a
+--   synonym for @'HerMetric' ('DualSpace' v)@.
 dualiseMetric :: (HasMetric v, HasMetric (DualSpace v))
       => HerMetric (DualSpace v) -> HerMetric' v
 dualiseMetric (HerMetric m) = HerMetric' m
@@ -225,7 +227,7 @@ isInfinite' x = x==x*2
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
 --   It is somewhat wise to just assume this class contains only the type 'Double'.
 type MetricScalar s = ( VectorSpace s, HMat.Numeric s, HMat.Field s
-                      , Eq s  -- ^ We really rather wouldn't require this...
+                      , Eq s  -- We really rather wouldn't require this...
                       , Num(HMat.Vector s), HMat.Indexable(HMat.Vector s)s )
 
 

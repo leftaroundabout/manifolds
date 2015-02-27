@@ -679,7 +679,7 @@ instance (RealDimension n, LocallyScalable n a)
 --   need to exhaustively 'isNaN'-check all results...)
 -- 
 -- @
--- hb :: RWDiffable R R R
+-- hb :: RWDiffable &#x211d; &#x211d; &#x211d;
 -- hb = alg (\\p -> - p * logBase 2 p - (1-p) * logBase 2 (1-p) )
 -- @
 newtype RWDiffable s d c
