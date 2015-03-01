@@ -223,12 +223,22 @@ isInfinite' x = x==x*2
 
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
---   It is somewhat wise to just assume this class contains only the type 'Double'.
+--   It is somewhat wise to just assume this class contains only the type 'Double'...
 type MetricScalar s = ( VectorSpace s, HMat.Numeric s, HMat.Field s
                       , Eq s  -- We really rather wouldn't require this...
                       , Num(HMat.Vector s), HMat.Indexable(HMat.Vector s)s )
 
 
+-- | At the moment, 'HerMetric' is implemented as a packed, dense 'HMat.Matrix'. For one
+--   thing, that makes common general vector operations quite efficient, in particular on
+--   high-dimensional spaces. More importantly, @hmatrix@ offers linear algebra facilities
+--   such as inverse and eigenbasis transformations, which aren't available in the
+--   @vector-space@ library yet (whose classes we strongly prefer to plain matrices
+--   and arrays).
+-- 
+--   The 'FiniteDimensional' class is used to convert between both representations.
+--   It would be nice not to have the requirement of finite dimension on 'HerMetric',
+--   but it's probably not feasible to get rid of it in forseeable time.
 class (HasBasis v, HasTrie (Basis v), MetricScalar (Scalar v)) => FiniteDimensional v where
   dimension :: Tagged v Int
   basisIndex :: Tagged v (Basis v -> Int)
