@@ -154,7 +154,7 @@ instance PseudoAffine S¹ where
   S¹ φ₀ .+~^ δφ
      | φ' < 0     = S¹ $ φ' + tau
      | otherwise  = S¹ $ φ'
-   where φ' = (φ₀ + δφ)`mod'`tau
+   where φ' = toS¹range $ φ₀ + δφ
 
 instance PseudoAffine S² where
   type PseudoDiff S² = ℝ²
@@ -167,7 +167,7 @@ instance PseudoAffine S² where
 
 sphereFold :: S⁰ -> ℝ² -> S²
 sphereFold hfSphere v
-   | ϑ₀ > pi     = S² (inv $ tau - ϑ₀) ((φ₀+pi)`mod'`tau)
+   | ϑ₀ > pi     = S² (inv $ tau - ϑ₀) (toS¹range $ φ₀+pi)
    | otherwise  = S² (inv ϑ₀) φ₀
  where S¹ φ₀ = coEmbed v
        ϑ₀ = magnitude v `mod'` tau
@@ -187,8 +187,8 @@ instance PseudoAffine ℝP² where
    | otherwise  = pure ( r₁*^embed(S¹ φ₁) ^-^ r₀*^embed(S¹ φ₀) )
   ℝP² r₀ φ₀ .+~^ (δr, δφ)
    | r₀ > 1/2   = case r₀ + δr of
-                   r₁ | r₁ > 1     -> ℝP² (2-r₁) ((φ₀+δφ+pi)`mod'`tau)
-                      | otherwise  -> ℝP²    r₁  ((φ₀+δφ)`mod'`tau)
+                   r₁ | r₁ > 1     -> ℝP² (2-r₁) (toS¹range $ φ₀+δφ+pi)
+                      | otherwise  -> ℝP²    r₁  (toS¹range $ φ₀+δφ)
   ℝP² r₀ φ₀ .+~^ δxy = let v = r₀*^embed(S¹ φ₀) ^+^ δxy
                            S¹ φ₁ = coEmbed v
                            r₁ = magnitude v `mod'` 1
@@ -196,9 +196,11 @@ instance PseudoAffine ℝP² where
 
 
 
-tau :: Double
+tau :: ℝ
 tau = 2 * pi
 
+toS¹range :: ℝ -> ℝ
+toS¹range φ = (φ+pi)`mod'`tau - pi
 
 
 
