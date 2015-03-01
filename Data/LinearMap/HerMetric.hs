@@ -26,7 +26,8 @@ module Data.LinearMap.HerMetric (
   , metriScale', metriScale
   , adjoint
   -- * The dual-space class
-  , HasMetric(..)
+  , HasMetric
+  , HasMetric'(..)
   , (^<.>)
   -- * Fundamental requirements
   , MetricScalar
@@ -192,33 +193,30 @@ transformMetric' t (HerMetric' (Just m))
 
 -- | This doesn't really do anything at all, since @'HerMetric' v@ is essentially a
 --   synonym for @'HerMetric' ('DualSpace' v)@.
-dualiseMetric :: (HasMetric v, HasMetric (DualSpace v))
-      => HerMetric (DualSpace v) -> HerMetric' v
+dualiseMetric :: HasMetric v => HerMetric (DualSpace v) -> HerMetric' v
 dualiseMetric (HerMetric m) = HerMetric' m
 
-dualiseMetric' :: (HasMetric v, HasMetric (DualSpace v))
-      => HerMetric' v -> HerMetric (DualSpace v)
+dualiseMetric' :: HasMetric v => HerMetric' v -> HerMetric (DualSpace v)
 dualiseMetric' (HerMetric' m) = HerMetric m
 
 
 -- | The inverse mapping of a metric tensor. Since a metric maps from
 --   a space to its dual, the inverse maps from the dual into the
 --   (double-dual) space &#x2013; i.e., it is a metric on the dual space.
-recipMetric' :: (HasMetric v, HasMetric (DualSpace v))
-      => HerMetric v -> HerMetric' v
+recipMetric' :: HasMetric v => HerMetric v -> HerMetric' v
 recipMetric' (HerMetric Nothing) = singularMetric'
 recipMetric' (HerMetric (Just m))
           | isInfinite' detm  = singularMetric'
           | otherwise         = matrixMetric' minv
  where (minv, (detm, _)) = HMat.invlndet m
 
-recipMetric :: (HasMetric v, HasMetric (DualSpace v))
-      => HerMetric' v -> HerMetric v
+recipMetric :: HasMetric v => HerMetric' v -> HerMetric v
 recipMetric (HerMetric' Nothing) = singularMetric
 recipMetric (HerMetric' (Just m))
           | isInfinite' detm  = singularMetric
           | otherwise         = matrixMetric minv
  where (minv, (detm, _)) = HMat.invlndet m
+
 
 isInfinite' :: (Eq a, Num a) => a -> Bool
 isInfinite' x = x==x*2
@@ -300,6 +298,7 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
                                                           
 
 
+type HasMetric v = (HasMetric' v, HasMetric' (DualSpace v), DualSpace (DualSpace v) ~ v)
 
 
 -- | While the main purpose of this class is to express 'HerMetric', it's actually
@@ -307,7 +306,7 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
 class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
       , VectorSpace (DualSpace v), HasBasis (DualSpace v)
       , Scalar v ~ Scalar (DualSpace v), Basis v ~ Basis (DualSpace v) )
-    => HasMetric v where
+    => HasMetric' v where
         
   -- | @'DualSpace' v@ is isomorphic to the space of linear functionals on @v@, i.e.
   --   @v ':-*' 'Scalar' v@.
@@ -330,10 +329,10 @@ class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
   -- | While isomorphism between a space and its dual isn't generally canonical,
   --   the /double-dual/ space should be canonically isomorphic in pretty much
   --   all relevant cases. Indeed, it is recommended that they are the very same type;
-  --   the tuple instance actually assumes this to be able to offer an efficient
-  --   implementation (namely, 'id') of the isomorphisms.
-  doubleDual :: HasMetric (DualSpace v) => v -> DualSpace (DualSpace v)
-  doubleDual' :: HasMetric (DualSpace v) => DualSpace (DualSpace v) -> v
+  --   this condition is enforced by the 'HerMetric' constraint (which is recommended
+  --   over using 'HerMetric'' itself in signatures).
+  doubleDual :: HasMetric' (DualSpace v) => v -> DualSpace (DualSpace v)
+  doubleDual' :: HasMetric' (DualSpace v) => DualSpace (DualSpace v) -> v
   
   
 
@@ -341,18 +340,16 @@ class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
 (^<.>) :: HasMetric v => v -> DualSpace v -> Scalar v
 ket ^<.> bra = bra <.>^ ket
 
-instance (MetricScalar k) => HasMetric (ZeroDim k) where
+instance (MetricScalar k) => HasMetric' (ZeroDim k) where
   Origin<.>^Origin = zeroV
   functional _ = Origin
   doubleDual = id; doubleDual'= id
-instance HasMetric Double where
+instance HasMetric' Double where
   (<.>^) = (<.>)
   functional f = f 1
   doubleDual = id; doubleDual'= id
 instance ( HasMetric v, HasMetric w, Scalar v ~ Scalar w
-         , HasMetric (DualSpace v), DualSpace (DualSpace v) ~ v
-         , HasMetric (DualSpace w), DualSpace (DualSpace w) ~ w
-         ) => HasMetric (v,w) where
+         ) => HasMetric' (v,w) where
   type DualSpace (v,w) = (DualSpace v, DualSpace w)
   (v,w)<.>^(v',w') = v<.>^v' + w<.>^w'
   functional f = (functional $ f . (,zeroV), functional $ f . (zeroV,))

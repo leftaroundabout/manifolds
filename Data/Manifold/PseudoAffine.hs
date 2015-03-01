@@ -98,14 +98,10 @@ class PseudoAffine x where
 type LocallyScalable s x = ( PseudoAffine x, (PseudoDiff x) ~ PseudoDiff x
                            , HasMetric (PseudoDiff x)
                            , DualSpace (PseudoDiff x) ~ DualSpace (PseudoDiff x)
-                           , HasMetric (DualSpace (PseudoDiff x))
-                           , PseudoDiff x ~ DualSpace (DualSpace (PseudoDiff x))
-                           , s ~ Scalar (PseudoDiff x)
-                           , s ~ Scalar (DualSpace (PseudoDiff x)) )
+                           , s ~ Scalar (PseudoDiff x) )
 type LinearManifold s x = ( PseudoAffine x, PseudoDiff x ~ x
-                          , HasMetric x, HasMetric (DualSpace x)
-                          , DualSpace (DualSpace x) ~ x
-                          , s ~ Scalar x, s ~ Scalar (DualSpace x) )
+                          , HasMetric x
+                          , s ~ Scalar x )
 type RealDimension r = ( PseudoAffine r, PseudoDiff r ~ r
                        , HasMetric r, DualSpace r ~ r, Scalar r ~ r
                        , RealFloat r )

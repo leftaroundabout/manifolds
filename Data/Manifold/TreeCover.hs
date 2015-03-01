@@ -58,9 +58,7 @@ import Data.Foldable.Constrained
 data Shade x = Shade { shadeCtr :: x
                      , shadeExpanse :: HerMetric' (PseudoDiff x) }
 
-class ( PseudoAffine x
-      , HasMetric (PseudoDiff x), HasMetric (DualSpace (PseudoDiff x))
-      , Scalar (DualSpace (PseudoDiff x)) ~ Scalar (PseudoDiff x)
+class ( PseudoAffine x, HasMetric (PseudoDiff x)
       ) => HasTreeCover x where
   branchShades :: Shade x -> [Shade x]
   
