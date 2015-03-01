@@ -7,6 +7,11 @@
 -- Stability   : experimental
 -- Portability : portable
 -- 
+-- Several low-dimensional manifolds, represented in some simple way as Haskell
+-- data types. All these are in the 'PseudoAffine' class.
+-- 
+-- Also included in this module are some misc helper constraints etc., which don't really
+-- belong here.
 
 
 {-# LANGUAGE FlexibleInstances        #-}
@@ -25,7 +30,16 @@
 {-# LANGUAGE RecordWildCards          #-}
 
 
-module Data.Manifold.Types where
+module Data.Manifold.Types (
+        -- * Linear manifolds
+          ZeroDim(..)
+        , ℝ⁰, ℝ, ℝ², ℝ³
+        -- * Hyperspheres
+        , S⁰(..), S¹(..), S²(..)
+        -- * Utility (deprecated)
+        , NaturallyEmbedded(..)
+        , GraphWindowSpec(..), Endomorphism, (^), EuclidSpace, EqFloating
+   ) where
 
 
 import Data.VectorSpace
@@ -59,7 +73,7 @@ data GraphWindowSpec = GraphWindowSpec {
 
 
 
-
+-- | A single point. Can be considered a zero-dimensional vector space, WRT any scalar.
 data ZeroDim k = Origin deriving(Eq, Show)
 instance Monoid (ZeroDim k) where
   mempty = Origin
@@ -77,11 +91,16 @@ instance HasBasis (ZeroDim k) where
   decompose Origin = []
   decompose' Origin = absurd
 
+-- | The zero-dimensional sphere is actually just two points. Implementation might
+--   therefore change to @ℝ⁰ 'Control.Category.Constrained.+' ℝ⁰@: the disjoint sum of two
+--   single-point spaces.
 data S⁰ = PositiveHalfSphere | NegativeHalfSphere deriving(Eq, Show)
-newtype S¹ = S¹ { φParamS¹ :: Double -- [-π, π[
+-- | The unit circle.
+newtype S¹ = S¹ { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
                 } deriving (Show)
-data S² = S² { ϑParamS² :: !Double -- [0, π[
-             , φParamS² :: !Double -- [-π, π[
+-- | The ordinary unit sphere.
+data S² = S² { ϑParamS² :: !Double -- ^ Range @[0, π[@.
+             , φParamS² :: !Double -- ^ Range @[-π, π[@.
              } deriving (Show)
 
 
@@ -117,6 +136,7 @@ instance NaturallyEmbedded S² ℝ³ where
 type Endomorphism a = a->a
 
 
+type ℝ⁰ = ZeroDim ℝ
 type ℝ = Double
 type ℝ² = (ℝ,ℝ)
 type ℝ³ = (ℝ²,ℝ)

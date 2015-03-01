@@ -137,6 +137,13 @@ instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c
   (a,b,c).+~^(v,w,x) = (a.+~^v, b.+~^w, c.+~^x)
 
 
+instance PseudoAffine S⁰ where
+  type PseudoDiff S⁰ = ℝ⁰
+  PositiveHalfSphere .-~. PositiveHalfSphere = pure Origin
+  NegativeHalfSphere .-~. NegativeHalfSphere = pure Origin
+  _ .-~. _ = Option Nothing
+  p .+~^ Origin = p
+
 instance PseudoAffine S¹ where
   type PseudoDiff S¹ = ℝ
   S¹ φ₁ .-~. S¹ φ₀

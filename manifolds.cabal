@@ -61,8 +61,8 @@ Library
                      Data.Manifold.TreeCover
                      Data.LinearMap.HerMetric
                      -- Data.Manifold.Visualisation.R3.GLUT
-  Other-modules:   Data.Manifold.Types
-                   Data.List.FastNub
+                     Data.Manifold.Types
+  Other-modules:   Data.List.FastNub
                    Util.Associate
                    Util.LtdShow
   default-language: Haskell2010
