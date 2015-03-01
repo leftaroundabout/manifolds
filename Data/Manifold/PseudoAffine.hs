@@ -175,6 +175,26 @@ sphereFold hfSphere v
                                 NegativeHalfSphere -> pi - ϑ
 
 
+instance PseudoAffine ℝP² where
+  type PseudoDiff ℝP² = ℝ²
+  ℝP² r₁ φ₁ .-~. ℝP² r₀ φ₀
+   | r₀ > 1/2   = pure `id` case φ₁-φ₀ of
+                          δφ | δφ > 3*pi/2  -> (  r₁ - r₀, δφ - 2*pi)
+                             | δφ < -3*pi/2 -> (  r₁ - r₀, δφ + 2*pi)
+                             | δφ > pi/2    -> (2-r₁ - r₀, δφ - pi  )
+                             | δφ < -pi/2   -> (2-r₁ - r₀, δφ + pi  )
+                             | otherwise    -> (  r₁ - r₀, δφ       )
+   | otherwise  = pure ( r₁*^embed(S¹ φ₁) ^-^ r₀*^embed(S¹ φ₀) )
+  ℝP² r₀ φ₀ .+~^ (δr, δφ)
+   | r₀ > 1/2   = case r₀ + δr of
+                   r₁ | r₁ > 1     -> ℝP² (2-r₁) ((φ₀+δφ+pi)`mod'`tau)
+                      | otherwise  -> ℝP²    r₁  ((φ₀+δφ)`mod'`tau)
+  ℝP² r₀ φ₀ .+~^ δxy = let v = r₀*^embed(S¹ φ₀) ^+^ δxy
+                           S¹ φ₁ = coEmbed v
+                           r₁ = magnitude v `mod'` 1
+                       in ℝP² r₁ φ₁  
+
+
 
 tau :: Double
 tau = 2 * pi

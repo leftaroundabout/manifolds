@@ -36,6 +36,8 @@ module Data.Manifold.Types (
         , ℝ⁰, ℝ, ℝ², ℝ³
         -- * Hyperspheres
         , S⁰(..), S¹(..), S²(..)
+        -- * Projective spaces
+        , ℝP¹,  ℝP²(..)
         -- * Utility (deprecated)
         , NaturallyEmbedded(..)
         , GraphWindowSpec(..), Endomorphism, (^), EuclidSpace, EqFloating
@@ -102,6 +104,17 @@ newtype S¹ = S¹ { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
 data S² = S² { ϑParamS² :: !Double -- ^ Range @[0, π[@.
              , φParamS² :: !Double -- ^ Range @[-π, π[@.
              } deriving (Show)
+
+
+
+
+type ℝP¹ = S¹
+
+-- | The two-dimensional real projective space, implemented as a unit disk with
+--   opposing points on the rim glued together.
+data ℝP² = ℝP² { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
+               , φParamℝP² :: !Double -- ^ Range @[-π, π[@.
+               } deriving (Show)
 
 
 class NaturallyEmbedded m v where
