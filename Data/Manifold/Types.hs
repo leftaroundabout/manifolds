@@ -32,7 +32,10 @@
 
 module Data.Manifold.Types (
         -- * Index / ASCII names
-          Real0, Real1, Real2, Real3, Sphere0, Sphere1, Sphere2, Projective1, Projective2
+          Real0, Real1, RealPlus, Real2, Real3
+        , Sphere0, Sphere1, Sphere2
+        , Projective1, Projective2
+        , Disk1, Disk2, Cone, OpenCone
         -- * Linear manifolds
         , ZeroDim(..)
         , ℝ⁰, ℝ, ℝ², ℝ³
@@ -40,6 +43,10 @@ module Data.Manifold.Types (
         , S⁰(..), S¹(..), S²(..)
         -- * Projective spaces
         , ℝP¹,  ℝP²(..)
+        -- * Intervals\/disks\/cones
+        , D¹(..), D²(..)
+        , ℝay
+        , CD¹(..), Cℝay(..)
         -- * Utility (deprecated)
         , NaturallyEmbedded(..)
         , GraphWindowSpec(..), Endomorphism, (^), EuclidSpace, EqFloating
@@ -119,6 +126,38 @@ data ℝP² = ℝP² { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
                } deriving (Show)
 
 
+
+-- | The &#x201c;one-dimensional disk&#x201d; &#x2013; really just the line segment between
+--   the two points -1 and 1 of 'S⁰', i.e. this is simply a closed interval.
+newtype D¹ = D¹ { xParamD¹ :: Double -- ^ Range @[-1, 1]@.
+                }
+
+-- | The standard, closed unit disk. Homeomorphic to the cone over 'S¹', but not in the
+--   the obvious, &#x201c;flat&#x201d; way. (And not at all, despite
+--   the identical ADT definition, to the projective space 'ℝP²'!)
+data D² = D² { rParamD² :: !Double -- ^ Range @[0, 1]@.
+             , φParamD² :: !Double -- ^ Range @[-π, π[@.
+             } deriving (Show)
+
+-- | A (closed) cone over a space @x@ is the product of @x@ with the closed interval 'D¹'
+--   of &#x201c;heights&#x201d;,
+--   except on its &#x201c;tip&#x201d;: here, @x@ is smashed to a single point.
+--   
+--   This construct becomes (homeomorphic-to-) an actual geometric cone (and to 'D²') in the
+--   special case @x = 'S¹'@.
+data CD¹ x = CD¹ { hParamCD¹ :: !Double -- ^ Range @[0, 1]@
+                 , pParamCD¹ :: !x      -- ^ Irrelevant at @h = 0@.
+                 }
+
+
+-- | An open cone is homeomorphic to a closed cone without the &#x201c;lid&#x201d;,
+--   i.e. without the &#x201c;last copy&#x201d; of @x@, at the far end of the height
+--   interval. Since that means the height does not include its supremum, it is actually
+--   more natural to express it as the entire real ray, hence the name.
+data Cℝay x = Cℝay { hParamCℝay :: !Double -- ^ Range @[0, &#x221e;[@
+                   , pParamCℝay :: !x      -- ^ Irrelevant at @h = 0@.
+                   }
+
 class NaturallyEmbedded m v where
   embed :: m -> v
   coEmbed :: v -> m
@@ -149,6 +188,13 @@ instance NaturallyEmbedded ℝP² ℝ³ where
   coEmbed ((x,y),z) = ℝP² (sqrt $ 1-(z/r)^2) (atan2 (y/r) (x/r))
    where r = sqrt $ x^2 + y^2 + z^2
 
+instance NaturallyEmbedded D¹ ℝ where
+  embed = xParamD¹
+  coEmbed = D¹ . max (-1) . min 1
+
+instance (NaturallyEmbedded x p) => NaturallyEmbedded (Cℝay x) (p,ℝ) where
+  embed (Cℝay h p) = (embed p, h)
+  coEmbed (v,z) = Cℝay (max 0 z) (coEmbed v)
 
 
 
@@ -161,10 +207,16 @@ type ℝ² = (ℝ,ℝ)
 type ℝ³ = (ℝ²,ℝ)
 
 
+-- | Better known as &#x211d;&#x207a; (which is not a legal Haskell name), the ray
+--   of positive numbers (including zero, i.e. closed on one end).
+type ℝay = Cℝay ℝ⁰
+
+
 
 
 type Real0 = ℝ⁰
 type Real1 = ℝ
+type RealPlus = ℝay
 type Real2 = ℝ²
 type Real3 = ℝ³
 
@@ -175,6 +227,11 @@ type Sphere2 = S²
 type Projective1 = ℝP¹
 type Projective2 = ℝP²
 
+type Disk1 = D¹
+type Disk2 = D²
+
+type Cone = CD¹ 
+type OpenCone = Cℝay
 
 
 
