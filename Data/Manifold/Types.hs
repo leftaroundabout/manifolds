@@ -31,8 +31,10 @@
 
 
 module Data.Manifold.Types (
+        -- * Index / ASCII names
+          Real0, Real1, Real2, Real3, Sphere0, Sphere1, Sphere2, Projective1, Projective2
         -- * Linear manifolds
-          ZeroDim(..)
+        , ZeroDim(..)
         , ℝ⁰, ℝ, ℝ², ℝ³
         -- * Hyperspheres
         , S⁰(..), S¹(..), S²(..)
@@ -142,6 +144,10 @@ instance NaturallyEmbedded S² ℝ³ where
   coEmbed ((x,y),z) = S² (acos $ z/r) (atan2 y x)
    where r = sqrt $ x^2 + y^2 + z^2
  
+instance NaturallyEmbedded ℝP² ℝ³ where
+  embed (ℝP² r φ) = ((r * cos φ, r * sin φ), sqrt $ 1-r^2)
+  coEmbed ((x,y),z) = ℝP² (sqrt $ 1-(z/r)^2) (atan2 (y/r) (x/r))
+   where r = sqrt $ x^2 + y^2 + z^2
 
 
 
@@ -153,6 +159,24 @@ type ℝ⁰ = ZeroDim ℝ
 type ℝ = Double
 type ℝ² = (ℝ,ℝ)
 type ℝ³ = (ℝ²,ℝ)
+
+
+
+
+type Real0 = ℝ⁰
+type Real1 = ℝ
+type Real2 = ℝ²
+type Real3 = ℝ³
+
+type Sphere0 = S⁰
+type Sphere1 = S¹
+type Sphere2 = S²
+
+type Projective1 = ℝP¹
+type Projective2 = ℝP²
+
+
+
 
 instance VectorSpace () where
   type Scalar () = ℝ
