@@ -195,6 +195,17 @@ instance PseudoAffine ℝP² where
                        in ℝP² r₁ φ₁  
 
 
+instance (PseudoAffine m, VectorSpace (PseudoDiff m), Scalar (PseudoDiff m) ~ ℝ)
+             => PseudoAffine (CD¹ m) where
+  type PseudoDiff (CD¹ m) = (PseudoDiff m, ℝ)
+  CD¹ h₁ m₁ .-~. CD¹ h₀ m₀
+     = fmap ( \δm -> (h₁*^δm, h₁-h₀) ) $ m₁.-~.m₀
+  CD¹ h₀ m₀ .+~^ (h₁δm, δh)
+      = let h₁ = min 1 . max 1e-320 $ h₀+δh; δm = h₁δm^/h₁
+        in CD¹ h₁ (m₀.+~^δm)
+                               
+
+
 
 tau :: ℝ
 tau = 2 * pi
