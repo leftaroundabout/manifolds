@@ -222,6 +222,14 @@ isInfinite' :: (Eq a, Num a) => a -> Bool
 isInfinite' x = x==x*2
 
 
+
+metricEigenspan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
+metricEigenspan (HerMetric' Nothing) = []
+metricEigenspan (HerMetric' (Just m)) = map fromPackedVector eigSpan
+ where (μs,vsm) = HMat.eigSH m
+       eigSpan = zipWith HMat.scale (HMat.toList μs) (HMat.toColumns vsm)
+
+
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
 --   It is somewhat wise to just assume this class contains only the type 'Double'...
 type MetricScalar s = ( VectorSpace s, HMat.Numeric s, HMat.Field s
@@ -258,6 +266,8 @@ class (HasBasis v, HasTrie (Basis v), MetricScalar (Scalar v)) => FiniteDimensio
                          => (v :-* w) -> HMat.Matrix s
          defaultAsPackedMatrix m = HMat.fromRows $ asPackedVector . atBasis m <$> cb
           where (Tagged cb) = completeBasis :: Tagged v [Basis v]
+  
+  fromPackedVector :: HMat.Vector (Scalar v) -> v
 
 instance (MetricScalar k) => FiniteDimensional (ZeroDim k) where
   dimension = Tagged 0
