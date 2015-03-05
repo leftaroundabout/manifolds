@@ -226,7 +226,8 @@ isInfinite' x = x==x*2
 metricEigenspan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
 metricEigenspan (HerMetric' Nothing) = []
 metricEigenspan (HerMetric' (Just m)) = map fromPackedVector eigSpan
- where (μs,vsm) = HMat.eigSH m
+ where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
+                               -- (`HerMetric` is always Hermitian!)
        eigSpan = zipWith HMat.scale (HMat.toList μs) (HMat.toColumns vsm)
 
 
@@ -268,6 +269,9 @@ class (HasBasis v, HasTrie (Basis v), MetricScalar (Scalar v)) => FiniteDimensio
           where (Tagged cb) = completeBasis :: Tagged v [Basis v]
   
   fromPackedVector :: HMat.Vector (Scalar v) -> v
+  fromPackedVector v = result
+   where result = recompose $ zip cb (HMat.toList v)
+         cb = witness completeBasis result
 
 instance (MetricScalar k) => FiniteDimensional (ZeroDim k) where
   dimension = Tagged 0
@@ -275,6 +279,7 @@ instance (MetricScalar k) => FiniteDimensional (ZeroDim k) where
   indexBasis = Tagged $ const undefined
   completeBasis = Tagged []
   asPackedVector Origin = HMat.fromList []
+  fromPackedVector _ = Origin
 instance FiniteDimensional ℝ where
   dimension = Tagged 1
   basisIndex = Tagged $ \() -> 0
@@ -282,6 +287,7 @@ instance FiniteDimensional ℝ where
   completeBasis = Tagged [()]
   asPackedVector x = HMat.fromList [x]
   asPackedMatrix f = HMat.asRow . asPackedVector $ atBasis f ()
+  fromPackedVector v = v HMat.! 0
 instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
             => FiniteDimensional (a,b) where
   dimension = tupDim
@@ -313,6 +319,14 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
           where (Tagged cba) = completeBasis :: Tagged a [Basis a]
                 (Tagged cbb) = completeBasis :: Tagged b [Basis b]
   asPackedVector (a,b) = HMat.vjoin [asPackedVector a, asPackedVector b]
+  fromPackedVector = fPV
+   where fPV :: forall a b . (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
+                     => HMat.Vector (Scalar a) -> (a,b)
+         fPV v = (fromPackedVector l, fromPackedVector r)
+          where (Tagged da) = dimension :: Tagged a Int
+                (Tagged db) = dimension :: Tagged b Int
+                l = HMat.subVector 0 da v
+                r = HMat.subVector da db v
               
   
                                                           
