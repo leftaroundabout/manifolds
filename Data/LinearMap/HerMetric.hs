@@ -23,6 +23,7 @@ module Data.LinearMap.HerMetric (
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
   , recipMetric, recipMetric'
+  , eigenspan, eigenspan'
   , metriScale', metriScale
   , adjoint
   -- * The dual-space class
@@ -223,12 +224,27 @@ isInfinite' x = x==x*2
 
 
 
-metricEigenspan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
-metricEigenspan (HerMetric' Nothing) = []
-metricEigenspan (HerMetric' (Just m)) = map fromPackedVector eigSpan
+-- | The eigenbasis of a /positive definite/ metric, with each eigenvector scaled
+--   to the square root of the eigenvalue.
+--   
+--   This constitutes, in a sense,
+--   a decomposition of a metric into a set of 'projector'' vectors. If those
+--   are 'sumV'ed again, the original metric is obtained. (This holds even for
+--   non-Hilbert/Banach spaces, even though the concept of eigenbasis and
+--   &#x201c;scaled length&#x201d; doesn't really makes sense then in the usual way!)
+eigenspan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
+eigenspan (HerMetric' Nothing) = []
+eigenspan (HerMetric' (Just m)) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
                                -- (`HerMetric` is always Hermitian!)
-       eigSpan = zipWith HMat.scale (HMat.toList μs) (HMat.toColumns vsm)
+       eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
+
+eigenspan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [DualSpace v]
+eigenspan' (HerMetric Nothing) = []
+eigenspan' (HerMetric (Just m)) = map fromPackedVector eigSpan
+ where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
+                               -- (`HerMetric` is always Hermitian!)
+       eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
