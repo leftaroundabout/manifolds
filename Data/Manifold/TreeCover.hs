@@ -68,6 +68,19 @@ subshadeId (Shade c expa) = \x
                  _ -> -1
                  
  where expvs = eigenCoSpan expa
+
+
+pointsShades :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+                 => [x] -> [Shade x]
+pointsShades [] = []
+pointsShades ps@(p₀:_) = Shade ctr expa : pointsShades nonreachable
+ where (ctr,nonreachable)
+             = foldr ( \(i,p) (acc, nr) -> case p.-~.acc of 
+                                            Option (Just δ) -> (acc .+~^ δ^/i, nr)
+                                            _ -> (acc, p:nr) )
+                     (p₀,[])
+                     ( zip [1..] ps )
+       expa = undefined
        
   
 -- | Check the statistical likelyhood of a point being within a shade.
