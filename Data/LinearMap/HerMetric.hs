@@ -23,7 +23,8 @@ module Data.LinearMap.HerMetric (
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
   , recipMetric, recipMetric'
-  , eigenspan, eigenspan'
+  , eigenSpan, eigenSpan'
+  , eigenCoSpan, eigenCoSpan'
   , metriScale', metriScale
   , adjoint
   -- * The dual-space class
@@ -232,19 +233,32 @@ isInfinite' x = x==x*2
 --   are 'sumV'ed again, the original metric is obtained. (This holds even for
 --   non-Hilbert/Banach spaces, even though the concept of eigenbasis and
 --   &#x201c;scaled length&#x201d; doesn't really makes sense then in the usual way!)
-eigenspan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
-eigenspan (HerMetric' Nothing) = []
-eigenspan (HerMetric' (Just m)) = map fromPackedVector eigSpan
+eigenSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
+eigenSpan (HerMetric' Nothing) = []
+eigenSpan (HerMetric' (Just m)) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
                                -- (`HerMetric` is always Hermitian!)
        eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
-eigenspan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [DualSpace v]
-eigenspan' (HerMetric Nothing) = []
-eigenspan' (HerMetric (Just m)) = map fromPackedVector eigSpan
+eigenSpan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [DualSpace v]
+eigenSpan' (HerMetric Nothing) = []
+eigenSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
                                -- (`HerMetric` is always Hermitian!)
        eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
+
+eigenCoSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [DualSpace v]
+eigenCoSpan (HerMetric' Nothing) = []
+eigenCoSpan (HerMetric' (Just m)) = map fromPackedVector eigSpan
+ where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
+                               -- (`HerMetric` is always Hermitian!)
+       eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
+eigenCoSpan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [v]
+eigenCoSpan' (HerMetric Nothing) = []
+eigenCoSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
+ where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
+                               -- (`HerMetric` is always Hermitian!)
+       eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
