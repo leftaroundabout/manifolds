@@ -73,14 +73,18 @@ subshadeId (Shade c expa) = \x
 pointsShades :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
                  => [x] -> [Shade x]
 pointsShades [] = []
-pointsShades ps@(p₀:_) = Shade ctr expa : pointsShades nonreachable
- where (ctr,nonreachable)
-             = foldr ( \(i,p) (acc, nr) -> case p.-~.acc of 
-                                            Option (Just δ) -> (acc .+~^ δ^/i, nr)
-                                            _ -> (acc, p:nr) )
-                     (p₀,[])
+pointsShades ps@(p₀:_) = case expa of 
+                          Option (Just e) -> Shade ctr e : pointsShades unreachable
+                          _ -> pointsShades inc'd ++ pointsShades unreachable
+ where (ctr,(inc'd,unreachable))
+             = foldr ( \(i,p) (acc, (rb,nr))
+                           -> case p.-~.acc of 
+                               Option (Just δ) -> (acc .+~^ δ^/i, (p:rb, nr))
+                               _ -> (acc, (rb, p:nr)) )
+                     (p₀, mempty)
                      ( zip [1..] ps )
-       expa = undefined
+       expa = ( (^/ fromIntegral(length ps)) . sumV . map projector' )
+              <$> mapM (.-~.ctr) ps
        
   
 -- | Check the statistical likelyhood of a point being within a shade.
@@ -93,7 +97,11 @@ occlusion (Shade p₀ δ) = occ
          _               -> zeroV
        δinv = recipMetric δ
 
--- instance (RealDimension s) => HasTreeCover (ZeroDim s) where
-  -- branchShades _ = []
+
+
+data ShadeTree x = PlainLeaves [x]
+                 | DisjointBranches [ShadeTree x]
+                 | OverlappingBranches (Shade x) [ShadeTree x]
+
 
 
