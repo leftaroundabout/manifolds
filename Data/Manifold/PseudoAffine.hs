@@ -76,7 +76,7 @@ import Data.Foldable.Constrained
 
 
 infix 6 .-~.
-infixl 6 .+~^
+infixl 6 .+~^, .-~^
 
 -- | 'PseudoAffine' is intended as an alternative class for 'Data.Manifold.Manifold's.
 --   The interface is almost identical to the better-known 'AffineSpace' class, but unlike
@@ -89,10 +89,33 @@ infixl 6 .+~^
 --   scale, and yet be used in practically the same way as an affine space. At least the
 --   usual spheres and tori make good instances, perhaps the class is in fact equivalent to
 --   /parallelisable manifolds/.
-class PseudoAffine x where
+class (AdditiveGroup (PseudoDiff x)) => PseudoAffine x where
   type PseudoDiff x :: *
+  -- | The &#x201c;way&#x201d; reaching from one point to another.
+  --   Should only yield 'Nothing' if the points are on disjoint segments of a
+  --   non&#x2013;path-connected manifold.
   (.-~.) :: x -> x -> Option (PseudoDiff x)
+  
+  -- | Go such a way as obtained from '.-~.', starting from some reference point.
+  --   
+  -- @
+  -- p .+~^ (q.-~.p) &#x2261; q
+  -- @
+  --   
+  --   This should hold exactly (at least up to floating-point precision limits).
   (.+~^) :: x -> PseudoDiff x -> x
+  
+  -- | Shorthand for @\\p v -> p .+~^ 'negateV' v@, which should obey the /asymptotic/ law
+  --   
+  -- @
+  -- p .-~^ v .+~^ v &#x2245; p
+  -- @
+  --   
+  --   Meaning: if @v@ is scaled down with sufficiently small factors /&#x3b7;/, then
+  --   the difference @(p.-~^v.+~^v) .-~. p@ should scale down even faster:
+  --   as /O/ (/&#x3b7;/&#xb2;).
+  (.-~^) :: x -> PseudoDiff x -> x
+  p .-~^ v = p .+~^ negateV v
 
 
 type LocallyScalable s x = ( PseudoAffine x, (PseudoDiff x) ~ PseudoDiff x
