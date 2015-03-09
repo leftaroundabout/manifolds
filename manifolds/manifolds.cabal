@@ -25,9 +25,14 @@ Description:         Manifolds, a generalisation of the notion of \"smooth curve
 License:             GPL-3
 License-file:        COPYING
 Author:              Justus Sagemüller
+Homepage:            https://github.com/leftaroundabout/manifolds
 Maintainer:          (@) sagemueller $ geo.uni-koeln.de
 Build-Type:          Simple
 Cabal-Version:       >=1.10
+
+Source-Repository head
+    type: git
+    location: git://github.com/leftaroundabout/manifolds.git
 
 Library
   Build-Depends:     base>=4.5 && < 6
@@ -38,8 +43,6 @@ Library
                      , vector-algorithms
                      , hmatrix >= 0.16 && < 0.18
                      , containers
-                     , random
-                     , MonadRandom
                      , comonad
                      , semigroups
                      , void
