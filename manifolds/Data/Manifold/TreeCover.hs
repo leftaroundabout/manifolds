@@ -55,6 +55,13 @@ import Data.Foldable.Constrained
 
 
 
+-- | A 'Shade' is a very crude description of a region within a manifold. It
+--   can be interpreted as either an ellipsoid shape, or as the Gaussian peak
+--   of a normal distribution (use <http://hackage.haskell.org/package/manifold-random>
+--   for actually sampling from that distribution).
+-- 
+--   For a /precise/ description of an arbitrarily-shaped connected subset of a manifold,
+--   there is 'Region', whose implementation is vastly more complex.
 data Shade x = Shade { shadeCtr :: x
                      , shadeExpanse :: HerMetric' (PseudoDiff x) }
 
@@ -70,6 +77,14 @@ subshadeId (Shade c expa) = \x
  where expvs = eigenCoSpan expa
 
 
+-- | Attempt to find a 'Shade' that &#x201c;covers&#x201d; the given points.
+--   At least in an affine space (and thus locally in any manifold), this can be used to
+--   estimate the parameters of a normal distribution from which some points were
+--   sampled.
+-- 
+--   For /nonconnected/ manifolds it will be necessary to yield separate shades
+--   for each connected component. And for an empty input list, there is no shade!
+--   Hence the list result.
 pointsShades :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
                  => [x] -> [Shade x]
 pointsShades [] = []
@@ -77,7 +92,7 @@ pointsShades ps@(p₀:_) = case expa of
                           Option (Just e) -> Shade ctr e : pointsShades unreachable
                           _ -> pointsShades inc'd ++ pointsShades unreachable
  where (ctr,(inc'd,unreachable))
-             = foldr ( \(i,p) (acc, (rb,nr))
+             = foldl' ( \(acc, (rb,nr)) (i,p)
                            -> case p.-~.acc of 
                                Option (Just δ) -> (acc .+~^ δ^/i, (p:rb, nr))
                                _ -> (acc, (rb, p:nr)) )
