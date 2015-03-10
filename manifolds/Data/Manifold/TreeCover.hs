@@ -20,10 +20,11 @@
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE RecordWildCards          #-}
-{-# LANGUAGE CPP                      #-}
 
 
-module Data.Manifold.TreeCover where
+module Data.Manifold.TreeCover (
+         Shade(..), pointsShades, ShadeTree(..), fromLeafPoints
+    ) where
 
 
 import Data.List
@@ -87,10 +88,15 @@ subshadeId (Shade c expa) = \x
 --   Hence the list result.
 pointsShades :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
                  => [x] -> [Shade x]
-pointsShades [] = []
-pointsShades ps@(p₀:_) = case expa of 
-                          Option (Just e) -> Shade ctr e : pointsShades unreachable
-                          _ -> pointsShades inc'd ++ pointsShades unreachable
+pointsShades = map snd . pointsShades'
+
+pointsShades' :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+                 => [x] -> [([x], Shade x)]
+pointsShades' [] = []
+pointsShades' ps@(p₀:_) = case expa of 
+                           Option (Just e) -> (ps,Shade ctr e)
+                                              : pointsShades' unreachable
+                           _ -> pointsShades' inc'd ++ pointsShades' unreachable
  where (ctr,(inc'd,unreachable))
              = foldl' ( \(acc, (rb,nr)) (i,p)
                            -> case p.-~.acc of 
@@ -115,8 +121,30 @@ occlusion (Shade p₀ δ) = occ
 
 
 data ShadeTree x = PlainLeaves [x]
-                 | DisjointBranches [ShadeTree x]
-                 | OverlappingBranches (Shade x) [ShadeTree x]
+                 | DisjointBranches Int [ShadeTree x]
+                 | OverlappingBranches Int (Shade x) [ShadeTree x]
 
+fromLeafPoints :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+                 => [x] -> ShadeTree x
+fromLeafPoints = \xs -> case pointsShades' xs of
+                     [] -> PlainLeaves []
+                     [(_,rShade)] -> OverlappingBranches (length xs)
+                                                         rShade
+                                                         (branches rShade xs)
+                     partitions -> DisjointBranches (length xs)
+                                    $ map (\(xs',pShade) ->
+                                        OverlappingBranches (length xs')
+                                                            pShade
+                                                            (branches pShade xs'))
+                                       partitions
+ where branches shade = map fromLeafPoints
+                        . foldr (\p -> cons2nth p $ subshadeId shade p) []
+                                           
+
+cons2nth :: a -> Int -> [[a]] -> [[a]]
+cons2nth _ n l | n<0 = l
+cons2nth x 0 (c:r) = (x:c):r
+cons2nth x n [] = cons2nth x n [[]]
+cons2nth x n (l:r) = l : cons2nth x (n-1) r
 
 
