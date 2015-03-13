@@ -15,11 +15,13 @@
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE TupleSections            #-}
+{-# LANGUAGE ParallelListComp         #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE RecordWildCards          #-}
+{-# LANGUAGE DataKinds                #-}
 
 
 module Data.Manifold.TreeCover (
@@ -29,6 +31,7 @@ module Data.Manifold.TreeCover (
 
 import Data.List
 import Data.Maybe
+import qualified Data.Map as Map
 import Data.Semigroup
 import Data.Ord (comparing)
 import Data.Fixed
@@ -36,7 +39,6 @@ import Data.Fixed
 import Data.VectorSpace
 import Data.LinearMap
 import Data.LinearMap.HerMetric
-import Data.MemoTrie (HasTrie)
 import Data.AffineSpace
 import Data.Basis
 import Data.Complex hiding (magnitude)
@@ -53,6 +55,8 @@ import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
+
+import GHC.TypeLits
 
 
 
@@ -147,4 +151,39 @@ cons2nth x 0 (c:r) = (x:c):r
 cons2nth x n [] = cons2nth x n [[]]
 cons2nth x n (l:r) = l : cons2nth x (n-1) r
 
+
+
+data Simplex x n where
+   ZeroSimplex :: x -> Simplex x 0
+   Simplex :: x -> Simplex x (n-1) -> Simplex x n
+
+newtype Triangulation x n = Triangulation { getTriangulation :: [Simplex x n] }
+
+
+splxVertices :: Simplex x n -> [x]
+splxVertices (ZeroSimplex x) = [x]
+splxVertices (Simplex x s') = x : splxVertices s'
+
+
+data Branchwise :: * -> (Nat -> *) -> Nat -> * where
+   Branchwise :: { branchResult :: r n
+                 , bResBounary :: r (n-1)
+                 , branchBoundary :: ShadeTree x
+                 } -> Branchwise x r n
+
+
+triangBranches :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+                 => ShadeTree x -> Branchwise x (Triangulation x) n
+triangBranches _ = undefined
+
+triangulate :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+                 => ShadeTree x -> Triangulation x n
+triangulate = branchResult . triangBranches
+
+tringComplete :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+                 => Triangulation x (n-1) -> Triangulation x n -> Triangulation x n
+tringComplete (Triangulation trr) (Triangulation tr) = undefined
+ where 
+       bbSimplices = Map.fromList [(i, Left s) | s <- tr | i <- [0::Int ..] ]
+       bbVertices =       [(i, splxVertices s) | s <- tr | i <- [0::Int ..] ]
 
