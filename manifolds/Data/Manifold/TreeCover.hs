@@ -16,6 +16,7 @@
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE ParallelListComp         #-}
+{-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
 {-# LANGUAGE TypeOperators            #-}
@@ -32,6 +33,7 @@ module Data.Manifold.TreeCover (
 import Data.List
 import Data.Maybe
 import qualified Data.Map as Map
+import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
 import Data.Ord (comparing)
 import Data.Fixed
@@ -125,8 +127,8 @@ occlusion (Shade p₀ δ) = occ
 
 
 data ShadeTree x = PlainLeaves [x]
-                 | DisjointBranches Int [ShadeTree x]
-                 | OverlappingBranches Int (Shade x) [ShadeTree x]
+                 | DisjointBranches Int (NE.NonEmpty (ShadeTree x))
+                 | OverlappingBranches Int (Shade x) (NE.NonEmpty (ShadeTree x))
 
 fromLeafPoints :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
                  => [x] -> ShadeTree x
@@ -136,12 +138,13 @@ fromLeafPoints = \xs -> case pointsShades' xs of
                                                          rShade
                                                          (branches rShade xs)
                      partitions -> DisjointBranches (length xs)
+                                   . NE.fromList
                                     $ map (\(xs',pShade) ->
                                         OverlappingBranches (length xs')
                                                             pShade
                                                             (branches pShade xs'))
                                        partitions
- where branches shade = map fromLeafPoints
+ where branches shade = NE.fromList . map fromLeafPoints
                         . foldr (\p -> cons2nth p $ subshadeId shade p) []
                                            
 
@@ -151,6 +154,12 @@ cons2nth x 0 (c:r) = (x:c):r
 cons2nth x n [] = cons2nth x n [[]]
 cons2nth x n (l:r) = l : cons2nth x (n-1) r
 
+
+xorXChange :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+              => ShadeTree x -> ShadeTree x -> ( ShadeTree x -- ^ Disjoint part
+                                               , ShadeTree x -- ^ Overlapping part
+                                               )
+xorXChange t₁ t₂ = (undefined, undefined)
 
 
 data Simplex x n where
@@ -166,24 +175,48 @@ splxVertices (Simplex x s') = x : splxVertices s'
 
 
 data Branchwise :: * -> (Nat -> *) -> Nat -> * where
-   Branchwise :: { branchResult :: r n
-                 , bResBounary :: r (n-1)
+   Branchwise :: { branchResult :: WithBoundary r n
                  , branchBoundary :: ShadeTree x
                  } -> Branchwise x r n
 
+data WithBoundary :: (Nat -> *) -> Nat -> * where
+  WithBoundary :: { inBoundary :: r n
+                  , enclosingBoundary :: r (n-1)
+                  } -> WithBoundary r n
 
-triangBranches :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+branchwise :: ∀ r n x . RealPseudoAffine x
+         ⇒   (∀ k .  ShadeTree x → Option (Branchwise x r k)       )
+           → (∀ k .  r (k-1) → WithBoundary r k → WithBoundary r k
+                                              → WithBoundary r k   )
+           → ShadeTree x → [r n]
+branchwise f c = map (inBoundary . branchResult) . bw
+ where bw tr | Option(Just r₀)<-f tr  = [r₀]
+       bw (DisjointBranches _ trs) = bw =<< NE.toList trs
+       bw (OverlappingBranches _ _ trs) 
+           = let brResults = fmap bw trs
+             in [ foldr1 (\(Branchwise r bb) (Branchwise r' bb')
+                           -> let (bb'', shb) = xorXChange bb bb'
+                                  [glue] = branchwise f c shb
+                              in Branchwise (c glue r r') bb''
+                         ) . join $ NE.toList brResults ]
+       bw _ = []
+
+triangBranches :: RealPseudoAffine x
                  => ShadeTree x -> Branchwise x (Triangulation x) n
 triangBranches _ = undefined
 
-triangulate :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+triangulate :: RealPseudoAffine x
                  => ShadeTree x -> Triangulation x n
-triangulate = branchResult . triangBranches
+triangulate = inBoundary . branchResult . triangBranches
 
-tringComplete :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+tringComplete :: RealPseudoAffine x
                  => Triangulation x (n-1) -> Triangulation x n -> Triangulation x n
 tringComplete (Triangulation trr) (Triangulation tr) = undefined
  where 
        bbSimplices = Map.fromList [(i, Left s) | s <- tr | i <- [0::Int ..] ]
        bbVertices =       [(i, splxVertices s) | s <- tr | i <- [0::Int ..] ]
 
+ 
+
+type RealPseudoAffine x
+          = (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
