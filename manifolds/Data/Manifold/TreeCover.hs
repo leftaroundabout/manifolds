@@ -61,6 +61,12 @@ import Data.Foldable.Constrained
 import GHC.TypeLits
 
 
+-- | Possibly / Partially / asymPtotically singular metric.
+data PSM x = PSM {
+       psmExpanse :: HerMetric' (PseudoDiff x)
+     , relevantEigenspan :: [DualSpace (PseudoDiff x)]
+     }
+       
 
 -- | A 'Shade' is a very crude description of a region within a manifold. It
 --   can be interpreted as either an ellipsoid shape, or as the Gaussian peak
@@ -70,18 +76,19 @@ import GHC.TypeLits
 --   For a /precise/ description of an arbitrarily-shaped connected subset of a manifold,
 --   there is 'Region', whose implementation is vastly more complex.
 data Shade x = Shade { shadeCtr :: x
-                     , shadeExpanse :: HerMetric' (PseudoDiff x) }
+                     , shadeExpanse :: PSM x }
 
-subshadeId :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
-                  => Shade x -> x -> Int
-subshadeId (Shade c expa) = \x
+fullShade :: RealPseudoAffine x => x -> HerMetric' (PseudoDiff x) -> Shade x
+fullShade ctr expa = Shade ctr (PSM expa (eigenCoSpan expa))
+
+subshadeId :: RealPseudoAffine x => Shade x -> x -> Int
+subshadeId (Shade c (PSM _ expvs)) = \x
              -> case x .-~. c of
                  Option (Just v) -> let (iu,vl) = maximumBy (comparing $ abs . snd)
                                                    $ zip [0,2..] (map (v <.>^) expvs)
                                     in iu + if vl>0 then 1 else 0
                  _ -> -1
                  
- where expvs = eigenCoSpan expa
 
 
 -- | Attempt to find a 'Shade' that &#x201c;covers&#x201d; the given points.
@@ -100,7 +107,7 @@ pointsShades' :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x
                  => [x] -> [([x], Shade x)]
 pointsShades' [] = []
 pointsShades' ps@(p₀:_) = case expa of 
-                           Option (Just e) -> (ps,Shade ctr e)
+                           Option (Just e) -> (ps, fullShade ctr e)
                                               : pointsShades' unreachable
                            _ -> pointsShades' inc'd ++ pointsShades' unreachable
  where (ctr,(inc'd,unreachable))
@@ -118,7 +125,7 @@ pointsShades' ps@(p₀:_) = case expa of
 occlusion :: (PseudoAffine x, HasMetric (PseudoDiff x)
              , s ~ (Scalar (PseudoDiff x)), RealDimension s )
                 => Shade x -> x -> s
-occlusion (Shade p₀ δ) = occ
+occlusion (Shade p₀ (PSM δ _)) = occ
  where occ p = case p .-~. p₀ of
          Option(Just vd) -> exp . negate $ metricSq δinv vd
          _               -> zeroV
