@@ -9,6 +9,9 @@
 -- 
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE UndecidableInstances     #-}
+{-# LANGUAGE StandaloneDeriving       #-}
+{-# LANGUAGE DeriveGeneric            #-}
+{-# LANGUAGE DeriveFunctor            #-}
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE FunctionalDependencies   #-}
 {-# LANGUAGE FlexibleContexts         #-}
@@ -26,7 +29,14 @@
 
 
 module Data.Manifold.TreeCover (
-         Shade(..), pointsShades, ShadeTree(..), fromLeafPoints
+       -- * Shades 
+         Shade, shadeCtr, shadeExpanse, fullShade, pointsShades
+       -- * Shade trees
+       , ShadeTree(..), fromLeafPoints
+       -- * Simple view helpers
+       , onlyNodes
+       -- ** Auxiliary types
+       , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
     ) where
 
 
@@ -36,7 +46,7 @@ import qualified Data.Map as Map
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
 import Data.Ord (comparing)
-import Data.Fixed
+import Control.DeepSeq
 
 import Data.VectorSpace
 import Data.LinearMap
@@ -52,6 +62,7 @@ import Data.Manifold.PseudoAffine
 
 import qualified Prelude as Hask
 import qualified Control.Monad as Hask
+import qualified Data.Foldable as Hask
 
 import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
@@ -59,6 +70,7 @@ import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
 import GHC.TypeLits
+import GHC.Generics (Generic)
 
 
 -- | Possibly / Partially / asymPtotically singular metric.
@@ -76,7 +88,10 @@ data PSM x = PSM {
 --   For a /precise/ description of an arbitrarily-shaped connected subset of a manifold,
 --   there is 'Region', whose implementation is vastly more complex.
 data Shade x = Shade { shadeCtr :: x
-                     , shadeExpanse :: PSM x }
+                     , shadeExpanse' :: PSM x }
+
+shadeExpanse :: Shade x -> HerMetric' (PseudoDiff x)
+shadeExpanse (Shade _ (PSM e _)) = e
 
 fullShade :: RealPseudoAffine x => x -> HerMetric' (PseudoDiff x) -> Shade x
 fullShade ctr expa = Shade ctr (PSM expa (eigenCoSpan expa))
@@ -99,24 +114,24 @@ subshadeId (Shade c (PSM _ expvs)) = \x
 --   For /nonconnected/ manifolds it will be necessary to yield separate shades
 --   for each connected component. And for an empty input list, there is no shade!
 --   Hence the list result.
-pointsShades :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
-                 => [x] -> [Shade x]
+pointsShades :: RealPseudoAffine x => [x] -> [Shade x]
 pointsShades = map snd . pointsShades'
 
-pointsShades' :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
-                 => [x] -> [([x], Shade x)]
+pseudoECM :: RealPseudoAffine x => NE.NonEmpty x -> (x, ([x],[x]))
+pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
+                                  -> case p.-~.acc of 
+                                      Option (Just δ) -> (acc .+~^ δ^/i, (p:rb, nr))
+                                      _ -> (acc, (rb, p:nr)) )
+                             (p₀, mempty)
+                             ( zip [1..] $ p₀:psr )
+
+pointsShades' :: RealPseudoAffine x => [x] -> [([x], Shade x)]
 pointsShades' [] = []
-pointsShades' ps@(p₀:_) = case expa of 
+pointsShades' ps = case expa of 
                            Option (Just e) -> (ps, fullShade ctr e)
                                               : pointsShades' unreachable
                            _ -> pointsShades' inc'd ++ pointsShades' unreachable
- where (ctr,(inc'd,unreachable))
-             = foldl' ( \(acc, (rb,nr)) (i,p)
-                           -> case p.-~.acc of 
-                               Option (Just δ) -> (acc .+~^ δ^/i, (p:rb, nr))
-                               _ -> (acc, (rb, p:nr)) )
-                     (p₀, mempty)
-                     ( zip [1..] ps )
+ where (ctr,(inc'd,unreachable)) = pseudoECM $ NE.fromList ps
        expa = ( (^/ fromIntegral(length ps)) . sumV . map projector' )
               <$> mapM (.-~.ctr) ps
        
@@ -136,23 +151,33 @@ occlusion (Shade p₀ (PSM δ _)) = occ
 data ShadeTree x = PlainLeaves [x]
                  | DisjointBranches Int (NE.NonEmpty (ShadeTree x))
                  | OverlappingBranches Int (Shade x) (NE.NonEmpty (ShadeTree x))
+  deriving (Generic)
+instance (NFData x) => NFData (ShadeTree x) where
+  rnf (PlainLeaves xs) = rnf xs
+  rnf (DisjointBranches n bs) = n `seq` rnf (NE.toList bs)
+  rnf (OverlappingBranches n sh bs) = n `seq` sh `seq` rnf (NE.toList bs)
+  
 
-fromLeafPoints :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
-                 => [x] -> ShadeTree x
+fromLeafPoints :: RealPseudoAffine x => [x] -> ShadeTree x
 fromLeafPoints = \xs -> case pointsShades' xs of
                      [] -> PlainLeaves []
-                     [(_,rShade)] -> OverlappingBranches (length xs)
-                                                         rShade
-                                                         (branches rShade xs)
+                     [(_,rShade)] -> let trials = spread rShade xs
+                                         ntot = length xs
+                                     in if fullRank trials
+                                         then OverlappingBranches ntot rShade
+                                                                  (branchProc trials)
+                                         else PlainLeaves xs
                      partitions -> DisjointBranches (length xs)
                                    . NE.fromList
                                     $ map (\(xs',pShade) ->
-                                        OverlappingBranches (length xs')
-                                                            pShade
-                                                            (branches pShade xs'))
+                                       OverlappingBranches (length xs')
+                                                           pShade
+                                                           (branchProc $ spread pShade xs'))
                                        partitions
- where branches shade = NE.fromList . map fromLeafPoints
-                        . foldr (\p -> cons2nth p $ subshadeId shade p) []
+ where spread shade = foldr (\p -> cons2nth p $ subshadeId shade p) []
+       branchProc = NE.fromList . map fromLeafPoints
+       fullRank brs = minCard^2 > maxCard+1
+        where (minCard, maxCard) = (minimum&&&maximum) $ map length brs
                                            
 
 cons2nth :: a -> Int -> [[a]] -> [[a]]
@@ -162,9 +187,9 @@ cons2nth x n [] = cons2nth x n [[]]
 cons2nth x n (l:r) = l : cons2nth x (n-1) r
 
 
-xorXChange :: (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
-              => ShadeTree x -> ShadeTree x -> ( ShadeTree x -- ^ Disjoint part
-                                               , ShadeTree x -- ^ Overlapping part
+xorXChange :: RealPseudoAffine x
+              => ShadeTree x -> ShadeTree x -> ( ShadeTree x -- Disjoint part
+                                               , ShadeTree x -- Overlapping part
                                                )
 xorXChange t₁ t₂ = (undefined, undefined)
 
@@ -227,3 +252,39 @@ tringComplete (Triangulation trr) (Triangulation tr) = undefined
 
 type RealPseudoAffine x
           = (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+
+
+
+
+-- |
+-- @
+-- 'SimpleTree' x &#x2245; Maybe (x, 'Trees' x)
+-- @
+type SimpleTree = GenericTree Maybe []
+-- |
+-- @
+-- 'Trees' x &#x2245; [(x, 'Trees' x)]
+-- @
+type Trees = GenericTree [] []
+-- |
+-- @
+-- 'NonEmptyTree' x &#x2245; (x, 'Trees' x)
+-- @
+type NonEmptyTree = GenericTree NE.NonEmpty []
+    
+newtype GenericTree c b x = GenericTree { treeBranches :: c (x,GenericTree b b x) }
+ deriving (Hask.Functor)
+instance (Hask.MonadPlus c) => Semigroup (GenericTree c b x) where
+  GenericTree b1 <> GenericTree b2 = GenericTree $ Hask.mplus b1 b2
+instance (Hask.MonadPlus c) => Monoid (GenericTree c b x) where
+  mempty = GenericTree Hask.mzero
+  mappend = (<>)
+deriving instance Show (c (x, GenericTree b b x)) => Show (GenericTree c b x)
+
+onlyNodes :: RealPseudoAffine x => ShadeTree x -> Trees x
+onlyNodes (PlainLeaves []) = GenericTree []
+onlyNodes (PlainLeaves ps) = let (ctr,_) = pseudoECM $ NE.fromList ps
+                             in GenericTree [ (ctr, GenericTree $ (,mempty) <$> ps) ]
+onlyNodes (DisjointBranches _ brs) = Hask.foldMap onlyNodes brs
+onlyNodes (OverlappingBranches _ (Shade ctr _) brs)
+              = GenericTree [ (ctr, Hask.foldMap onlyNodes brs) ]

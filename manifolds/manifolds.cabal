@@ -47,6 +47,7 @@ Library
                      , semigroups
                      , void
                      , tagged
+                     , deepseq
                      , constrained-categories >= 0.2 && < 0.3
   other-extensions:  FlexibleInstances
                      , TypeFamilies
