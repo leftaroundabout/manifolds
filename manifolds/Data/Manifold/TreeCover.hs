@@ -161,23 +161,32 @@ instance (NFData x) => NFData (ShadeTree x) where
 fromLeafPoints :: RealPseudoAffine x => [x] -> ShadeTree x
 fromLeafPoints = \xs -> case pointsShades' xs of
                      [] -> PlainLeaves []
-                     [(_,rShade)] -> let trials = spread rShade xs
-                                         ntot = length xs
-                                     in if fullRank trials
-                                         then OverlappingBranches ntot rShade
-                                                                  (branchProc trials)
-                                         else PlainLeaves xs
+                     [(_,rShade)] -> let trials = spread rShade [] xs
+                                     in case reduce rShade trials of
+                                         Just (redSh,redBrchs)
+                                           -> OverlappingBranches (length xs) redSh
+                                                                  (branchProc redBrchs)
+                                         _ -> PlainLeaves xs
                      partitions -> DisjointBranches (length xs)
                                    . NE.fromList
                                     $ map (\(xs',pShade) ->
                                        OverlappingBranches (length xs')
                                                            pShade
-                                                           (branchProc $ spread pShade xs'))
+                                                           (branchProc $ spread pShade [] xs'))
                                        partitions
- where spread shade = foldr (\p -> cons2nth p $ subshadeId shade p) []
+ where spread shade = foldr (\p -> cons2nth p $ subshadeId shade p)
        branchProc = NE.fromList . map fromLeafPoints
-       fullRank brs = minCard^2 > maxCard+1
-        where (minCard, maxCard) = (minimum&&&maximum) $ map length brs
+       reduce (Shade _ (PSM _ [])) _ = Nothing
+       reduce sh@(Shade ctr (PSM s e)) brCandidates
+                 = case findIndex deficient cards of
+                     Just idef -> let iv = idef`div`2
+                                      i = iv*2; i' = i+1 
+                                      sh' = Shade ctr (PSM s $ deleteIds [iv] e)
+                                      (reBr, ok) = amputateIds [i,i'] brCandidates
+                                  in reduce sh' (spread sh' ok $ join reBr)
+                     Nothing   -> Just (sh, brCandidates)
+        where (cards, maxCard) = (id&&&maximum) $ map length brCandidates
+              deficient c = c^2 <= maxCard + 1
                                            
 
 cons2nth :: a -> Int -> [[a]] -> [[a]]
@@ -185,6 +194,20 @@ cons2nth _ n l | n<0 = l
 cons2nth x 0 (c:r) = (x:c):r
 cons2nth x n [] = cons2nth x n [[]]
 cons2nth x n (l:r) = l : cons2nth x (n-1) r
+
+
+deleteIds :: [Int] -> [a] -> [a]
+deleteIds kids = snd . amputateIds kids
+
+amputateIds :: [Int]     -- ^ Sorted list of non-negative indices to extract
+            -> [a]       -- ^ Input list
+            -> ([a],[a]) -- ^ (Extracted elements, remaining elements)
+amputateIds = go 0
+ where go _ _ [] = ([],[])
+       go _ [] l = ([],l)
+       go i (k:ks) (x:xs)
+         | i==k       = first  (x:) $ go (i+1)    ks  xs
+         | otherwise  = second (x:) $ go (i+1) (k:ks) xs
 
 
 xorXChange :: RealPseudoAffine x
