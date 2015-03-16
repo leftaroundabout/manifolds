@@ -177,7 +177,7 @@ fromLeafPoints = \xs -> case pointsShades' xs of
  where spread shade = foldr (\p -> cons2nth p $ subshadeId shade p)
        branchProc = NE.fromList . map fromLeafPoints
        reduce (Shade _ (PSM _ [])) _ = Nothing
-       reduce sh@(Shade ctr (PSM s e)) brCandidates
+       reduce sh@(Shade ctr (PSM s e)) brCandidates'
                  = case findIndex deficient cards of
                      Just idef -> let iv = idef`div`2
                                       i = iv*2; i' = i+1 
@@ -187,6 +187,7 @@ fromLeafPoints = \xs -> case pointsShades' xs of
                      Nothing   -> Just (sh, brCandidates)
         where (cards, maxCard) = (id&&&maximum) $ map length brCandidates
               deficient c = c^2 <= maxCard + 1
+              brCandidates = take (length e * 2) $ brCandidates' ++ repeat []
                                            
 
 cons2nth :: a -> Int -> [[a]] -> [[a]]
