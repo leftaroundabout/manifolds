@@ -158,6 +158,28 @@ instance (NFData x) => NFData (ShadeTree x) where
   rnf (OverlappingBranches n sh bs) = n `seq` sh `seq` rnf (NE.toList bs)
   
 
+-- | Build a really quite nicely balanced tree from a cloud of points, on
+--   any real manifold.
+-- 
+--   Example:
+-- 
+-- @
+-- > :m +Graphics.Dynamic.Plot.R2 Data.Manifold.TreeCover Data.VectorSpace Data.AffineSpace
+-- > import Diagrams.Prelude ((^&), P2, R2, circle, fc, (&), moveTo, green)
+--  
+-- > let testPts0 = [0^&0, 0^&1, 1^&1, 1^&2, 2^&2] :: [P2]  -- Generate sort-of&#x2013;random point cloud
+-- > let testPts1 = [p .+^ v^/3 | p<-testPts0, v <- [0^&0, (-1)^&1, 1^&2]]
+-- > let testPts2 = [p .+^ v^/4 | p<-testPts1, v <- [0^&0, (-1)^&1, 1^&2]]
+-- > let testPts3 = [p .+^ v^/5 | p<-testPts2, v <- [0^&0, (-2)^&1, 1^&2]]
+-- > let testPts4 = [p .+^ v^/7 | p<-testPts3, v <- [0^&1, (-2)^&1, 1^&2]]
+-- > length testPts4
+--     405
+-- 
+-- > plotWindow [ plot . onlyNodes $ fromLeafPoints testPts4
+-- >            , plot [circle 0.06 & moveTo p & fc green :: PlainGraphics | p <- testPts4] ]
+-- @
+-- 
+-- <<images/examples/simple-2d-ShadeTree.png>>
 fromLeafPoints :: RealPseudoAffine x => [x] -> ShadeTree x
 fromLeafPoints = \xs -> case pointsShades' xs of
                      [] -> PlainLeaves []

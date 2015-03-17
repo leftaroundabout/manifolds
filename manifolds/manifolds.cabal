@@ -29,6 +29,7 @@ Homepage:            https://github.com/leftaroundabout/manifolds
 Maintainer:          (@) sagemueller $ geo.uni-koeln.de
 Build-Type:          Simple
 Cabal-Version:       >=1.10
+Extra-Doc-Files:     images/examples/*.png
 
 Source-Repository head
     type: git
