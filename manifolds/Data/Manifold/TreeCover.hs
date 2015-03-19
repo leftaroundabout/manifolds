@@ -40,7 +40,7 @@ module Data.Manifold.TreeCover (
     ) where
 
 
-import Data.List
+import Data.List hiding (filter)
 import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.List.NonEmpty as NE
@@ -167,20 +167,21 @@ instance (NFData x) => NFData (ShadeTree x) where
   rnf (OverlappingBranches n sh bs) = n `seq` sh `seq` rnf (NE.toList bs)
   
 
+-- | WRT union.
 instance RealPseudoAffine x => Semigroup (ShadeTree x) where
   PlainLeaves [] <> t = t
   t <> PlainLeaves [] = t
   t <> s = fromLeafPoints $ onlyLeaves t ++ onlyLeaves s
            -- Could probably be done more efficiently
-  sconcat l = case filter ne l of
+  sconcat = mconcat . NE.toList
+instance RealPseudoAffine x => Monoid (ShadeTree x) where
+  mempty = PlainLeaves []
+  mappend = (<>)
+  mconcat l = case filter ne l of
                [] -> mempty
                [t] -> t
                l' -> fromLeafPoints $ onlyLeaves =<< l'
    where ne (PlainLeaves []) = False; ne _ = True
-instance RealPseudoAffine x => Monoid (ShadeTree x) where
-  mempty = PlainLeaves []
-  mappend = (<>)
-  mconcat = sconcat
 
 
 -- | Build a really quite nicely balanced tree from a cloud of points, on
@@ -258,22 +259,28 @@ amputateIds = go 0
          | otherwise  = second (x:) $ go (i+1) (k:ks) xs
 
 
-xorXChange :: RealPseudoAffine x
-              => ShadeTree x -> ShadeTree x -> ( ShadeTree x -- Disjoint part
-                                               , ShadeTree x -- Overlapping part
-                                               )
-xorXChange (DisjointBranches _ _) _ = undefined
-xorXChange _ (DisjointBranches _ _) = undefined
-    | n₁ > n₂       = unions $ xorXChange sh₂ <$> br₁
-    | otherwise     = unions $ xorXChange sh₁ <$> br₂
-xorXChange (OverlappingBranches sh₁@(Shade ctr₁ _) n₁ br₁)
-           (OverlappingBranches sh₂@(Shade ctr₂ _) n₂ br₂)
-    | d₁>1 && d₂>1  = mempty
-    | n₁ > n₂       = unions $ xorXChange sh₂ <$> br₁
-    | otherwise     = unions $ xorXChange sh₁ <$> br₂
+separateOverlap :: RealPseudoAffine x
+              => ShadeTree x -> ShadeTree x
+                     -> ( ShadeTree x -- Overlapping part
+                        , (ShadeTree x, ShadeTree x) -- Disjoint parts
+                        )
+seperateOverlap (PlainLeaves xs₁) (PlainLeaves xs₂)
+         = (PlainLeaves $ xs₁ ++ xs₂, (mempty, mempty))
+separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ _) br₁)
+                t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ _) br₂)
+    | d₁>1 && d₂>1  = ( mempty, (t₁,t₂) )
+    | n₁ > n₂       = foldr (\t₁' (ovl,(dj₁,dj₂))
+                               -> let (ovl',(dj₁',dj₂')) = separateOverlap t₁' dj₂
+                                  in (ovl<>ovl', (dj₁<>dj₁', dj₂')) )
+                            (mempty, (mempty, t₂))
+                            (NE.toList br₁)
+    | otherwise     = foldr (\t₂' (ovl,(dj₁,dj₂))
+                               -> let (ovl',(dj₁',dj₂')) = separateOverlap dj₁ t₂'
+                                  in (ovl<>ovl', (dj₁', dj₂<>dj₂')) )
+                            (mempty, (mempty, t₁))
+                            (NE.toList br₂)
  where d₁ = minusLogOcclusion sh₁ ctr₂
        d₂ = minusLogOcclusion sh₂ ctr₁
-       unions = sconcat***sconcat <<< unzip
 
 
 data Simplex x n where
@@ -309,9 +316,9 @@ branchwise f c = map (inBoundary . branchResult) . bw
        bw (OverlappingBranches _ _ trs) 
            = let brResults = fmap bw trs
              in [ foldr1 (\(Branchwise r bb) (Branchwise r' bb')
-                           -> let (bb'', shb) = xorXChange bb bb'
+                           -> let (shb, (bbd, bbd')) = separateOverlap bb bb'
                                   [glue] = branchwise f c shb
-                              in Branchwise (c glue r r') bb''
+                              in Branchwise (c glue r r') $ bbd<>bbd'
                          ) . join $ NE.toList brResults ]
        bw _ = []
 
@@ -377,5 +384,5 @@ onlyNodes (OverlappingBranches _ (Shade ctr _) brs)
 onlyLeaves :: RealPseudoAffine x => ShadeTree x -> [x]
 onlyLeaves tree = dismantle tree []
  where dismantle (PlainLeaves xs) = (xs++)
-       dismantle (OverlappingBranches _ _ brs) = foldr (.) id brs
-       dismantle (DisjointBranches _ brs) = foldr (.) id brs
+       dismantle (OverlappingBranches _ _ brs) = foldr ((.) . dismantle) id $ NE.toList brs
+       dismantle (DisjointBranches _ brs) = foldr ((.) . dismantle) id $ NE.toList brs
