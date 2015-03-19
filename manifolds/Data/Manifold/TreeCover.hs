@@ -34,7 +34,7 @@ module Data.Manifold.TreeCover (
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints
        -- * Simple view helpers
-       , onlyNodes
+       , onlyNodes, onlyLeaves
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
     ) where
@@ -135,6 +135,15 @@ pointsShades' ps = case expa of
        expa = ( (^/ fromIntegral(length ps)) . sumV . map projector' )
               <$> mapM (.-~.ctr) ps
        
+
+minusLogOcclusion :: (PseudoAffine x, HasMetric (PseudoDiff x)
+             , s ~ (Scalar (PseudoDiff x)), RealDimension s )
+                => Shade x -> x -> s
+minusLogOcclusion (Shade p₀ (PSM δ _)) = occ
+ where occ p = case p .-~. p₀ of
+         Option(Just vd) -> metricSq δinv vd
+         _               -> 1/0
+       δinv = recipMetric δ
   
 -- | Check the statistical likelyhood of a point being within a shade.
 occlusion :: (PseudoAffine x, HasMetric (PseudoDiff x)
@@ -157,6 +166,22 @@ instance (NFData x) => NFData (ShadeTree x) where
   rnf (DisjointBranches n bs) = n `seq` rnf (NE.toList bs)
   rnf (OverlappingBranches n sh bs) = n `seq` sh `seq` rnf (NE.toList bs)
   
+
+instance RealPseudoAffine x => Semigroup (ShadeTree x) where
+  PlainLeaves [] <> t = t
+  t <> PlainLeaves [] = t
+  t <> s = fromLeafPoints $ onlyLeaves t ++ onlyLeaves s
+           -- Could probably be done more efficiently
+  sconcat l = case filter ne l of
+               [] -> mempty
+               [t] -> t
+               l' -> fromLeafPoints $ onlyLeaves =<< l'
+   where ne (PlainLeaves []) = False; ne _ = True
+instance RealPseudoAffine x => Monoid (ShadeTree x) where
+  mempty = PlainLeaves []
+  mappend = (<>)
+  mconcat = sconcat
+
 
 -- | Build a really quite nicely balanced tree from a cloud of points, on
 --   any real manifold.
@@ -182,7 +207,7 @@ instance (NFData x) => NFData (ShadeTree x) where
 -- <<images/examples/simple-2d-ShadeTree.png>>
 fromLeafPoints :: RealPseudoAffine x => [x] -> ShadeTree x
 fromLeafPoints = \xs -> case pointsShades' xs of
-                     [] -> PlainLeaves []
+                     [] -> mempty
                      [(_,rShade)] -> let trials = spread rShade [] xs
                                      in case reduce rShade trials of
                                          Just (redSh,redBrchs)
@@ -237,7 +262,18 @@ xorXChange :: RealPseudoAffine x
               => ShadeTree x -> ShadeTree x -> ( ShadeTree x -- Disjoint part
                                                , ShadeTree x -- Overlapping part
                                                )
-xorXChange t₁ t₂ = (undefined, undefined)
+xorXChange (DisjointBranches _ _) _ = undefined
+xorXChange _ (DisjointBranches _ _) = undefined
+    | n₁ > n₂       = unions $ xorXChange sh₂ <$> br₁
+    | otherwise     = unions $ xorXChange sh₁ <$> br₂
+xorXChange (OverlappingBranches sh₁@(Shade ctr₁ _) n₁ br₁)
+           (OverlappingBranches sh₂@(Shade ctr₂ _) n₂ br₂)
+    | d₁>1 && d₂>1  = mempty
+    | n₁ > n₂       = unions $ xorXChange sh₂ <$> br₁
+    | otherwise     = unions $ xorXChange sh₁ <$> br₂
+ where d₁ = minusLogOcclusion sh₁ ctr₂
+       d₂ = minusLogOcclusion sh₂ ctr₁
+       unions = sconcat***sconcat <<< unzip
 
 
 data Simplex x n where
@@ -327,6 +363,7 @@ instance (Hask.MonadPlus c) => Monoid (GenericTree c b x) where
   mappend = (<>)
 deriving instance Show (c (x, GenericTree b b x)) => Show (GenericTree c b x)
 
+-- | Imitate the specialised 'ShadeTree' structure with a simpler, generic tree.
 onlyNodes :: RealPseudoAffine x => ShadeTree x -> Trees x
 onlyNodes (PlainLeaves []) = GenericTree []
 onlyNodes (PlainLeaves ps) = let (ctr,_) = pseudoECM $ NE.fromList ps
@@ -334,3 +371,11 @@ onlyNodes (PlainLeaves ps) = let (ctr,_) = pseudoECM $ NE.fromList ps
 onlyNodes (DisjointBranches _ brs) = Hask.foldMap onlyNodes brs
 onlyNodes (OverlappingBranches _ (Shade ctr _) brs)
               = GenericTree [ (ctr, Hask.foldMap onlyNodes brs) ]
+
+
+-- | Left (and, typically, also right) inverse of 'fromLeafNodes'.
+onlyLeaves :: RealPseudoAffine x => ShadeTree x -> [x]
+onlyLeaves tree = dismantle tree []
+ where dismantle (PlainLeaves xs) = (xs++)
+       dismantle (OverlappingBranches _ _ brs) = foldr (.) id brs
+       dismantle (DisjointBranches _ brs) = foldr (.) id brs
