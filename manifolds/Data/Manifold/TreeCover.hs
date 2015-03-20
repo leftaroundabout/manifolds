@@ -268,26 +268,30 @@ separateOverlap :: RealPseudoAffine x
                         )
 separateOverlap (PlainLeaves []) t = (mempty, (mempty, t))
 separateOverlap t (PlainLeaves []) = (mempty, (t, mempty))
-separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ _) br₁)
-                t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ _) br₂)
+separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ (PSM _ ev₁)) br₁)
+                t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ (PSM _ ev₂)) br₂)
     | d₁>4 && d₂>4  = ( mempty, (t₁,t₂) )
-    | otherwise     = separateOverlap (DisjointBranches n₁ br₁) (DisjointBranches n₂ br₂) 
- where d₁ = minusLogOcclusion sh₁ ctr₂
-       d₂ = minusLogOcclusion sh₂ ctr₁
-separateOverlap t₁@(DisjointBranches n₁ br₁)
-                t₂@(DisjointBranches n₂ br₂)
-    | n₁ > n₂       = foldr (\t₁' (ovl,(dj₁,dj₂))
+    | Option(Just w) <- ctr₂.-~.ctr₁
+    , n₁ > n₂       = foldr (\t₁' (ovl,(dj₁,dj₂))
                                -> let (ovl',(dj₁',dj₂')) = separateOverlap t₁' dj₂
                                   in (ovl<>ovl', (dj₁<>dj₁', dj₂')) )
                             (mempty, (mempty, t₂))
-                            (NE.toList br₁)
-    | otherwise     = foldr (\t₂' (ovl,(dj₁,dj₂))
+                            ( sortByKey $ zip (map (w^<.>) ev₁) (NE.toList br₁) )
+    | Option(Just w) <- ctr₁.-~.ctr₂
+                    = foldr (\t₂' (ovl,(dj₁,dj₂))
                                -> let (ovl',(dj₁',dj₂')) = separateOverlap dj₁ t₂'
                                   in (ovl<>ovl', (dj₁', dj₂<>dj₂')) )
                             (mempty, (t₁, mempty))
-                            (NE.toList br₂)
+                            ( sortByKey $ zip (map (w^<.>) ev₂) (NE.toList br₂) )
+    | otherwise     = ( mempty, (t₁,t₂) )
+ where d₁ = minusLogOcclusion sh₁ ctr₂
+       d₂ = minusLogOcclusion sh₂ ctr₁
 separateOverlap t₁ t₂
          = ( t₁<>t₂, (mempty, mempty) )
+
+
+sortByKey :: Ord a => [(a,b)] -> [b]
+sortByKey = map snd . sortBy (comparing fst)
 
 
 data Simplex x n where
