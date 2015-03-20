@@ -33,6 +33,8 @@ module Data.Manifold.TreeCover (
          Shade, shadeCtr, shadeExpanse, fullShade, pointsShades
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints
+       -- ** Combinators
+       , separateOverlap
        -- * Simple view helpers
        , onlyNodes, onlyLeaves
        -- ** Auxiliary types
@@ -264,11 +266,16 @@ separateOverlap :: RealPseudoAffine x
                      -> ( ShadeTree x -- Overlapping part
                         , (ShadeTree x, ShadeTree x) -- Disjoint parts
                         )
-seperateOverlap (PlainLeaves xs₁) (PlainLeaves xs₂)
-         = (PlainLeaves $ xs₁ ++ xs₂, (mempty, mempty))
+separateOverlap (PlainLeaves []) t = (mempty, (mempty, t))
+separateOverlap t (PlainLeaves []) = (mempty, (t, mempty))
 separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ _) br₁)
                 t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ _) br₂)
-    | d₁>1 && d₂>1  = ( mempty, (t₁,t₂) )
+    | d₁>4 && d₂>4  = ( mempty, (t₁,t₂) )
+    | otherwise     = separateOverlap (DisjointBranches n₁ br₁) (DisjointBranches n₂ br₂) 
+ where d₁ = minusLogOcclusion sh₁ ctr₂
+       d₂ = minusLogOcclusion sh₂ ctr₁
+separateOverlap t₁@(DisjointBranches n₁ br₁)
+                t₂@(DisjointBranches n₂ br₂)
     | n₁ > n₂       = foldr (\t₁' (ovl,(dj₁,dj₂))
                                -> let (ovl',(dj₁',dj₂')) = separateOverlap t₁' dj₂
                                   in (ovl<>ovl', (dj₁<>dj₁', dj₂')) )
@@ -277,10 +284,10 @@ separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ _) br₁)
     | otherwise     = foldr (\t₂' (ovl,(dj₁,dj₂))
                                -> let (ovl',(dj₁',dj₂')) = separateOverlap dj₁ t₂'
                                   in (ovl<>ovl', (dj₁', dj₂<>dj₂')) )
-                            (mempty, (mempty, t₁))
+                            (mempty, (t₁, mempty))
                             (NE.toList br₂)
- where d₁ = minusLogOcclusion sh₁ ctr₂
-       d₂ = minusLogOcclusion sh₂ ctr₁
+separateOverlap t₁ t₂
+         = ( t₁<>t₂, (mempty, mempty) )
 
 
 data Simplex x n where
