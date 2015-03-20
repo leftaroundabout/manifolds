@@ -211,7 +211,7 @@ instance RealPseudoAffine x => Monoid (ShadeTree x) where
 fromLeafPoints :: RealPseudoAffine x => [x] -> ShadeTree x
 fromLeafPoints = \xs -> case pointsShades' xs of
                      [] -> mempty
-                     [(_,rShade)] -> let trials = spread rShade [] xs
+                     [(_,rShade)] -> let trials = sShIdPartition rShade xs
                                      in case reduce rShade trials of
                                          Just (redSh,redBrchs)
                                            -> OverlappingBranches (length xs) redSh
@@ -222,10 +222,10 @@ fromLeafPoints = \xs -> case pointsShades' xs of
                                     $ map (\(xs',pShade) ->
                                        OverlappingBranches (length xs')
                                                            pShade
-                                                           (branchProc $ spread pShade [] xs'))
+                                                           (branchProc
+                                                            $ sShIdPartition pShade xs'))
                                        partitions
- where spread = sShIdPartition
-       branchProc = NE.fromList . map fromLeafPoints
+ where branchProc = NE.fromList . map fromLeafPoints
        reduce (Shade _ (PSM _ [])) _ = Nothing
        reduce sh@(Shade ctr (PSM s e)) brCandidates
                  = case findIndex deficient cards of
@@ -233,16 +233,18 @@ fromLeafPoints = \xs -> case pointsShades' xs of
                                       i = iv*2; i' = i+1 
                                       sh' = Shade ctr (PSM s $ deleteIds [iv] e)
                                       (reBr, ok) = amputateIds [i,i'] brCandidates
-                                  in reduce sh' (spread sh' ok $ join reBr)
+                                  in reduce sh' (sShIdPartition' sh' (join reBr) ok )
                      Nothing   -> Just (sh, brCandidates)
         where (cards, maxCard) = (id&&&maximum) $ map length brCandidates
               deficient c = c^2 <= maxCard + 1
 
 
-sShIdPartition :: Shade x -> [x] -> [[x]]->[[x]]
-sShIdPartition shade@(Shade _ (PSM _ e))
-           = (pad .) . foldr (\p -> cons2nth p $ subshadeId shade p)
+sShIdPartition' :: RealPseudoAffine x => Shade x -> [x] -> [[x]]->[[x]]
+sShIdPartition' shade@(Shade _ (PSM _ e)) xs st
+           = pad . foldr (\p -> cons2nth p $ subshadeId shade p) st xs
  where pad = take (length e * 2) . (++repeat[])
+sShIdPartition :: RealPseudoAffine x => Shade x -> [x] -> [[x]]
+sShIdPartition sh xs = sShIdPartition' sh xs []
                                            
 
 cons2nth :: a -> Int -> [[a]] -> [[a]]
@@ -276,11 +278,14 @@ separateOverlap t (PlainLeaves []) = (mempty, (t, mempty))
 separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ (PSM _ ev₁)) br₁)
                 t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ (PSM _ ev₂)) br₂)
     | d₁>4 && d₂>4  = ( mempty, (t₁,t₂) )
-    | Option(Just w) <- ctr₂.-~.ctr₁
-    , n₁ > n₂       = let t₂pts = sortBy(comparing fst)
-                                     (subshadeId sh₁&&&id) <$> onlyLeaves t₂
-                          cndSectors = zipWith () ev₁ (NE.toList br₁)
-    | otherwise     = ( mempty, (t₁,t₂) )
+    | n₁ > n₂       = let t₂pts = sShIdPartition sh₁ $ onlyLeaves t₂
+                          cndSectors = zipWith ((.fromLeafPoints) . separateOverlap)
+                                         (NE.toList br₁) t₂pts
+                      in fold cndSectors
+    | otherwise     = let t₁pts = sShIdPartition sh₂ $ onlyLeaves t₁
+                          cndSectors = zipWith (separateOverlap . fromLeafPoints)
+                                         t₁pts (NE.toList br₂)
+                      in fold cndSectors
  where d₁ = minusLogOcclusion sh₁ ctr₂
        d₂ = minusLogOcclusion sh₂ ctr₁
 separateOverlap t₁ t₂
