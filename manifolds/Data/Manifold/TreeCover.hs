@@ -224,10 +224,10 @@ fromLeafPoints = \xs -> case pointsShades' xs of
                                                            pShade
                                                            (branchProc $ spread pShade [] xs'))
                                        partitions
- where spread shade = foldr (\p -> cons2nth p $ subshadeId shade p)
+ where spread = sShIdPartition
        branchProc = NE.fromList . map fromLeafPoints
        reduce (Shade _ (PSM _ [])) _ = Nothing
-       reduce sh@(Shade ctr (PSM s e)) brCandidates'
+       reduce sh@(Shade ctr (PSM s e)) brCandidates
                  = case findIndex deficient cards of
                      Just idef -> let iv = idef`div`2
                                       i = iv*2; i' = i+1 
@@ -237,7 +237,12 @@ fromLeafPoints = \xs -> case pointsShades' xs of
                      Nothing   -> Just (sh, brCandidates)
         where (cards, maxCard) = (id&&&maximum) $ map length brCandidates
               deficient c = c^2 <= maxCard + 1
-              brCandidates = take (length e * 2) $ brCandidates' ++ repeat []
+
+
+sShIdPartition :: Shade x -> [x] -> [[x]]->[[x]]
+sShIdPartition shade@(Shade _ (PSM _ e))
+           = (pad .) . foldr (\p -> cons2nth p $ subshadeId shade p)
+ where pad = take (length e * 2) . (++repeat[])
                                            
 
 cons2nth :: a -> Int -> [[a]] -> [[a]]
@@ -272,17 +277,9 @@ separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ (PSM _ ev₁)
                 t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ (PSM _ ev₂)) br₂)
     | d₁>4 && d₂>4  = ( mempty, (t₁,t₂) )
     | Option(Just w) <- ctr₂.-~.ctr₁
-    , n₁ > n₂       = foldr (\t₁' (ovl,(dj₁,dj₂))
-                               -> let (ovl',(dj₁',dj₂')) = separateOverlap t₁' dj₂
-                                  in (ovl<>ovl', (dj₁<>dj₁', dj₂')) )
-                            (mempty, (mempty, t₂))
-                            ( sortByKey $ zip (map (w^<.>) ev₁) (NE.toList br₁) )
-    | Option(Just w) <- ctr₁.-~.ctr₂
-                    = foldr (\t₂' (ovl,(dj₁,dj₂))
-                               -> let (ovl',(dj₁',dj₂')) = separateOverlap dj₁ t₂'
-                                  in (ovl<>ovl', (dj₁', dj₂<>dj₂')) )
-                            (mempty, (t₁, mempty))
-                            ( sortByKey $ zip (map (w^<.>) ev₂) (NE.toList br₂) )
+    , n₁ > n₂       = let t₂pts = sortBy(comparing fst)
+                                     (subshadeId sh₁&&&id) <$> onlyLeaves t₂
+                          cndSectors = zipWith () ev₁ (NE.toList br₁)
     | otherwise     = ( mempty, (t₁,t₂) )
  where d₁ = minusLogOcclusion sh₁ ctr₂
        d₂ = minusLogOcclusion sh₂ ctr₁
