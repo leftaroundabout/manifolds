@@ -77,8 +77,8 @@ import GHC.Generics (Generic)
 
 -- | Possibly / Partially / asymPtotically singular metric.
 data PSM x = PSM {
-       psmExpanse :: HerMetric' (PseudoDiff x)
-     , relevantEigenspan :: [DualSpace (PseudoDiff x)]
+       psmExpanse :: HerMetric' (Trajectory x)
+     , relevantEigenspan :: [DualSpace (Trajectory x)]
      }
        
 
@@ -92,10 +92,15 @@ data PSM x = PSM {
 data Shade x = Shade { shadeCtr :: x
                      , shadeExpanse' :: PSM x }
 
-shadeExpanse :: Shade x -> HerMetric' (PseudoDiff x)
+instance (AffineManifold x) => Semimanifold (Shade x) where
+  type Trajectory (Shade x) = Diff x
+  Shade c e .+~^ v = Shade (c.+^v) e
+  Shade c e .-~^ v = Shade (c.-^v) e
+
+shadeExpanse :: Shade x -> HerMetric' (Trajectory x)
 shadeExpanse (Shade _ (PSM e _)) = e
 
-fullShade :: RealPseudoAffine x => x -> HerMetric' (PseudoDiff x) -> Shade x
+fullShade :: RealPseudoAffine x => x -> HerMetric' (Trajectory x) -> Shade x
 fullShade ctr expa = Shade ctr (PSM expa (eigenCoSpan expa))
 
 subshadeId :: RealPseudoAffine x => Shade x -> x -> Int
@@ -138,8 +143,8 @@ pointsShades' ps = case expa of
               <$> mapM (.-~.ctr) ps
        
 
-minusLogOcclusion :: (PseudoAffine x, HasMetric (PseudoDiff x)
-             , s ~ (Scalar (PseudoDiff x)), RealDimension s )
+minusLogOcclusion :: (PseudoAffine x, HasMetric (Trajectory x)
+             , s ~ (Scalar (Trajectory x)), RealDimension s )
                 => Shade x -> x -> s
 minusLogOcclusion (Shade p₀ (PSM δ _)) = occ
  where occ p = case p .-~. p₀ of
@@ -148,8 +153,8 @@ minusLogOcclusion (Shade p₀ (PSM δ _)) = occ
        δinv = recipMetric δ
   
 -- | Check the statistical likelyhood of a point being within a shade.
-occlusion :: (PseudoAffine x, HasMetric (PseudoDiff x)
-             , s ~ (Scalar (PseudoDiff x)), RealDimension s )
+occlusion :: (PseudoAffine x, HasMetric (Trajectory x)
+             , s ~ (Scalar (Trajectory x)), RealDimension s )
                 => Shade x -> x -> s
 occlusion (Shade p₀ (PSM δ _)) = occ
  where occ p = case p .-~. p₀ of
@@ -168,6 +173,12 @@ instance (NFData x) => NFData (ShadeTree x) where
   rnf (DisjointBranches n bs) = n `seq` rnf (NE.toList bs)
   rnf (OverlappingBranches n sh bs) = n `seq` sh `seq` rnf (NE.toList bs)
   
+-- | Experimental. There might be a more powerful instance possible.
+instance (AffineManifold x) => Semimanifold (ShadeTree x) where
+  type Trajectory (ShadeTree x) = Diff x
+  PlainLeaves xs .+~^ v = PlainLeaves $ (.+^v)<$>xs 
+  OverlappingBranches n sh br .+~^ v = OverlappingBranches n (sh.+~^v) $ (.+~^v)<$>br
+  DisjointBranches n br .+~^ v = DisjointBranches n $ (.+~^v)<$>br
 
 -- | WRT union.
 instance RealPseudoAffine x => Semigroup (ShadeTree x) where
@@ -241,7 +252,7 @@ fromLeafPoints = \xs -> case pointsShades' xs of
 
 sShIdPartition' :: RealPseudoAffine x => Shade x -> [x] -> [[x]]->[[x]]
 sShIdPartition' shade@(Shade _ (PSM _ e)) xs st
-           = pad . foldr (\p -> cons2nth p $ subshadeId shade p) st xs
+           = pad $ foldr (\p -> cons2nth p $ subshadeId shade p) st xs
  where pad = take (length e * 2) . (++repeat[])
 sShIdPartition :: RealPseudoAffine x => Shade x -> [x] -> [[x]]
 sShIdPartition sh xs = sShIdPartition' sh xs []
@@ -353,7 +364,7 @@ tringComplete (Triangulation trr) (Triangulation tr) = undefined
  
 
 type RealPseudoAffine x
-          = (PseudoAffine x, HasMetric (PseudoDiff x), Scalar (PseudoDiff x) ~ ℝ)
+          = (PseudoAffine x, HasMetric (Trajectory x), Scalar (Trajectory x) ~ ℝ)
 
 
 
