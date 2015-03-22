@@ -77,8 +77,8 @@ import GHC.Generics (Generic)
 
 -- | Possibly / Partially / asymPtotically singular metric.
 data PSM x = PSM {
-       psmExpanse :: HerMetric' (Trajectory x)
-     , relevantEigenspan :: [DualSpace (Trajectory x)]
+       psmExpanse :: HerMetric' (Needle x)
+     , relevantEigenspan :: [DualSpace (Needle x)]
      }
        
 
@@ -93,14 +93,14 @@ data Shade x = Shade { shadeCtr :: x
                      , shadeExpanse' :: PSM x }
 
 instance (AffineManifold x) => Semimanifold (Shade x) where
-  type Trajectory (Shade x) = Diff x
+  type Needle (Shade x) = Diff x
   Shade c e .+~^ v = Shade (c.+^v) e
   Shade c e .-~^ v = Shade (c.-^v) e
 
-shadeExpanse :: Shade x -> HerMetric' (Trajectory x)
+shadeExpanse :: Shade x -> HerMetric' (Needle x)
 shadeExpanse (Shade _ (PSM e _)) = e
 
-fullShade :: RealPseudoAffine x => x -> HerMetric' (Trajectory x) -> Shade x
+fullShade :: RealPseudoAffine x => x -> HerMetric' (Needle x) -> Shade x
 fullShade ctr expa = Shade ctr (PSM expa (eigenCoSpan expa))
 
 subshadeId :: RealPseudoAffine x => Shade x -> x -> Int
@@ -122,7 +122,7 @@ subshadeId (Shade c (PSM _ expvs)) = \x
 --   for each connected component. And for an empty input list, there is no shade!
 --   Hence the list result.
 pointsShades :: RealPseudoAffine x => [x] -> [Shade x]
-pointsShades = map snd . pointsShades'
+pointsShades = map snd . pointsShades' zeroV
 
 pseudoECM :: RealPseudoAffine x => NE.NonEmpty x -> (x, ([x],[x]))
 pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
@@ -132,19 +132,20 @@ pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
                              (p₀, mempty)
                              ( zip [1..] $ p₀:psr )
 
-pointsShades' :: RealPseudoAffine x => [x] -> [([x], Shade x)]
-pointsShades' [] = []
-pointsShades' ps = case expa of 
+pointsShades' :: RealPseudoAffine x => HerMetric' (Needle x) -> [x] -> [([x], Shade x)]
+pointsShades' _ [] = []
+pointsShades' minExt ps = case expa of 
                            Option (Just e) -> (ps, fullShade ctr e)
-                                              : pointsShades' unreachable
-                           _ -> pointsShades' inc'd ++ pointsShades' unreachable
+                                              : pointsShades' minExt unreachable
+                           _ -> pointsShades' minExt inc'd
+                                  ++ pointsShades' minExt unreachable
  where (ctr,(inc'd,unreachable)) = pseudoECM $ NE.fromList ps
-       expa = ( (^/ fromIntegral(length ps)) . sumV . map projector' )
+       expa = ( (^+^minExt) . (^/ fromIntegral(length ps)) . sumV . map projector' )
               <$> mapM (.-~.ctr) ps
        
 
-minusLogOcclusion :: (PseudoAffine x, HasMetric (Trajectory x)
-             , s ~ (Scalar (Trajectory x)), RealDimension s )
+minusLogOcclusion :: (PseudoAffine x, HasMetric (Needle x)
+             , s ~ (Scalar (Needle x)), RealDimension s )
                 => Shade x -> x -> s
 minusLogOcclusion (Shade p₀ (PSM δ _)) = occ
  where occ p = case p .-~. p₀ of
@@ -153,8 +154,8 @@ minusLogOcclusion (Shade p₀ (PSM δ _)) = occ
        δinv = recipMetric δ
   
 -- | Check the statistical likelyhood of a point being within a shade.
-occlusion :: (PseudoAffine x, HasMetric (Trajectory x)
-             , s ~ (Scalar (Trajectory x)), RealDimension s )
+occlusion :: (PseudoAffine x, HasMetric (Needle x)
+             , s ~ (Scalar (Needle x)), RealDimension s )
                 => Shade x -> x -> s
 occlusion (Shade p₀ (PSM δ _)) = occ
  where occ p = case p .-~. p₀ of
@@ -175,7 +176,7 @@ instance (NFData x) => NFData (ShadeTree x) where
   
 -- | Experimental. There might be a more powerful instance possible.
 instance (AffineManifold x) => Semimanifold (ShadeTree x) where
-  type Trajectory (ShadeTree x) = Diff x
+  type Needle (ShadeTree x) = Diff x
   PlainLeaves xs .+~^ v = PlainLeaves $ (.+^v)<$>xs 
   OverlappingBranches n sh br .+~^ v = OverlappingBranches n (sh.+~^v) $ (.+~^v)<$>br
   DisjointBranches n br .+~^ v = DisjointBranches n $ (.+~^v)<$>br
@@ -220,34 +221,36 @@ instance RealPseudoAffine x => Monoid (ShadeTree x) where
 -- 
 -- <<images/examples/simple-2d-ShadeTree.png>>
 fromLeafPoints :: RealPseudoAffine x => [x] -> ShadeTree x
-fromLeafPoints = \xs -> case pointsShades' xs of
+fromLeafPoints = go zeroV
+ where go preShExpa = \xs -> case pointsShades' (preShExpa^/10) xs of
                      [] -> mempty
                      [(_,rShade)] -> let trials = sShIdPartition rShade xs
                                      in case reduce rShade trials of
                                          Just (redSh,redBrchs)
-                                           -> OverlappingBranches (length xs) redSh
-                                                                  (branchProc redBrchs)
+                                           -> OverlappingBranches
+                                                  (length xs) redSh
+                                                  (branchProc (shadeExpanse redSh) redBrchs)
                                          _ -> PlainLeaves xs
                      partitions -> DisjointBranches (length xs)
                                    . NE.fromList
                                     $ map (\(xs',pShade) ->
                                        OverlappingBranches (length xs')
                                                            pShade
-                                                           (branchProc
+                                                           (branchProc zeroV
                                                             $ sShIdPartition pShade xs'))
                                        partitions
- where branchProc = NE.fromList . map fromLeafPoints
-       reduce (Shade _ (PSM _ [])) _ = Nothing
-       reduce sh@(Shade ctr (PSM s e)) brCandidates
-                 = case findIndex deficient cards of
-                     Just idef -> let iv = idef`div`2
-                                      i = iv*2; i' = i+1 
-                                      sh' = Shade ctr (PSM s $ deleteIds [iv] e)
-                                      (reBr, ok) = amputateIds [i,i'] brCandidates
-                                  in reduce sh' (sShIdPartition' sh' (join reBr) ok )
-                     Nothing   -> Just (sh, brCandidates)
-        where (cards, maxCard) = (id&&&maximum) $ map length brCandidates
-              deficient c = c^2 <= maxCard + 1
+        where branchProc redSh = NE.fromList . map (go redSh)
+              reduce (Shade _ (PSM _ [])) _ = Nothing
+              reduce sh@(Shade ctr (PSM s e)) brCandidates
+                        = case findIndex deficient cards of
+                            Just idef -> let iv = idef`div`2
+                                             i = iv*2; i' = i+1 
+                                             sh' = Shade ctr (PSM s $ deleteIds [iv] e)
+                                             (reBr, ok) = amputateIds [i,i'] brCandidates
+                                         in reduce sh' (sShIdPartition' sh' (join reBr) ok )
+                            Nothing   -> Just (sh, brCandidates)
+               where (cards, maxCard) = (id&&&maximum) $ map length brCandidates
+                     deficient c = c^2 <= maxCard + 1
 
 
 sShIdPartition' :: RealPseudoAffine x => Shade x -> [x] -> [[x]]->[[x]]
@@ -364,7 +367,7 @@ tringComplete (Triangulation trr) (Triangulation tr) = undefined
  
 
 type RealPseudoAffine x
-          = (PseudoAffine x, HasMetric (Trajectory x), Scalar (Trajectory x) ~ ℝ)
+          = (PseudoAffine x, HasMetric (Needle x), Scalar (Needle x) ~ ℝ)
 
 
 

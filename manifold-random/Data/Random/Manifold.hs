@@ -24,13 +24,13 @@ import Control.Applicative
 -- @
 -- instance D_S x => 'Distribution' 'Shade' x
 -- @
-type D_S x = (PseudoAffine x, HasMetric (Trajectory x), Scalar (Trajectory x) ~ ℝ)
+type D_S x = (PseudoAffine x, HasMetric (Needle x), Scalar (Needle x) ~ ℝ)
 
 instance D_S x => Distribution Shade x where
   rvarT shade = shadeT' (shadeCtr shade) (shadeExpanse shade)
 
-shadeT' :: (PseudoAffine x, HasMetric (Trajectory x), Scalar (Trajectory x) ~ ℝ)
-                      => x -> HerMetric' (Trajectory x) -> RVarT m x
+shadeT' :: (PseudoAffine x, HasMetric (Needle x), Scalar (Needle x) ~ ℝ)
+                      => x -> HerMetric' (Needle x) -> RVarT m x
 shadeT' ctr expa = ((ctr.+~^) . sumV) <$> mapM (\v -> (v^*) <$> stdNormalT) eigSpan
    where eigSpan = eigenSpan expa
 
@@ -38,8 +38,8 @@ shadeT' ctr expa = ((ctr.+~^) . sumV) <$> mapM (\v -> (v^*) <$> stdNormalT) eigS
 -- 
 --   If you use 'rvar' to sample a large number of points from a shade @sh@ in a sufficiently
 --   flat space, then 'pointsShades' of that sample will again be approximately @[sh]@.
-shade :: (Distribution Shade x, D_S x) => x -> HerMetric' (Trajectory x) -> RVar x
+shade :: (Distribution Shade x, D_S x) => x -> HerMetric' (Needle x) -> RVar x
 shade ctr expa = rvar $ fullShade ctr expa
 
-shadeT :: (Distribution Shade x, D_S x) => x -> HerMetric' (Trajectory x) -> RVarT m x
+shadeT :: (Distribution Shade x, D_S x) => x -> HerMetric' (Needle x) -> RVarT m x
 shadeT = shadeT'

@@ -79,20 +79,20 @@ import Data.Foldable.Constrained
 infix 6 .-~.
 infixl 6 .+~^, .-~^
 
-class (AdditiveGroup (Trajectory x)) => Semimanifold x where
+class (AdditiveGroup (Needle x)) => Semimanifold x where
   -- | The space of &#x201c;natural&#x201d; ways starting from some reference point
-  --   &#x2013;and predestined to finish at some particular target point. Hence,
-  --   the name: essentially ballistic trajectories over a space.
-  --   For affine space, 'Trajectory' is simply the space of
+  --   and going to some particular target point. Hence,
+  --   the name: like a compass needle, but also with an actual length.
+  --   For affine space, 'Needle' is simply the space of
   --   line segments (aka vectors) between two points, i.e. the same as 'Diff'.
   --   The 'AffineManifold' constraint makes that requirement explicit.
   -- 
   --   This space should be isomorphic to the tangent space (and is in fact
   --   used somewhat synonymously).
-  type Trajectory x :: *
+  type Needle x :: *
   
   -- | Generalised translation operation.
-  (.+~^) :: x -> Trajectory x -> x
+  (.+~^) :: x -> Needle x -> x
   
   -- | Shorthand for @\\p v -> p .+~^ 'negateV' v@, which should obey the /asymptotic/ law
   --   
@@ -105,7 +105,7 @@ class (AdditiveGroup (Trajectory x)) => Semimanifold x where
   --   as /O/ (/&#x3b7;/&#xb2;). For large vectors, it will however behave differently,
   --   except in flat spaces (where all this should be equivalent to the 'AffineSpace'
   --   instance).
-  (.-~^) :: x -> Trajectory x -> x
+  (.-~^) :: x -> Needle x -> x
   p .-~^ v = p .+~^ negateV v
 
 -- | 'PseudoAffine' is intended as an alternative class for 'Data.Manifold.Manifold's.
@@ -129,33 +129,33 @@ class Semimanifold x => PseudoAffine x where
   -- @
   --   
   --   at least save for floating-point precision limits etc..
-  (.-~.) :: x -> x -> Option (Trajectory x)
+  (.-~.) :: x -> x -> Option (Needle x)
   
 
 
-type LocallyScalable s x = ( PseudoAffine x, (Trajectory x) ~ Trajectory x
-                           , HasMetric (Trajectory x)
-                           , DualSpace (Trajectory x) ~ DualSpace (Trajectory x)
-                           , s ~ Scalar (Trajectory x) )
-type LinearManifold s x = ( PseudoAffine x, Trajectory x ~ x
+type LocallyScalable s x = ( PseudoAffine x, (Needle x) ~ Needle x
+                           , HasMetric (Needle x)
+                           , DualSpace (Needle x) ~ DualSpace (Needle x)
+                           , s ~ Scalar (Needle x) )
+type LinearManifold s x = ( PseudoAffine x, Needle x ~ x
                           , HasMetric x
                           , s ~ Scalar x )
-type RealDimension r = ( PseudoAffine r, Trajectory r ~ r
+type RealDimension r = ( PseudoAffine r, Needle r ~ r
                        , HasMetric r, DualSpace r ~ r, Scalar r ~ r
                        , RealFloat r )
-type AffineManifold m = ( PseudoAffine m, AffineSpace m, Trajectory m ~ Diff m )
+type AffineManifold m = ( PseudoAffine m, AffineSpace m, Needle m ~ Diff m )
 
 
 
-palerp :: (PseudoAffine x, VectorSpace (Trajectory x))
-    => x -> x -> Option (Scalar (Trajectory x) -> x)
+palerp :: (PseudoAffine x, VectorSpace (Needle x))
+    => x -> x -> Option (Scalar (Needle x) -> x)
 palerp p1 p2 = fmap (\v t -> p1 .+~^ t *^ v) $ p2 .-~. p1
 
 
 
 #define deriveAffine(t)          \
 instance Semimanifold t where {   \
-  type Trajectory t = Diff t;      \
+  type Needle t = Diff t;      \
   (.+~^) = (.+^) };                 \
 instance PseudoAffine t where {      \
   a.-~.b = pure (a.-.b);      }
@@ -164,21 +164,21 @@ deriveAffine(Double)
 deriveAffine(Rational)
 
 instance Semimanifold (ZeroDim k) where
-  type Trajectory (ZeroDim k) = ZeroDim k
+  type Needle (ZeroDim k) = ZeroDim k
   Origin .+~^ Origin = Origin
   Origin .-~^ Origin = Origin
 instance PseudoAffine (ZeroDim k) where
   Origin .-~. Origin = pure Origin
 
 instance (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
-  type Trajectory (a,b) = (Trajectory a, Trajectory b)
+  type Needle (a,b) = (Needle a, Needle b)
   (a,b).+~^(v,w) = (a.+~^v, b.+~^w)
   (a,b).-~^(v,w) = (a.-~^v, b.-~^w)
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   (a,b).-~.(c,d) = liftA2 (,) (a.-~.c) (b.-~.d)
 
 instance (Semimanifold a, Semimanifold b, Semimanifold c) => Semimanifold (a,b,c) where
-  type Trajectory (a,b,c) = (Trajectory a, Trajectory b, Trajectory c)
+  type Needle (a,b,c) = (Needle a, Needle b, Needle c)
   (a,b,c).+~^(v,w,x) = (a.+~^v, b.+~^w, c.+~^x)
   (a,b,c).-~^(v,w,x) = (a.-~^v, b.-~^w, c.-~^x)
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
@@ -186,7 +186,7 @@ instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c
 
 
 instance Semimanifold S⁰ where
-  type Trajectory S⁰ = ℝ⁰
+  type Needle S⁰ = ℝ⁰
   p .+~^ Origin = p
   p .-~^ Origin = p
 instance PseudoAffine S⁰ where
@@ -195,7 +195,7 @@ instance PseudoAffine S⁰ where
   _ .-~. _ = Option Nothing
 
 instance Semimanifold S¹ where
-  type Trajectory S¹ = ℝ
+  type Needle S¹ = ℝ
   S¹ φ₀ .+~^ δφ
      | φ' < 0     = S¹ $ φ' + tau
      | otherwise  = S¹ $ φ'
@@ -208,7 +208,7 @@ instance PseudoAffine S¹ where
    where δφ = φ₁ - φ₀
 
 instance Semimanifold S² where
-  type Trajectory S² = ℝ²
+  type Needle S² = ℝ²
   S² ϑ₀ φ₀ .+~^ δv
      | ϑ₀ < pi/2  = sphereFold PositiveHalfSphere $ ϑ₀*^embed(S¹ φ₀) ^+^ δv
      | otherwise  = sphereFold NegativeHalfSphere $ (pi-ϑ₀)*^embed(S¹ φ₀) ^+^ δv
@@ -228,7 +228,7 @@ sphereFold hfSphere v
 
 
 instance Semimanifold ℝP² where
-  type Trajectory ℝP² = ℝ²
+  type Needle ℝP² = ℝ²
   ℝP² r₀ φ₀ .+~^ (δr, δφ)
    | r₀ > 1/2   = case r₀ + δr of
                    r₁ | r₁ > 1     -> ℝP² (2-r₁) (toS¹range $ φ₀+δφ+pi)
@@ -248,13 +248,13 @@ instance PseudoAffine ℝP² where
    | otherwise  = pure ( r₁*^embed(S¹ φ₁) ^-^ r₀*^embed(S¹ φ₀) )
 
 
-instance (PseudoAffine m, VectorSpace (Trajectory m), Scalar (Trajectory m) ~ ℝ)
+instance (PseudoAffine m, VectorSpace (Needle m), Scalar (Needle m) ~ ℝ)
              => Semimanifold (CD¹ m) where
-  type Trajectory (CD¹ m) = (Trajectory m, ℝ)
+  type Needle (CD¹ m) = (Needle m, ℝ)
   CD¹ h₀ m₀ .+~^ (h₁δm, δh)
       = let h₁ = min 1 . max 1e-300 $ h₀+δh; δm = h₁δm^/h₁
         in CD¹ h₁ (m₀.+~^δm)
-instance (PseudoAffine m, VectorSpace (Trajectory m), Scalar (Trajectory m) ~ ℝ)
+instance (PseudoAffine m, VectorSpace (Needle m), Scalar (Needle m) ~ ℝ)
              => PseudoAffine (CD¹ m) where
   CD¹ h₁ m₁ .-~. CD¹ h₀ m₀
      = fmap ( \δm -> (h₁*^δm, h₁-h₀) ) $ m₁.-~.m₀
@@ -271,7 +271,7 @@ toS¹range φ = (φ+pi)`mod'`tau - pi
 
 
 
-type LinDevPropag d c = HerMetric (Trajectory c) -> HerMetric (Trajectory d)
+type LinDevPropag d c = HerMetric (Needle c) -> HerMetric (Needle d)
 
 dev_ε_δ :: RealDimension a
                 => (a -> a) -> LinDevPropag a a
@@ -312,7 +312,7 @@ dev_ε_δ f d = let ε = 1 / metric d 1 in projector $ 1 / sqrt (f ε)
 --   overlap from exceeding one; this makes the concept actually work on general manifolds.)
 newtype Differentiable s d c
    = Differentiable { runDifferentiable ::
-                        d -> ( c, Trajectory d :-* Trajectory c, LinDevPropag d c ) }
+                        d -> ( c, Needle d :-* Needle c, LinDevPropag d c ) }
 type (-->) = Differentiable ℝ
 
 
@@ -404,7 +404,7 @@ actuallyAffine y₀ f = Differentiable $ \x -> (y₀ ^+^ lapply f x, f, const ze
 
 
 dfblFnValsFunc :: ( LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
-                  , v ~ Trajectory c, v' ~ Trajectory c'
+                  , v ~ Needle c, v' ~ Needle c'
                   , ε ~ HerMetric v, ε ~ HerMetric v' )
              => (c' -> (c, v':-*v, ε->ε)) -> DfblFuncValue s d c' -> DfblFuncValue s d c
 dfblFnValsFunc f = (Differentiable f $~)
@@ -412,7 +412,7 @@ dfblFnValsFunc f = (Differentiable f $~)
 dfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
          ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
          ,  LocallyScalable s d
-         , v ~ Trajectory c, v' ~ Trajectory c', v'' ~ Trajectory c''
+         , v ~ Needle c, v' ~ Needle c', v'' ~ Needle c''
          , ε ~ HerMetric v  , ε' ~ HerMetric v'  , ε'' ~ HerMetric v'', ε~ε', ε~ε''  )
        => (  c' -> c'' -> (c, (v',v''):-*v, ε -> (ε',ε''))  )
          -> DfblFuncValue s d c' -> DfblFuncValue s d c'' -> DfblFuncValue s d c
@@ -662,7 +662,7 @@ instance (RealDimension s)
 gpwDfblFnValsFunc
      :: ( RealDimension s
         , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
-        , v ~ Trajectory c, v' ~ Trajectory c'
+        , v ~ Needle c, v' ~ Needle c'
         , ε ~ HerMetric v, ε ~ HerMetric v' )
              => (c' -> (c, v':-*v, ε->ε)) -> PWDfblFuncValue s d c' -> PWDfblFuncValue s d c
 gpwDfblFnValsFunc f = (PWDiffable (\_ -> (GlobalRegion, Differentiable f)) $~)
@@ -670,7 +670,7 @@ gpwDfblFnValsFunc f = (PWDiffable (\_ -> (GlobalRegion, Differentiable f)) $~)
 gpwDfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
          ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
          , LocallyScalable s d, RealDimension s
-         , v ~ Trajectory c, v' ~ Trajectory c', v'' ~ Trajectory c''
+         , v ~ Needle c, v' ~ Needle c', v'' ~ Needle c''
          , ε ~ HerMetric v  , ε' ~ HerMetric v'  , ε'' ~ HerMetric v'', ε~ε', ε~ε''  )
        => (  c' -> c'' -> (c, (v',v''):-*v, ε -> (ε',ε''))  )
          -> PWDfblFuncValue s d c' -> PWDfblFuncValue s d c'' -> PWDfblFuncValue s d c
@@ -877,7 +877,7 @@ instance (RealDimension s)
 grwDfblFnValsFunc
      :: ( RealDimension s
         , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
-        , v ~ Trajectory c, v' ~ Trajectory c'
+        , v ~ Needle c, v' ~ Needle c'
         , ε ~ HerMetric v, ε ~ HerMetric v' )
              => (c' -> (c, v':-*v, ε->ε)) -> RWDfblFuncValue s d c' -> RWDfblFuncValue s d c
 grwDfblFnValsFunc f = (RWDiffable (\_ -> (GlobalRegion, pure (Differentiable f))) $~)
@@ -885,7 +885,7 @@ grwDfblFnValsFunc f = (RWDiffable (\_ -> (GlobalRegion, pure (Differentiable f))
 grwDfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
          ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
          , LocallyScalable s d, RealDimension s
-         , v ~ Trajectory c, v' ~ Trajectory c', v'' ~ Trajectory c''
+         , v ~ Needle c, v' ~ Needle c', v'' ~ Needle c''
          , ε ~ HerMetric v  , ε' ~ HerMetric v'  , ε'' ~ HerMetric v'', ε~ε', ε~ε''  )
        => (  c' -> c'' -> (c, (v',v''):-*v, ε -> (ε',ε''))  )
          -> RWDfblFuncValue s d c' -> RWDfblFuncValue s d c'' -> RWDfblFuncValue s d c
