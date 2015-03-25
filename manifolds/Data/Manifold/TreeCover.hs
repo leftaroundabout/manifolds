@@ -167,6 +167,8 @@ occlusion (Shade p₀ (PSM δ _)) = occ
 
 
 
+-- | Hourglass as the geometric shape (two opposing ~conical volumes, sharing
+--   only a single point in the middle); has nothing to do with time.
 data Hourglass s = Hourglass { upperBulb, lowerBulb :: !s }
             deriving (Generic, Hask.Functor, Hask.Foldable)
 instance (NFData s) => NFData (Hourglass s)
@@ -182,8 +184,8 @@ instance Hask.Applicative Hourglass where
   pure x = Hourglass x x
   Hourglass f g <*> Hourglass x y = Hourglass (f x) (g y)
 instance Foldable Hourglass (->) (->) where
-  ffoldl = uncurry . Hask.foldl . curry
-  foldMap = Hask.foldMap
+  ffoldl f (x, Hourglass a b) = f (f(x,a), b)
+  foldMap f (Hourglass a b) = f a `mappend` f b
 
 newtype Hourglasses s = Hourglasses {
              getHourglasses :: NE.NonEmpty (Hourglass s) }
@@ -283,7 +285,7 @@ fromLeafPoints = go zeroV
                                           (sShIdPartition' sh' (join(Hask.fold<$>reBr)) ok )
                             Nothing   -> Just (sh, brCandidates)
                where (cards, maxCard) = (id&&&maximum') $ map (fmap length) brCandidates
-                     deficient (Hourglass u l) = all (\c -> c^2 <= maxCard + 1) [u,l]
+                     deficient (Hourglass u l) = any (\c -> c^2 <= maxCard + 1) [u,l]
                      maximum' = maximum . fmap (\(Hourglass u l) -> max u l)
 
 
