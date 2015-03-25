@@ -79,8 +79,8 @@ import GHC.Generics (Generic)
 
 -- | Possibly / Partially / asymPtotically singular metric.
 data PSM x = PSM {
-       psmExpanse :: HerMetric' (Needle x)
-     , relevantEigenspan :: [DualSpace (Needle x)]
+       psmExpanse :: !(HerMetric' (Needle x))
+     , relevantEigenspan :: ![DualSpace (Needle x)]
      }
        
 
@@ -91,27 +91,27 @@ data PSM x = PSM {
 -- 
 --   For a /precise/ description of an arbitrarily-shaped connected subset of a manifold,
 --   there is 'Region', whose implementation is vastly more complex.
-data Shade x = Shade { shadeCtr :: x
-                     , shadeExpanse' :: PSM x }
+data Shade x = Shade { shadeCtr :: !x
+                     , shadeExpanse :: !(HerMetric' (Needle x)) }
 
 instance (AffineManifold x) => Semimanifold (Shade x) where
   type Needle (Shade x) = Diff x
   Shade c e .+~^ v = Shade (c.+^v) e
   Shade c e .-~^ v = Shade (c.-^v) e
 
-shadeExpanse :: Shade x -> HerMetric' (Needle x)
-shadeExpanse (Shade _ (PSM e _)) = e
-
 fullShade :: RealPseudoAffine x => x -> HerMetric' (Needle x) -> Shade x
-fullShade ctr expa = Shade ctr (PSM expa (eigenCoSpan expa))
+fullShade ctr expa = Shade ctr expa
+
+subshadeId' :: RealPseudoAffine x
+                   => x -> [DualSpace (Needle x)] -> x -> (Int, HourglassBulb)
+subshadeId' c expvs x = case x .-~. c of
+    Option (Just v) -> let (iu,vl) = maximumBy (comparing $ abs . snd)
+                                      $ zip [0..] (map (v <.>^) expvs)
+                       in (iu, if vl>0 then UpperBulb else LowerBulb)
+    _ -> (-1, error "Trying to obtain the subshadeId of a point not actually included in the shade.")
 
 subshadeId :: RealPseudoAffine x => Shade x -> x -> (Int, HourglassBulb)
-subshadeId (Shade c (PSM _ expvs)) = \x
-             -> case x .-~. c of
-                 Option (Just v) -> let (iu,vl) = maximumBy (comparing $ abs . snd)
-                                                   $ zip [0..] (map (v <.>^) expvs)
-                                    in (iu, if vl>0 then UpperBulb else LowerBulb)
-                 _ -> (-1, error "Trying to obtain the subshadeId of a point not actually included in the shade.")
+subshadeId (Shade c expa) = subshadeId' c $ eigenCoSpan expa
                  
 
 
@@ -149,7 +149,7 @@ pointsShades' minExt ps = case expa of
 minusLogOcclusion :: (PseudoAffine x, HasMetric (Needle x)
              , s ~ (Scalar (Needle x)), RealDimension s )
                 => Shade x -> x -> s
-minusLogOcclusion (Shade p₀ (PSM δ _)) = occ
+minusLogOcclusion (Shade p₀ δ) = occ
  where occ p = case p .-~. p₀ of
          Option(Just vd) -> metricSq δinv vd
          _               -> 1/0
@@ -159,7 +159,7 @@ minusLogOcclusion (Shade p₀ (PSM δ _)) = occ
 occlusion :: (PseudoAffine x, HasMetric (Needle x)
              , s ~ (Scalar (Needle x)), RealDimension s )
                 => Shade x -> x -> s
-occlusion (Shade p₀ (PSM δ _)) = occ
+occlusion (Shade p₀ δ) = occ
  where occ p = case p .-~. p₀ of
          Option(Just vd) -> exp . negate $ metricSq δinv vd
          _               -> zeroV
@@ -200,21 +200,29 @@ oneBulb LowerBulb f (Hourglass u l) = Hourglass u (f l)
 
 
 data ShadeTree x = PlainLeaves [x]
-                 | DisjointBranches Int (NE.NonEmpty (ShadeTree x))
-                 | OverlappingBranches Int
-                                       (Shade x)
-                                       (Hourglasses (ShadeTree x))
+                 | DisjointBranches !Int (NE.NonEmpty (ShadeTree x))
+                 | OverlappingBranches !Int !(Shade x) (NE.NonEmpty (DBranch x))
   deriving (Generic)
+           
+data DBranch' x c = DBranch { boughDirection :: !(DualSpace (Needle x))
+                            , boughContents :: !(Hourglass c) }
+  deriving (Generic, Hask.Functor)
+type DBranch x = DBranch' x (ShadeTree x)
+
+
 instance (NFData x) => NFData (ShadeTree x) where
   rnf (PlainLeaves xs) = rnf xs
   rnf (DisjointBranches n bs) = n `seq` rnf (NE.toList bs)
-  rnf (OverlappingBranches n sh bs) = n `seq` sh `seq` rnf bs
+  rnf (OverlappingBranches n sh bs) = n `seq` sh `seq` rnf (NE.toList bs)
+instance (NFData x) => NFData (DBranch x)
   
 -- | Experimental. There might be a more powerful instance possible.
 instance (AffineManifold x) => Semimanifold (ShadeTree x) where
   type Needle (ShadeTree x) = Diff x
   PlainLeaves xs .+~^ v = PlainLeaves $ (.+^v)<$>xs 
-  OverlappingBranches n sh br .+~^ v = OverlappingBranches n (sh.+~^v) $ (.+~^v)<$>br
+  OverlappingBranches n sh br .+~^ v
+        = OverlappingBranches n (sh.+~^v)
+                $ fmap (\(DBranch d c) -> DBranch d $ (.+~^v)<$>c) br
   DisjointBranches n br .+~^ v = DisjointBranches n $ (.+~^v)<$>br
 
 -- | WRT union.
@@ -256,54 +264,61 @@ instance RealPseudoAffine x => Monoid (ShadeTree x) where
 -- @
 -- 
 -- <<images/examples/simple-2d-ShadeTree.png>>
-fromLeafPoints :: RealPseudoAffine x => [x] -> ShadeTree x
+fromLeafPoints :: forall x. RealPseudoAffine x => [x] -> ShadeTree x
 fromLeafPoints = go zeroV
- where go preShExpa = \xs -> case pointsShades' (preShExpa^/10) xs of
+ where go :: HerMetric' (Needle x) -> [x] -> ShadeTree x
+       go preShExpa = \xs -> case pointsShades' (preShExpa^/10) xs of
                      [] -> mempty
                      [(_,rShade)] -> let trials = sShIdPartition rShade xs
                                      in case reduce rShade trials of
-                                         Just (redSh,redBrchs)
+                                         Just redBrchs
                                            -> OverlappingBranches
-                                                  (length xs) redSh
-                                                  (branchProc (shadeExpanse redSh) redBrchs)
+                                                  (length xs) rShade
+                                                  (branchProc (shadeExpanse rShade) redBrchs)
                                          _ -> PlainLeaves xs
                      partitions -> DisjointBranches (length xs)
                                    . NE.fromList
-                                    $ map (\(xs',pShade) ->
-                                       OverlappingBranches (length xs')
-                                                           pShade
-                                                           (branchProc zeroV
-                                                            $ sShIdPartition pShade xs'))
-                                       partitions
-        where branchProc redSh = fmap (go redSh) . Hourglasses . NE.fromList
-              reduce (Shade _ (PSM _ [])) _ = Nothing
-              reduce sh@(Shade ctr (PSM s e)) brCandidates
+                                    $ map (\(xs',pShade) -> go zeroV xs') partitions
+        where 
+              branchProc redSh = fmap (fmap $ go redSh)
+                                 
+              reduce :: Shade x -> [DBranch' x [x]] -> Maybe (NE.NonEmpty (DBranch' x [x]))
+              reduce _ [] = Nothing
+              reduce sh@(Shade c _) brCandidates
                         = case findIndex deficient cards of
-                            Just i -> let sh' = Shade ctr (PSM s $ deleteIds [i] e)
-                                          (reBr, ok) = amputateIds [i] brCandidates
-                                      in reduce sh'
-                                          (sShIdPartition' sh' (join(Hask.fold<$>reBr)) ok )
-                            Nothing   -> Just (sh, brCandidates)
-               where (cards, maxCard) = (id&&&maximum') $ map (fmap length) brCandidates
+                            Just i -> let (DBranch _ reBr, ok) = amputateId i brCandidates
+                                      in reduce sh
+                                          $ sShIdPartition' c (fold reBr) ok
+                            Nothing   -> Just $ NE.fromList brCandidates
+               where (cards, maxCard) = (id&&&maximum')
+                                $ map (fmap length . boughContents) brCandidates
                      deficient (Hourglass u l) = any (\c -> c^2 <= maxCard + 1) [u,l]
                      maximum' = maximum . fmap (\(Hourglass u l) -> max u l)
 
 
-sShIdPartition' :: RealPseudoAffine x => Shade x -> [x] -> [Hourglass [x]]->[Hourglass [x]]
-sShIdPartition' shade@(Shade _ (PSM _ e)) xs st
-           = pad $ foldr (\p -> let (i,h) = subshadeId shade p
-                                in update_nth (oneBulb h (p:)) i) st xs
- where pad = take (length e) . (++repeat mempty)
-sShIdPartition :: RealPseudoAffine x => Shade x -> [x] -> [Hourglass [x]]
-sShIdPartition sh xs = sShIdPartition' sh xs []
+sShIdPartition' :: RealPseudoAffine x
+        => x -> [x] -> [DBranch' x [x]]->[DBranch' x [x]]
+sShIdPartition' c xs st
+           = foldr (\p -> let (i,h) = ssi p
+                                in update_nth (\(DBranch d c)
+                                               -> DBranch d (oneBulb h (p:) c))
+                                              i)
+                         st xs
+ where ssi = subshadeId' c (boughDirection<$>st)
+sShIdPartition :: RealPseudoAffine x => Shade x -> [x] -> [DBranch' x [x]]
+sShIdPartition (Shade c expa) xs
+    = sShIdPartition' c xs [DBranch v mempty | v <- eigenCoSpan expa]
                                            
 
-update_nth :: Monoid a => (a->a) -> Int -> [a] -> [a]
+update_nth :: (a->a) -> Int -> [a] -> [a]
 update_nth _ n l | n<0 = l
 update_nth f 0 (c:r) = f c : r
-update_nth f n [] = update_nth f n [mempty]
+update_nth f n [] = []
 update_nth f n (l:r) = l : update_nth f (n-1) r
 
+
+amputateId :: Int -> [a] -> (a,[a])
+amputateId i l = let ([a],bs) = amputateIds [i] l in (a, bs)
 
 deleteIds :: [Int] -> [a] -> [a]
 deleteIds kids = snd . amputateIds kids
