@@ -50,6 +50,7 @@ module Data.Manifold.PseudoAffine (
 
 
 import Data.List
+import qualified Data.Vector as Arr
 import Data.Maybe
 import Data.Semigroup
 import Data.Function (on)
@@ -58,13 +59,15 @@ import Data.Fixed
 import Data.VectorSpace
 import Data.LinearMap
 import Data.LinearMap.HerMetric
-import Data.MemoTrie (HasTrie)
+import Data.MemoTrie (HasTrie(..))
 import Data.AffineSpace
 import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
 import Data.Tagged
 import Data.Manifold.Types
+
+import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import qualified Prelude
 
@@ -1104,5 +1107,74 @@ instance (RealDimension n, LocallyScalable n a)
                  -- Empirical, with epsEst upper bound.
   
   
+
+
+
+
+
+
+
+newtype Stiefel1 v = Stiefel1 { getStiefel1N :: DualSpace v }
+
+newtype Stiefel1Needle v = Stiefel1Needle { getStiefel1Tangent :: HMat.Vector (Scalar v) }
+newtype Stiefel1Basis v = Stiefel1Basis { getStiefel1Basis :: Int }
+s1bTrie :: forall v b. FiniteDimensional v => (Stiefel1Basis v->b) -> Stiefel1Basis v:->:b
+s1bTrie = \f -> St1BTrie $ fmap (f . Stiefel1Basis) allIs
+ where (Tagged d) = dimension :: Tagged v Int
+       allIs = Arr.fromList [0 .. d-2]
+
+instance FiniteDimensional v => HasTrie (Stiefel1Basis v) where
+  data (Stiefel1Basis v :->: a) = St1BTrie ( Arr.Vector a )
+  trie = s1bTrie; untrie (St1BTrie a) (Stiefel1Basis i) = a Arr.! i
+  enumerate (St1BTrie a) = Arr.ifoldr (\i x l -> (Stiefel1Basis i,x):l) [] a
+
+instance(MetricScalar(Scalar v),FiniteDimensional v)=>AdditiveGroup(Stiefel1Needle v) where
+  Stiefel1Needle v ^+^ Stiefel1Needle w = Stiefel1Needle $ v + w
+  zeroV = s1nZ; negateV (Stiefel1Needle v) = Stiefel1Needle $ negate v
+s1nZ :: forall v. (FiniteDimensional v, MetricScalar (Scalar v)) => Stiefel1Needle v
+s1nZ=Stiefel1Needle .HMat.fromList$replicate(d-1)0 where(Tagged d)=dimension::Tagged v Int
+
+instance (MetricScalar(Scalar v),FiniteDimensional v)=>VectorSpace(Stiefel1Needle v) where
+  type Scalar (Stiefel1Needle v) = Scalar v
+  μ *^ Stiefel1Needle v = Stiefel1Needle $ HMat.scale μ v
+
+instance (MetricScalar (Scalar v), FiniteDimensional v)=>HasBasis (Stiefel1Needle v) where
+  type Basis (Stiefel1Needle v) = Stiefel1Basis v
+  basisValue = s1bV
+  decompose (Stiefel1Needle v) = zipWith ((,).Stiefel1Basis) [0..] $ HMat.toList v
+  decompose' (Stiefel1Needle v) (Stiefel1Basis i) = v HMat.! i
+s1bV :: forall v b. FiniteDimensional v => Stiefel1Basis v -> Stiefel1Needle v
+s1bV = \(Stiefel1Basis i) -> Stiefel1Needle
+            $ HMat.fromList [ if k==i then 1 else 0 | k<-[0..d-2] ]
+ where (Tagged d) = dimension :: Tagged v Int
+
+instance (MetricScalar (Scalar v), FiniteDimensional v)
+             => FiniteDimensional (Stiefel1Needle v) where
+  dimension = s1nD
+  basisIndex = Tagged $ \(Stiefel1Basis i) -> i
+  indexBasis = Tagged Stiefel1Basis
+  fromPackedVector = Stiefel1Needle
+  asPackedVector = getStiefel1Tangent
+s1nD :: forall v. FiniteDimensional v => Tagged (Stiefel1Needle v) Int
+s1nD = Tagged (d - 1) where (Tagged d) = dimension :: Tagged v Int
+
+instance (MetricScalar (Scalar v), FiniteDimensional v)
+              => HasMetric' (Stiefel1Needle v) where
+  type DualSpace (Stiefel1Needle v) = Stiefel1Needle v
+  Stiefel1Needle v <.>^ Stiefel1Needle w = HMat.dot v w 
+  functional = s1nF
+  doubleDual = id; doubleDual' = id
+s1nF :: forall v. FiniteDimensional v => (Stiefel1Needle v->Scalar v)->Stiefel1Needle v
+s1nF = \f -> Stiefel1Needle $ HMat.fromList [f $ basisValue b | b <- cb]
+ where (Tagged cb) = completeBasis :: Tagged (Stiefel1Needle v) [Stiefel1Basis v]
+
+instance (LinearManifold k v) => Semimanifold (Stiefel1 v) where 
+  type Needle (Stiefel1 v) = Stiefel1Needle v
+
+data Cutplane x = Cutplane { sawHandle :: x
+                           , cutOrientation :: Stiefel1 (Needle x) }
+
+-- instance (PseudoAffine x) => PseudoAffine (Cutplane x) where
+  -- type Needle (PseudoAffine x
   
 
