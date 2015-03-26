@@ -206,7 +206,7 @@ data ShadeTree x = PlainLeaves [x]
            
 data DBranch' x c = DBranch { boughDirection :: !(DualSpace (Needle x))
                             , boughContents :: !(Hourglass c) }
-  deriving (Generic, Hask.Functor)
+  deriving (Generic, Hask.Functor, Hask.Foldable)
 type DBranch x = DBranch' x (ShadeTree x)
 
 
@@ -340,22 +340,22 @@ separateOverlap :: RealPseudoAffine x
                         , (ShadeTree x, ShadeTree x) -- Disjoint parts
                         )
 separateOverlap (PlainLeaves []) t = (mempty, (mempty, t))
-separateOverlap t (PlainLeaves []) = (mempty, (t, mempty))
-separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ (PSM _ ev₁)) br₁)
-                t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ (PSM _ ev₂)) br₂)
-    | d₁>4 && d₂>4  = ( mempty, (t₁,t₂) )
-    | n₁ > n₂       = let t₂pts = sShIdPartition sh₁ $ onlyLeaves t₂
-                          cndSectors = zipWith (liftA2 $ (.fromLeafPoints).separateOverlap)
-                                         (NE.toList $ getHourglasses br₁) t₂pts
-                      in fold (fold cndSectors)
-    | otherwise     = let t₁pts = sShIdPartition sh₂ $ onlyLeaves t₁
-                          cndSectors = zipWith (liftA2 $ separateOverlap . fromLeafPoints)
-                                         t₁pts (NE.toList $ getHourglasses br₂)
-                      in fold (fold cndSectors)
- where d₁ = minusLogOcclusion sh₁ ctr₂
-       d₂ = minusLogOcclusion sh₂ ctr₁
-separateOverlap t₁ t₂
-         = ( t₁<>t₂, (mempty, mempty) )
+-- separateOverlap t (PlainLeaves []) = (mempty, (t, mempty))
+-- separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ (PSM _ ev₁)) br₁)
+--                 t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ (PSM _ ev₂)) br₂)
+--     | d₁>4 && d₂>4  = ( mempty, (t₁,t₂) )
+--     | n₁ > n₂       = let t₂pts = sShIdPartition sh₁ $ onlyLeaves t₂
+--                           cndSectors = zipWith (liftA2 $ (.fromLeafPoints).separateOverlap)
+--                                          (NE.toList $ getHourglasses br₁) t₂pts
+--                       in fold (fold cndSectors)
+--     | otherwise     = let t₁pts = sShIdPartition sh₂ $ onlyLeaves t₁
+--                           cndSectors = zipWith (liftA2 $ separateOverlap . fromLeafPoints)
+--                                          t₁pts (NE.toList $ getHourglasses br₂)
+--                       in fold (fold cndSectors)
+--  where d₁ = minusLogOcclusion sh₁ ctr₂
+--        d₂ = minusLogOcclusion sh₂ ctr₁
+-- separateOverlap t₁ t₂
+--          = ( t₁<>t₂, (mempty, mempty) )
 
 
 sortByKey :: Ord a => [(a,b)] -> [b]
@@ -384,38 +384,38 @@ data WithBoundary :: (Nat -> *) -> Nat -> * where
                   , enclosingBoundary :: r (n-1)
                   } -> WithBoundary r n
 
-branchwise :: ∀ r n x . RealPseudoAffine x
-         ⇒   (∀ k .  ShadeTree x → Option (Branchwise x r k)       )
-           → (∀ k .  r (k-1) → WithBoundary r k → WithBoundary r k
-                                              → WithBoundary r k   )
-           → ShadeTree x → [r n]
-branchwise f c = map (inBoundary . branchResult) . bw
- where bw tr | Option(Just r₀)<-f tr  = [r₀]
-       bw (DisjointBranches _ trs) = bw =<< NE.toList trs
-       bw (OverlappingBranches _ _ trs) 
-           = let brResults = fmap bw trs
-             in [ foldr1 (\(Branchwise r bb) (Branchwise r' bb')
-                           -> let (shb, (bbd, bbd')) = separateOverlap bb bb'
-                                  [glue] = branchwise f c shb
-                              in Branchwise (c glue r r') $ bbd<>bbd'
-                         ) . join $ Hask.toList brResults ]
-       bw _ = []
-
-triangBranches :: RealPseudoAffine x
-                 => ShadeTree x -> Branchwise x (Triangulation x) n
-triangBranches _ = undefined
-
-triangulate :: RealPseudoAffine x
-                 => ShadeTree x -> Triangulation x n
-triangulate = inBoundary . branchResult . triangBranches
-
-tringComplete :: RealPseudoAffine x
-                 => Triangulation x (n-1) -> Triangulation x n -> Triangulation x n
-tringComplete (Triangulation trr) (Triangulation tr) = undefined
- where 
-       bbSimplices = Map.fromList [(i, Left s) | s <- tr | i <- [0::Int ..] ]
-       bbVertices =       [(i, splxVertices s) | s <- tr | i <- [0::Int ..] ]
-
+-- branchwise :: ∀ r n x . RealPseudoAffine x
+--          ⇒   (∀ k .  ShadeTree x → Option (Branchwise x r k)       )
+--            → (∀ k .  r (k-1) → WithBoundary r k → WithBoundary r k
+--                                               → WithBoundary r k   )
+--            → ShadeTree x → [r n]
+-- branchwise f c = map (inBoundary . branchResult) . bw
+--  where bw tr | Option(Just r₀)<-f tr  = [r₀]
+--        bw (DisjointBranches _ trs) = bw =<< NE.toList trs
+--        bw (OverlappingBranches _ _ trs) 
+--            = let brResults = fmap bw trs
+--              in [ foldr1 (\(Branchwise r bb) (Branchwise r' bb')
+--                            -> let (shb, (bbd, bbd')) = separateOverlap bb bb'
+--                                   [glue] = branchwise f c shb
+--                               in Branchwise (c glue r r') $ bbd<>bbd'
+--                          ) . join $ Hask.toList brResults ]
+--        bw _ = []
+-- 
+-- triangBranches :: RealPseudoAffine x
+--                  => ShadeTree x -> Branchwise x (Triangulation x) n
+-- triangBranches _ = undefined
+-- 
+-- triangulate :: RealPseudoAffine x
+--                  => ShadeTree x -> Triangulation x n
+-- triangulate = inBoundary . branchResult . triangBranches
+-- 
+-- tringComplete :: RealPseudoAffine x
+--                  => Triangulation x (n-1) -> Triangulation x n -> Triangulation x n
+-- tringComplete (Triangulation trr) (Triangulation tr) = undefined
+--  where 
+--        bbSimplices = Map.fromList [(i, Left s) | s <- tr | i <- [0::Int ..] ]
+--        bbVertices =       [(i, splxVertices s) | s <- tr | i <- [0::Int ..] ]
+-- 
  
 
 type RealPseudoAffine x
@@ -456,7 +456,7 @@ onlyNodes (PlainLeaves ps) = let (ctr,_) = pseudoECM $ NE.fromList ps
                              in GenericTree [ (ctr, GenericTree $ (,mempty) <$> ps) ]
 onlyNodes (DisjointBranches _ brs) = Hask.foldMap onlyNodes brs
 onlyNodes (OverlappingBranches _ (Shade ctr _) brs)
-              = GenericTree [ (ctr, Hask.foldMap onlyNodes brs) ]
+              = GenericTree [ (ctr, Hask.foldMap (Hask.foldMap onlyNodes) brs) ]
 
 
 -- | Left (and, typically, also right) inverse of 'fromLeafNodes'.
@@ -464,5 +464,5 @@ onlyLeaves :: RealPseudoAffine x => ShadeTree x -> [x]
 onlyLeaves tree = dismantle tree []
  where dismantle (PlainLeaves xs) = (xs++)
        dismantle (OverlappingBranches _ _ brs)
-                                          = foldr ((.) . dismantle) id $ Hask.toList brs
+              = foldr ((.) . dismantle) id $ Hask.foldMap (Hask.toList) brs
        dismantle (DisjointBranches _ brs) = foldr ((.) . dismantle) id $ NE.toList brs
