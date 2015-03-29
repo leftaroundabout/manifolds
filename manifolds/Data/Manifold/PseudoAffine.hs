@@ -156,11 +156,18 @@ palerp p1 p2 = fmap (\v t -> p1 .+~^ t *^ v) $ p2 .-~. p1
 
 
 
+#define deriveAffine_(c,t)               \
+instance (c) => Semimanifold (t) where {  \
+  type Needle (t) = Diff (t);              \
+  (.+~^) = (.+^) };                         \
+instance (c) => PseudoAffine (t) where {     \
+  a.-~.b = pure (a.-.b);      }
+
 #define deriveAffine(t)          \
-instance Semimanifold t where {   \
-  type Needle t = Diff t;      \
+instance Semimanifold (t) where { \
+  type Needle (t) = Diff (t);      \
   (.+~^) = (.+^) };                 \
-instance PseudoAffine t where {      \
+instance PseudoAffine (t) where {    \
   a.-~.b = pure (a.-.b);      }
 
 deriveAffine(Double)
@@ -1159,6 +1166,14 @@ s1nD :: forall v. FiniteDimensional v => Tagged (Stiefel1Needle v) Int
 s1nD = Tagged (d - 1) where (Tagged d) = dimension :: Tagged v Int
 
 instance (MetricScalar (Scalar v), FiniteDimensional v)
+             => AffineSpace (Stiefel1Needle v) where
+  type Diff (Stiefel1Needle v) = Stiefel1Needle v
+  (.+^) = (^+^)
+  (.-.) = (^-^)
+
+deriveAffine_((MetricScalar (Scalar v), FiniteDimensional v), Stiefel1Needle v)
+
+instance (MetricScalar (Scalar v), FiniteDimensional v)
               => HasMetric' (Stiefel1Needle v) where
   type DualSpace (Stiefel1Needle v) = Stiefel1Needle v
   Stiefel1Needle v <.>^ Stiefel1Needle w = HMat.dot v w 
@@ -1170,6 +1185,12 @@ s1nF = \f -> Stiefel1Needle $ HMat.fromList [f $ basisValue b | b <- cb]
 
 instance (LinearManifold k v) => Semimanifold (Stiefel1 v) where 
   type Needle (Stiefel1 v) = Stiefel1Needle v
+  Stiefel1 s .+~^ Stiefel1Needle n = undefined
+   where s' = asPackedVector s
+         d = HMat.size s'
+         im = HMat.maxIndex $ HMat.cmap abs s'
+         mProject = HMat.scale (recip $ s' HMat.! im) $ deli s'
+         deli v = Arr.backpermute v (Arr.enumFromN 0 im Arr.++ Arr.enumFromN (im+1) (d-im-1))
 
 data Cutplane x = Cutplane { sawHandle :: x
                            , cutOrientation :: Stiefel1 (Needle x) }
