@@ -1189,8 +1189,27 @@ instance (LinearManifold k v) => Semimanifold (Stiefel1 v) where
    where s' = asPackedVector s
          d = HMat.size s'
          im = HMat.maxIndex $ HMat.cmap abs s'
-         mProject = HMat.scale (recip $ s' HMat.! im) $ deli s'
-         deli v = Arr.backpermute v (Arr.enumFromN 0 im Arr.++ Arr.enumFromN (im+1) (d-im-1))
+         s'i = s' HMat.! im
+instance (LinearManifold k v) => PseudoAffine (Stiefel1 v) where 
+  Stiefel1 s .-~. Stiefel1 t = undefined
+   where s' = asPackedVector s; t' = asPackedVector t
+         d = HMat.size t'
+         im = HMat.maxIndex $ HMat.cmap abs t'
+         t'i = t' HMat.! im
+         mProject v' = case (t' HMat.! im, deli v') of
+            (0,v) -> HMat.scale (recip $ HMat.norm_2 v) v
+            (vi',v) | signum vi' == signum t'i, vi <- abs vi'
+                       -> let v
+                              μ -- = (1 - recip (1 + ν/vi)) / ν
+                                   = (1 - vi/(vi + ν)) / ν
+                              ν = HMat.norm_2 v
+                          in HMat.scale μ v
+                    | {- sgn vi' == − sgn s'i,-}vi <- abs vi'
+                       -> let μ -- = (1 + recip (1 + ν/vi)) / ν
+                                   = (1 + vi/(vi + ν)) / ν
+                              ν = HMat.norm_2 v
+                          in HMat.scale μ v
+         deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
 
 data Cutplane x = Cutplane { sawHandle :: x
                            , cutOrientation :: Stiefel1 (Needle x) }
