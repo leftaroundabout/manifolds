@@ -264,8 +264,9 @@ eigenCoSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
 --   It is somewhat wise to just assume this class contains only the type 'Double'...
 type MetricScalar s = ( VectorSpace s, HMat.Numeric s, HMat.Field s
-                      , Eq s  -- We really rather wouldn't require this...
-                      , Num(HMat.Vector s), HMat.Indexable(HMat.Vector s)s )
+                      , Ord s  -- We really rather wouldn't require this...
+                      , Num(HMat.Vector s), HMat.Indexable(HMat.Vector s)s
+                      , HMat.Normed(HMat.Vector s) )
 
 
 -- | At the moment, 'HerMetric' is implemented as a packed, dense 'HMat.Matrix'. For one

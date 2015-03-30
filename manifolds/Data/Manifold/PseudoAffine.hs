@@ -50,7 +50,8 @@ module Data.Manifold.PseudoAffine (
 
 
 import Data.List
-import qualified Data.Vector as Arr
+import qualified Data.Vector.Generic as Arr
+import qualified Data.Vector
 import Data.Maybe
 import Data.Semigroup
 import Data.Function (on)
@@ -1131,9 +1132,11 @@ s1bTrie = \f -> St1BTrie $ fmap (f . Stiefel1Basis) allIs
        allIs = Arr.fromList [0 .. d-2]
 
 instance FiniteDimensional v => HasTrie (Stiefel1Basis v) where
-  data (Stiefel1Basis v :->: a) = St1BTrie ( Arr.Vector a )
+  data (Stiefel1Basis v :->: a) = St1BTrie ( Array a )
   trie = s1bTrie; untrie (St1BTrie a) (Stiefel1Basis i) = a Arr.! i
   enumerate (St1BTrie a) = Arr.ifoldr (\i x l -> (Stiefel1Basis i,x):l) [] a
+
+type Array = Data.Vector.Vector
 
 instance(MetricScalar(Scalar v),FiniteDimensional v)=>AdditiveGroup(Stiefel1Needle v) where
   Stiefel1Needle v ^+^ Stiefel1Needle w = Stiefel1Needle $ v + w
@@ -1185,31 +1188,70 @@ s1nF = \f -> Stiefel1Needle $ HMat.fromList [f $ basisValue b | b <- cb]
 
 instance (LinearManifold k v) => Semimanifold (Stiefel1 v) where 
   type Needle (Stiefel1 v) = Stiefel1Needle v
-  Stiefel1 s .+~^ Stiefel1Needle n = undefined
-   where s' = asPackedVector s
-         d = HMat.size s'
+  Stiefel1 s .+~^ Stiefel1Needle n = Stiefel1 . fromPackedVector $ if
+       | ν<=1      -> let -- κ = (1 − recip (ν−1)) / ν'
+                          -- m ∝         spro +         κ · n
+                          --   ∝ (1−ν) · spro + (1−ν) · κ · n
+                          --   = (1−ν) · spro + (1−ν − -1)/ν' · n
+                          m = HMat.scale (1-ν) spro + HMat.scale ((2-ν)/ν') n
+                      in insi (1-ν) m
+       | ν<=2      -> let -- κ = (1 + recip (ν−1)) / ν'
+                          -- m ∝       - spro +         κ · n
+                          --   ∝ (1−ν) · spro + (ν−1) · κ · n
+                          --   = (1−ν) · spro + (ν−1−1)/ν' · n ??
+                          m = HMat.scale (1-ν) spro + HMat.scale ((2-ν)/ν') n
+                      in insi (1-ν) m
+       | ν<=3      -> let -- κ = - (1 + recip (ν−3)) / ν'
+                          -- m ∝       - spro +         κ · n
+                          --   ∝ (ν−3) · spro + (3−ν) · κ · n
+                          --   = (ν−3) · spro − (3−ν+1)/ν' · n ??
+                          m = HMat.scale (ν-3) spro + HMat.scale ((ν-4)/ν') n
+                      in insi (ν-3) m
+       | otherwise -> let -- κ = (1 + recip (ν−3)) / ν'
+                          -- m ∝         spro +         κ · n
+                          --   ∝ (ν−3) · spro + (ν−3) · κ · n
+                          --   = (ν−3) · spro − (ν−3+1)/ν' · n
+                          m = HMat.scale (ν-3) spro + HMat.scale ((ν-4)/ν') n
+                      in insi (ν-3) m
+   where d = HMat.size s'
+         s'= asPackedVector s
+         ν' = l2norm n
+         ν = ν' `mod'` 4
          im = HMat.maxIndex $ HMat.cmap abs s'
          s'i = s' HMat.! im
-instance (LinearManifold k v) => PseudoAffine (Stiefel1 v) where 
-  Stiefel1 s .-~. Stiefel1 t = undefined
-   where s' = asPackedVector s; t' = asPackedVector t
-         d = HMat.size t'
+         spro = let v = deli s' in HMat.scale (recip s'i) v
+         deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
+         insi ti v = Arr.generate d $ \i -> if | i<im      -> v Arr.! i
+                                               | i>im      -> v Arr.! (i-1) 
+                                               | otherwise -> ti * signum s'i
+instance (LinearManifold k v, Ord k) => PseudoAffine (Stiefel1 v) where 
+  Stiefel1 s .-~. Stiefel1 t = pure . Stiefel1Needle $ case s' HMat.! im of
+            0 -> HMat.scale (recip $ l2norm delis) delis
+            s'i | t'i/s'i > 0  -- signum s'i == signum t'i
+                       -> let v = HMat.scale (recip s'i) delis - tpro
+                              μ -- = (1 - recip (1 + |v|)) / |v|
+                                   = λ - recip(1 + λ)
+                              λ = recip $ l2norm v
+                          in HMat.scale μ v
+                | v <- HMat.scale (recip s'i) delis - tpro
+                , absv <- l2norm v
+                , absv > 0
+                       -> let μ -- = (1 + recip (1 + |v|)) / |v|
+                                   = λ + recip(1 + λ)
+                              λ = recip absv
+                          in HMat.scale μ v
+                | otherwise -> antipode
+   where d = HMat.size t'
+         s'= asPackedVector s; t' = asPackedVector t
          im = HMat.maxIndex $ HMat.cmap abs t'
          t'i = t' HMat.! im
-         mProject v' = case (t' HMat.! im, deli v') of
-            (0,v) -> HMat.scale (recip $ HMat.norm_2 v) v
-            (vi',v) | signum vi' == signum t'i, vi <- abs vi'
-                       -> let v
-                              μ -- = (1 - recip (1 + ν/vi)) / ν
-                                   = (1 - vi/(vi + ν)) / ν
-                              ν = HMat.norm_2 v
-                          in HMat.scale μ v
-                    | {- sgn vi' == − sgn s'i,-}vi <- abs vi'
-                       -> let μ -- = (1 + recip (1 + ν/vi)) / ν
-                                   = (1 + vi/(vi + ν)) / ν
-                              ν = HMat.norm_2 v
-                          in HMat.scale μ v
+         tpro = let v = deli t' in HMat.scale (recip t'i) v
+         delis = deli s'
          deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
+         antipode = (d-1) HMat.|> (2 : repeat 0)
+
+l2norm :: MetricScalar s => HMat.Vector s -> s
+l2norm = realToFrac . HMat.norm_2
 
 data Cutplane x = Cutplane { sawHandle :: x
                            , cutOrientation :: Stiefel1 (Needle x) }
