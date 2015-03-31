@@ -26,6 +26,7 @@
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE TupleSections            #-}
+{-# LANGUAGE MultiWayIf               #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
 {-# LANGUAGE TypeOperators            #-}
@@ -1186,7 +1187,7 @@ s1nF :: forall v. FiniteDimensional v => (Stiefel1Needle v->Scalar v)->Stiefel1N
 s1nF = \f -> Stiefel1Needle $ HMat.fromList [f $ basisValue b | b <- cb]
  where (Tagged cb) = completeBasis :: Tagged (Stiefel1Needle v) [Stiefel1Basis v]
 
-instance (LinearManifold k v) => Semimanifold (Stiefel1 v) where 
+instance (LinearManifold k v, Real k) => Semimanifold (Stiefel1 v) where 
   type Needle (Stiefel1 v) = Stiefel1Needle v
   Stiefel1 s .+~^ Stiefel1Needle n = Stiefel1 . fromPackedVector $ if
        | ν<=1      -> let -- κ = (1 − recip (ν−1)) / ν'
@@ -1224,7 +1225,7 @@ instance (LinearManifold k v) => Semimanifold (Stiefel1 v) where
          insi ti v = Arr.generate d $ \i -> if | i<im      -> v Arr.! i
                                                | i>im      -> v Arr.! (i-1) 
                                                | otherwise -> ti * signum s'i
-instance (LinearManifold k v, Ord k) => PseudoAffine (Stiefel1 v) where 
+instance (LinearManifold k v, Real k) => PseudoAffine (Stiefel1 v) where 
   Stiefel1 s .-~. Stiefel1 t = pure . Stiefel1Needle $ case s' HMat.! im of
             0 -> HMat.scale (recip $ l2norm delis) delis
             s'i | t'i/s'i > 0  -- signum s'i == signum t'i
@@ -1259,4 +1260,16 @@ data Cutplane x = Cutplane { sawHandle :: x
 -- instance (PseudoAffine x) => PseudoAffine (Cutplane x) where
   -- type Needle (PseudoAffine x
   
+
+class (PseudoAffine v, InnerSpace v, NaturallyEmbedded (UnitSphere v) (DualSpace v))
+          => HasUnitSphere v where
+  type UnitSphere v :: *
+  stiefel :: UnitSphere v -> Stiefel1 v
+  stiefel = Stiefel1 . embed
+  unstiefel :: Stiefel1 v -> UnitSphere v
+  unstiefel = coEmbed . getStiefel1N
+
+instance HasUnitSphere ℝ  where type UnitSphere ℝ  = S⁰
+instance HasUnitSphere ℝ² where type UnitSphere ℝ² = S¹
+instance HasUnitSphere ℝ³ where type UnitSphere ℝ³ = S²
 
