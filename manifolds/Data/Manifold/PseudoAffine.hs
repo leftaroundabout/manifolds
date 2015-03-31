@@ -1228,20 +1228,14 @@ instance (LinearManifold k v, Real k) => Semimanifold (Stiefel1 v) where
 instance (LinearManifold k v, Real k) => PseudoAffine (Stiefel1 v) where 
   Stiefel1 s .-~. Stiefel1 t = pure . Stiefel1Needle $ case s' HMat.! im of
             0 -> HMat.scale (recip $ l2norm delis) delis
-            s'i | t'i/s'i > 0  -- signum s'i == signum t'i
-                       -> let v = HMat.scale (recip s'i) delis - tpro
-                              μ -- = (1 - recip (1 + |v|)) / |v|
-                                   = λ - recip(1 + λ)
-                              λ = recip $ l2norm v
-                          in HMat.scale μ v
-                | v <- HMat.scale (recip s'i) delis - tpro
+            s'i | v <- HMat.scale (recip s'i) delis - tpro
                 , absv <- l2norm v
                 , absv > 0
-                       -> let μ -- = (1 + recip (1 + |v|)) / |v|
-                                   = λ + recip(1 + λ)
-                              λ = recip absv
+                       -> let μ -- = (1 − recip (|v| + 1)) / |v| for sgn sᵢ = sgn tᵢ
+                                   = (signum (t'i/s'i) - recip(absv + 1)) / absv
                           in HMat.scale μ v
-                | otherwise -> antipode
+                | t'i/s'i > 0  -> samePoint
+                | otherwise    -> antipode
    where d = HMat.size t'
          s'= asPackedVector s; t' = asPackedVector t
          im = HMat.maxIndex $ HMat.cmap abs t'
@@ -1249,6 +1243,7 @@ instance (LinearManifold k v, Real k) => PseudoAffine (Stiefel1 v) where
          tpro = let v = deli t' in HMat.scale (recip t'i) v
          delis = deli s'
          deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
+         samePoint = (d-1) HMat.|> repeat 0
          antipode = (d-1) HMat.|> (2 : repeat 0)
 
 l2norm :: MetricScalar s => HMat.Vector s -> s
@@ -1272,4 +1267,8 @@ class (PseudoAffine v, InnerSpace v, NaturallyEmbedded (UnitSphere v) (DualSpace
 instance HasUnitSphere ℝ  where type UnitSphere ℝ  = S⁰
 instance HasUnitSphere ℝ² where type UnitSphere ℝ² = S¹
 instance HasUnitSphere ℝ³ where type UnitSphere ℝ³ = S²
+
+instance (HasUnitSphere v, v ~ DualSpace v) => NaturallyEmbedded (Stiefel1 v) v where
+  embed = embed . unstiefel
+  coEmbed = stiefel . coEmbed
 
