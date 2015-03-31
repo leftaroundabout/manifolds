@@ -1191,30 +1191,22 @@ instance (LinearManifold k v, Real k) => Semimanifold (Stiefel1 v) where
   type Needle (Stiefel1 v) = Stiefel1Needle v
   Stiefel1 s .+~^ Stiefel1Needle n = Stiefel1 . fromPackedVector . HMat.scale (signum s'i)
    $ if| ν==0      -> s' -- ν'≡0 is a special case of this, so we can otherwise assume ν'>0.
-       | ν<=1      -> let -- κ = (-1 − 1/(ν−1)) / ν'
-                          -- m ∝         spro +         κ · n
-                          --   ∝ (1−ν) · spro + (1−ν) · κ · n
-                          --   = (1−ν) · spro + (-(1−ν) − -1)/ν' · n
-                          m = HMat.scale (1-ν) spro + HMat.scale (ν/ν') n
-                      in insi (1-ν) m
+-- --  | ν<=1      -> let -- κ = (-1 − 1/(ν−1)) / ν'
+--                        -- m ∝         spro +         κ · n
+--                        --   ∝ (1−ν) · spro + (1−ν) · κ · n
+--                        --   = (1−ν) · spro + (-(1−ν) − -1)/ν' · n
+--                        m = HMat.scale (1-ν) spro + HMat.scale (ν/ν') n
+--                    in insi (1-ν) m
        | ν<=2      -> let -- κ = (1/(ν−1) − 1) / ν'
                           -- m ∝       - spro +         κ · n
                           --   ∝ (1−ν) · spro + (ν−1) · κ · n
                           --   = (1−ν) · spro + (1 − (ν−1))/ν' · n
-                          m = HMat.scale (1-ν) spro + HMat.scale ((2-ν)/ν') n
-                      in insi (1-ν) m
-       | ν<=3      -> let -- κ = - (1 + recip (ν−3)) / ν'
-                          -- m ∝       - spro +         κ · n
-                          --   ∝ (ν−3) · spro + (3−ν) · κ · n
-                          --   = (ν−3) · spro − (3−ν+1)/ν' · n ??
-                          m = HMat.scale (ν-3) spro + HMat.scale ((ν-4)/ν') n
-                      in insi (ν-3) m
-       | otherwise -> let -- κ = (1 + recip (ν−3)) / ν'
-                          -- m ∝         spro +         κ · n
-                          --   ∝ (ν−3) · spro + (ν−3) · κ · n
-                          --   = (ν−3) · spro − (ν−3+1)/ν' · n
-                          m = HMat.scale (ν-3) spro + HMat.scale ((ν-4)/ν') n
-                      in insi (ν-3) m
+                          m = HMat.scale ιmν spro + HMat.scale ((1-abs ιmν)/ν') n
+                          ιmν = 1-ν 
+                      in insi ιmν m
+       | otherwise -> let m = HMat.scale ιmν spro + HMat.scale ((abs ιmν-1)/ν') n
+                          ιmν = ν-3
+                      in insi ιmν m
    where d = HMat.size s'
          s'= asPackedVector s
          ν' = l2norm n
