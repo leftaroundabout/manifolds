@@ -1189,19 +1189,19 @@ s1nF = \f -> Stiefel1Needle $ HMat.fromList [f $ basisValue b | b <- cb]
 
 instance (LinearManifold k v, Real k) => Semimanifold (Stiefel1 v) where 
   type Needle (Stiefel1 v) = Stiefel1Needle v
-  Stiefel1 s .+~^ Stiefel1Needle n = Stiefel1 . fromPackedVector $ if
-       | ν == 0    -> s'
--- --  | ν<=1      -> let -- κ = (-1 − 1/(ν−1)) / ν'
---                        -- m ∝         spro +         κ · n
---                        --   ∝ (1−ν) · spro + (1−ν) · κ · n
---                        --   = (1−ν) · spro + (-(1−ν) − -1)/ν' · n
---                        m = HMat.scale (1-ν) spro + HMat.scale (ν/ν') n
---                    in insi (1-ν) m
+  Stiefel1 s .+~^ Stiefel1Needle n = Stiefel1 . fromPackedVector . HMat.scale (signum s'i)
+   $ if| ν==0      -> s' -- ν'≡0 is a special case of this, so we can otherwise assume ν'>0.
+       | ν<=1      -> let -- κ = (-1 − 1/(ν−1)) / ν'
+                          -- m ∝         spro +         κ · n
+                          --   ∝ (1−ν) · spro + (1−ν) · κ · n
+                          --   = (1−ν) · spro + (-(1−ν) − -1)/ν' · n
+                          m = HMat.scale (1-ν) spro + HMat.scale (ν/ν') n
+                      in insi (1-ν) m
        | ν<=2      -> let -- κ = (1/(ν−1) − 1) / ν'
                           -- m ∝       - spro +         κ · n
-                          --   ∝ (ν−1) · spro + (ν−1) · κ · n
-                          --   = (ν−1) · spro + (1 − ν−1)/ν' · n
-                          m = HMat.scale (1-ν) spro + HMat.scale (ν/ν') n
+                          --   ∝ (1−ν) · spro + (ν−1) · κ · n
+                          --   = (1−ν) · spro + (1 − (ν−1))/ν' · n
+                          m = HMat.scale (1-ν) spro + HMat.scale ((2-ν)/ν') n
                       in insi (1-ν) m
        | ν<=3      -> let -- κ = - (1 + recip (ν−3)) / ν'
                           -- m ∝       - spro +         κ · n
@@ -1218,6 +1218,7 @@ instance (LinearManifold k v, Real k) => Semimanifold (Stiefel1 v) where
    where d = HMat.size s'
          s'= asPackedVector s
          ν' = l2norm n
+         quop = signum s'i / ν'
          ν = ν' `mod'` 4
          im = HMat.maxIndex $ HMat.cmap abs s'
          s'i = s' HMat.! im
@@ -1225,7 +1226,7 @@ instance (LinearManifold k v, Real k) => Semimanifold (Stiefel1 v) where
          deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
          insi ti v = Arr.generate d $ \i -> if | i<im      -> v Arr.! i
                                                | i>im      -> v Arr.! (i-1) 
-                                               | otherwise -> ti * signum s'i
+                                               | otherwise -> ti
 instance (LinearManifold k v, Real k) => PseudoAffine (Stiefel1 v) where 
   Stiefel1 s .-~. Stiefel1 t = pure . Stiefel1Needle $ case s' HMat.! im of
             0 -> HMat.scale (recip $ l2norm delis) delis
