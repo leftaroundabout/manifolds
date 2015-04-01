@@ -50,7 +50,7 @@ import Data.Void
 
 import Control.Applicative
     
-import Data.Manifold.Types
+import Data.Manifold.Types.Primitive
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 

@@ -1,5 +1,5 @@
 -- |
--- Module      : Data.Manifold.Types
+-- Module      : Data.Manifold.Types.Primitive
 -- Copyright   : (c) Justus Sagemüller 2015
 -- License     : GPL v3
 -- 
@@ -30,7 +30,7 @@
 {-# LANGUAGE RecordWildCards          #-}
 
 
-module Data.Manifold.Types (
+module Data.Manifold.Types.Primitive (
         -- * Index / ASCII names
           Real0, Real1, RealPlus, Real2, Real3
         , Sphere0, Sphere1, Sphere2

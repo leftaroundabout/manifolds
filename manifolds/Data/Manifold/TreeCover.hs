@@ -61,6 +61,7 @@ import Data.Void
 import Data.Tagged
 
 import Data.Manifold.Types
+import Data.Manifold.Types.Primitive ((^))
 import Data.Manifold.PseudoAffine
 
 import qualified Prelude as Hask hiding(foldl)

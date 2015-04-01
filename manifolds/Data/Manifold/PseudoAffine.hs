@@ -26,7 +26,6 @@
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE TupleSections            #-}
-{-# LANGUAGE MultiWayIf               #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
 {-# LANGUAGE TypeOperators            #-}
@@ -45,7 +44,7 @@ module Data.Manifold.PseudoAffine (
             , Differentiable
             , PWDiffable, RWDiffable
             -- * Helper constraints
-            , RealDimension, AffineManifold
+            , RealDimension, AffineManifold, LinearManifold
             ) where
     
 
@@ -67,7 +66,7 @@ import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
 import Data.Tagged
-import Data.Manifold.Types
+import Data.Manifold.Types.Primitive
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
@@ -157,13 +156,6 @@ palerp :: (PseudoAffine x, VectorSpace (Needle x))
 palerp p1 p2 = fmap (\v t -> p1 .+~^ t *^ v) $ p2 .-~. p1
 
 
-
-#define deriveAffine_(c,t)               \
-instance (c) => Semimanifold (t) where {  \
-  type Needle (t) = Diff (t);              \
-  (.+~^) = (.+^) };                         \
-instance (c) => PseudoAffine (t) where {     \
-  a.-~.b = pure (a.-.b);      }
 
 #define deriveAffine(t)          \
 instance Semimanifold (t) where { \
@@ -1122,147 +1114,4 @@ instance (RealDimension n, LocallyScalable n a)
 
 
 
-
-newtype Stiefel1 v = Stiefel1 { getStiefel1N :: DualSpace v }
-
-newtype Stiefel1Needle v = Stiefel1Needle { getStiefel1Tangent :: HMat.Vector (Scalar v) }
-newtype Stiefel1Basis v = Stiefel1Basis { getStiefel1Basis :: Int }
-s1bTrie :: forall v b. FiniteDimensional v => (Stiefel1Basis v->b) -> Stiefel1Basis v:->:b
-s1bTrie = \f -> St1BTrie $ fmap (f . Stiefel1Basis) allIs
- where (Tagged d) = dimension :: Tagged v Int
-       allIs = Arr.fromList [0 .. d-2]
-
-instance FiniteDimensional v => HasTrie (Stiefel1Basis v) where
-  data (Stiefel1Basis v :->: a) = St1BTrie ( Array a )
-  trie = s1bTrie; untrie (St1BTrie a) (Stiefel1Basis i) = a Arr.! i
-  enumerate (St1BTrie a) = Arr.ifoldr (\i x l -> (Stiefel1Basis i,x):l) [] a
-
-type Array = Data.Vector.Vector
-
-instance(MetricScalar(Scalar v),FiniteDimensional v)=>AdditiveGroup(Stiefel1Needle v) where
-  Stiefel1Needle v ^+^ Stiefel1Needle w = Stiefel1Needle $ v + w
-  zeroV = s1nZ; negateV (Stiefel1Needle v) = Stiefel1Needle $ negate v
-s1nZ :: forall v. (FiniteDimensional v, MetricScalar (Scalar v)) => Stiefel1Needle v
-s1nZ=Stiefel1Needle .HMat.fromList$replicate(d-1)0 where(Tagged d)=dimension::Tagged v Int
-
-instance (MetricScalar(Scalar v),FiniteDimensional v)=>VectorSpace(Stiefel1Needle v) where
-  type Scalar (Stiefel1Needle v) = Scalar v
-  μ *^ Stiefel1Needle v = Stiefel1Needle $ HMat.scale μ v
-
-instance (MetricScalar (Scalar v), FiniteDimensional v)=>HasBasis (Stiefel1Needle v) where
-  type Basis (Stiefel1Needle v) = Stiefel1Basis v
-  basisValue = s1bV
-  decompose (Stiefel1Needle v) = zipWith ((,).Stiefel1Basis) [0..] $ HMat.toList v
-  decompose' (Stiefel1Needle v) (Stiefel1Basis i) = v HMat.! i
-s1bV :: forall v b. FiniteDimensional v => Stiefel1Basis v -> Stiefel1Needle v
-s1bV = \(Stiefel1Basis i) -> Stiefel1Needle
-            $ HMat.fromList [ if k==i then 1 else 0 | k<-[0..d-2] ]
- where (Tagged d) = dimension :: Tagged v Int
-
-instance (MetricScalar (Scalar v), FiniteDimensional v)
-             => FiniteDimensional (Stiefel1Needle v) where
-  dimension = s1nD
-  basisIndex = Tagged $ \(Stiefel1Basis i) -> i
-  indexBasis = Tagged Stiefel1Basis
-  fromPackedVector = Stiefel1Needle
-  asPackedVector = getStiefel1Tangent
-s1nD :: forall v. FiniteDimensional v => Tagged (Stiefel1Needle v) Int
-s1nD = Tagged (d - 1) where (Tagged d) = dimension :: Tagged v Int
-
-instance (MetricScalar (Scalar v), FiniteDimensional v)
-             => AffineSpace (Stiefel1Needle v) where
-  type Diff (Stiefel1Needle v) = Stiefel1Needle v
-  (.+^) = (^+^)
-  (.-.) = (^-^)
-
-deriveAffine_((MetricScalar (Scalar v), FiniteDimensional v), Stiefel1Needle v)
-
-instance (MetricScalar (Scalar v), FiniteDimensional v)
-              => HasMetric' (Stiefel1Needle v) where
-  type DualSpace (Stiefel1Needle v) = Stiefel1Needle v
-  Stiefel1Needle v <.>^ Stiefel1Needle w = HMat.dot v w 
-  functional = s1nF
-  doubleDual = id; doubleDual' = id
-s1nF :: forall v. FiniteDimensional v => (Stiefel1Needle v->Scalar v)->Stiefel1Needle v
-s1nF = \f -> Stiefel1Needle $ HMat.fromList [f $ basisValue b | b <- cb]
- where (Tagged cb) = completeBasis :: Tagged (Stiefel1Needle v) [Stiefel1Basis v]
-
-instance (LinearManifold k v, Real k) => Semimanifold (Stiefel1 v) where 
-  type Needle (Stiefel1 v) = Stiefel1Needle v
-  Stiefel1 s .+~^ Stiefel1Needle n = Stiefel1 . fromPackedVector . HMat.scale (signum s'i)
-   $ if| ν==0      -> s' -- ν'≡0 is a special case of this, so we can otherwise assume ν'>0.
--- --  | ν<=1      -> let -- κ = (-1 − 1/(ν−1)) / ν'
---                        -- m ∝         spro +         κ · n
---                        --   ∝ (1−ν) · spro + (1−ν) · κ · n
---                        --   = (1−ν) · spro + (-(1−ν) − -1)/ν' · n
---                        m = HMat.scale (1-ν) spro + HMat.scale (ν/ν') n
---                    in insi (1-ν) m
-       | ν<=2      -> let -- κ = (1/(ν−1) − 1) / ν'
-                          -- m ∝       - spro +         κ · n
-                          --   ∝ (1−ν) · spro + (ν−1) · κ · n
-                          --   = (1−ν) · spro + (1 − (ν−1))/ν' · n
-                          m = HMat.scale ιmν spro + HMat.scale ((1-abs ιmν)/ν') n
-                          ιmν = 1-ν 
-                      in insi ιmν m
-       | otherwise -> let m = HMat.scale ιmν spro + HMat.scale ((abs ιmν-1)/ν') n
-                          ιmν = ν-3
-                      in insi ιmν m
-   where d = HMat.size s'
-         s'= asPackedVector s
-         ν' = l2norm n
-         quop = signum s'i / ν'
-         ν = ν' `mod'` 4
-         im = HMat.maxIndex $ HMat.cmap abs s'
-         s'i = s' HMat.! im
-         spro = let v = deli s' in HMat.scale (recip s'i) v
-         deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
-         insi ti v = Arr.generate d $ \i -> if | i<im      -> v Arr.! i
-                                               | i>im      -> v Arr.! (i-1) 
-                                               | otherwise -> ti
-instance (LinearManifold k v, Real k) => PseudoAffine (Stiefel1 v) where 
-  Stiefel1 s .-~. Stiefel1 t = pure . Stiefel1Needle $ case s' HMat.! im of
-            0 -> HMat.scale (recip $ l2norm delis) delis
-            s'i | v <- HMat.scale (recip s'i) delis - tpro
-                , absv <- l2norm v
-                , absv > 0
-                       -> let μ -- = (1 − recip (|v| + 1)) / |v| for sgn sᵢ = sgn tᵢ
-                                   = (signum (t'i/s'i) - recip(absv + 1)) / absv
-                          in HMat.scale μ v
-                | t'i/s'i > 0  -> samePoint
-                | otherwise    -> antipode
-   where d = HMat.size t'
-         s'= asPackedVector s; t' = asPackedVector t
-         im = HMat.maxIndex $ HMat.cmap abs t'
-         t'i = t' HMat.! im
-         tpro = let v = deli t' in HMat.scale (recip t'i) v
-         delis = deli s'
-         deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
-         samePoint = (d-1) HMat.|> repeat 0
-         antipode = (d-1) HMat.|> (2 : repeat 0)
-
-l2norm :: MetricScalar s => HMat.Vector s -> s
-l2norm = realToFrac . HMat.norm_2
-
-data Cutplane x = Cutplane { sawHandle :: x
-                           , cutOrientation :: Stiefel1 (Needle x) }
-
--- instance (PseudoAffine x) => PseudoAffine (Cutplane x) where
-  -- type Needle (PseudoAffine x
-  
-
-class (PseudoAffine v, InnerSpace v, NaturallyEmbedded (UnitSphere v) (DualSpace v))
-          => HasUnitSphere v where
-  type UnitSphere v :: *
-  stiefel :: UnitSphere v -> Stiefel1 v
-  stiefel = Stiefel1 . embed
-  unstiefel :: Stiefel1 v -> UnitSphere v
-  unstiefel = coEmbed . getStiefel1N
-
-instance HasUnitSphere ℝ  where type UnitSphere ℝ  = S⁰
-instance HasUnitSphere ℝ² where type UnitSphere ℝ² = S¹
-instance HasUnitSphere ℝ³ where type UnitSphere ℝ³ = S²
-
-instance (HasUnitSphere v, v ~ DualSpace v) => NaturallyEmbedded (Stiefel1 v) v where
-  embed = embed . unstiefel
-  coEmbed = stiefel . coEmbed
 

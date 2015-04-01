@@ -29,7 +29,7 @@
 {-# LANGUAGE RecordWildCards          #-}
 
 
-module Data.Manifold (module Data.Manifold, module Data.Manifold.Types) where
+module Data.Manifold (module Data.Manifold, module Data.Manifold.Types.Primitive) where
 
 import Data.List
 import Data.Maybe
@@ -41,7 +41,7 @@ import Data.AffineSpace
 import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
-import Data.Manifold.Types
+import Data.Manifold.Types.Primitive
 
 import qualified Prelude
 

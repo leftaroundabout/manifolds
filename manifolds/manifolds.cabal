@@ -68,6 +68,7 @@ Library
                      -- Data.Manifold.Visualisation.R3.GLUT
                      Data.Manifold.Types
   Other-modules:   Data.List.FastNub
+                   Data.Manifold.Types.Primitive
                    Util.Associate
                    Util.LtdShow
   default-language: Haskell2010
