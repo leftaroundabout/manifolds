@@ -467,3 +467,26 @@ onlyLeaves tree = dismantle tree []
        dismantle (OverlappingBranches _ _ brs)
               = foldr ((.) . dismantle) id $ Hask.foldMap (Hask.toList) brs
        dismantle (DisjointBranches _ brs) = foldr ((.) . dismantle) id $ NE.toList brs
+
+
+
+
+
+
+
+data Cutplane x = Cutplane { sawHandle :: x
+                           , cutOrientation :: -- Stiefel1 (Needle x)
+                                    DualSpace (Needle x) }
+
+
+data Sawbones x = Sawbones { sawnTrunk1, sawnTrunk2
+                           , sawdust1,   sawdust2   :: [x] }
+
+chainsaw :: RealPseudoAffine x => Cutplane x -> ShadeTree x -> Sawbones x
+chainsaw (Cutplane sawH cutO) (PlainLeaves xs) = Sawbones st1 st2 [] []
+ where (st1,st2) = partition (\x -> case (x .-~. sawH) of
+                                      Option(Just v) -> cutO<.>^v > 0
+                                      _ -> False ) xs
+
+-- instance (PseudoAffine x) => PseudoAffine (Cutplane x) where
+  -- type Needle (PseudoAffine x
