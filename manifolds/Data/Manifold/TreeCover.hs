@@ -479,14 +479,21 @@ data Cutplane x = Cutplane { sawHandle :: x
                                     DualSpace (Needle x) }
 
 
-data Sawbones x = Sawbones { sawnTrunk1, sawnTrunk2
-                           , sawdust1,   sawdust2   :: [x] }
+data Sawbones x = Sawbones { sawnTrunk1, sawnTrunk2 :: [x]->[x]
+                           , sawdust1,   sawdust2   :: [x]      }
+instance Semigroup (Sawbones x) where
+  Sawbones st11 st12 sd11 sd12 <> Sawbones st21 st22 sd21 sd22
+     = Sawbones (st11.st21) (st12.st22) (sd11<>sd21) (sd12<>sd22)
+instance Monoid (Sawbones x) where
+  mempty = Sawbones id id [] []
+  mappend = (<>)
 
 chainsaw :: RealPseudoAffine x => Cutplane x -> ShadeTree x -> Sawbones x
-chainsaw (Cutplane sawH cutO) (PlainLeaves xs) = Sawbones st1 st2 [] []
- where (st1,st2) = partition (\x -> case (x .-~. sawH) of
+chainsaw (Cutplane sawH cutO) (PlainLeaves xs) = Sawbones id id sd1 sd2
+ where (sd1,sd2) = partition (\x -> case (x .-~. sawH) of
                                       Option(Just v) -> cutO<.>^v > 0
                                       _ -> False ) xs
+chainsaw s (DisjointBranches _ brs) = Hask.foldMap (chainsaw s) brs
 
 -- instance (PseudoAffine x) => PseudoAffine (Cutplane x) where
   -- type Needle (PseudoAffine x
