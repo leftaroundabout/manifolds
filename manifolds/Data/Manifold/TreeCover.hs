@@ -488,12 +488,19 @@ instance Monoid (Sawbones x) where
   mempty = Sawbones id id [] []
   mappend = (<>)
 
+
+-- | Inflate (or, indeed, deflate), i.e. /scale/, a shade so it's just not intersected
+--   by the given cut plane.
+frogCraze :: Cutplane x -> Shade x -> Shade x
+frogCraze (Cutplane sawH cutO) (Shade ctr expa) = undefined
+
 chainsaw :: RealPseudoAffine x => Cutplane x -> ShadeTree x -> Sawbones x
 chainsaw (Cutplane sawH cutO) (PlainLeaves xs) = Sawbones id id sd1 sd2
  where (sd1,sd2) = partition (\x -> case (x .-~. sawH) of
                                       Option(Just v) -> cutO<.>^v > 0
                                       _ -> False ) xs
 chainsaw s (DisjointBranches _ brs) = Hask.foldMap (chainsaw s) brs
+chainsaw s (OverlappingBranches _ shade brs) = undefined
 
 -- instance (PseudoAffine x) => PseudoAffine (Cutplane x) where
   -- type Needle (PseudoAffine x
