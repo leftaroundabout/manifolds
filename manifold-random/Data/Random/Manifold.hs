@@ -24,7 +24,7 @@ import Control.Applicative
 -- @
 -- instance D_S x => 'Distribution' 'Shade' x
 -- @
-type D_S x = (PseudoAffine x, HasMetric (Needle x), Scalar (Needle x) ~ ℝ)
+type D_S x = WithField ℝ Manifold x
 
 instance D_S x => Distribution Shade x where
   rvarT shade = shadeT' (shadeCtr shade) (shadeExpanse shade)

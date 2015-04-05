@@ -36,15 +36,23 @@
 
 module Data.Manifold.PseudoAffine (
             -- * Manifold class
-              Semimanifold(..)
+              Manifold
+            , Semimanifold(..)
             , PseudoAffine(..)
             -- * Regions within a manifold
             , Region
             -- * Hierarchy of manifold-categories
+            -- ** Everywhere differentiable functions
             , Differentiable
-            , PWDiffable, RWDiffable
+            -- ** Almost everywhere diff'able funcs
+            , PWDiffable
+            -- ** Region-wise defined diff'able funcs
+            , RWDiffable
             -- * Helper constraints
-            , RealDimension, AffineManifold, LinearManifold
+            , RealDimension, AffineManifold
+            , LinearManifold
+            , WithField
+            , RealPseudoAffine, HilbertSpace
             ) where
     
 
@@ -112,7 +120,11 @@ class (AdditiveGroup (Needle x)) => Semimanifold x where
   (.-~^) :: x -> Needle x -> x
   p .-~^ v = p .+~^ negateV v
 
--- | 'PseudoAffine' is intended as an alternative class for 'Data.Manifold.Manifold's.
+-- | This is the class underlying manifolds. ('Manifold' only adds an extra constraint that
+--   would be circular if it was in a single class. You can always just use 'Manifold'
+--   as a constraint in your signatures, but you must /define/ only 'PseudoAffine' for
+--   manifold types &#x2013; the 'Manifold' instance follows universally from this.)
+--   
 --   The interface is almost identical to the better-known 'AffineSpace' class, but unlike
 --   in the mathematical definition of affine spaces we don't require associativity 
 --   of '.+~^' with '^+^' &#x2013; except in an asymptotic sense for small vectors.
@@ -136,18 +148,36 @@ class Semimanifold x => PseudoAffine x where
   (.-~.) :: x -> x -> Option (Needle x)
   
 
+-- | See 'Semimanifold' and 'PseudoAffine' for the methods.
+class (PseudoAffine m, LinearManifold (Needle m)) => Manifold m
+instance (PseudoAffine m, LinearManifold (Needle m)) => Manifold m
 
 type LocallyScalable s x = ( PseudoAffine x, (Needle x) ~ Needle x
                            , HasMetric (Needle x)
                            , DualSpace (Needle x) ~ DualSpace (Needle x)
                            , s ~ Scalar (Needle x) )
-type LinearManifold s x = ( PseudoAffine x, Needle x ~ x
-                          , HasMetric x
-                          , s ~ Scalar x )
+
+-- | Basically just an &#x201c;updated&#x201d; version of the 'VectorSpace' class.
+--   Every vector space is a manifold, this constraint makes it explicit.
+--   
+--   (Actually, 'LinearManifold' is stronger than 'VectorSpace' at the moment, since
+--   'HasMetric' requires 'FiniteDimensional'. This might be lifted in the future.)
+type LinearManifold x = ( PseudoAffine x, Needle x ~ x, HasMetric x )
+
+-- | Require some constraint on a manifold, and also fix the type of the manifold's
+--   underlying field.
+type WithField s c x = ( c x, s ~ Scalar (Needle x) )
+
 type RealDimension r = ( PseudoAffine r, Needle r ~ r
                        , HasMetric r, DualSpace r ~ r, Scalar r ~ r
                        , RealFloat r )
 type AffineManifold m = ( PseudoAffine m, AffineSpace m, Needle m ~ Diff m )
+
+type RealPseudoAffine x
+          = (PseudoAffine x, LinearManifold (Needle x), Scalar (Needle x) ~ ℝ)
+
+type HilbertSpace x = ( PseudoAffine x, InnerSpace x
+                      , Needle x ~ x, DualSpace x ~ x, Floating (Scalar x) )
 
 
 
@@ -398,11 +428,11 @@ instance (MetricScalar s)
 
 
 
-actuallyLinear :: ( LinearManifold s x, LinearManifold s y )
+actuallyLinear :: ( WithField s LinearManifold x, WithField s LinearManifold y )
             => (x:-*y) -> Differentiable s x y
 actuallyLinear f = Differentiable $ \x -> (lapply f x, f, const zeroV)
 
-actuallyAffine :: ( LinearManifold s x, LinearManifold s y )
+actuallyAffine :: ( WithField s LinearManifold x, WithField s LinearManifold y )
             => y -> (x:-*y) -> Differentiable s x y
 actuallyAffine y₀ f = Differentiable $ \x -> (y₀ ^+^ lapply f x, f, const zeroV)
 
@@ -443,7 +473,7 @@ dfblFnValsCombine cmb (GenericAgent (Differentiable f))
 
 
 
-instance (LinearManifold s v, LocallyScalable s a, Floating s)
+instance (WithField s LinearManifold v, LocallyScalable s a, Floating s)
     => AdditiveGroup (DfblFuncValue s a v) where
   zeroV = point zeroV
   (^+^) = dfblFnValsCombine $ \a b -> (a^+^b, lPlus, const zeroV)
@@ -484,7 +514,7 @@ instance (RealDimension n, LocallyScalable n a)
 -- roots, but the square root of a nontrivial-vector-space metric requires
 -- an eigenbasis transform, which we have not implemented yet.
 -- 
--- instance (LinearManifold s v, LocallyScalable s a, Floating s)
+-- instance (WithField s LinearManifold v, LocallyScalable s a, Floating s)
 --       => VectorSpace (DfblFuncValue s a v) where
 --   type Scalar (DfblFuncValue s a v) = DfblFuncValue s a (Scalar v)
 --   (*^) = dfblFnValsCombine $ \μ v -> (μ*^v, lScl, \ε -> (ε ^* sqrt 2, ε ^* sqrt 2))
@@ -701,7 +731,7 @@ gpwDfblFnValsCombine cmb (GenericAgent (PWDiffable fpcs))
        lcosnd = linear(zeroV,) 
 
 
-instance (LinearManifold s v, LocallyScalable s a, RealDimension s)
+instance (WithField s LinearManifold v, LocallyScalable s a, RealDimension s)
     => AdditiveGroup (PWDfblFuncValue s a v) where
   zeroV = point zeroV
   (^+^) = gpwDfblFnValsCombine $ \a b -> (a^+^b, lPlus, const zeroV)
@@ -921,7 +951,7 @@ grwDfblFnValsCombine cmb (GenericAgent (RWDiffable fpcs))
 
 
 
-instance (LinearManifold s v, LocallyScalable s a, RealDimension s)
+instance (WithField s LinearManifold v, LocallyScalable s a, RealDimension s)
     => AdditiveGroup (RWDfblFuncValue s a v) where
   zeroV = point zeroV
   (^+^) = grwDfblFnValsCombine $ \a b -> (a^+^b, lPlus, const zeroV)

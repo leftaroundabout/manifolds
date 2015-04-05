@@ -31,6 +31,7 @@ module Data.LinearMap.HerMetric (
   , HasMetric
   , HasMetric'(..)
   , (^<.>)
+--   , riesz, riesz'
   -- * Fundamental requirements
   , MetricScalar
   , FiniteDimensional(..)
@@ -404,6 +405,20 @@ class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
 -- | Simple flipped version of '<.>^'.
 (^<.>) :: HasMetric v => v -> DualSpace v -> Scalar v
 ket ^<.> bra = bra <.>^ ket
+
+
+-- -- | Associate a Hilbert space vector canonically with its dual-space counterpart,
+-- --   as by the Riesz representation theorem.
+-- --   
+-- --   Note that usually, Hilbert spaces should just implement @DualSpace v ~ v@,
+-- --   according to that same correspondence, so 'riesz' is essentially just a more explicit
+-- --   (and less efficient) way of writing @'id' :: v -> DualSpace v'.
+-- riesz :: (HasMetric v, InnerSpace v) => v -> DualSpace v
+-- riesz v = functional (v<.>)
+-- 
+-- riesz' :: (HasMetric v, InnerSpace v) => DualSpace v -> v
+-- riesz' f = doubleDual' . functional (f<.>^)
+
 
 instance (MetricScalar k) => HasMetric' (ZeroDim k) where
   Origin<.>^Origin = zeroV
