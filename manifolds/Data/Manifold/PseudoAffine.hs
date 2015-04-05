@@ -134,17 +134,19 @@ class (AdditiveGroup (Needle x)) => Semimanifold x where
 --   designated origin, a pseudo-affine space can have nontrivial topology on the global
 --   scale, and yet be used in practically the same way as an affine space. At least the
 --   usual spheres and tori make good instances, perhaps the class is in fact equivalent to
---   /parallelisable manifolds/.
+--   manifolds in their usual maths definition (with an atlas of charts: a family of
+--   overlapping regions of the topological space, each homeomorphic to the 'Needle'
+--   vector space or some simply-connected subset thereof).
 class Semimanifold x => PseudoAffine x where
-  -- | The &#x201c;way&#x201d; reaching from one point to another.
+  -- | The path reaching from one point to another.
   --   Should only yield 'Nothing' if the points are on disjoint segments of a
-  --   non&#x2013;path-connected manifold.
+  --   non&#x2013;path-connected manifold. Otherwise, the identity
   --   
   -- @
   -- p .+~^ (q.-~.p) &#x2261; q
   -- @
   --   
-  --   at least save for floating-point precision limits etc..
+  --   should hold, at least save for floating-point precision limits etc..
   (.-~.) :: x -> x -> Option (Needle x)
   
 
