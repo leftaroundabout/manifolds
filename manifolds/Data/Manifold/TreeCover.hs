@@ -100,10 +100,10 @@ instance (AffineManifold x) => Semimanifold (Shade x) where
   Shade c e .+~^ v = Shade (c.+^v) e
   Shade c e .-~^ v = Shade (c.-^v) e
 
-fullShade :: RealPseudoAffine x => x -> HerMetric' (Needle x) -> Shade x
+fullShade :: WithField ℝ Manifold x => x -> HerMetric' (Needle x) -> Shade x
 fullShade ctr expa = Shade ctr expa
 
-subshadeId' :: RealPseudoAffine x
+subshadeId' :: WithField ℝ Manifold x
                    => x -> [DualSpace (Needle x)] -> x -> (Int, HourglassBulb)
 subshadeId' c expvs x = case x .-~. c of
     Option (Just v) -> let (iu,vl) = maximumBy (comparing $ abs . snd)
@@ -111,7 +111,7 @@ subshadeId' c expvs x = case x .-~. c of
                        in (iu, if vl>0 then UpperBulb else LowerBulb)
     _ -> (-1, error "Trying to obtain the subshadeId of a point not actually included in the shade.")
 
-subshadeId :: RealPseudoAffine x => Shade x -> x -> (Int, HourglassBulb)
+subshadeId :: WithField ℝ Manifold x => Shade x -> x -> (Int, HourglassBulb)
 subshadeId (Shade c expa) = subshadeId' c $ eigenCoSpan expa
                  
 
@@ -124,10 +124,10 @@ subshadeId (Shade c expa) = subshadeId' c $ eigenCoSpan expa
 --   For /nonconnected/ manifolds it will be necessary to yield separate shades
 --   for each connected component. And for an empty input list, there is no shade!
 --   Hence the list result.
-pointsShades :: RealPseudoAffine x => [x] -> [Shade x]
+pointsShades :: WithField ℝ Manifold x => [x] -> [Shade x]
 pointsShades = map snd . pointsShades' zeroV
 
-pseudoECM :: RealPseudoAffine x => NE.NonEmpty x -> (x, ([x],[x]))
+pseudoECM :: WithField ℝ Manifold x => NE.NonEmpty x -> (x, ([x],[x]))
 pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
                                   -> case p.-~.acc of 
                                       Option (Just δ) -> (acc .+~^ δ^/i, (p:rb, nr))
@@ -135,7 +135,7 @@ pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
                              (p₀, mempty)
                              ( zip [1..] $ p₀:psr )
 
-pointsShades' :: RealPseudoAffine x => HerMetric' (Needle x) -> [x] -> [([x], Shade x)]
+pointsShades' :: WithField ℝ Manifold x => HerMetric' (Needle x) -> [x] -> [([x], Shade x)]
 pointsShades' _ [] = []
 pointsShades' minExt ps = case expa of 
                            Option (Just e) -> (ps, fullShade ctr e)
@@ -227,13 +227,13 @@ instance (AffineManifold x) => Semimanifold (ShadeTree x) where
   DisjointBranches n br .+~^ v = DisjointBranches n $ (.+~^v)<$>br
 
 -- | WRT union.
-instance RealPseudoAffine x => Semigroup (ShadeTree x) where
+instance WithField ℝ Manifold x => Semigroup (ShadeTree x) where
   PlainLeaves [] <> t = t
   t <> PlainLeaves [] = t
   t <> s = fromLeafPoints $ onlyLeaves t ++ onlyLeaves s
            -- Could probably be done more efficiently
   sconcat = mconcat . NE.toList
-instance RealPseudoAffine x => Monoid (ShadeTree x) where
+instance WithField ℝ Manifold x => Monoid (ShadeTree x) where
   mempty = PlainLeaves []
   mappend = (<>)
   mconcat l = case filter ne l of
@@ -265,7 +265,7 @@ instance RealPseudoAffine x => Monoid (ShadeTree x) where
 -- @
 -- 
 -- <<images/examples/simple-2d-ShadeTree.png>>
-fromLeafPoints :: forall x. RealPseudoAffine x => [x] -> ShadeTree x
+fromLeafPoints :: forall x. WithField ℝ Manifold x => [x] -> ShadeTree x
 fromLeafPoints = go zeroV
  where go :: HerMetric' (Needle x) -> [x] -> ShadeTree x
        go preShExpa = \xs -> case pointsShades' (preShExpa^/10) xs of
@@ -297,7 +297,7 @@ fromLeafPoints = go zeroV
                      maximum' = maximum . fmap (\(Hourglass u l) -> max u l)
 
 
-sShIdPartition' :: RealPseudoAffine x
+sShIdPartition' :: WithField ℝ Manifold x
         => x -> [x] -> [DBranch' x [x]]->[DBranch' x [x]]
 sShIdPartition' c xs st
            = foldr (\p -> let (i,h) = ssi p
@@ -306,7 +306,7 @@ sShIdPartition' c xs st
                                               i)
                          st xs
  where ssi = subshadeId' c (boughDirection<$>st)
-sShIdPartition :: RealPseudoAffine x => Shade x -> [x] -> [DBranch' x [x]]
+sShIdPartition :: WithField ℝ Manifold x => Shade x -> [x] -> [DBranch' x [x]]
 sShIdPartition (Shade c expa) xs
     = sShIdPartition' c xs [DBranch v mempty | v <- eigenCoSpan expa]
                                            
@@ -335,7 +335,7 @@ amputateIds = go 0
          | otherwise  = second (x:) $ go (i+1) (k:ks) xs
 
 
-separateOverlap :: RealPseudoAffine x
+separateOverlap :: WithField ℝ Manifold x
               => ShadeTree x -> ShadeTree x
                      -> ( ShadeTree x -- Overlapping part
                         , (ShadeTree x, ShadeTree x) -- Disjoint parts
@@ -385,7 +385,7 @@ data WithBoundary :: (Nat -> *) -> Nat -> * where
                   , enclosingBoundary :: r (n-1)
                   } -> WithBoundary r n
 
--- branchwise :: ∀ r n x . RealPseudoAffine x
+-- branchwise :: ∀ r n x . WithField ℝ Manifold x
 --          ⇒   (∀ k .  ShadeTree x → Option (Branchwise x r k)       )
 --            → (∀ k .  r (k-1) → WithBoundary r k → WithBoundary r k
 --                                               → WithBoundary r k   )
@@ -402,15 +402,15 @@ data WithBoundary :: (Nat -> *) -> Nat -> * where
 --                          ) . join $ Hask.toList brResults ]
 --        bw _ = []
 -- 
--- triangBranches :: RealPseudoAffine x
+-- triangBranches :: WithField ℝ Manifold x
 --                  => ShadeTree x -> Branchwise x (Triangulation x) n
 -- triangBranches _ = undefined
 -- 
--- triangulate :: RealPseudoAffine x
+-- triangulate :: WithField ℝ Manifold x
 --                  => ShadeTree x -> Triangulation x n
 -- triangulate = inBoundary . branchResult . triangBranches
 -- 
--- tringComplete :: RealPseudoAffine x
+-- tringComplete :: WithField ℝ Manifold x
 --                  => Triangulation x (n-1) -> Triangulation x n -> Triangulation x n
 -- tringComplete (Triangulation trr) (Triangulation tr) = undefined
 --  where 
@@ -448,7 +448,7 @@ instance (Hask.MonadPlus c) => Monoid (GenericTree c b x) where
 deriving instance Show (c (x, GenericTree b b x)) => Show (GenericTree c b x)
 
 -- | Imitate the specialised 'ShadeTree' structure with a simpler, generic tree.
-onlyNodes :: RealPseudoAffine x => ShadeTree x -> Trees x
+onlyNodes :: WithField ℝ Manifold x => ShadeTree x -> Trees x
 onlyNodes (PlainLeaves []) = GenericTree []
 onlyNodes (PlainLeaves ps) = let (ctr,_) = pseudoECM $ NE.fromList ps
                              in GenericTree [ (ctr, GenericTree $ (,mempty) <$> ps) ]
@@ -458,7 +458,7 @@ onlyNodes (OverlappingBranches _ (Shade ctr _) brs)
 
 
 -- | Left (and, typically, also right) inverse of 'fromLeafNodes'.
-onlyLeaves :: RealPseudoAffine x => ShadeTree x -> [x]
+onlyLeaves :: WithField ℝ Manifold x => ShadeTree x -> [x]
 onlyLeaves tree = dismantle tree []
  where dismantle (PlainLeaves xs) = (xs++)
        dismantle (OverlappingBranches _ _ brs)
@@ -487,7 +487,7 @@ instance Monoid (Sawbones x) where
 -- frogCraze :: Cutplane x -> Shade x -> Shade x
 -- frogCraze (Cutplane sawH cutO) (Shade ctr expa) = undefined
 -- 
--- chainsaw :: RealPseudoAffine x => Cutplane x -> ShadeTree x -> Sawbones x
+-- chainsaw :: WithField ℝ Manifold x => Cutplane x -> ShadeTree x -> Sawbones x
 -- chainsaw (Cutplane sawH cutO) (PlainLeaves xs) = Sawbones id id sd1 sd2
 --  where (sd1,sd2) = partition (\x -> case (x .-~. sawH) of
 --                                       Option(Just v) -> cutO<.>^v > 0

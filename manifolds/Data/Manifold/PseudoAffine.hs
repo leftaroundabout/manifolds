@@ -23,6 +23,7 @@
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE FunctionalDependencies   #-}
 {-# LANGUAGE FlexibleContexts         #-}
+{-# LANGUAGE LiberalTypeSynonyms      #-}
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE TupleSections            #-}
@@ -52,7 +53,7 @@ module Data.Manifold.PseudoAffine (
             , RealDimension, AffineManifold
             , LinearManifold
             , WithField
-            , RealPseudoAffine, HilbertSpace
+            , HilbertSpace
             ) where
     
 
@@ -167,18 +168,30 @@ type LocallyScalable s x = ( PseudoAffine x, (Needle x) ~ Needle x
 type LinearManifold x = ( PseudoAffine x, Needle x ~ x, HasMetric x )
 
 -- | Require some constraint on a manifold, and also fix the type of the manifold's
---   underlying field.
+--   underlying field. For example, @WithField &#x211d; 'HilbertSpace' v@ constrains
+--   @v@ to be a real (i.e., 'Double'-) Hilbert space.
+--   Note that for this to compile, you will in
+--   general need the @-XLiberalTypeSynonyms@ extension (except if the constraint
+--   is an actual type class (like 'Manifold'): only those can always be partially
+--   applied, for @type@ constraints this is by default not allowed).
 type WithField s c x = ( c x, s ~ Scalar (Needle x) )
 
+-- | The 'RealFloat' class plus manifold constraints.
 type RealDimension r = ( PseudoAffine r, Needle r ~ r
                        , HasMetric r, DualSpace r ~ r, Scalar r ~ r
                        , RealFloat r )
-type AffineManifold m = ( PseudoAffine m, AffineSpace m, Needle m ~ Diff m )
 
-type RealPseudoAffine x
-          = (PseudoAffine x, LinearManifold (Needle x), Scalar (Needle x) ~ ℝ)
+-- | The 'AffineSpace' class plus manifold constraints.
+type AffineManifold m = ( PseudoAffine m, AffineSpace m
+                        , Needle m ~ Diff m, LinearManifold (Diff m) )
 
-type HilbertSpace x = ( PseudoAffine x, InnerSpace x
+-- | A Hilbert space is a /complete/ inner product space. Being a vector space, it is
+--   also a manifold.
+-- 
+--   (Stricly speaking, that doesn't have much to do with the completeness criterion;
+--   but since 'Manifold's are at the moment confined to finite dimension, they are in
+--   fact (trivially) complete.)
+type HilbertSpace x = ( LinearManifold x, InnerSpace x
                       , Needle x ~ x, DualSpace x ~ x, Floating (Scalar x) )
 
 
