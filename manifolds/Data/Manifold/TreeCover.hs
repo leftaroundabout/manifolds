@@ -210,6 +210,9 @@ data DBranch' x c = DBranch { boughDirection :: !(DualSpace (Needle x))
   deriving (Generic, Hask.Functor, Hask.Foldable)
 type DBranch x = DBranch' x (ShadeTree x)
 
+newtype DBranches' x c = DBranches' (NE.NonEmpty (DBranch' x c))
+  deriving (Generic, Hask.Functor, Hask.Foldable)
+
 
 instance (NFData x) => NFData (ShadeTree x) where
   rnf (PlainLeaves xs) = rnf xs
@@ -341,22 +344,26 @@ separateOverlap :: WithField ℝ Manifold x
                         , (ShadeTree x, ShadeTree x) -- Disjoint parts
                         )
 separateOverlap (PlainLeaves []) t = (mempty, (mempty, t))
--- separateOverlap t (PlainLeaves []) = (mempty, (t, mempty))
--- separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ (PSM _ ev₁)) br₁)
---                 t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ (PSM _ ev₂)) br₂)
---     | d₁>4 && d₂>4  = ( mempty, (t₁,t₂) )
---     | n₁ > n₂       = let t₂pts = sShIdPartition sh₁ $ onlyLeaves t₂
---                           cndSectors = zipWith (liftA2 $ (.fromLeafPoints).separateOverlap)
---                                          (NE.toList $ getHourglasses br₁) t₂pts
---                       in fold (fold cndSectors)
---     | otherwise     = let t₁pts = sShIdPartition sh₂ $ onlyLeaves t₁
---                           cndSectors = zipWith (liftA2 $ separateOverlap . fromLeafPoints)
---                                          t₁pts (NE.toList $ getHourglasses br₂)
---                       in fold (fold cndSectors)
---  where d₁ = minusLogOcclusion sh₁ ctr₂
---        d₂ = minusLogOcclusion sh₂ ctr₁
--- separateOverlap t₁ t₂
---          = ( t₁<>t₂, (mempty, mempty) )
+separateOverlap t (PlainLeaves []) = (mempty, (t, mempty))
+separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ ev₁) br₁)
+                t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ ev₂) br₂)
+    | d₁>4 && d₂>4  = ( mempty, (t₁,t₂) )
+    | n₁ > n₂       = seps t₁ t₂
+    | otherwise     = second swap $ seps t₂ t₁
+                      let t₁pts = sShIdPartition sh₂ $ onlyLeaves t₁
+                          cndSectors = zipWith (liftA2 $ separateOverlap . fromLeafPoints)
+                                         t₁pts (NE.toList $ getHourglasses br₂)
+                      in fold (fold cndSectors)
+ where d₁ = minusLogOcclusion sh₁ ctr₂
+       d₂ = minusLogOcclusion sh₂ ctr₁
+       seps (OverlappingBranches n₁ sh₁@(Shade ctr₁ ev₁) br₁)
+            (OverlappingBranches n₂ sh₂@(Shade ctr₂ ev₂) br₂)
+        = let pts = sShIdPartition sh₁ $ onlyLeaves t₂
+              cndSectors = zipWith (liftA2 $ (.fromLeafPoints).separateOverlap)
+                             (NE.toList $ getHourglasses br₁) t₂pts
+          in fold (fold cndSectors)
+separateOverlap t₁ t₂
+         = ( t₁<>t₂, (mempty, mempty) )
 
 
 sortByKey :: Ord a => [(a,b)] -> [b]
@@ -481,7 +488,6 @@ instance Monoid (Sawbones x) where
   mempty = Sawbones id id [] []
   mappend = (<>)
 
-
 chainsaw :: WithField ℝ Manifold x => Cutplane x -> ShadeTree x -> Sawbones x
 chainsaw cpln (PlainLeaves xs) = Sawbones id id sd1 sd2
  where (sd1,sd2) = partition (\x -> sideOfCut cpln x == Option(Just PositiveHalfSphere)) xs
@@ -501,6 +507,14 @@ chainsaw cpln (OverlappingBranches _ (Shade _ bexpa) brs) = Sawbones t1 t2 d1 d2
                      ptsDist = fmap (metric $ recipMetric bexpa) .: (.-~.)
        fathomCD = fathomCutDistance cpln bexpa
        
+
+data Sawboneses f x = Sawboneses { sawnTrunks :: f ([x]->[x])
+                                 , sawdusts :: f [x]          }
+
+sShSaw :: WithField ℝ Manifold x => ShadeTree x -> ShadeTree x -> Sawboneses Hourglasses x
+sShSaw (OverlappingBranches _ (Shade sh _) (DBranch' :[])) src
+        = case chainsaw (cutplaneFromDProdsignChange sh 
+
 
 foci :: [a] -> [(a,[a])]
 foci [] = []
