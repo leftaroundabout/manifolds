@@ -262,7 +262,7 @@ sideOfCut (Cutplane sh (Stiefel1 cn)) p = decideSide . (cn<.>^) =<< p .-~. sh
 
 fathomCutDistance :: WithField ℝ Manifold x
         => Cutplane x            -- ^ Hyperplane to measure the distance from.
-         -> HerMetric (Needle x) -- ^ Metric to use for measuring that distance.
+         -> HerMetric'(Needle x) -- ^ Metric to use for measuring that distance.
                                  --   This can only be accurate if the metric
                                  --   is valid both around the cut-plane's 'sawHandle', and
                                  --   around the points you measure.
@@ -274,6 +274,6 @@ fathomCutDistance :: WithField ℝ Manifold x
                                  --   'Nothing' if the point isn't reachable from the plane.
 fathomCutDistance (Cutplane sh (Stiefel1 cn)) met = \x -> fmap fathom $ x .-~. sh
  where fathom v = (cn <.>^ v) / scaleDist
-       scaleDist = metric' (recipMetric' met) cn
+       scaleDist = metric' met cn
           
 
