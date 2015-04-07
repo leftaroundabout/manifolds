@@ -485,6 +485,28 @@ instance Monoid (Sawbones x) where
 chainsaw :: WithField ℝ Manifold x => Cutplane x -> ShadeTree x -> Sawbones x
 chainsaw cpln (PlainLeaves xs) = Sawbones id id sd1 sd2
  where (sd1,sd2) = partition (\x -> sideOfCut cpln x == Option(Just PositiveHalfSphere)) xs
-chainsaw s (DisjointBranches _ brs) = Hask.foldMap (chainsaw s) brs
-chainsaw s (OverlappingBranches _ shade brs) = undefined
+chainsaw cpln (DisjointBranches _ brs) = Hask.foldMap (chainsaw cpln) brs
+chainsaw cpln (OverlappingBranches _ (Shade _ bexpa) brs) = Sawbones t1 t2 d1 d2
+ where (Sawbones subT1 subT2 subD1 subD2)
+             = Hask.foldMap (Hask.foldMap (chainsaw cpln) . boughContents) brs
+       [(t1,d1), (t2,d2)] = refiltrate <$> [(subT1,subD1), (subT2,subD2)]
+       refiltrate (t,d) = foldl' go (t,[]) $ foci d
+        where go (t',d') (dp,dqs) = case fathomCD dp of
+                           Option (Just dpCD) | all (unsheltered dpCD) dqs
+                                    -> ((dp:).t', d')
+                           _        -> (t',    dp:d')
+               where unsheltered dpCutDist dq = case ptsDist dp dq of
+                        Option (Just d) -> d > dpCutDist
+                        _               -> True
+                     ptsDist = fmap (metric $ recipMetric bexpa) .: (.-~.)
+       fathomCD = fathomCutDistance cpln bexpa
+       
+
+foci :: [a] -> [(a,[a])]
+foci [] = []
+foci (x:xs) = (x,xs) : fmap (second (x:)) (foci xs)
+       
+
+(.:) :: (c->d) -> (a->b->c) -> a->b->d 
+(.:) = (.) . (.)
 
