@@ -49,7 +49,9 @@ module Data.Manifold.Types (
         , ℝay
         , CD¹(..), Cℝay(..)
         -- * Misc
-        , Cutplane(..), cutplaneFromDProdsignChange, fathomCutDistance
+        -- * Cut-planes
+        , Cutplane(..)
+        , cutplaneFromDProdsignChange, fathomCutDistance, sideOfCut
    ) where
 
 
@@ -249,6 +251,13 @@ data Cutplane x = Cutplane { sawHandle :: x
 cutplaneFromDProdsignChange :: WithField ℝ Manifold x
                                 => x -> DualSpace (Needle x) -> Cutplane x
 cutplaneFromDProdsignChange h o = Cutplane h (stiefel1Project o)
+
+
+sideOfCut :: WithField ℝ Manifold x => Cutplane x -> x -> Option S⁰
+sideOfCut (Cutplane sh (Stiefel1 cn)) p = decideSide . (cn<.>^) =<< p .-~. sh
+ where decideSide 0 = mzero
+       decideSide μ | μ > 0      = pure PositiveHalfSphere
+                    | otherwise  = pure NegativeHalfSphere
 
 
 fathomCutDistance :: WithField ℝ Manifold x
