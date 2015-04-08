@@ -509,23 +509,36 @@ chainsaw cpln (OverlappingBranches _ (Shade _ bexpa) brs) = Sawbones t1 t2 d1 d2
        fathomCD = fathomCutDistance cpln bexpa
        
 
-type Sawboneses f x = f ([x]->[x], [x])
+data Sawboneses x = Sawboneses {getSawboneses :: DBranches' x ([x]->[x], [x])}
+
+instance Semigroup (Sawboneses x) where
+  Sawboneses (DBranches hs) <> Sawboneses (DBranches is)
+     = Sawboneses . DBranches $ NE.zipWith (\(DBranch d (Hourglass (ut,ud) (lt,ld)))
+                                             (DBranch _ (Hourglass (u't,u'd) (l't,l'd)))
+                                                -> DBranch d $ Hourglass (ut.u't, ud++u'd)
+                                                                         (lt.l't, ld++l'd) )
+                                           hs is
+
 
 sShSaw :: WithField ℝ Manifold x
-               => ShadeTree x -> ShadeTree x -> Sawboneses (DBranches' x) x
+               => ShadeTree x -> ShadeTree x -> Sawboneses x
 sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir _ :| [])) src
           = let (Sawbones t1 t2 d1 d2) = chainsaw (cutplaneFromDProdsignChange sh dir) src
-            in DBranches . pure . DBranch dir $ Hourglass (t1,d1) (t2,d2)
-sShSaw (OverlappingBranches _ (Shade cctr _) brs) (PlainLeaves xs)
-          = DBranches $ NE.fromList ngbsAdded
- where brsEmpty = fmap (\(DBranch dir _)-> DBranch dir mempty) $ NE.toList brs
+            in Sawboneses . DBranches . pure . DBranch dir $ Hourglass (t1,d1) (t2,d2)
+sShSaw (OverlappingBranches _ (Shade cctr _) cbrs) (PlainLeaves xs)
+          = Sawboneses . DBranches $ NE.fromList ngbsAdded
+ where brsEmpty = fmap (\(DBranch dir _)-> DBranch dir mempty) $ NE.toList cbrs
        srcDistrib = sShIdPartition' cctr xs brsEmpty
        ngbsAdded = fmap (\(DBranch dir (Hourglass u l), othrs)
                              -> let allOthr = undefined
                                 in DBranch dir $ Hourglass ((u++), allOthr) ((l++), allOthr)
                         ) $ foci srcDistrib
-       
-sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir1 _ :| [DBranch dir2 _])) src = undefined
+sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
+        (OverlappingBranches _ (Shade _ bexpa) brs)
+          = Sawboneses . DBranches $ NE.fromList undefined
+ where Option (Just (Sawboneses (DBranches recursed)))
+             = Hask.foldMap (Hask.foldMap (pure . sShSaw cuts) . boughContents) brs
+sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `OverlappingBranches`"
 
 
 foci :: [a] -> [(a,[a])]
