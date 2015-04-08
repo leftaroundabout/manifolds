@@ -509,17 +509,23 @@ chainsaw cpln (OverlappingBranches _ (Shade _ bexpa) brs) = Sawbones t1 t2 d1 d2
        fathomCD = fathomCutDistance cpln bexpa
        
 
-newtype Sawboneses f x = Sawboneses { sawnboneses :: f ([x]->[x], [x]) }
-
+type Sawboneses f x = f ([x]->[x], [x])
 
 sShSaw :: WithField ℝ Manifold x
                => ShadeTree x -> ShadeTree x -> Sawboneses (DBranches' x) x
 sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir _ :| [])) src
           = let (Sawbones t1 t2 d1 d2) = chainsaw (cutplaneFromDProdsignChange sh dir) src
-            in Sawboneses (DBranches . pure . DBranch dir $ Hourglass (t1,d1) (t2,d2))
-sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir1 _ :| [DBranch dir2 _])) src
-          = let (Sawbones t1 t2 d1 d2) = chainsaw (cutplaneFromDProdsignChange sh dir) src
-            in Sawboneses (DBranches . pure . DBranch dir $ Hourglass (t1,d1) (t2,d2))
+            in DBranches . pure . DBranch dir $ Hourglass (t1,d1) (t2,d2)
+sShSaw (OverlappingBranches _ (Shade cctr _) brs) (PlainLeaves xs)
+          = DBranches $ NE.fromList ngbsAdded
+ where brsEmpty = fmap (\(DBranch dir _)-> DBranch dir mempty) $ NE.toList brs
+       srcDistrib = sShIdPartition' cctr xs brsEmpty
+       ngbsAdded = fmap (\(DBranch dir (Hourglass u l), othrs)
+                             -> let allOthr = undefined
+                                in DBranch dir $ Hourglass ((u++), allOthr) ((l++), allOthr)
+                        ) $ foci srcDistrib
+       
+sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir1 _ :| [DBranch dir2 _])) src = undefined
 
 
 foci :: [a] -> [(a,[a])]
