@@ -7,26 +7,27 @@
 -- Stability   : experimental
 -- Portability : portable
 -- 
-{-# LANGUAGE FlexibleInstances        #-}
-{-# LANGUAGE UndecidableInstances     #-}
-{-# LANGUAGE StandaloneDeriving       #-}
-{-# LANGUAGE DeriveGeneric            #-}
-{-# LANGUAGE DeriveFunctor            #-}
-{-# LANGUAGE DeriveFoldable           #-}
-{-# LANGUAGE TypeFamilies             #-}
-{-# LANGUAGE FunctionalDependencies   #-}
-{-# LANGUAGE FlexibleContexts         #-}
-{-# LANGUAGE GADTs                    #-}
-{-# LANGUAGE RankNTypes               #-}
-{-# LANGUAGE TupleSections            #-}
-{-# LANGUAGE ParallelListComp         #-}
-{-# LANGUAGE UnicodeSyntax            #-}
-{-# LANGUAGE ConstraintKinds          #-}
-{-# LANGUAGE PatternGuards            #-}
-{-# LANGUAGE TypeOperators            #-}
-{-# LANGUAGE ScopedTypeVariables      #-}
-{-# LANGUAGE RecordWildCards          #-}
-{-# LANGUAGE DataKinds                #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveFoldable             #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE FunctionalDependencies     #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE ParallelListComp           #-}
+{-# LANGUAGE UnicodeSyntax              #-}
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE PatternGuards              #-}
+{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE DataKinds                  #-}
 
 
 module Data.Manifold.TreeCover (
@@ -213,6 +214,12 @@ type DBranch x = DBranch' x (ShadeTree x)
 
 newtype DBranches' x c = DBranches (NonEmpty (DBranch' x c))
   deriving (Generic, Hask.Functor, Hask.Foldable)
+
+-- ^ /Unsafe/: this assumes the direction information of both containers to be equivalent.
+instance (Semigroup c) => Semigroup (DBranches' x c) where
+  DBranches b1 <> DBranches b2 = DBranches $ NE.zipWith (\(DBranch d1 c1) (DBranch _ c2)
+                                                              -> DBranch d1 $ c1<>c2 ) b1 b2
+  
 
 
 instance (NFData x) => NFData (ShadeTree x) where
@@ -509,35 +516,45 @@ chainsaw cpln (OverlappingBranches _ (Shade _ bexpa) brs) = Sawbones t1 t2 d1 d2
        fathomCD = fathomCutDistance cpln bexpa
        
 
-data Sawboneses x = Sawboneses {getSawboneses :: DBranches' x ([x]->[x], [x])}
+type DList x = [x]->[x]
+    
+data DustyEdges x = DustyEdges { sawChunk :: DList x, chunkDust :: DBranches' x [x] }
+instance Semigroup (DustyEdges x) where
+  DustyEdges c1 d1 <> DustyEdges c2 d2 = DustyEdges (c1.c2) (d1<>d2)
 
+data Sawboneses x = SingleCut (Sawbones x)
+                  | Sawboneses (DBranches' x (DustyEdges x))
+    deriving (Generic)
 instance Semigroup (Sawboneses x) where
-  Sawboneses (DBranches hs) <> Sawboneses (DBranches is)
-     = Sawboneses . DBranches $ NE.zipWith (\(DBranch d (Hourglass (ut,ud) (lt,ld)))
-                                             (DBranch _ (Hourglass (u't,u'd) (l't,l'd)))
-                                                -> DBranch d $ Hourglass (ut.u't, ud++u'd)
-                                                                         (lt.l't, ld++l'd) )
-                                           hs is
+  SingleCut c <> SingleCut d = SingleCut $ c<>d
+  Sawboneses c <> Sawboneses d = Sawboneses $ c<>d
 
 
+
+-- | Saw a tree into the domains covered by the respective branches of another tree.
 sShSaw :: WithField ℝ Manifold x
-               => ShadeTree x -> ShadeTree x -> Sawboneses x
+               => ShadeTree x   -- ^ &#x201c;Reference tree&#x201d;, defines the cut regions.
+                                --   Must be at least one level of 'OverlappingBranches' deep.
+               -> ShadeTree x   -- ^ Tree to take the actual contents from.
+               -> Sawboneses x  -- ^ All points within each region, plus those from the
+                                --   boundaries of each neighbouring region.
 sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir _ :| [])) src
-          = let (Sawbones t1 t2 d1 d2) = chainsaw (cutplaneFromDProdsignChange sh dir) src
-            in Sawboneses . DBranches . pure . DBranch dir $ Hourglass (t1,d1) (t2,d2)
+          = SingleCut $ chainsaw (cutplaneFromDProdsignChange sh dir) src
 sShSaw (OverlappingBranches _ (Shade cctr _) cbrs) (PlainLeaves xs)
           = Sawboneses . DBranches $ NE.fromList ngbsAdded
  where brsEmpty = fmap (\(DBranch dir _)-> DBranch dir mempty) $ NE.toList cbrs
        srcDistrib = sShIdPartition' cctr xs brsEmpty
        ngbsAdded = fmap (\(DBranch dir (Hourglass u l), othrs)
-                             -> let allOthr = undefined
-                                in DBranch dir $ Hourglass ((u++), allOthr) ((l++), allOthr)
+                             -> let allOthr = DBranches $ NE.fromList othrs
+                                in DBranch dir $ Hourglass (DustyEdges (u++) allOthr)
+                                                           (DustyEdges (l++) allOthr)
                         ) $ foci srcDistrib
-sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
-        (OverlappingBranches _ (Shade _ bexpa) brs)
-          = Sawboneses . DBranches $ NE.fromList undefined
- where Option (Just (Sawboneses (DBranches recursed)))
-             = Hask.foldMap (Hask.foldMap (pure . sShSaw cuts) . boughContents) brs
+-- sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
+--         (OverlappingBranches _ (Shade _ bexpa) brs)
+--           = Sawboneses . DBranches $ NE.fromList undefined
+--  where Option (Just (Sawboneses (DBranches recursed)))
+--              = Hask.foldMap (Hask.foldMap (pure . sShSaw cuts) . boughContents) brs
+       
 sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `OverlappingBranches`"
 
 
