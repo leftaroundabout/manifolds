@@ -533,11 +533,11 @@ instance Semigroup (Sawboneses x) where
 
 -- | Saw a tree into the domains covered by the respective branches of another tree.
 sShSaw :: WithField ℝ Manifold x
-               => ShadeTree x   -- ^ &#x201c;Reference tree&#x201d;, defines the cut regions.
-                                --   Must be at least one level of 'OverlappingBranches' deep.
-               -> ShadeTree x   -- ^ Tree to take the actual contents from.
-               -> Sawboneses x  -- ^ All points within each region, plus those from the
-                                --   boundaries of each neighbouring region.
+          => ShadeTree x   -- ^ &#x201c;Reference tree&#x201d;, defines the cut regions.
+                           --   Must be at least one level of 'OverlappingBranches' deep.
+          -> ShadeTree x   -- ^ Tree to take the actual contents from.
+          -> Sawboneses x  -- ^ All points within each region, plus those from the
+                           --   boundaries of each neighbouring region.
 sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir _ :| [])) src
           = SingleCut $ chainsaw (cutplaneFromDProdsignChange sh dir) src
 sShSaw (OverlappingBranches _ (Shade cctr _) cbrs) (PlainLeaves xs)
@@ -549,12 +549,17 @@ sShSaw (OverlappingBranches _ (Shade cctr _) cbrs) (PlainLeaves xs)
                                 in DBranch dir $ Hourglass (DustyEdges (u++) allOthr)
                                                            (DustyEdges (l++) allOthr)
                         ) $ foci srcDistrib
--- sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
---         (OverlappingBranches _ (Shade _ bexpa) brs)
---           = Sawboneses . DBranches $ NE.fromList undefined
---  where Option (Just (Sawboneses (DBranches recursed)))
---              = Hask.foldMap (Hask.foldMap (pure . sShSaw cuts) . boughContents) brs
-       
+sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
+        (OverlappingBranches _ (Shade _ bexpa) brs)
+          = Sawboneses . DBranches $ ftr'd
+ where Option (Just (Sawboneses (DBranches recursed)))
+             = Hask.foldMap (Hask.foldMap (pure . sShSaw cuts) . boughContents) brs
+       ftr'd = fmap (\(DBranch dir1 ds) -> DBranch dir1 $ fmap (
+                         \(DustyEdges bk (DBranches dds))
+                                -> DustyEdges bk . DBranches $ fmap (obsFilter dir1) dds
+                                                               ) ds ) recursed
+       obsFilter dir1 (DBranch dir2 xs) = DBranch dir2 undefined
+        where cpln = cutplaneFromDProdsignChange sh $ dir1 ^-^ dir2
 sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `OverlappingBranches`"
 
 
