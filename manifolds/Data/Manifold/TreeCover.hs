@@ -190,6 +190,9 @@ instance Foldable Hourglass (->) (->) where
   ffoldl f (x, Hourglass a b) = f (f(x,a), b)
   foldMap f (Hourglass a b) = f a `mappend` f b
 
+flipHour :: Hourglass s -> Hourglass s
+flipHour (Hourglass u l) = Hourglass l u
+
 newtype Hourglasses s = Hourglasses {
              getHourglasses :: NonEmpty (Hourglass s) }
     deriving (Generic, Hask.Functor, Hask.Foldable)
@@ -545,9 +548,12 @@ sShSaw (OverlappingBranches _ (Shade cctr _) cbrs) (PlainLeaves xs)
  where brsEmpty = fmap (\(DBranch dir _)-> DBranch dir mempty) $ NE.toList cbrs
        srcDistrib = sShIdPartition' cctr xs brsEmpty
        ngbsAdded = fmap (\(DBranch dir (Hourglass u l), othrs)
-                             -> let allOthr = DBranches $ NE.fromList othrs
+                             -> let [allOthr,allOthr']
+                                        = map (DBranches . NE.fromList)
+                                            [othrs, fmap (\(DBranch d' o)
+                                                          ->DBranch(negateV d') o) othrs]
                                 in DBranch dir $ Hourglass (DustyEdges (u++) allOthr)
-                                                           (DustyEdges (l++) allOthr)
+                                                           (DustyEdges (l++) allOthr')
                         ) $ foci srcDistrib
 sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
         (OverlappingBranches _ (Shade _ bexpa) brs)
@@ -558,8 +564,11 @@ sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
                          \(DustyEdges bk (DBranches dds))
                                 -> DustyEdges bk . DBranches $ fmap (obsFilter dir1) dds
                                                                ) ds ) recursed
-       obsFilter dir1 (DBranch dir2 xs) = DBranch dir2 undefined
-        where cpln = cutplaneFromDProdsignChange sh $ dir1 ^-^ dir2
+       obsFilter dir1 (DBranch dir2 (Hourglass pd2 md2))
+                         = DBranch dir2 $ Hourglass pd2' md2'
+        where cpln cpSgn = cutplaneFromDProdsignChange sh $ dir1 ^+^ cpSgn*^dir2
+              [pd2', md2'] = zipWith (occl . cpln) [-1, 1] [pd2, md2] 
+              occl cpl = map (\(x, os) -> undefined) . foci
 sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `OverlappingBranches`"
 
 
