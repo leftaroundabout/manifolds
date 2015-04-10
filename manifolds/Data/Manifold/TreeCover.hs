@@ -568,7 +568,16 @@ sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
                          = DBranch dir2 $ Hourglass pd2' md2'
         where cpln cpSgn = cutplaneFromDProdsignChange sh $ dir1 ^+^ cpSgn*^dir2
               [pd2', md2'] = zipWith (occl . cpln) [-1, 1] [pd2, md2] 
-              occl cpl = map (\(x, os) -> undefined) . foci
+              occl cpl = foldl' go [] . foci
+               where go d' (dp,dqs) = case fathomCD dp of
+                           Option (Just dpCD) | all (unsheltered dpCD) dqs
+                                                      -> d'
+                           _                          -> dp:d'
+                      where unsheltered dpCutDist dq = case ptsDist dp dq of
+                             Option (Just d) -> d > dpCutDist
+                             _               -> True
+                            ptsDist = fmap (metric $ recipMetric bexpa) .: (.-~.)
+                     fathomCD = fathomCutDistance cpl bexpa
 sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `OverlappingBranches`"
 
 
