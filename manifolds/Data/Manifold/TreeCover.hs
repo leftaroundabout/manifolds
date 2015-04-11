@@ -41,6 +41,8 @@ module Data.Manifold.TreeCover (
        , onlyNodes, onlyLeaves
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
+       -- * Misc
+       , sShSaw, sawResults
     ) where
 
 
@@ -106,15 +108,15 @@ fullShade :: WithField ℝ Manifold x => x -> HerMetric' (Needle x) -> Shade x
 fullShade ctr expa = Shade ctr expa
 
 subshadeId' :: WithField ℝ Manifold x
-                   => x -> [DualSpace (Needle x)] -> x -> (Int, HourglassBulb)
+                   => x -> NonEmpty (DualSpace (Needle x)) -> x -> (Int, HourglassBulb)
 subshadeId' c expvs x = case x .-~. c of
     Option (Just v) -> let (iu,vl) = maximumBy (comparing $ abs . snd)
-                                      $ zip [0..] (map (v <.>^) expvs)
+                                      $ zip [0..] (map (v <.>^) $ NE.toList expvs)
                        in (iu, if vl>0 then UpperBulb else LowerBulb)
     _ -> (-1, error "Trying to obtain the subshadeId of a point not actually included in the shade.")
 
 subshadeId :: WithField ℝ Manifold x => Shade x -> x -> (Int, HourglassBulb)
-subshadeId (Shade c expa) = subshadeId' c $ eigenCoSpan expa
+subshadeId (Shade c expa) = subshadeId' c . NE.fromList $ eigenCoSpan expa
                  
 
 
@@ -297,33 +299,39 @@ fromLeafPoints = go zeroV
         where 
               branchProc redSh = fmap (fmap $ go redSh)
                                  
-              reduce :: Shade x -> [DBranch' x [x]] -> Maybe (NonEmpty (DBranch' x [x]))
-              reduce _ [] = Nothing
+              reduce :: Shade x -> NonEmpty (DBranch' x [x])
+                                      -> Maybe (NonEmpty (DBranch' x [x]))
               reduce sh@(Shade c _) brCandidates
                         = case findIndex deficient cards of
-                            Just i -> let (DBranch _ reBr, ok) = amputateId i brCandidates
-                                      in reduce sh
-                                          $ sShIdPartition' c (fold reBr) ok
-                            Nothing   -> Just $ NE.fromList brCandidates
-               where (cards, maxCard) = (id&&&maximum')
-                                $ map (fmap length . boughContents) brCandidates
+                            Just i | (DBranch _ reBr, o:ok)
+                                             <- amputateId i (NE.toList brCandidates)
+                                           -> reduce sh
+                                                $ sShIdPartition' c (fold reBr) (o:|ok)
+                                   | otherwise -> Nothing
+                            _ -> Just brCandidates
+               where (cards, maxCard) = (NE.toList &&& maximum')
+                                $ fmap (fmap length . boughContents) brCandidates
                      deficient (Hourglass u l) = any (\c -> c^2 <= maxCard + 1) [u,l]
-                     maximum' = maximum . fmap (\(Hourglass u l) -> max u l)
+                     maximum' = maximum . NE.toList . fmap (\(Hourglass u l) -> max u l)
 
 
 sShIdPartition' :: WithField ℝ Manifold x
-        => x -> [x] -> [DBranch' x [x]]->[DBranch' x [x]]
+        => x -> [x] -> NonEmpty (DBranch' x [x])->NonEmpty (DBranch' x [x])
 sShIdPartition' c xs st
            = foldr (\p -> let (i,h) = ssi p
-                                in update_nth (\(DBranch d c)
-                                               -> DBranch d (oneBulb h (p:) c))
-                                              i)
-                         st xs
+                          in asList $ update_nth (\(DBranch d c)
+                                                    -> DBranch d (oneBulb h (p:) c))
+                                      i )
+                   st xs
  where ssi = subshadeId' c (boughDirection<$>st)
-sShIdPartition :: WithField ℝ Manifold x => Shade x -> [x] -> [DBranch' x [x]]
+sShIdPartition :: WithField ℝ Manifold x => Shade x -> [x] -> NonEmpty (DBranch' x [x])
 sShIdPartition (Shade c expa) xs
-    = sShIdPartition' c xs [DBranch v mempty | v <- eigenCoSpan expa]
+ | b:bs <- [DBranch v mempty | v <- eigenCoSpan expa]
+    = sShIdPartition' c xs $ b:|bs
                                            
+
+asList :: ([a]->[b]) -> NonEmpty a->NonEmpty b
+asList f = NE.fromList . f . NE.toList
 
 update_nth :: (a->a) -> Int -> [a] -> [a]
 update_nth _ n l | n<0 = l
@@ -499,6 +507,7 @@ instance Monoid (Sawbones x) where
   mempty = Sawbones id id [] []
   mappend = (<>)
 
+
 chainsaw :: WithField ℝ Manifold x => Cutplane x -> ShadeTree x -> Sawbones x
 chainsaw cpln (PlainLeaves xs) = Sawbones id id sd1 sd2
  where (sd1,sd2) = partition (\x -> sideOfCut cpln x == Option(Just PositiveHalfSphere)) xs
@@ -533,6 +542,13 @@ instance Semigroup (Sawboneses x) where
   Sawboneses c <> Sawboneses d = Sawboneses $ c<>d
 
 
+sawResults :: Sawboneses x -> [([x],[[x]])]
+sawResults (SingleCut (Sawbones t1 t2 d1 d2)) = [(t1[],[d1]), (t2[],[d2])]
+sawResults (Sawboneses (DBranches bs)) = 
+        [ (m[], NE.toList ds >>= \(DBranch _ (Hourglass u' l')) -> [u',l'])
+        | (DBranch _ (Hourglass u l)) <- NE.toList bs
+        , (DustyEdges m (DBranches ds)) <- [u,l]
+        ]
 
 -- | Saw a tree into the domains covered by the respective branches of another tree.
 sShSaw :: WithField ℝ Manifold x
@@ -545,7 +561,7 @@ sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir _ :| [])) src
           = SingleCut $ chainsaw (cutplaneFromDProdsignChange sh dir) src
 sShSaw (OverlappingBranches _ (Shade cctr _) cbrs) (PlainLeaves xs)
           = Sawboneses . DBranches $ NE.fromList ngbsAdded
- where brsEmpty = fmap (\(DBranch dir _)-> DBranch dir mempty) $ NE.toList cbrs
+ where brsEmpty = fmap (\(DBranch dir _)-> DBranch dir mempty) cbrs
        srcDistrib = sShIdPartition' cctr xs brsEmpty
        ngbsAdded = fmap (\(DBranch dir (Hourglass u l), othrs)
                              -> let [allOthr,allOthr']
@@ -554,7 +570,7 @@ sShSaw (OverlappingBranches _ (Shade cctr _) cbrs) (PlainLeaves xs)
                                                           ->DBranch(negateV d') o) othrs]
                                 in DBranch dir $ Hourglass (DustyEdges (u++) allOthr)
                                                            (DustyEdges (l++) allOthr')
-                        ) $ foci srcDistrib
+                        ) $ foci (NE.toList srcDistrib)
 sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
         (OverlappingBranches _ (Shade _ bexpa) brs)
           = Sawboneses . DBranches $ ftr'd
