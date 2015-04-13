@@ -587,10 +587,10 @@ sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
               occl cpl = foldl' go [] . foci
                where go d' (dp,dqs) = case fathomCD dp of
                            Option (Just dpCD) | all (unsheltered dpCD) dqs
-                                                      -> d'
-                           _                          -> dp:d'
+                                                      -> dp:d'
+                           _                          -> d'
                       where unsheltered dpCutDist dq = case ptsDist dp dq of
-                             Option (Just d) -> d > dpCutDist
+                             Option (Just d) -> d > abs dpCutDist
                              _               -> True
                             ptsDist = fmap (metric $ recipMetric bexpa) .: (.-~.)
                      fathomCD = fathomCutDistance cpl bexpa
