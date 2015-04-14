@@ -61,6 +61,7 @@ import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
 import Data.Tagged
+import Data.Proxy
 
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^))
@@ -77,6 +78,8 @@ import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
 import GHC.TypeLits
+import Data.Type.Equality
+import qualified Unsafe.Coerce
 import GHC.Generics (Generic)
 
 
@@ -361,12 +364,29 @@ sortByKey :: Ord a => [(a,b)] -> [b]
 sortByKey = map snd . sortBy (comparing fst)
 
 
+
+type a^+^b = a GHC.TypeLits.+ b
+
 data Simplex x n where
    ZeroSimplex :: x -> Simplex x 0
-   Simplex :: x -> Simplex x (n-1) -> Simplex x n
+   Simplex :: x -> Simplex x n -> Simplex x (n^+^1)
 
 newtype Triangulation x n = Triangulation { getTriangulation :: [Simplex x n] }
 
+primitiveTriangulation :: forall x n . (WithField ℝ Manifold x, KnownNat n)
+                             => [x] -> Triangulation x n
+primitiveTriangulation xs = result
+ where result = case someNatVal $ n-1 of
+         Nothing  | Just Refl <- sameNat (Proxy :: Proxy 0) (Proxy :: Proxy n)
+                      -> Triangulation $ map ZeroSimplex xs
+         Just (SomeNat p)
+                  | x:xs' <- xs
+                  , Triangulation tq <- lowly p xs'
+                        -> Unsafe.Coerce.unsafeCoerce . Triangulation $ map (Simplex x) tq
+         _ -> Triangulation []
+       n = natVal result
+       lowly :: forall n' . KnownNat n' => Proxy n' -> [x] -> Triangulation x n'
+       lowly _ xs' = primitiveTriangulation xs' :: Triangulation x n'
 
 splxVertices :: Simplex x n -> [x]
 splxVertices (ZeroSimplex x) = [x]
@@ -374,13 +394,15 @@ splxVertices (Simplex x s') = x : splxVertices s'
 
 
 
+triangulate :: forall x n . (KnownNat n, WithField ℝ Manifold x)
+                 => ShadeTree x -> Triangulation x n
+triangulate (DisjointBranches _ brs)
+    = Triangulation $ Hask.foldMap (getTriangulation . triangulate) brs
+triangulate (PlainLeaves xs) = primitiveTriangulation xs
+
 -- triangBranches :: WithField ℝ Manifold x
 --                  => ShadeTree x -> Branchwise x (Triangulation x) n
 -- triangBranches _ = undefined
--- 
--- triangulate :: WithField ℝ Manifold x
---                  => ShadeTree x -> Triangulation x n
--- triangulate = inBoundary . branchResult . triangBranches
 -- 
 -- tringComplete :: WithField ℝ Manifold x
 --                  => Triangulation x (n-1) -> Triangulation x n -> Triangulation x n
