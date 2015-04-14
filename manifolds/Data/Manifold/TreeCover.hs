@@ -373,33 +373,6 @@ splxVertices (ZeroSimplex x) = [x]
 splxVertices (Simplex x s') = x : splxVertices s'
 
 
-data Branchwise :: * -> (Nat -> *) -> Nat -> * where
-   Branchwise :: { branchResult :: WithBoundary r n
-                 , branchBoundary :: ShadeTree x
-                 } -> Branchwise x r n
-
-data WithBoundary :: (Nat -> *) -> Nat -> * where
-  WithBoundary :: { inBoundary :: r n
-                  , enclosingBoundary :: r (n-1)
-                  } -> WithBoundary r n
-
-branchwise :: ∀ r n x . WithField ℝ Manifold x
-         ⇒   (∀ k .  ShadeTree x → Option (Branchwise x r k)       )
-           → (∀ k .  r (k-1) → WithBoundary r k → WithBoundary r k
-                                              → WithBoundary r k   )
-           → ShadeTree x → [r n]
-branchwise f c = map (inBoundary . branchResult) . bw
- where bw tr | Option(Just r₀)<-f tr  = [r₀]
-       bw (DisjointBranches _ trs) = bw =<< NE.toList trs
-       bw t@(OverlappingBranches _ _ trs) 
-           = let brResults = fmap bw trs
-                 (Sawboneses cuts) = sShSaw t t
-             in [ foldr1 (\(Branchwise r bb) (Branchwise r' bb')
-                           -> let (shb, (bbd, bbd')) = separateOverlap bb bb'
-                                  [glue] = branchwise f c shb
-                              in Branchwise (c glue r r') $ bbd<>bbd'
-                         ) . join $ Hask.toList brResults ]
-       bw _ = []
 
 -- triangBranches :: WithField ℝ Manifold x
 --                  => ShadeTree x -> Branchwise x (Triangulation x) n
