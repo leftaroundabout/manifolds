@@ -509,18 +509,17 @@ instance Monoid (Sawbones x) where
 
 
 chainsaw :: WithField ℝ Manifold x => Cutplane x -> ShadeTree x -> Sawbones x
-chainsaw cpln (PlainLeaves xs) = Sawbones id id sd1 sd2
+chainsaw cpln (PlainLeaves xs) = Sawbones (sd1++) (sd2++) sd2 sd1
  where (sd1,sd2) = partition (\x -> sideOfCut cpln x == Option(Just PositiveHalfSphere)) xs
 chainsaw cpln (DisjointBranches _ brs) = Hask.foldMap (chainsaw cpln) brs
 chainsaw cpln (OverlappingBranches _ (Shade _ bexpa) brs) = Sawbones t1 t2 d1 d2
- where (Sawbones subT1 subT2 subD1 subD2)
+ where (Sawbones t1 t2 subD1 subD2)
              = Hask.foldMap (Hask.foldMap (chainsaw cpln) . boughContents) brs
-       [(t1,d1), (t2,d2)] = refiltrate <$> [(subT1,subD1), (subT2,subD2)]
-       refiltrate (t,d) = foldl' go (t,[]) $ foci d
-        where go (t',d') (dp,dqs) = case fathomCD dp of
-                           Option (Just dpCD) | not $ any (shelter dpCD) dqs
-                                    -> ((dp:).t', d')
-                           _        -> (t',    dp:d')
+       [d1,d2] = fmap (foldl' go [] . foci) [subD1, subD2]
+        where go d' (dp,dqs) = case fathomCD dp of
+                 Option (Just dpCD) | not $ any (shelter dpCD) dqs
+                    -> dp:d' -- dp is close enough to cut plane to make dust.
+                 _  -> d'    -- some dq is actually closer than the cut plane => discard dp.
                where shelter dpCutDist dq = case ptsDist dp dq of
                         Option (Just d) -> d < abs dpCutDist
                         _               -> False
@@ -580,8 +579,8 @@ sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
               occl cpl = foldl' go [] . foci
                where go d' (dp,dqs) = case fathomCD dp of
                            Option (Just dpCD) | not $ any (shelter dpCD) dqs
-                                     -> dp:d' -- dp is close enough to cut plane to make dust.
-                           _         -> d'    -- some dq is actually closer than the cut plane => discard dp.
+                                     -> dp:d'
+                           _         -> d'
                       where shelter dpCutDist dq = case ptsDist dp dq of
                              Option (Just d) -> d < abs dpCutDist
                              _               -> False
