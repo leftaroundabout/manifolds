@@ -35,8 +35,6 @@ module Data.Manifold.TreeCover (
          Shade, shadeCtr, shadeExpanse, fullShade, pointsShades
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints
-       -- ** Combinators
-       , separateOverlap
        -- * Simple view helpers
        , onlyNodes, onlyLeaves
        -- ** Auxiliary types
@@ -357,32 +355,6 @@ amputateIds = go 0
          | otherwise  = second (x:) $ go (i+1) (k:ks) xs
 
 
-separateOverlap :: WithField ℝ Manifold x
-              => ShadeTree x -> ShadeTree x
-                     -> ( ShadeTree x -- Overlapping part
-                        , (ShadeTree x, ShadeTree x) -- Disjoint parts
-                        )
-separateOverlap (PlainLeaves []) t = (mempty, (mempty, t))
--- separateOverlap t (PlainLeaves []) = (mempty, (t, mempty))
--- separateOverlap t₁@(OverlappingBranches n₁ sh₁@(Shade ctr₁ ev₁) br₁)
---                 t₂@(OverlappingBranches n₂ sh₂@(Shade ctr₂ ev₂) br₂)
---     | d₁>4 && d₂>4  = ( mempty, (t₁,t₂) )
---     | n₁ > n₂       = seps t₁ t₂
---     | otherwise     = second swap $ seps t₂ t₁
---                       let t₁pts = sShIdPartition sh₂ $ onlyLeaves t₁
---                           cndSectors = zipWith (liftA2 $ separateOverlap . fromLeafPoints)
---                                          t₁pts (NE.toList $ getHourglasses br₂)
---                       in fold (fold cndSectors)
---  where d₁ = minusLogOcclusion sh₁ ctr₂
---        d₂ = minusLogOcclusion sh₂ ctr₁
---        seps (OverlappingBranches n₁ sh₁@(Shade ctr₁ ev₁) br₁)
---             (OverlappingBranches n₂ sh₂@(Shade ctr₂ ev₂) br₂)
---         = let pts = sShIdPartition sh₁ $ onlyLeaves t₂
---               cndSectors = zipWith (liftA2 $ (.fromLeafPoints).separateOverlap)
---                              (NE.toList $ getHourglasses br₁) t₂pts
---           in fold (fold cndSectors)
--- separateOverlap t₁ t₂
---          = ( t₁<>t₂, (mempty, mempty) )
 
 
 sortByKey :: Ord a => [(a,b)] -> [b]
