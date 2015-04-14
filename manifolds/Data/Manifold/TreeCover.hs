@@ -42,7 +42,7 @@ module Data.Manifold.TreeCover (
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
-       , sShSaw, sawResults
+       , sShSaw, chainsaw, HasFlatView(..)
     ) where
 
 
@@ -518,12 +518,12 @@ chainsaw cpln (OverlappingBranches _ (Shade _ bexpa) brs) = Sawbones t1 t2 d1 d2
        [(t1,d1), (t2,d2)] = refiltrate <$> [(subT1,subD1), (subT2,subD2)]
        refiltrate (t,d) = foldl' go (t,[]) $ foci d
         where go (t',d') (dp,dqs) = case fathomCD dp of
-                           Option (Just dpCD) | all (unsheltered dpCD) dqs
+                           Option (Just dpCD) | not $ any (shelter dpCD) dqs
                                     -> ((dp:).t', d')
                            _        -> (t',    dp:d')
-               where unsheltered dpCutDist dq = case ptsDist dp dq of
-                        Option (Just d) -> d > dpCutDist
-                        _               -> True
+               where shelter dpCutDist dq = case ptsDist dp dq of
+                        Option (Just d) -> d < abs dpCutDist
+                        _               -> False
                      ptsDist = fmap (metric $ recipMetric bexpa) .: (.-~.)
        fathomCD = fathomCutDistance cpln bexpa
        
@@ -542,13 +542,6 @@ instance Semigroup (Sawboneses x) where
   Sawboneses c <> Sawboneses d = Sawboneses $ c<>d
 
 
-sawResults :: Sawboneses x -> [([x],[[x]])]
-sawResults (SingleCut (Sawbones t1 t2 d1 d2)) = [(t1[],[d1]), (t2[],[d2])]
-sawResults (Sawboneses (DBranches bs)) = 
-        [ (m[], NE.toList ds >>= \(DBranch _ (Hourglass u' l')) -> [u',l'])
-        | (DBranch _ (Hourglass u l)) <- NE.toList bs
-        , (DustyEdges m (DBranches ds)) <- [u,l]
-        ]
 
 -- | Saw a tree into the domains covered by the respective branches of another tree.
 sShSaw :: WithField ℝ Manifold x
@@ -558,7 +551,7 @@ sShSaw :: WithField ℝ Manifold x
           -> Sawboneses x  -- ^ All points within each region, plus those from the
                            --   boundaries of each neighbouring region.
 sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir _ :| [])) src
-          = SingleCut $ chainsaw (cutplaneFromDProdsignChange sh dir) src
+          = SingleCut $ chainsaw (Cutplane sh $ stiefel1Project dir) src
 sShSaw (OverlappingBranches _ (Shade cctr _) cbrs) (PlainLeaves xs)
           = Sawboneses . DBranches $ NE.fromList ngbsAdded
  where brsEmpty = fmap (\(DBranch dir _)-> DBranch dir mempty) cbrs
@@ -582,16 +575,16 @@ sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
                                                                ) ds ) recursed
        obsFilter dir1 (DBranch dir2 (Hourglass pd2 md2))
                          = DBranch dir2 $ Hourglass pd2' md2'
-        where cpln cpSgn = cutplaneFromDProdsignChange sh $ dir1 ^+^ cpSgn*^dir2
+        where cpln cpSgn = Cutplane sh . stiefel1Project $ dir1 ^+^ cpSgn*^dir2
               [pd2', md2'] = zipWith (occl . cpln) [-1, 1] [pd2, md2] 
               occl cpl = foldl' go [] . foci
                where go d' (dp,dqs) = case fathomCD dp of
-                           Option (Just dpCD) | all (unsheltered dpCD) dqs
-                                                      -> dp:d'
-                           _                          -> d'
-                      where unsheltered dpCutDist dq = case ptsDist dp dq of
-                             Option (Just d) -> d > abs dpCutDist
-                             _               -> True
+                           Option (Just dpCD) | not $ any (shelter dpCD) dqs
+                                     -> dp:d' -- dp is close enough to cut plane to make dust.
+                           _         -> d'    -- some dq is actually closer than the cut plane => discard dp.
+                      where shelter dpCutDist dq = case ptsDist dp dq of
+                             Option (Just d) -> d < abs dpCutDist
+                             _               -> False
                             ptsDist = fmap (metric $ recipMetric bexpa) .: (.-~.)
                      fathomCD = fathomCutDistance cpl bexpa
 sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `OverlappingBranches`"
@@ -604,4 +597,30 @@ foci (x:xs) = (x,xs) : fmap (second (x:)) (foci xs)
 
 (.:) :: (c->d) -> (a->b->c) -> a->b->d 
 (.:) = (.) . (.)
+
+
+
+
+
+class HasFlatView f where
+  type FlatView f x
+  flatView :: f x -> FlatView f x
+  superFlatView :: f x -> [[x]]
+      
+instance HasFlatView Sawbones where
+  type FlatView Sawbones x = [([x],[[x]])]
+  flatView (Sawbones t1 t2 d1 d2) = [(t1[],[d1]), (t2[],[d2])]
+  superFlatView = foldMap go . flatView
+   where go (t,ds) = t : ds
+
+instance HasFlatView Sawboneses where
+  type FlatView Sawboneses x = [([x],[[x]])]
+  flatView (SingleCut (Sawbones t1 t2 d1 d2)) = [(t1[],[d1]), (t2[],[d2])]
+  flatView (Sawboneses (DBranches bs)) = 
+        [ (m[], NE.toList ds >>= \(DBranch _ (Hourglass u' l')) -> [u',l'])
+        | (DBranch _ (Hourglass u l)) <- NE.toList bs
+        , (DustyEdges m (DBranches ds)) <- [u,l]
+        ]
+  superFlatView = foldMap go . flatView
+   where go (t,ds) = t : ds
 

@@ -39,7 +39,9 @@ module Data.Manifold.Types (
         , ZeroDim(..)
         , ℝ⁰, ℝ, ℝ², ℝ³
         -- * Hyperspheres
-        , Stiefel1
+        -- ** General form: Stiefel manifolds
+        , Stiefel1, stiefel1Project, stiefel1Embed
+        -- ** Specific examples
         , HasUnitSphere(..)
         , S⁰(..), S¹(..), S²(..)
         -- * Projective spaces
@@ -51,7 +53,7 @@ module Data.Manifold.Types (
         -- * Misc
         -- * Cut-planes
         , Cutplane(..)
-        , cutplaneFromDProdsignChange, fathomCutDistance, sideOfCut
+        , fathomCutDistance, sideOfCut
    ) where
 
 
@@ -215,7 +217,9 @@ l2norm :: MetricScalar s => HMat.Vector s -> s
 l2norm = realToFrac . HMat.norm_2
 
 
-stiefel1Project :: LinearManifold v => DualSpace v -> Stiefel1 v
+stiefel1Project :: LinearManifold v =>
+             DualSpace v       -- ^ Must be nonzero.
+                 -> Stiefel1 v
 stiefel1Project = Stiefel1
 
 stiefel1Embed :: HilbertSpace v => Stiefel1 v -> v
@@ -243,14 +247,15 @@ instance (HasUnitSphere v, v ~ DualSpace v) => NaturallyEmbedded (Stiefel1 v) v 
 
 
 
--- | Oriented hyperplanes, na&#xef;vely generalised to 'PseudoAffine' manifolds.
+-- | Oriented hyperplanes, na&#xef;vely generalised to 'PseudoAffine' manifolds:
+--   @'Cutplane' p w@ represents the set of all points 'q' such that
+--   @(q.-~.p) ^\<.\> w &#x2261; 0@.
+-- 
+--   In vector spaces this is indeed a hyperplane; for general manifolds it should
+--   behave locally as a plane, globally as an (/n/−1)-dimensional submanifold.
 data Cutplane x = Cutplane { sawHandle :: x
                            , cutNormal :: Stiefel1 (Needle x) }
 
-
-cutplaneFromDProdsignChange :: WithField ℝ Manifold x
-                                => x -> DualSpace (Needle x) -> Cutplane x
-cutplaneFromDProdsignChange h o = Cutplane h (stiefel1Project o)
 
 
 sideOfCut :: WithField ℝ Manifold x => Cutplane x -> x -> Option S⁰
