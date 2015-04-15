@@ -373,6 +373,8 @@ data Simplex x n where
 
 newtype Triangulation x n = Triangulation { getTriangulation :: [Simplex x n] }
 
+-- | Only works reliable when the number of points matches 1−dimension (so the result
+--   is a single simplex).
 primitiveTriangulation :: forall x n . (WithField ℝ Manifold x, KnownNat n)
                              => [x] -> Triangulation x n
 primitiveTriangulation xs = result
