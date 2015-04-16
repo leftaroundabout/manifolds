@@ -78,9 +78,6 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
-import GHC.TypeLits
-import Data.Type.Equality
-import Unsafe.Coerce
 import GHC.Generics (Generic)
 
 
@@ -366,71 +363,51 @@ sortByKey = map snd . sortBy (comparing fst)
 
 
 
-type a^+^b = a GHC.TypeLits.+ b
 
-coercePredSucc :: s ((n-1)^+^1) -> s n
-coercePredSucc = unsafeCoerce
-coerceToSuccPred :: s n -> s ((n^+^1)-1)
-coerceToSuccPred = unsafeCoerce
+-- | Of course, we'd rather use "GHC.TypeLits" naturals, but they aren't mature enough yet.
+data Nat = Z | S Nat
 
-cSucc :: KnownNat n => proxy (n-1) -> Proxy n
-cSucc _ = Proxy
-
-onPredTryPred :: forall n s r . KnownNat n => (forall k . KnownNat k => s k -> r (k-1))
-                     -> s (n-1) -> Maybe (r ((n-1)-1))
-onPredTryPred f q = case natVal (cSucc q) of
-                      0 -> Nothing
-                      n -> case someNatVal (n-1) of
-                        Just (SomeNat p) -> Just (unsafeCoerce $ yeah p (unsafeCoerce q))
- where yeah :: forall k . KnownNat k => Proxy k -> s k -> r (k-1)
-       yeah _ = f 
 
 data Simplex :: * -> Nat -> * where
-   ZeroSimplex :: !x -> Simplex x 0
-   Simplex :: !x -> !(Simplex x n) -> Simplex x (n^+^1)
+   ZeroSimplex :: !x -> Simplex x Z
+   Simplex :: !x -> !(Simplex x n) -> Simplex x (S n)
 
-makeSimplex :: forall x n . KnownNat n => [x] -> Maybe (Simplex x n)
-makeSimplex [x] = case sameNat (Proxy :: Proxy 0) (Proxy :: Proxy n) of
-      Just Refl -> Just (ZeroSimplex x)
-      Nothing -> Nothing
-makeSimplex (x:xs) | Just (SomeNat p) <- someNatVal (natVal (Proxy :: Proxy (n-1)))
-                       = Simplex x <$> lowly p xs
- where lowly :: forall k . KnownNat k => Proxy k -> [x] -> Maybe (Simplex x n)
-       lowly _ = makeSimplex
-makeSimplex _ = Nothing
-
+-- makeSimplex :: forall x n . KnownNat n => [x] -> Maybe (Simplex x n)
+-- makeSimplex [x] = case sameNat (Proxy :: Proxy 0) (Proxy :: Proxy n) of
+--       Just Refl -> Just (ZeroSimplex x)
+--       Nothing -> Nothing
+-- makeSimplex (x:xs) | Just (SomeNat p) <- someNatVal (natVal (Proxy :: Proxy (n-1)))
+--                        = Simplex x <$> lowly p xs
+--  where lowly :: forall k . KnownNat k => Proxy k -> [x] -> Maybe (Simplex x n)
+--        lowly _ = makeSimplex
+-- makeSimplex _ = Nothing
+-- 
 newtype Triangulation x n = Triangulation { getTriangulation :: [Simplex x n] }
 
-simplexFaces :: forall n x . KnownNat n => Simplex x n -> Triangulation x (n-1)
-simplexFaces (ZeroSimplex _) = Triangulation []
-simplexFaces s@(Simplex p qs) = case onPredTryPred simplexFaces qs of
-       Nothing | Just pss <- makeSimplex [p]  -> Triangulation [pss, qs]
---     = let n = natVal s
---       in case someNatVal $ n-1 of
---            -- Nothing | Just Refl <- sameNat (Proxy :: Proxy 1) (Proxy :: Proxy n)
---              --   -> Triangulation [coerceToSuccPred $ ZeroSimplex p, qs]
---            Just _ -> let Triangulation lw = simplexFaces qs
---                      in Triangulation [coerceToSuccPred $ ZeroSimplex p, qs]
+simplexFaces :: forall n x . Simplex x (S n) -> Triangulation x n
+simplexFaces (Simplex p (ZeroSimplex q))    = Triangulation [ZeroSimplex p, ZeroSimplex q]
+simplexFaces (Simplex p qs@(Simplex _ _))
+     | Triangulation es <- simplexFaces qs  = Triangulation $ Simplex p <$> es
 
 
 -- | Only works reliable when the number of points matches 1+dimension (so the result
 --   is a single simplex).
-primitiveTriangulation :: forall x n . (WithField ℝ Manifold x, KnownNat n)
+primitiveTriangulation :: forall x n . (WithField ℝ Manifold x)
                              => [x] -> Triangulation x n
-primitiveTriangulation xs = result
- where result = case someNatVal $ n-1 of
-         Nothing  | Just Refl <- sameNat (Proxy :: Proxy 0) (Proxy :: Proxy n)
-                      -> Triangulation $ map ZeroSimplex xs
-         Just (SomeNat p)
-                  | x:xs' <- xs
-                  , Triangulation tq <- lowly p xs'
-                        -> unsafeCoerce -- ghc-7.8 can't proove it, but
-                                        -- of course the types do match.
-                            . Triangulation $ map (Simplex x) tq
-         _ -> Triangulation []
-       n = natVal result
-       lowly :: forall n' . KnownNat n' => Proxy n' -> [x] -> Triangulation x n'
-       lowly _ xs' = primitiveTriangulation xs' :: Triangulation x n'
+primitiveTriangulation xs = undefined
+--  where result = case someNatVal $ n-1 of
+--          Nothing  | Just Refl <- sameNat (Proxy :: Proxy 0) (Proxy :: Proxy n)
+--                       -> Triangulation $ map ZeroSimplex xs
+--          Just (SomeNat p)
+--                   | x:xs' <- xs
+--                   , Triangulation tq <- lowly p xs'
+--                         -> unsafeCoerce -- ghc-7.8 can't proove it, but
+--                                         -- of course the types do match.
+--                             . Triangulation $ map (Simplex x) tq
+--          _ -> Triangulation []
+--        n = natVal result
+--        lowly :: forall n' . KnownNat n' => Proxy n' -> [x] -> Triangulation x n'
+--        lowly _ xs' = primitiveTriangulation xs' :: Triangulation x n'
 
 splxVertices :: Simplex x n -> [x]
 splxVertices (ZeroSimplex x) = [x]
@@ -438,7 +415,7 @@ splxVertices (Simplex x s') = x : splxVertices s'
 
 
 
-triangulate :: forall x n . (KnownNat n, WithField ℝ Manifold x)
+triangulate :: forall x n . (WithField ℝ Manifold x)
                  => ShadeTree x -> Triangulation x n
 triangulate (DisjointBranches _ brs)
     = Triangulation $ Hask.foldMap (getTriangulation . triangulate) brs
