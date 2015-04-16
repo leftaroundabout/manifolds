@@ -79,7 +79,7 @@ import Data.Foldable.Constrained
 
 import GHC.TypeLits
 import Data.Type.Equality
-import qualified Unsafe.Coerce
+import Unsafe.Coerce
 import GHC.Generics (Generic)
 
 
@@ -368,12 +368,21 @@ sortByKey = map snd . sortBy (comparing fst)
 type a^+^b = a GHC.TypeLits.+ b
 
 data Simplex x n where
-   ZeroSimplex :: x -> Simplex x 0
-   Simplex :: x -> Simplex x n -> Simplex x (n^+^1)
+   ZeroSimplex :: !x -> Simplex x 0
+   Simplex :: !x -> !(Simplex x n) -> Simplex x (n^+^1)
 
 newtype Triangulation x n = Triangulation { getTriangulation :: [Simplex x n] }
 
--- | Only works reliable when the number of points matches 1−dimension (so the result
+simplexFaces :: forall n x . KnownNat n => Simplex x n -> Triangulation x (n-1)
+simplexFaces (ZeroSimplex _) = Triangulation []
+simplexFaces s@(Simplex p qs)
+    = let n = natVal s
+      in case someNatVal $ n-1 of
+           Nothing | Just Refl <- sameNat (Proxy :: Proxy 1) (Proxy :: Proxy n)
+               -> Triangulation [ZeroSimplex p, qs]
+
+
+-- | Only works reliable when the number of points matches 1+dimension (so the result
 --   is a single simplex).
 primitiveTriangulation :: forall x n . (WithField ℝ Manifold x, KnownNat n)
                              => [x] -> Triangulation x n
@@ -384,7 +393,9 @@ primitiveTriangulation xs = result
          Just (SomeNat p)
                   | x:xs' <- xs
                   , Triangulation tq <- lowly p xs'
-                        -> Unsafe.Coerce.unsafeCoerce . Triangulation $ map (Simplex x) tq
+                        -> unsafeCoerce -- ghc-7.8 can't proove it, but
+                                        -- of course the types do match.
+                            . Triangulation $ map (Simplex x) tq
          _ -> Triangulation []
        n = natVal result
        lowly :: forall n' . KnownNat n' => Proxy n' -> [x] -> Triangulation x n'
