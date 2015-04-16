@@ -78,6 +78,7 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
+import Unsafe.Coerce
 import GHC.Generics (Generic)
 
 
@@ -365,23 +366,41 @@ sortByKey = map snd . sortBy (comparing fst)
 
 
 -- | Of course, we'd rather use "GHC.TypeLits" naturals, but they aren't mature enough yet.
-data Nat = Z | S Nat
+data Nat = Z | S Nat deriving (Eq)
+
+class KnownNat (n :: Nat) where
+  theNat :: Tagged n Nat
+  uninit :: s Z -> Option (s n)
+  unsucc :: (forall k . KnownNat k => s (S k)) -> Option (s n)
+  fUnsucc :: Hask.Alternative f => (forall k . KnownNat k => f (s (S k))) -> f (s n)
+
+tryNumCoerce :: forall s n k . (KnownNat k, KnownNat n) => s k -> Option (s n)
+tryNumCoerce x | untag (theNat :: Tagged n Nat) == untag (theNat :: Tagged k Nat)
+       = return $ unsafeCoerce x
+tryNumCoerce _ = Option Nothing
+
+
+instance KnownNat Z where
+  theNat = Tagged Z
+  unsucc _ = Option Nothing
+  fUnsucc _ = Hask.empty
+instance (KnownNat n) => KnownNat (S n) where
+  theNat = fmap S theNat
+  unsucc v = pure v
+  fUnsucc v = v
+
+
 
 
 data Simplex :: * -> Nat -> * where
    ZeroSimplex :: !x -> Simplex x Z
    Simplex :: !x -> !(Simplex x n) -> Simplex x (S n)
 
--- makeSimplex :: forall x n . KnownNat n => [x] -> Maybe (Simplex x n)
--- makeSimplex [x] = case sameNat (Proxy :: Proxy 0) (Proxy :: Proxy n) of
---       Just Refl -> Just (ZeroSimplex x)
---       Nothing -> Nothing
--- makeSimplex (x:xs) | Just (SomeNat p) <- someNatVal (natVal (Proxy :: Proxy (n-1)))
---                        = Simplex x <$> lowly p xs
---  where lowly :: forall k . KnownNat k => Proxy k -> [x] -> Maybe (Simplex x n)
---        lowly _ = makeSimplex
--- makeSimplex _ = Nothing
--- 
+makeSimplex :: forall x n . KnownNat n => [x] -> Option (Simplex x n)
+makeSimplex [] = Option Nothing
+makeSimplex [x] = tryNumCoerce (ZeroSimplex x)
+makeSimplex (x:xs) = fUnsucc (Simplex x <$> makeSimplex xs)
+
 newtype Triangulation x n = Triangulation { getTriangulation :: [Simplex x n] }
 
 simplexFaces :: forall n x . Simplex x (S n) -> Triangulation x n
