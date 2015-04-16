@@ -47,6 +47,7 @@ module Data.Manifold.TreeCover (
 import Data.List hiding (filter)
 import Data.Maybe
 import qualified Data.Map as Map
+import qualified Data.Vector as Arr
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
@@ -367,19 +368,49 @@ sortByKey = map snd . sortBy (comparing fst)
 
 type a^+^b = a GHC.TypeLits.+ b
 
-data Simplex x n where
+coercePredSucc :: s ((n-1)^+^1) -> s n
+coercePredSucc = unsafeCoerce
+coerceToSuccPred :: s n -> s ((n^+^1)-1)
+coerceToSuccPred = unsafeCoerce
+
+cSucc :: KnownNat n => proxy (n-1) -> Proxy n
+cSucc _ = Proxy
+
+onPredTryPred :: forall n s r . KnownNat n => (forall k . KnownNat k => s k -> r (k-1))
+                     -> s (n-1) -> Maybe (r ((n-1)-1))
+onPredTryPred f q = case natVal (cSucc q) of
+                      0 -> Nothing
+                      n -> case someNatVal (n-1) of
+                        Just (SomeNat p) -> Just (unsafeCoerce $ yeah p (unsafeCoerce q))
+ where yeah :: forall k . KnownNat k => Proxy k -> s k -> r (k-1)
+       yeah _ = f 
+
+data Simplex :: * -> Nat -> * where
    ZeroSimplex :: !x -> Simplex x 0
    Simplex :: !x -> !(Simplex x n) -> Simplex x (n^+^1)
+
+makeSimplex :: forall x n . KnownNat n => [x] -> Maybe (Simplex x n)
+makeSimplex [x] = case sameNat (Proxy :: Proxy 0) (Proxy :: Proxy n) of
+      Just Refl -> Just (ZeroSimplex x)
+      Nothing -> Nothing
+makeSimplex (x:xs) | Just (SomeNat p) <- someNatVal (natVal (Proxy :: Proxy (n-1)))
+                       = Simplex x <$> lowly p xs
+ where lowly :: forall k . KnownNat k => Proxy k -> [x] -> Maybe (Simplex x n)
+       lowly _ = makeSimplex
+makeSimplex _ = Nothing
 
 newtype Triangulation x n = Triangulation { getTriangulation :: [Simplex x n] }
 
 simplexFaces :: forall n x . KnownNat n => Simplex x n -> Triangulation x (n-1)
 simplexFaces (ZeroSimplex _) = Triangulation []
-simplexFaces s@(Simplex p qs)
-    = let n = natVal s
-      in case someNatVal $ n-1 of
-           Nothing | Just Refl <- sameNat (Proxy :: Proxy 1) (Proxy :: Proxy n)
-               -> Triangulation [ZeroSimplex p, qs]
+simplexFaces s@(Simplex p qs) = case onPredTryPred simplexFaces qs of
+       Nothing | Just pss <- makeSimplex [p]  -> Triangulation [pss, qs]
+--     = let n = natVal s
+--       in case someNatVal $ n-1 of
+--            -- Nothing | Just Refl <- sameNat (Proxy :: Proxy 1) (Proxy :: Proxy n)
+--              --   -> Triangulation [coerceToSuccPred $ ZeroSimplex p, qs]
+--            Just _ -> let Triangulation lw = simplexFaces qs
+--                      in Triangulation [coerceToSuccPred $ ZeroSimplex p, qs]
 
 
 -- | Only works reliable when the number of points matches 1+dimension (so the result
