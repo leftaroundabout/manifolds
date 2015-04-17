@@ -54,6 +54,8 @@ module Data.Manifold.PseudoAffine (
             , LinearManifold
             , WithField
             , HilbertSpace
+            -- * Misc
+            , palerp
             ) where
     
 
@@ -196,6 +198,7 @@ type HilbertSpace x = ( LinearManifold x, InnerSpace x
 
 
 
+-- | Interpolate between points, approximately linearly.
 palerp :: (PseudoAffine x, VectorSpace (Needle x))
     => x -> x -> Option (Scalar (Needle x) -> x)
 palerp p1 p2 = fmap (\v t -> p1 .+~^ t *^ v) $ p2 .-~. p1

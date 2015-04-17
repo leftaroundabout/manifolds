@@ -368,6 +368,12 @@ sortByKey = map snd . sortBy (comparing fst)
 -- | Of course, we'd rather use "GHC.TypeLits" naturals, but they aren't mature enough yet.
 data Nat = Z | S Nat deriving (Eq)
 
+natToInt :: Nat -> Int
+natToInt Z = 0; natToInt (S n) = 1 + natToInt n
+
+fromNat :: Num a => Nat -> a
+fromNat = fromIntegral . natToInt
+
 class KnownNat (n :: Nat) where
   theNat :: Tagged n Nat
   cozero :: s Z -> Option (s n)
@@ -378,7 +384,7 @@ class KnownNat (n :: Nat) where
 instance KnownNat Z where
   theNat = Tagged Z
   cozero = pure
-  cosucc _ = Option Nothing
+  cosucc _ = Hask.empty
   fCosucc _ = Hask.empty
 instance (KnownNat n) => KnownNat (S n) where
   theNat = fmap S theNat
@@ -404,6 +410,22 @@ simplexFaces :: forall n x . Simplex x (S n) -> Triangulation x n
 simplexFaces (Simplex p (ZeroSimplex q))    = Triangulation [ZeroSimplex p, ZeroSimplex q]
 simplexFaces (Simplex p qs@(Simplex _ _))
      | Triangulation es <- simplexFaces qs  = Triangulation $ Simplex p <$> es
+
+
+
+-- simplexShade :: forall x n . (KnownNat n, WithField ℝ Manifold x)
+barycenter :: forall x n . (KnownNat n, WithField ℝ Manifold x)
+                 => Simplex x n -> x
+barycenter = bc 
+ where bc (ZeroSimplex x) = x
+       bc (Simplex x xs')
+             = x .+~^ sumV [v       | x' <- splxVertices xs', let (Option(Just v))=x'.-~.x]
+                             ^/ n
+       Tagged n = fromNat<$>theNat :: Tagged n ℝ
+
+toBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
+                 => Simplex x n -> x -> [ℝ]
+toBaryCoords = undefined
 
 
 -- | Only works reliable when the number of points matches 1+dimension (so the result
