@@ -376,62 +376,70 @@ fromNat = fromIntegral . natToInt
 
 class KnownNat (n :: Nat) where
   theNat :: Tagged n Nat
+            
   cozero :: s Z -> Option (s n)
+  cozeroT :: c Z x -> Option (c n x)
+             
   cosucc :: (forall k . KnownNat k => s (S k)) -> Option (s n)
   fCosucc :: Hask.Alternative f => (forall k . KnownNat k => f (s (S k))) -> f (s n)
+  cosuccT :: (forall k . KnownNat k => s (S k) x) -> Option (s n x)
+  fCosuccT :: Hask.Alternative f => (forall k . KnownNat k => f (s (S k) x)) -> f (s n x)
 
 
 instance KnownNat Z where
   theNat = Tagged Z
-  cozero = pure
-  cosucc _ = Hask.empty
-  fCosucc _ = Hask.empty
+  cozero  = pure; cosucc _  = Hask.empty; fCosucc _  = Hask.empty
+  cozeroT = pure; cosuccT _ = Hask.empty; fCosuccT _ = Hask.empty
 instance (KnownNat n) => KnownNat (S n) where
   theNat = fmap S theNat
-  cozero _ = Hask.empty
-  cosucc v = pure v
-  fCosucc v = v
+  cozero _  = Hask.empty; cosucc v  = pure v; fCosucc v  = v
+  cozeroT _ = Hask.empty; cosuccT v = pure v; fCosuccT v = v
 
 
 
+-- | An /n/-simplex is a connection of /n/+1 points in a simply connected region of a manifold.
+data Simplex :: Nat -> * -> * where
+   ZeroSimplex :: !x -> Simplex Z x
+   Simplex :: !x -> !(Simplex n x) -> Simplex (S n) x
+instance Hask.Functor (Simplex n) where
+  fmap f (ZeroSimplex x) = ZeroSimplex (f x)
+  fmap f (Simplex x xs) = Simplex (f x) (fmap f xs)
 
-data Simplex :: * -> Nat -> * where
-   ZeroSimplex :: !x -> Simplex x Z
-   Simplex :: !x -> !(Simplex x n) -> Simplex x (S n)
-
-makeSimplex :: forall x n . KnownNat n => [x] -> Option (Simplex x n)
+makeSimplex :: forall x n . KnownNat n => [x] -> Option (Simplex n x)
 makeSimplex [] = Option Nothing
-makeSimplex [x] = cozero $ ZeroSimplex x
-makeSimplex (x:xs) = fCosucc (Simplex x <$> makeSimplex xs)
+makeSimplex [x] = cozeroT $ ZeroSimplex x
+makeSimplex (x:xs) = fCosuccT (Simplex x <$> makeSimplex xs)
 
-newtype Triangulation x n = Triangulation { getTriangulation :: [Simplex x n] }
+newtype Triangulation n x = Triangulation { getTriangulation :: [Simplex n x] }
 
-simplexFaces :: forall n x . Simplex x (S n) -> Triangulation x n
+simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
 simplexFaces (Simplex p (ZeroSimplex q))    = Triangulation [ZeroSimplex p, ZeroSimplex q]
 simplexFaces (Simplex p qs@(Simplex _ _))
      | Triangulation es <- simplexFaces qs  = Triangulation $ Simplex p <$> es
 
 
+-- newtype SplxPlaneCoords n x = SplxPlaneCoords { SplxPlaneCoords :: Array (Scalar (Needle x)) }
+
+
 
 -- simplexShade :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-barycenter :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => Simplex x n -> x
+barycenter :: forall x n . (KnownNat n, WithField ℝ Manifold x) => Simplex n x -> x
 barycenter = bc 
  where bc (ZeroSimplex x) = x
-       bc (Simplex x xs')
-             = x .+~^ sumV [v       | x' <- splxVertices xs', let (Option(Just v))=x'.-~.x]
-                             ^/ n
+       bc (Simplex x xs') = x .+~^ sumV [x'–x | x'<-splxVertices xs'] ^/ n
+       
        Tagged n = fromNat<$>theNat :: Tagged n ℝ
+       x' – x = case x'.-~.x of {Option(Just v)->v}
 
 toBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => Simplex x n -> x -> [ℝ]
+                 => Simplex n x -> x -> [ℝ]
 toBaryCoords = undefined
 
 
 -- | Only works reliable when the number of points matches 1+dimension (so the result
 --   is a single simplex).
 primitiveTriangulation :: forall x n . (WithField ℝ Manifold x)
-                             => [x] -> Triangulation x n
+                             => [x] -> Triangulation n x
 primitiveTriangulation xs = undefined
 --  where result = case someNatVal $ n-1 of
 --          Nothing  | Just Refl <- sameNat (Proxy :: Proxy 0) (Proxy :: Proxy n)
@@ -447,14 +455,14 @@ primitiveTriangulation xs = undefined
 --        lowly :: forall n' . KnownNat n' => Proxy n' -> [x] -> Triangulation x n'
 --        lowly _ xs' = primitiveTriangulation xs' :: Triangulation x n'
 
-splxVertices :: Simplex x n -> [x]
+splxVertices :: Simplex n x -> [x]
 splxVertices (ZeroSimplex x) = [x]
 splxVertices (Simplex x s') = x : splxVertices s'
 
 
 
 triangulate :: forall x n . (WithField ℝ Manifold x)
-                 => ShadeTree x -> Triangulation x n
+                 => ShadeTree x -> Triangulation n x
 triangulate (DisjointBranches _ brs)
     = Triangulation $ Hask.foldMap (getTriangulation . triangulate) brs
 triangulate (PlainLeaves xs) = primitiveTriangulation xs
