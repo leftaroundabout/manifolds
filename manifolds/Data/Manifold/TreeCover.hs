@@ -73,6 +73,8 @@ import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask
 import qualified Data.Foldable       as Hask
 
+import qualified Numeric.LinearAlgebra.HMatrix as HMat
+
 import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
 import Control.Monad.Constrained
@@ -401,6 +403,7 @@ instance (KnownNat n) => KnownNat (S n) where
 data Simplex :: Nat -> * -> * where
    ZeroSimplex :: !x -> Simplex Z x
    Simplex :: !x -> !(Simplex n x) -> Simplex (S n) x
+
 instance Hask.Functor (Simplex n) where
   fmap f (ZeroSimplex x) = ZeroSimplex (f x)
   fmap f (Simplex x xs) = Simplex (f x) (fmap f xs)
@@ -418,7 +421,15 @@ simplexFaces (Simplex p qs@(Simplex _ _))
      | Triangulation es <- simplexFaces qs  = Triangulation $ Simplex p <$> es
 
 
--- newtype SplxPlaneCoords n x = SplxPlaneCoords { SplxPlaneCoords :: Array (Scalar (Needle x)) }
+type Array = HMat.Vector
+newtype SplxPlaneCoords (n::Nat) x = SplxPlaneCoords {
+             getSplxPlaneCoords :: Array (Scalar (Needle x)) }
+
+type SemiIso a b = (a->b, b->a)
+
+simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
+        => Simplex n x -> SemiIso x (SplxPlaneCoords n x)
+simplexPlane = undefined
 
 
 
