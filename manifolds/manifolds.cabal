@@ -69,6 +69,7 @@ Library
                      Data.Manifold.Types
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive
+                   Data.CoNat
                    Util.Associate
                    Util.LtdShow
   default-language: Haskell2010

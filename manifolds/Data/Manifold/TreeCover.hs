@@ -67,6 +67,8 @@ import Data.Proxy
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^))
 import Data.Manifold.PseudoAffine
+    
+import Data.CoNat
 
 import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
@@ -367,36 +369,6 @@ sortByKey = map snd . sortBy (comparing fst)
 
 
 
--- | Of course, we'd rather use "GHC.TypeLits" naturals, but they aren't mature enough yet.
-data Nat = Z | S Nat deriving (Eq)
-
-natToInt :: Nat -> Int
-natToInt Z = 0; natToInt (S n) = 1 + natToInt n
-
-fromNat :: Num a => Nat -> a
-fromNat = fromIntegral . natToInt
-
-class KnownNat (n :: Nat) where
-  theNat :: Tagged n Nat
-            
-  cozero :: s Z -> Option (s n)
-  cozeroT :: c Z x -> Option (c n x)
-             
-  cosucc :: (forall k . KnownNat k => s (S k)) -> Option (s n)
-  fCosucc :: Hask.Alternative f => (forall k . KnownNat k => f (s (S k))) -> f (s n)
-  cosuccT :: (forall k . KnownNat k => s (S k) x) -> Option (s n x)
-  fCosuccT :: Hask.Alternative f => (forall k . KnownNat k => f (s (S k) x)) -> f (s n x)
-
-
-instance KnownNat Z where
-  theNat = Tagged Z
-  cozero  = pure; cosucc _  = Hask.empty; fCosucc _  = Hask.empty
-  cozeroT = pure; cosuccT _ = Hask.empty; fCosuccT _ = Hask.empty
-instance (KnownNat n) => KnownNat (S n) where
-  theNat = fmap S theNat
-  cozero _  = Hask.empty; cosucc v  = pure v; fCosucc v  = v
-  cozeroT _ = Hask.empty; cosuccT v = pure v; fCosuccT v = v
-
 
 
 -- | An /n/-simplex is a connection of /n/+1 points in a simply connected region of a manifold.
@@ -428,8 +400,12 @@ newtype SplxPlaneCoords (n::Nat) x = SplxPlaneCoords {
 type SemiIso a b = (a->b, b->a)
 
 simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
-        => Simplex n x -> SemiIso x (SplxPlaneCoords n x)
-simplexPlane = undefined
+        => HerMetric x -> Simplex n x -> SemiIso x (SplxPlaneCoords n x)
+simplexPlane m s = (toPlane, fromPlane)
+ where toPlane x = undefined
+       fromPlane v = undefined
+       bc = barycenter s
+       spread = sumV . map ((.-~.bc) >>> \(Option (Just x)) -> projector x) $ splxVertices s
 
 
 
