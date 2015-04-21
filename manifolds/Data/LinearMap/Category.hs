@@ -48,6 +48,7 @@ import qualified Data.Foldable       as Hask
 import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
 
+import Data.Manifold.Types.Primitive
 
 import qualified Data.Vector as Arr
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
@@ -65,5 +66,23 @@ instance (SmoothScalar s) => Category (Linear s) where
   type Object (Linear s) v = (FiniteDimensional v, Scalar v~s)
   id = identMat
   Linear f . Linear g = Linear $ f * g
+
+instance Cartesian (Linear ℝ) where
+  type UnitObject (Linear ℝ) = ZeroDim ℝ
+  swap = lSwap
+  attachUnit = identMat
+  detachUnit = identMat
+  regroup = identMat
+  regroup' = identMat
+
+
+lSwap :: forall v w . (FiniteDimensional v, FiniteDimensional w, Scalar v~ℝ, Scalar w~ℝ)
+          => Linear ℝ (v,w) (w,v)
+lSwap = Linear $ HMat.toDense l
+ where l = [ ((i,i+nv), 1) | i<-[0.. nw-1] ] ++ [ ((i+nv,i), 1) | i<-[0.. nw-1] ] 
+       (Tagged nv) = dimension :: Tagged v Int
+       (Tagged nw) = dimension :: Tagged w Int
+
+
 
 
