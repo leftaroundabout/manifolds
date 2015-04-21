@@ -34,6 +34,7 @@ import Data.Semigroup
 
 import Data.MemoTrie
 import Data.VectorSpace
+import Data.VectorSpace.FiniteDimensional
 import Data.AffineSpace
 import Data.Basis
 import Data.AdditiveGroup
@@ -56,7 +57,13 @@ import qualified Numeric.LinearAlgebra.HMatrix as HMat
 -- | A linear mapping between finite-dimensional spaces, implemeted as a dense matrix.
 data Linear s a b = Linear { getDenseMatrix :: HMat.Matrix s }
 
+identMat :: forall v w . FiniteDimensional v => Linear (Scalar v) w v
+identMat = Linear $ HMat.ident n
+ where (Tagged n) = dimension :: Tagged v Int
 
-instance (Num s) => Category (Linear s) where
-  type Object (Linear s) v = (VectorSpace v, Scalar v~s)
+instance (SmoothScalar s) => Category (Linear s) where
+  type Object (Linear s) v = (FiniteDimensional v, Scalar v~s)
+  id = identMat
+  Linear f . Linear g = Linear $ f * g
+
 
