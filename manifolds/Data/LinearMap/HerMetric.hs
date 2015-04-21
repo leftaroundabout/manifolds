@@ -499,3 +499,6 @@ instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
 
 
 
+
+-- spanHilbertSubspace ::
+
