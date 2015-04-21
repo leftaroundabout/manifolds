@@ -71,6 +71,7 @@ Library
                    Data.Manifold.Types.Primitive
                    Data.CoNat
                    Data.Embedding
+                   Data.LinearMap.Category
                    Util.Associate
                    Util.LtdShow
   default-language: Haskell2010
