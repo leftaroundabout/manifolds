@@ -56,33 +56,64 @@ import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
     
 -- | A linear mapping between finite-dimensional spaces, implemeted as a dense matrix.
-data Linear s a b = Linear { getDenseMatrix :: HMat.Matrix s }
+data Linear s a b = DenseLinear { getDenseMatrix :: HMat.Matrix s }
 
 identMat :: forall v w . FiniteDimensional v => Linear (Scalar v) w v
-identMat = Linear $ HMat.ident n
+identMat = DenseLinear $ HMat.ident n
  where (Tagged n) = dimension :: Tagged v Int
 
 instance (SmoothScalar s) => Category (Linear s) where
   type Object (Linear s) v = (FiniteDimensional v, Scalar v~s)
   id = identMat
-  Linear f . Linear g = Linear $ f * g
+  DenseLinear f . DenseLinear g = DenseLinear $ f * g
 
-instance Cartesian (Linear ℝ) where
-  type UnitObject (Linear ℝ) = ZeroDim ℝ
+instance (SmoothScalar s) => Cartesian (Linear s) where
+  type UnitObject (Linear s) = ZeroDim s
   swap = lSwap
+   where lSwap :: forall v w s
+              . (FiniteDimensional v, FiniteDimensional w, Scalar v~s, Scalar w~s)
+                   => Linear s (v,w) (w,v)
+         lSwap = DenseLinear $ HMat.assoc (n,n) 0 l
+          where l = [ ((i,i+nv), 1) | i<-[0.. nw-1] ] ++ [ ((i+nv,i), 1) | i<-[0.. nw-1] ] 
+                (Tagged nv) = dimension :: Tagged v Int
+                (Tagged nw) = dimension :: Tagged w Int
+                n = nv + nw
   attachUnit = identMat
   detachUnit = identMat
   regroup = identMat
   regroup' = identMat
 
+instance (SmoothScalar s) => Morphism (Linear s) where
+  DenseLinear f *** DenseLinear g = DenseLinear $ HMat.diagBlock [f,g]
 
-lSwap :: forall v w . (FiniteDimensional v, FiniteDimensional w, Scalar v~ℝ, Scalar w~ℝ)
-          => Linear ℝ (v,w) (w,v)
-lSwap = Linear $ HMat.toDense l
- where l = [ ((i,i+nv), 1) | i<-[0.. nw-1] ] ++ [ ((i+nv,i), 1) | i<-[0.. nw-1] ] 
-       (Tagged nv) = dimension :: Tagged v Int
-       (Tagged nw) = dimension :: Tagged w Int
+instance (SmoothScalar s) => PreArrow (Linear s) where
+  DenseLinear f &&& DenseLinear g = DenseLinear $ HMat.fromBlocks [[f], [g]]
+  fst = lFst
+   where lFst :: forall v w s
+              . (FiniteDimensional v, FiniteDimensional w, Scalar v~s, Scalar w~s)
+                   => Linear s (v,w) v
+         lFst = DenseLinear $ HMat.assoc (nv,n) 0 l
+          where l = [ ((i,i), 1) | i<-[0.. nv-1] ]
+                (Tagged nv) = dimension :: Tagged v Int
+                (Tagged nw) = dimension :: Tagged w Int
+                n = nv + nw
+  snd = lSnd
+   where lSnd :: forall v w s
+              . (FiniteDimensional v, FiniteDimensional w, Scalar v~s, Scalar w~s)
+                   => Linear s (v,w) w
+         lSnd = DenseLinear $ HMat.assoc (nv,n) 0 l
+          where l = [ ((i,i+nv), 1) | i<-[0.. nw-1] ]
+                (Tagged nv) = dimension :: Tagged v Int
+                (Tagged nw) = dimension :: Tagged w Int
+                n = nv + nw
+  terminal = lTerminal
+   where lTerminal :: forall v s . (FiniteDimensional v, Scalar v~s)
+                         => Linear s v (ZeroDim s)
+         lTerminal = DenseLinear $ (0 HMat.>< n) []
+          where (Tagged n) = dimension :: Tagged v Int
 
+instance (SmoothScalar s) => EnhancedCat (->) (Linear s) where
+  arr (DenseLinear mat) = fromPackedVector . HMat.app mat . asPackedVector
 
 
 
