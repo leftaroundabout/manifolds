@@ -86,8 +86,8 @@ instance (KnownNat n) => KnownNat (S n) where
 
 
 
-data Range :: Nat -> * where
-   InRange :: Int -> Range n -- ^ MUST be between 0 and @n-1@.
+newtype Range (n::Nat) = InRange { getInRange :: Int -- ^ MUST be between 0 and @n-1@.
+                                 }
 
 clipToRange :: forall n . KnownNat n => Int -> Option (Range n)
 clipToRange = \k -> if k < n then Hask.pure $ InRange n
@@ -102,9 +102,9 @@ instance KnownNat n => HasTrie (Range n) where
   enumerate (RangeTrie (FreeVect arr)) = Arr.ifoldr (\i x l -> (InRange i, x) : l) [] arr
 
 
-data FreeVect :: Nat -> * -> * where
-   FreeVect :: Arr.Vector x -> FreeVect n x -- ^ MUST have length @n@.
- deriving (Hask.Functor, Hask.Foldable)
+newtype FreeVect (n::Nat) x = FreeVect
+    { getFreeVect :: Arr.Vector x -- ^ MUST have length @n@.
+    } deriving (Hask.Functor, Hask.Foldable)
 
 instance (Num x, KnownNat n) => AdditiveGroup (FreeVect n x) where
   zeroV = replicVector 0
@@ -123,6 +123,8 @@ instance (Num x, KnownNat n) => HasBasis (FreeVect n x) where
   decompose' (FreeVect arr) (InRange i) = arr Arr.! i
 
 
+freeVectDimension :: forall n x . KnownNat n => Tagged (FreeVect n x) Int
+freeVectDimension = retag (theNatN :: Tagged n Int)
 
 replicVector :: forall n x . KnownNat n => x -> FreeVect n x
 replicVector = FreeVect . Arr.replicate n
