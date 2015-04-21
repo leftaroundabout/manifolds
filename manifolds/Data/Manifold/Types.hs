@@ -73,6 +73,7 @@ import qualified Data.Vector
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
 import Data.LinearMap.HerMetric
+import Data.VectorSpace.FiniteDimensional
 
 import qualified Prelude
 
@@ -112,17 +113,17 @@ instance FiniteDimensional v => HasTrie (Stiefel1Basis v) where
 
 type Array = Data.Vector.Vector
 
-instance(MetricScalar(Scalar v),FiniteDimensional v)=>AdditiveGroup(Stiefel1Needle v) where
+instance(SmoothScalar(Scalar v),FiniteDimensional v)=>AdditiveGroup(Stiefel1Needle v) where
   Stiefel1Needle v ^+^ Stiefel1Needle w = Stiefel1Needle $ v + w
   zeroV = s1nZ; negateV (Stiefel1Needle v) = Stiefel1Needle $ negate v
-s1nZ :: forall v. (FiniteDimensional v, MetricScalar (Scalar v)) => Stiefel1Needle v
+s1nZ :: forall v. FiniteDimensional v => Stiefel1Needle v
 s1nZ=Stiefel1Needle .HMat.fromList$replicate(d-1)0 where(Tagged d)=dimension::Tagged v Int
 
-instance (MetricScalar(Scalar v),FiniteDimensional v)=>VectorSpace(Stiefel1Needle v) where
+instance (SmoothScalar(Scalar v),FiniteDimensional v)=>VectorSpace(Stiefel1Needle v) where
   type Scalar (Stiefel1Needle v) = Scalar v
   μ *^ Stiefel1Needle v = Stiefel1Needle $ HMat.scale μ v
 
-instance (MetricScalar (Scalar v), FiniteDimensional v)=>HasBasis (Stiefel1Needle v) where
+instance (SmoothScalar (Scalar v), FiniteDimensional v)=>HasBasis (Stiefel1Needle v) where
   type Basis (Stiefel1Needle v) = Stiefel1Basis v
   basisValue = s1bV
   decompose (Stiefel1Needle v) = zipWith ((,).Stiefel1Basis) [0..] $ HMat.toList v
@@ -132,7 +133,7 @@ s1bV = \(Stiefel1Basis i) -> Stiefel1Needle
             $ HMat.fromList [ if k==i then 1 else 0 | k<-[0..d-2] ]
  where (Tagged d) = dimension :: Tagged v Int
 
-instance (MetricScalar (Scalar v), FiniteDimensional v)
+instance (SmoothScalar (Scalar v), FiniteDimensional v)
              => FiniteDimensional (Stiefel1Needle v) where
   dimension = s1nD
   basisIndex = Tagged $ \(Stiefel1Basis i) -> i
@@ -142,13 +143,13 @@ instance (MetricScalar (Scalar v), FiniteDimensional v)
 s1nD :: forall v. FiniteDimensional v => Tagged (Stiefel1Needle v) Int
 s1nD = Tagged (d - 1) where (Tagged d) = dimension :: Tagged v Int
 
-instance (MetricScalar (Scalar v), FiniteDimensional v)
+instance (SmoothScalar (Scalar v), FiniteDimensional v)
              => AffineSpace (Stiefel1Needle v) where
   type Diff (Stiefel1Needle v) = Stiefel1Needle v
   (.+^) = (^+^)
   (.-.) = (^-^)
 
-deriveAffine((MetricScalar (Scalar v), FiniteDimensional v), Stiefel1Needle v)
+deriveAffine((SmoothScalar (Scalar v), FiniteDimensional v), Stiefel1Needle v)
 
 instance (MetricScalar (Scalar v), FiniteDimensional v)
               => HasMetric' (Stiefel1Needle v) where

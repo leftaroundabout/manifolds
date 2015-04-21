@@ -50,9 +50,8 @@ import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for efficient linear algebra.
---   It is somewhat wise to just assume this class contains only the type 'Double'...
+--   Fulfilled pretty much only by the basic real and complex floating-point types.
 type SmoothScalar s = ( VectorSpace s, HMat.Numeric s, HMat.Field s
-                      , Ord s  -- We really rather wouldn't require this...
                       , Num(HMat.Vector s), HMat.Indexable(HMat.Vector s)s
                       , HMat.Normed(HMat.Vector s) )
 

@@ -268,8 +268,9 @@ eigenCoSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
 
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
-type MetricScalar s = SmoothScalar s
-
+type MetricScalar s = ( SmoothScalar s
+                      , Ord s  -- We really rather wouldn't require this...
+                      )
 
 
 type HasMetric v = (HasMetric' v, HasMetric' (DualSpace v), DualSpace (DualSpace v) ~ v)
@@ -279,7 +280,8 @@ type HasMetric v = (HasMetric' v, HasMetric' (DualSpace v), DualSpace (DualSpace
 --   all about dual spaces.
 class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
       , VectorSpace (DualSpace v), HasBasis (DualSpace v)
-      , Scalar v ~ Scalar (DualSpace v), Basis v ~ Basis (DualSpace v) )
+      , MetricScalar (Scalar v), Scalar v ~ Scalar (DualSpace v)
+      , Basis v ~ Basis (DualSpace v) )
     => HasMetric' v where
         
   -- | @'DualSpace' v@ is isomorphic to the space of linear functionals on @v@, i.e.
