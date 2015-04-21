@@ -52,7 +52,9 @@ import Data.Void
 import Control.Applicative
     
 import Data.Manifold.Types.Primitive
+import Data.CoNat
 
+import qualified Data.Vector as Arr
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 
@@ -361,6 +363,13 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
                 r = HMat.subVector da db v
               
   
+instance (MetricScalar x, KnownNat n) => FiniteDimensional (FreeVect n x) where
+  dimension = freeVectDimension
+  basisIndex = Tagged getInRange
+  indexBasis = Tagged InRange
+  asPackedVector (FreeVect arr) = Arr.convert arr
+  fromPackedVector arr = FreeVect (Arr.convert arr)
+  -- asPackedMatrix = _ -- could be done quite efficiently here!
                                                           
 
 
