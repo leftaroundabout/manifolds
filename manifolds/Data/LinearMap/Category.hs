@@ -65,7 +65,7 @@ identMat = DenseLinear $ HMat.ident n
 instance (SmoothScalar s) => Category (Linear s) where
   type Object (Linear s) v = (FiniteDimensional v, Scalar v~s)
   id = identMat
-  DenseLinear f . DenseLinear g = DenseLinear $ f * g
+  DenseLinear f . DenseLinear g = DenseLinear $ HMat.mul f g
 
 instance (SmoothScalar s) => Cartesian (Linear s) where
   type UnitObject (Linear s) = ZeroDim s
@@ -74,7 +74,7 @@ instance (SmoothScalar s) => Cartesian (Linear s) where
               . (FiniteDimensional v, FiniteDimensional w, Scalar v~s, Scalar w~s)
                    => Linear s (v,w) (w,v)
          lSwap = DenseLinear $ HMat.assoc (n,n) 0 l
-          where l = [ ((i,i+nv), 1) | i<-[0.. nw-1] ] ++ [ ((i+nv,i), 1) | i<-[0.. nw-1] ] 
+          where l = [ ((i,i+nv), 1) | i<-[0.. nw-1] ] ++ [ ((i+nw,i), 1) | i<-[0.. nv-1] ] 
                 (Tagged nv) = dimension :: Tagged v Int
                 (Tagged nw) = dimension :: Tagged w Int
                 n = nv + nw
@@ -101,7 +101,7 @@ instance (SmoothScalar s) => PreArrow (Linear s) where
    where lSnd :: forall v w s
               . (FiniteDimensional v, FiniteDimensional w, Scalar v~s, Scalar w~s)
                    => Linear s (v,w) w
-         lSnd = DenseLinear $ HMat.assoc (nv,n) 0 l
+         lSnd = DenseLinear $ HMat.assoc (nw,n) 0 l
           where l = [ ((i,i+nv), 1) | i<-[0.. nw-1] ]
                 (Tagged nv) = dimension :: Tagged v Int
                 (Tagged nw) = dimension :: Tagged w Int
