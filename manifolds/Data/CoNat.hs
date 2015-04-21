@@ -33,6 +33,7 @@ import Data.Semigroup
 
 import Data.MemoTrie
 import Data.VectorSpace
+import Data.AffineSpace
 import Data.Basis
 import Data.AdditiveGroup
     
@@ -106,6 +107,10 @@ newtype FreeVect (n::Nat) x = FreeVect
     { getFreeVect :: Arr.Vector x -- ^ MUST have length @n@.
     } deriving (Hask.Functor, Hask.Foldable)
 
+instance (Num x, KnownNat n) => AffineSpace (FreeVect n x) where
+  type Diff (FreeVect n x) = FreeVect n x
+  (.-.) = perfectZipWith (-)
+  (.+^) = perfectZipWith (+)
 instance (Num x, KnownNat n) => AdditiveGroup (FreeVect n x) where
   zeroV = replicVector 0
   negateV = fmap negate

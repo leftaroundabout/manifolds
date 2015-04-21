@@ -79,6 +79,8 @@ import Data.Void
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 
+import Data.CoNat
+
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import qualified Prelude
@@ -235,6 +237,12 @@ instance (Semimanifold a, Semimanifold b, Semimanifold c) => Semimanifold (a,b,c
   (a,b,c).-~^(v,w,x) = (a.-~^v, b.-~^w, c.-~^x)
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
   (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
+
+instance (MetricScalar a, KnownNat n) => Semimanifold (FreeVect n a) where
+  type Needle (FreeVect n a) = FreeVect n a
+  (.+~^) = (.+^)
+instance (MetricScalar a, KnownNat n) => PseudoAffine (FreeVect n a) where
+  a.-~.b = pure (a.-.b)
 
 
 instance Semimanifold S⁰ where
