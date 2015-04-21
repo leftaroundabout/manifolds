@@ -15,6 +15,7 @@
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE RankNTypes                 #-}
@@ -31,12 +32,6 @@ module Data.Embedding where
 import Data.Tagged
 import Data.Semigroup
 
-import Data.MemoTrie
-import Data.VectorSpace
-import Data.AffineSpace
-import Data.Basis
-import Data.AdditiveGroup
-    
 import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask
@@ -47,20 +42,29 @@ import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
 
 
-import qualified Data.Vector as Arr
-import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 
     
-infixr 0 $->, >-$
-
 -- | A pair of matching functions. The projection must be a left (but not necessarily right)
---   inverse of the embedding
+--   inverse of the embedding,
 --   i.e. the cardinality of @a@ will have to be less or equal than the cardinality
 --   of @b@.
-data Embedding c a b = Embedding { ($->) :: c a b -- ^ Embedding into the containing space
-                                 , (>-$) :: c b a -- ^ Projection into the embedded space
+data Embedding c a b = Embedding { embedding :: c a b
+                                 , projection :: c b a
                                  }
+
+fromEmbedProject :: c a b -- ^ Injective embedding
+                 -> c b a -- ^ Surjective projection. Must be left inverse of embedding.
+                 -> Embedding c a b
+fromEmbedProject = Embedding
+
+
+infixr 0 $->, >-$
+($->) :: (Function c, Object c a, Object c b) => Embedding c a b -> a -> b
+Embedding f _ $-> x = f $ x
+
+(>-$) :: (Function c, Object c b, Object c a) => Embedding c a b -> b -> a
+Embedding _ p >-$ y = p $ y
 
 
 instance (Category c) => Category (Embedding c) where
@@ -77,8 +81,26 @@ instance (Cartesian c) => Cartesian (Embedding c) where
   regroup = Embedding regroup regroup'
   regroup' = Embedding regroup' regroup
 
+instance (CoCartesian c) => CoCartesian (Embedding c) where
+  type ZeroObject (Embedding c) = ZeroObject c
+  type SumObjects (Embedding c) a b = SumObjects c a b
+  coSwap = Embedding coSwap coSwap
+  attachZero = Embedding attachZero detachZero
+  detachZero = Embedding detachZero attachZero
+  coRegroup = Embedding coRegroup coRegroup'
+  coRegroup' = Embedding coRegroup' coRegroup
+  maybeAsSum = Embedding maybeAsSum maybeFromSum
+  maybeFromSum = Embedding maybeFromSum maybeAsSum
+  boolAsSum = Embedding boolAsSum boolFromSum
+  boolFromSum = Embedding boolFromSum boolAsSum
+
 instance (Morphism c) => Morphism (Embedding c) where
   Embedding e p *** Embedding f q = Embedding (e***f) (p***q)
   
+instance (MorphChoice c) => MorphChoice (Embedding c) where
+  Embedding e p +++ Embedding f q = Embedding (e+++f) (p+++q)
+
+instance (Category c) => EnhancedCat c (Embedding c) where 
+  arr = embedding
 
 
