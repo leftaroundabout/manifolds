@@ -30,7 +30,10 @@ module Data.CoNat where
 
 import Data.Tagged
 import Data.Semigroup
+
+import Data.MemoTrie
 import Data.VectorSpace
+import Data.Basis
 import Data.AdditiveGroup
     
 import qualified Prelude as Hask hiding(foldl)
@@ -83,6 +86,21 @@ instance (KnownNat n) => KnownNat (S n) where
 
 
 
+data Range :: Nat -> * where
+   InRange :: Int -> Range n -- ^ MUST be between 0 and @n-1@.
+
+clipToRange :: forall n . KnownNat n => Int -> Option (Range n)
+clipToRange = \k -> if k < n then Hask.pure $ InRange n
+                             else Hask.empty
+ where (Tagged n) = theNatN :: Tagged n Int
+                       
+instance KnownNat n => HasTrie (Range n) where
+  data Range n :->: x = RangeTrie (FreeVect n x)
+  trie = RangeTrie . \f -> fmap f ids
+   where ids = fmap InRange indices
+  untrie (RangeTrie (FreeVect arr)) = \(InRange i) -> arr Arr.! i
+  enumerate (RangeTrie (FreeVect arr)) = Arr.ifoldr (\i x l -> (InRange i, x) : l) [] arr
+
 
 data FreeVect :: Nat -> * -> * where
    FreeVect :: Arr.Vector x -> FreeVect n x -- ^ MUST have length @n@.
@@ -97,11 +115,17 @@ instance (Num x, KnownNat n) => VectorSpace (FreeVect n x) where
   (*^) = fmap . (*)
 instance (Num x, AdditiveGroup x, KnownNat n) => InnerSpace (FreeVect n x) where
   FreeVect v<.>FreeVect w = Arr.sum $ Arr.zipWith (*) v w
+instance (Num x, KnownNat n) => HasBasis (FreeVect n x) where
+  type Basis (FreeVect n x) = Range n
+  basisValue = \(InRange i) -> fmap (\k -> if i==k then 1 else 0) ids
+   where ids = indices
+  decompose (FreeVect arr) = Arr.ifoldr (\i x l -> (InRange i, x) : l) [] arr
+  decompose' (FreeVect arr) (InRange i) = arr Arr.! i
 
 
 
 replicVector :: forall n x . KnownNat n => x -> FreeVect n x
-replicVector x = FreeVect $ Arr.replicate n x
+replicVector = FreeVect . Arr.replicate n
  where (Tagged n) = theNatN :: Tagged n Int
 
 
