@@ -445,7 +445,20 @@ spanHilbertSubspace :: forall s n v . (KnownNat n, HasMetric v, Scalar v ~ s)
           -> Option (Embedding (Linear s) (FreeVect n v) v)
                        -- ^ An embedding from the main space to its @n@-dimensional subspace
                        --   (if the given vectors actually span such a space).
-spanHilbertSubspace met [v] = undefined -- cozeroT (FreeVect )
- where v' = metric met v
-spanHilbertSubspace _ _ = Hask.empty
+spanHilbertSubspace met = emb . orthonormaliseWith met
+ where emb onb'
+         | n'==n      = pure ( Embedding (DenseLinear emb) (DenseLinear prj) )
+         | otherwise  = Hask.empty
+        where emb = HMat.fromColumns $ asPackedVector <$> onb
+              prj = leftInverseMat emb
+              n' = length onb'
+              onb = take n onb'
+              (Tagged n) = theNatN :: Tagged n Int
+
+
+leftInverseMat :: SmoothScalar s => HMat.Matrix s -> HMat.Matrix s 
+leftInverseMat m = HMat.inv (m' ∘ m) ∘ m'
+ where m' = HMat.tr m
+       (∘) = HMat.mul
+                           
 
