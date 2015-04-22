@@ -47,9 +47,9 @@ import Data.MemoTrie
 import Data.Semigroup
 import Data.Tagged
 import Data.Void
+import qualified Data.List as List
 
 import qualified Prelude as Hask
-import qualified Data.List as Hask
 import qualified Control.Applicative as Hask
 import qualified Control.Monad as Hask
 
@@ -426,12 +426,12 @@ normaliseWith m v = case metric m v of
                       0 -> Hask.empty
                       μ -> pure (v ^/ μ)
 
-orthonormaliseWith :: forall v . HasMetric v => HerMetric v -> [v] -> [v]
-orthonormaliseWith met = map fst . mkON
- where mkON :: [v] -> [(v, DualSpace v)]    -- | Gram-Schmidt process
+orthonormalPairsWith :: forall v . HasMetric v => HerMetric v -> [v] -> [(v, DualSpace v)]
+orthonormalPairsWith met = mkON
+ where mkON :: [v] -> [(v, DualSpace v)]    -- | Generalised Gram-Schmidt process
        mkON [] = []
        mkON (v:vs) = let onvs = mkON vs
-                         v' = Hask.foldl' (\va (vb,pb) -> va ^-^ vb ^* (pb <.>^ va)) v onvs
+                         v' = List.foldl' (\va (vb,pb) -> va ^-^ vb ^* (pb <.>^ va)) v onvs
                          p' = toDualWith met v'
                      in case sqrt (p' <.>^ v') of
                          0 -> onvs
@@ -445,20 +445,15 @@ spanHilbertSubspace :: forall s n v . (KnownNat n, HasMetric v, Scalar v ~ s)
           -> Option (Embedding (Linear s) (FreeVect n v) v)
                        -- ^ An embedding from the main space to its @n@-dimensional subspace
                        --   (if the given vectors actually span such a space).
-spanHilbertSubspace met = emb . orthonormaliseWith met
+spanHilbertSubspace met = emb . orthonormalPairsWith met
  where emb onb'
-         | n'==n      = pure ( Embedding (DenseLinear emb) (DenseLinear prj) )
+         | n'==n      = return $ Embedding emb prj
          | otherwise  = Hask.empty
-        where emb = HMat.fromColumns $ asPackedVector <$> onb
-              prj = leftInverseMat emb
+        where emb = DenseLinear . HMat.fromColumns $ (asPackedVector . fst) <$> onb
+              prj = DenseLinear . HMat.fromRows    $ (asPackedVector . snd) <$> onb
               n' = length onb'
               onb = take n onb'
               (Tagged n) = theNatN :: Tagged n Int
 
 
-leftInverseMat :: SmoothScalar s => HMat.Matrix s -> HMat.Matrix s 
-leftInverseMat m = HMat.inv (m' ∘ m) ∘ m'
- where m' = HMat.tr m
-       (∘) = HMat.mul
-                           
 
