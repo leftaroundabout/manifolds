@@ -17,8 +17,11 @@ module Data.LinearMap.HerMetric (
     HerMetric, HerMetric'
   -- * Evaluating metrics
   , metricSq, metricSq', metric, metric', metrics, metrics'
-  -- * Defining metrics by projectors
+  -- * Defining metrics
   , projector, projector'
+  , euclideanMetric 
+  -- * Metrics induce inner products
+  , spanHilbertSubspace
   -- * Utility for metrics
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
@@ -318,8 +321,8 @@ class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
   -- | While isomorphism between a space and its dual isn't generally canonical,
   --   the /double-dual/ space should be canonically isomorphic in pretty much
   --   all relevant cases. Indeed, it is recommended that they are the very same type;
-  --   this condition is enforced by the 'HerMetric' constraint (which is recommended
-  --   over using 'HerMetric'' itself in signatures).
+  --   this condition is enforced by the 'HasMetric' constraint (which is recommended
+  --   over using 'HasMetric'' itself in signatures).
   doubleDual :: HasMetric' (DualSpace v) => v -> DualSpace (DualSpace v)
   doubleDual' :: HasMetric' (DualSpace v) => DualSpace (DualSpace v) -> v
   
@@ -329,6 +332,10 @@ class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
 (^<.>) :: HasMetric v => v -> DualSpace v -> Scalar v
 ket ^<.> bra = bra <.>^ ket
 
+
+euclideanMetric :: forall v . (HasMetric v, InnerSpace v) => HerMetric v
+euclideanMetric = HerMetric . pure $ HMat.ident n
+ where (Tagged n) = dimension :: Tagged v Int
 
 -- -- | Associate a Hilbert space vector canonically with its dual-space counterpart,
 -- --   as by the Riesz representation theorem.
@@ -428,7 +435,7 @@ normaliseWith m v = case metric m v of
 
 orthonormalPairsWith :: forall v . HasMetric v => HerMetric v -> [v] -> [(v, DualSpace v)]
 orthonormalPairsWith met = mkON
- where mkON :: [v] -> [(v, DualSpace v)]    -- | Generalised Gram-Schmidt process
+ where mkON :: [v] -> [(v, DualSpace v)]    -- Generalised Gram-Schmidt process
        mkON [] = []
        mkON (v:vs) = let onvs = mkON vs
                          v' = List.foldl' (\va (vb,pb) -> va ^-^ vb ^* (pb <.>^ va)) v onvs
@@ -442,7 +449,7 @@ orthonormalPairsWith met = mkON
 spanHilbertSubspace :: forall s n v . (KnownNat n, HasMetric v, Scalar v ~ s)
       => HerMetric v   -- ^ Metric to induce the inner product on the Hilbert space
           -> [v]       -- ^ @n@ linearly independent vectors, spanning the desired space
-          -> Option (Embedding (Linear s) (FreeVect n v) v)
+          -> Option (Embedding (Linear s) (FreeVect n s) v)
                        -- ^ An embedding from the main space to its @n@-dimensional subspace
                        --   (if the given vectors actually span such a space).
 spanHilbertSubspace met = emb . orthonormalPairsWith met
