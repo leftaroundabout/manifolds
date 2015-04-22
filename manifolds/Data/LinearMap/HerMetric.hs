@@ -40,16 +40,21 @@ module Data.LinearMap.HerMetric (
 
     
 
-import Prelude hiding ((^))
-
 import Data.VectorSpace
 import Data.LinearMap
 import Data.Basis
 import Data.MemoTrie
+import Data.Semigroup
 import Data.Tagged
 import Data.Void
 
-import Control.Applicative
+import qualified Prelude as Hask
+import qualified Data.List as Hask
+import qualified Control.Applicative as Hask
+import qualified Control.Monad as Hask
+
+import Control.Category.Constrained.Prelude hiding ((^))
+import Control.Arrow.Constrained
     
 import Data.Manifold.Types.Primitive
 import Data.CoNat
@@ -58,6 +63,8 @@ import qualified Data.Vector as Arr
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import Data.VectorSpace.FiniteDimensional
+import Data.LinearMap.Category
+import Data.Embedding
 
 
 
@@ -154,7 +161,7 @@ metricSq (HerMetric (Just m)) v = vDecomp `HMat.dot` HMat.app m vDecomp
 metricSq' :: HasMetric v => HerMetric' v -> DualSpace v -> Scalar v
 metricSq' (HerMetric' Nothing) _ = 0
 metricSq' (HerMetric' (Just m)) u = uDecomp `HMat.dot` HMat.app m uDecomp
- where uDecomp = HMat.fromList $ snd <$> decompose u
+ where uDecomp = asPackedVector u
 
 -- | Evaluate a vector's &#x201c;magnitude&#x201d; through a metric. This assumes an actual
 --   mathematical metric, i.e. positive definite &#x2013; otherwise the internally used
@@ -166,6 +173,12 @@ metric m = sqrt . metricSq m
 metric' :: (HasMetric v, Floating (Scalar v)) => HerMetric' v -> DualSpace v -> Scalar v
 metric' m = sqrt . metricSq' m
 
+
+toDualWith :: HasMetric v => HerMetric v -> v -> DualSpace v
+toDualWith (HerMetric Nothing) = const zeroV
+toDualWith (HerMetric (Just m)) = fromPackedVector . HMat.app m . asPackedVector
+
+-- | &#x201c;Anti-normalise&#x201d; a vector: /multiply/ with its own norm, according to metric.
 metriScale :: (HasMetric v, Floating (Scalar v)) => HerMetric v -> v -> v
 metriScale m v = metric m v *^ v
 
@@ -408,7 +421,31 @@ instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
 
 
 
+normaliseWith :: HasMetric v => HerMetric v -> v -> Option v
+normaliseWith m v = case metric m v of
+                      0 -> Hask.empty
+                      μ -> pure (v ^/ μ)
+
+orthonormaliseWith :: forall v . HasMetric v => HerMetric v -> [v] -> [v]
+orthonormaliseWith met = map fst . mkON
+ where mkON :: [v] -> [(v, DualSpace v)]    -- | Gram-Schmidt process
+       mkON [] = []
+       mkON (v:vs) = let onvs = mkON vs
+                         v' = Hask.foldl' (\va (vb,pb) -> va ^-^ vb ^* (pb <.>^ va)) v onvs
+                         p' = toDualWith met v'
+                     in case sqrt (p' <.>^ v') of
+                         0 -> onvs
+                         μ -> (v'^/μ, p'^/μ) : onvs
+                     
 
 
--- spanHilbertSubspace ::
+spanHilbertSubspace :: forall s n v . (KnownNat n, HasMetric v, Scalar v ~ s)
+      => HerMetric v   -- ^ Metric to induce the inner product on the Hilbert space
+          -> [v]       -- ^ @n@ linearly independent vectors, spanning the desired space
+          -> Option (Embedding (Linear s) (FreeVect n v) v)
+                       -- ^ An embedding from the main space to its @n@-dimensional subspace
+                       --   (if the given vectors actually span such a space).
+spanHilbertSubspace met [v] = undefined -- cozeroT (FreeVect )
+ where v' = metric met v
+spanHilbertSubspace _ _ = Hask.empty
 
