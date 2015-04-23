@@ -57,6 +57,7 @@ import Control.DeepSeq
 import Data.VectorSpace
 import Data.LinearMap
 import Data.LinearMap.HerMetric
+import Data.LinearMap.Category
 import Data.AffineSpace
 import Data.Basis
 import Data.Complex hiding (magnitude)
@@ -68,6 +69,7 @@ import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^))
 import Data.Manifold.PseudoAffine
     
+import Data.Embedding
 import Data.CoNat
 
 import qualified Prelude as Hask hiding(foldl)
@@ -394,18 +396,15 @@ simplexFaces (Simplex p qs@(Simplex _ _))
 
 
 type Array = HMat.Vector
-newtype SplxPlaneCoords (n::Nat) x = SplxPlaneCoords {
-             getSplxPlaneCoords :: Array (Scalar (Needle x)) }
 
-type SemiIso a b = (a->b, b->a)
 
 simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
-        => HerMetric x -> Simplex n x -> SemiIso x (SplxPlaneCoords n x)
-simplexPlane m s = (toPlane, fromPlane)
- where toPlane x = undefined
-       fromPlane v = undefined
-       bc = barycenter s
-       spread = sumV . map ((.-~.bc) >>> \(Option (Just x)) -> projector x) $ splxVertices s
+        => HerMetric (Needle x) -> Simplex (S n) x
+               -> Embedding (Linear ℝ) (FreeVect n ℝ) (Needle x)
+simplexPlane m s = embedding
+ where bc = barycenter s
+       spread = map ((.-~.bc) >>> \(Option (Just v)) -> v) $ splxVertices s
+       (Option (Just embedding)) = spanHilbertSubspace m spread
 
 
 
@@ -415,7 +414,7 @@ barycenter = bc
  where bc (ZeroSimplex x) = x
        bc (Simplex x xs') = x .+~^ sumV [x'–x | x'<-splxVertices xs'] ^/ n
        
-       Tagged n = fromNat<$>theNat :: Tagged n ℝ
+       Tagged n = theNatN :: Tagged n ℝ
        x' – x = case x'.-~.x of {Option(Just v)->v}
 
 toBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)

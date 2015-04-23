@@ -74,7 +74,7 @@ class KnownNat (n :: Nat) where
             
   cozero :: s Z -> Option (s n)
   cozeroT :: c Z x -> Option (c n x)
-             
+            
   cosucc :: (forall k . KnownNat k => s (S k)) -> Option (s n)
   fCosucc :: Hask.Alternative f => (forall k . KnownNat k => f (s (S k))) -> f (s n)
   cosuccT :: (forall k . KnownNat k => s (S k) x) -> Option (s n x)
