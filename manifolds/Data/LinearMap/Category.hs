@@ -49,6 +49,8 @@ import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
 
 import Data.Manifold.Types.Primitive
+import Data.CoNat
+import Data.Embedding
 
 import qualified Data.Vector as Arr
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
@@ -115,5 +117,36 @@ instance (SmoothScalar s) => PreArrow (Linear s) where
 instance (SmoothScalar s) => EnhancedCat (->) (Linear s) where
   arr (DenseLinear mat) = fromPackedVector . HMat.app mat . asPackedVector
 
+
+
+
+canonicalIdentityMatrix :: forall n v s
+                 . (KnownNat n, IsFreeSpace s v, FreeDimension s v ~ n)
+           => Linear s v (FreeVect n s)
+canonicalIdentityMatrix = DenseLinear $ HMat.ident n
+ where (Tagged n) = theNatN :: Tagged n Int
+
+-- | Class of spaces that directly represent a free vector space. It basically contains
+--   'ℝ', 'ℝ²', 'ℝ³' etc..
+class (FiniteDimensional v, Scalar v ~ s) => IsFreeSpace s v where
+  type FreeDimension s v :: Nat
+  identityMatrix :: Isomorphism (Linear s) v (FreeVect (FreeDimension s v) s)
+
+instance (KnownNat n, Num s, SmoothScalar s) => IsFreeSpace s (FreeVect n s) where 
+  type FreeDimension s (FreeVect n s) = n
+  identityMatrix = fromInversePair id id
+
+instance IsFreeSpace ℝ ℝ where
+  type FreeDimension ℝ ℝ = S Z
+  identityMatrix = fromInversePair emb proj
+   where emb@(DenseLinear i) = canonicalIdentityMatrix
+         proj = DenseLinear i
+  
+instance (SmoothScalar s, s~Scalar s, FiniteDimensional v, IsFreeSpace s v)
+             => IsFreeSpace s (v,s) where
+  type FreeDimension s (v,s) = S (FreeDimension s v)
+  identityMatrix = fromInversePair emb proj
+   where emb@(DenseLinear i) = canonicalIdentityMatrix
+         proj = DenseLinear i
 
 

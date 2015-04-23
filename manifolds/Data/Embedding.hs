@@ -44,6 +44,62 @@ import Control.Arrow.Constrained
 
 
 
+data Isomorphism c a b = Isomorphism { forwardIso :: c a b
+                                     , backwardIso :: c b a }
+
+infixr 0 $->$, $<-$
+($->$) :: (Function c, Object c a, Object c b) => Isomorphism c a b -> a -> b
+Isomorphism f _ $->$ x = f $ x
+
+($<-$) :: (Function c, Object c b, Object c a) => Isomorphism c a b -> b -> a
+Isomorphism _ p $<-$ y = p $ y
+
+fromInversePair :: c a b -> c b a -> Isomorphism c a b
+fromInversePair = Isomorphism
+
+perfectInvert :: Isomorphism c a b -> Isomorphism c b a
+perfectInvert (Isomorphism f b) = Isomorphism b f
+
+instance (Category c) => Category (Isomorphism c) where
+  type Object (Isomorphism c) a = Object c a
+  id = Isomorphism id id
+  Isomorphism e p . Isomorphism f q = Isomorphism (e.f) (q.p)
+
+instance (Cartesian c) => Cartesian (Isomorphism c) where
+  type UnitObject (Isomorphism c) = UnitObject c
+  type PairObjects (Isomorphism c) a b = PairObjects c a b
+  swap = Isomorphism swap swap
+  attachUnit = Isomorphism attachUnit detachUnit
+  detachUnit = Isomorphism detachUnit attachUnit
+  regroup = Isomorphism regroup regroup'
+  regroup' = Isomorphism regroup' regroup
+
+instance (CoCartesian c) => CoCartesian (Isomorphism c) where
+  type ZeroObject (Isomorphism c) = ZeroObject c
+  type SumObjects (Isomorphism c) a b = SumObjects c a b
+  coSwap = Isomorphism coSwap coSwap
+  attachZero = Isomorphism attachZero detachZero
+  detachZero = Isomorphism detachZero attachZero
+  coRegroup = Isomorphism coRegroup coRegroup'
+  coRegroup' = Isomorphism coRegroup' coRegroup
+  maybeAsSum = Isomorphism maybeAsSum maybeFromSum
+  maybeFromSum = Isomorphism maybeFromSum maybeAsSum
+  boolAsSum = Isomorphism boolAsSum boolFromSum
+  boolFromSum = Isomorphism boolFromSum boolAsSum
+
+instance (Morphism c) => Morphism (Isomorphism c) where
+  Isomorphism e p *** Isomorphism f q = Isomorphism (e***f) (p***q)
+  
+instance (MorphChoice c) => MorphChoice (Isomorphism c) where
+  Isomorphism e p +++ Isomorphism f q = Isomorphism (e+++f) (p+++q)
+
+instance (Category c) => EnhancedCat c (Isomorphism c) where 
+  arr = forwardIso
+
+instance (Category c) => EnhancedCat (Embedding c) (Isomorphism c) where 
+  arr (Isomorphism f b) = Embedding f b
+
+
     
 -- | A pair of matching functions. The projection must be a left (but not necessarily right)
 --   inverse of the embedding,
@@ -102,5 +158,10 @@ instance (MorphChoice c) => MorphChoice (Embedding c) where
 
 instance (Category c) => EnhancedCat c (Embedding c) where 
   arr = embedding
+
+
+        
+
+
 
 

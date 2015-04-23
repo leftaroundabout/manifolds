@@ -67,6 +67,10 @@ type SmoothScalar s = ( VectorSpace s, HMat.Numeric s, HMat.Field s
 --   The 'FiniteDimensional' class is used to convert between both representations.
 --   It would be nice not to have the requirement of finite dimension on 'HerMetric',
 --   but it's probably not feasible to get rid of it in forseeable time.
+--   
+--   Instead of the run-time 'dimension' information, we would rather have a compile-time
+--   @type Dimension v :: Nat@, but type-level naturals are not mature enough yet. This
+--   will almost certainly change in the future.
 class (HasBasis v, HasTrie (Basis v), SmoothScalar (Scalar v)) => FiniteDimensional v where
   dimension :: Tagged v Int
   basisIndex :: Tagged v (Basis v -> Int)

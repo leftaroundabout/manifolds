@@ -463,4 +463,12 @@ spanHilbertSubspace met = emb . orthonormalPairsWith met
               (Tagged n) = theNatN :: Tagged n Int
 
 
+-- | Same as 'spanHilbertSubspace', but with the standard 'euclideanMetric' (i.e., the
+--   basis vectors will be orthonormal in the usual sense).
+spanSubHilbertSpace :: forall s n v . (KnownNat n, HasMetric v, InnerSpace v, Scalar v ~ s)
+      => [v]       -- ^ @n@ linearly independent vectors, spanning the desired space
+          -> Option (Embedding (Linear s) (FreeVect n s) v)
+                       -- ^ An embedding from the Hilbert space to its @n@-dimensional subspace
+                       --   (if the given vectors actually span such a space).
+spanSubHilbertSpace = spanHilbertSubspace euclideanMetric
 
