@@ -126,13 +126,18 @@ canonicalIdentityMatrix :: forall n v s
 canonicalIdentityMatrix = DenseLinear $ HMat.ident n
  where (Tagged n) = theNatN :: Tagged n Int
 
--- | Class of spaces that directly represent a free vector space. It basically contains
---   'ℝ', 'ℝ²', 'ℝ³' etc..
+-- | Class of spaces that directly represent a free vector space, i.e. that are simply
+--   @n@-fold products of the base field.
+--   This class basically contains 'ℝ', 'ℝ²', 'ℝ³' etc., in future also the complex and
+--   probably integral versions.
 class (FiniteDimensional v, KnownNat (FreeDimension v)) => IsFreeSpace v where
   type FreeDimension v :: Nat
   identityMatrix :: Isomorphism (Linear (Scalar v))
                       v
                       (FreeVect (FreeDimension v) (Scalar v))
+  identityMatrix = fromInversePair emb proj
+   where emb@(DenseLinear i) = canonicalIdentityMatrix
+         proj = DenseLinear i
 
 instance (KnownNat n, Num s, SmoothScalar s) => IsFreeSpace (FreeVect n s) where 
   type FreeDimension (FreeVect n s) = n

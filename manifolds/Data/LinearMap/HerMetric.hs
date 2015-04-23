@@ -22,6 +22,8 @@ module Data.LinearMap.HerMetric (
   , euclideanMetric 
   -- * Metrics induce inner products
   , spanHilbertSubspace
+  , spanSubHilbertSpace
+  , IsFreeSpace
   -- * Utility for metrics
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
@@ -446,29 +448,32 @@ orthonormalPairsWith met = mkON
                      
 
 
-spanHilbertSubspace :: forall s n v . (KnownNat n, HasMetric v, Scalar v ~ s)
-      => HerMetric v   -- ^ Metric to induce the inner product on the Hilbert space
-          -> [v]       -- ^ @n@ linearly independent vectors, spanning the desired space
-          -> Option (Embedding (Linear s) (FreeVect n s) v)
-                       -- ^ An embedding from the main space to its @n@-dimensional subspace
-                       --   (if the given vectors actually span such a space).
+spanHilbertSubspace :: forall s v w
+   . (HasMetric v, Scalar v ~ s, IsFreeSpace w, Scalar w ~ s)
+      => HerMetric v   -- ^ Metric to induce the inner product on the Hilbert space.
+          -> [v]       -- ^ @n@ linearly independent vectors, to span the subspace @w@.
+          -> Option (Embedding (Linear s) w v)
+                  -- ^ An embedding of the @n@-dimensional free subspace @w@ (if the given
+                  --   vectors actually span such a space) into the main space @v@.
+                  --   Regardless of the structure of @v@ (which need not have an inner
+                  --   product!) @w@ will be an 'InnerSpace' with the scalar product
+                  --   defined by the given metric.
 spanHilbertSubspace met = emb . orthonormalPairsWith met
  where emb onb'
-         | n'==n      = return $ Embedding emb prj
+         | n'==n      = return $ Embedding emb prj . arr identityMatrix
          | otherwise  = Hask.empty
         where emb = DenseLinear . HMat.fromColumns $ (asPackedVector . fst) <$> onb
               prj = DenseLinear . HMat.fromRows    $ (asPackedVector . snd) <$> onb
               n' = length onb'
               onb = take n onb'
-              (Tagged n) = theNatN :: Tagged n Int
+              (Tagged n) = theNatN :: Tagged (FreeDimension w) Int
 
 
 -- | Same as 'spanHilbertSubspace', but with the standard 'euclideanMetric' (i.e., the
---   basis vectors will be orthonormal in the usual sense).
-spanSubHilbertSpace :: forall s n v . (KnownNat n, HasMetric v, InnerSpace v, Scalar v ~ s)
-      => [v]       -- ^ @n@ linearly independent vectors, spanning the desired space
-          -> Option (Embedding (Linear s) (FreeVect n s) v)
-                       -- ^ An embedding from the Hilbert space to its @n@-dimensional subspace
-                       --   (if the given vectors actually span such a space).
+--   basis vectors will be orthonormal in the usual sense, in both @w@ and @v@).
+spanSubHilbertSpace :: forall s v w
+        . (HasMetric v, InnerSpace v, Scalar v ~ s, IsFreeSpace w, Scalar w ~ s)
+      => [v]
+          -> Option (Embedding (Linear s) w v)
 spanSubHilbertSpace = spanHilbertSubspace euclideanMetric
 
