@@ -121,30 +121,32 @@ instance (SmoothScalar s) => EnhancedCat (->) (Linear s) where
 
 
 canonicalIdentityMatrix :: forall n v s
-                 . (KnownNat n, IsFreeSpace s v, FreeDimension s v ~ n)
+                 . (KnownNat n, IsFreeSpace v, FreeDimension v ~ n, Scalar v ~ s)
            => Linear s v (FreeVect n s)
 canonicalIdentityMatrix = DenseLinear $ HMat.ident n
  where (Tagged n) = theNatN :: Tagged n Int
 
 -- | Class of spaces that directly represent a free vector space. It basically contains
 --   'ℝ', 'ℝ²', 'ℝ³' etc..
-class (FiniteDimensional v, Scalar v ~ s) => IsFreeSpace s v where
-  type FreeDimension s v :: Nat
-  identityMatrix :: Isomorphism (Linear s) v (FreeVect (FreeDimension s v) s)
+class (FiniteDimensional v, KnownNat (FreeDimension v)) => IsFreeSpace v where
+  type FreeDimension v :: Nat
+  identityMatrix :: Isomorphism (Linear (Scalar v))
+                      v
+                      (FreeVect (FreeDimension v) (Scalar v))
 
-instance (KnownNat n, Num s, SmoothScalar s) => IsFreeSpace s (FreeVect n s) where 
-  type FreeDimension s (FreeVect n s) = n
+instance (KnownNat n, Num s, SmoothScalar s) => IsFreeSpace (FreeVect n s) where 
+  type FreeDimension (FreeVect n s) = n
   identityMatrix = fromInversePair id id
 
-instance IsFreeSpace ℝ ℝ where
-  type FreeDimension ℝ ℝ = S Z
+instance IsFreeSpace ℝ where
+  type FreeDimension ℝ = S Z
   identityMatrix = fromInversePair emb proj
    where emb@(DenseLinear i) = canonicalIdentityMatrix
          proj = DenseLinear i
   
-instance (SmoothScalar s, s~Scalar s, FiniteDimensional v, IsFreeSpace s v)
-             => IsFreeSpace s (v,s) where
-  type FreeDimension s (v,s) = S (FreeDimension s v)
+instance ( SmoothScalar s, IsFreeSpace v, Scalar v ~ s, FiniteDimensional s, s ~ Scalar s )
+             => IsFreeSpace (v,s) where
+  type FreeDimension (v,s) = S (FreeDimension v)
   identityMatrix = fromInversePair emb proj
    where emb@(DenseLinear i) = canonicalIdentityMatrix
          proj = DenseLinear i
