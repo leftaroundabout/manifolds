@@ -455,9 +455,9 @@ spanHilbertSubspace :: forall s v w
           -> Option (Embedding (Linear s) w v)
                   -- ^ An embedding of the @n@-dimensional free subspace @w@ (if the given
                   --   vectors actually span such a space) into the main space @v@.
-                  --   Regardless of the structure of @v@ (which need not have an inner
-                  --   product!) @w@ will be an 'InnerSpace' with the scalar product
-                  --   defined by the given metric.
+                  --   Regardless of the structure of @v@ (which doesn't need to have an
+                  --   inner product at all!), @w@ will be an 'InnerSpace' with the scalar
+                  --   product defined by the given metric.
 spanHilbertSubspace met = emb . orthonormalPairsWith met
  where emb onb'
          | n'==n      = return $ Embedding emb prj . arr identityMatrix

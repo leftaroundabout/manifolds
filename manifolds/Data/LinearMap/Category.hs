@@ -145,15 +145,9 @@ instance (KnownNat n, Num s, SmoothScalar s) => IsFreeSpace (FreeVect n s) where
 
 instance IsFreeSpace ℝ where
   type FreeDimension ℝ = S Z
-  identityMatrix = fromInversePair emb proj
-   where emb@(DenseLinear i) = canonicalIdentityMatrix
-         proj = DenseLinear i
   
 instance ( SmoothScalar s, IsFreeSpace v, Scalar v ~ s, FiniteDimensional s, s ~ Scalar s )
              => IsFreeSpace (v,s) where
   type FreeDimension (v,s) = S (FreeDimension v)
-  identityMatrix = fromInversePair emb proj
-   where emb@(DenseLinear i) = canonicalIdentityMatrix
-         proj = DenseLinear i
 
 

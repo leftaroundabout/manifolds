@@ -61,6 +61,13 @@ natToInt Z = 0; natToInt (S n) = 1 + natToInt n
 fromNat :: Num a => Nat -> a
 fromNat = fromIntegral . natToInt
 
+natSelfSucc :: forall n . KnownNat n => Tagged (S n) Nat
+natSelfSucc = Tagged $ S n
+ where (Tagged n) = theNat :: Tagged n Nat
+natSelfSuccN :: forall n a . (KnownNat n, Num a) => Tagged (S n) a
+natSelfSuccN = Tagged $ n + 1
+ where (Tagged n) = theNatN :: Tagged n a
+
 class KnownNat (n :: Nat) where
   theNat :: Tagged n Nat
   theNatN :: Num n' => Tagged n n'
@@ -80,8 +87,8 @@ instance KnownNat Z where
   cozero  = pure; cosucc _  = Hask.empty; fCosucc _  = Hask.empty
   cozeroT = pure; cosuccT _ = Hask.empty; fCosuccT _ = Hask.empty
 instance (KnownNat n) => KnownNat (S n) where
-  theNat = fmap S theNat
-  theNatN = fmap (+1) theNatN
+  theNat = natSelfSucc
+  theNatN = natSelfSuccN
   cozero _  = Hask.empty; cosucc v  = pure v; fCosucc v  = v
   cozeroT _ = Hask.empty; cosuccT v = pure v; fCosuccT v = v
 
