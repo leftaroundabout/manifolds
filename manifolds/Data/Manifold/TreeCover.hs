@@ -399,7 +399,7 @@ type Array = HMat.Vector
 
 
 simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
-        => HerMetric (Needle x) -> Simplex (S n) x
+        => HerMetric (Needle x) -> Simplex n x
                -> Embedding (Linear ℝ) (FreeVect n ℝ) (Needle x)
 simplexPlane m s = embedding
  where bc = barycenter s
@@ -422,7 +422,7 @@ toBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
 toBaryCoords m = coNatT (\_ _ -> [1]) (Hask.toList .: toNonTrivBaryCoords m)
 
 toNonTrivBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => HerMetric (Needle x) -> Simplex (S n) x -> x -> FreeVect (S(S n)) ℝ
+                 => HerMetric (Needle x) -> Simplex n x -> x -> FreeVect (S n) ℝ
 toNonTrivBaryCoords m s = tobc
  where bc = barycenter s
        (Embedding _ (DenseLinear prj)) = simplexPlane m s
@@ -430,8 +430,10 @@ toNonTrivBaryCoords m s = tobc
                    | x <- splxVertices s, let (Option (Just v)) = x.-~.bc ]
        tmat = HMat.inv $ HMat.fromColumns [ r - r₀ | r<-rs ] 
        tobc x = case x.-~.bc of
-         Option (Just v) -> let rx = asPackedVector v - r₀
-                            in FreeVect . Arr.convert $ tmat HMat.#> rx
+         Option (Just v) -> let rx = prj HMat.#> asPackedVector v - r₀
+                            in finalise $ tmat HMat.#> rx
+       finalise v = case freeVector $ 1 - HMat.sumElements v : HMat.toList v of
+         Option (Just bv) -> bv
 
 
 -- | Only works reliable when the number of points matches 1+dimension (so the result

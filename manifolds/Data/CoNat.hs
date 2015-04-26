@@ -148,11 +148,12 @@ replicVector = FreeVect . Arr.replicate n
  where (Tagged n) = theNatN :: Tagged n Int
 
 
-freeVector :: forall n x . KnownNat n => [x] -> Option (FreeVect n x)
-freeVector c
+freeVector :: forall l n x . (KnownNat n, Hask.Foldable l) => l x -> Option (FreeVect n x)
+freeVector c'
     | length c == n  = pure . FreeVect $ Arr.fromList c
     | otherwise      = Hask.empty
  where (Tagged n) = theNatN :: Tagged n Int
+       c = Hask.toList c'
 
 -- | Free vector containing the (0-based) indices of its fields as entries.
 indices :: forall n n' . (KnownNat n, Num n') => FreeVect n n'
