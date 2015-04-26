@@ -79,6 +79,9 @@ class KnownNat (n :: Nat) where
   fCosucc :: Hask.Alternative f => (forall k . KnownNat k => f (s (S k))) -> f (s n)
   cosuccT :: (forall k . KnownNat k => s (S k) x) -> Option (s n x)
   fCosuccT :: Hask.Alternative f => (forall k . KnownNat k => f (s (S k) x)) -> f (s n x)
+  
+  coNat :: (s Z->r) -> ( forall k . KnownNat k => s (S k) -> r ) -> s n -> r
+  coNatT :: (c Z x->r) -> ( forall k . KnownNat k => c (S k) x -> r ) -> c n x -> r
 
 
 instance KnownNat Z where
@@ -86,11 +89,13 @@ instance KnownNat Z where
   theNatN = Tagged 0
   cozero  = pure; cosucc _  = Hask.empty; fCosucc _  = Hask.empty
   cozeroT = pure; cosuccT _ = Hask.empty; fCosuccT _ = Hask.empty
+  coNat f _ = f; coNatT f _ = f
 instance (KnownNat n) => KnownNat (S n) where
   theNat = natSelfSucc
   theNatN = natSelfSuccN
   cozero _  = Hask.empty; cosucc v  = pure v; fCosucc v  = v
   cozeroT _ = Hask.empty; cosuccT v = pure v; fCosuccT v = v
+  coNat _ f = f; coNatT _ f = f
 
 
 

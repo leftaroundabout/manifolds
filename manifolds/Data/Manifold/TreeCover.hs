@@ -418,8 +418,14 @@ barycenter = bc
        x' – x = case x'.-~.x of {Option(Just v)->v}
 
 toBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => Simplex n x -> x -> [ℝ]
-toBaryCoords = undefined
+                 => HerMetric (Needle x) -> Simplex n x -> x -> [ℝ]
+toBaryCoords m = coNatT (\_ -> const []) (toNonTrivBaryCoords m)
+
+toNonTrivBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
+                 => HerMetric (Needle x) -> Simplex (S n) x -> x -> [ℝ]
+toNonTrivBaryCoords m s = undefined
+ where bc = barycenter s
+       (Embedding emb prj) = simplexPlane m s
 
 
 -- | Only works reliable when the number of points matches 1+dimension (so the result
