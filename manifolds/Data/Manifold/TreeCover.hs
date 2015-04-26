@@ -419,13 +419,19 @@ barycenter = bc
 
 toBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
                  => HerMetric (Needle x) -> Simplex n x -> x -> [ℝ]
-toBaryCoords m = coNatT (\_ -> const []) (toNonTrivBaryCoords m)
+toBaryCoords m = coNatT (\_ _ -> [1]) (Hask.toList .: toNonTrivBaryCoords m)
 
 toNonTrivBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => HerMetric (Needle x) -> Simplex (S n) x -> x -> [ℝ]
-toNonTrivBaryCoords m s = undefined
+                 => HerMetric (Needle x) -> Simplex (S n) x -> x -> FreeVect (S(S n)) ℝ
+toNonTrivBaryCoords m s = tobc
  where bc = barycenter s
-       (Embedding emb prj) = simplexPlane m s
+       (Embedding _ (DenseLinear prj)) = simplexPlane m s
+       (r₀:rs) = [ prj HMat.#> asPackedVector v
+                   | x <- splxVertices s, let (Option (Just v)) = x.-~.bc ]
+       tmat = HMat.inv $ HMat.fromColumns [ r - r₀ | r<-rs ] 
+       tobc x = case x.-~.bc of
+         Option (Just v) -> let rx = asPackedVector v - r₀
+                            in FreeVect . Arr.convert $ tmat HMat.#> rx
 
 
 -- | Only works reliable when the number of points matches 1+dimension (so the result
