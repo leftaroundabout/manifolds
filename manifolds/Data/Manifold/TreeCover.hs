@@ -418,12 +418,8 @@ barycenter = bc
        x' – x = case x'.-~.x of {Option(Just v)->v}
 
 toBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => HerMetric (Needle x) -> Simplex n x -> x -> [ℝ]
-toBaryCoords m = coNatT (\_ _ -> [1]) (Hask.toList .: toNonTrivBaryCoords m)
-
-toNonTrivBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
                  => HerMetric (Needle x) -> Simplex n x -> x -> FreeVect (S n) ℝ
-toNonTrivBaryCoords m s = tobc
+toBaryCoords m s = tobc
  where bc = barycenter s
        (Embedding _ (DenseLinear prj)) = simplexPlane m s
        (r₀:rs) = [ prj HMat.#> asPackedVector v
