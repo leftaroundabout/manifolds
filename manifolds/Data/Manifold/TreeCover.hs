@@ -432,24 +432,17 @@ toBaryCoords m s = tobc
          Option (Just bv) -> bv
 
 
--- | Only works reliable when the number of points matches 1+dimension (so the result
---   is a single simplex).
-primitiveTriangulation :: forall x n . (WithField ℝ Manifold x)
+primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
                              => [x] -> Triangulation n x
 primitiveTriangulation xs = undefined
---  where result = case someNatVal $ n-1 of
---          Nothing  | Just Refl <- sameNat (Proxy :: Proxy 0) (Proxy :: Proxy n)
---                       -> Triangulation $ map ZeroSimplex xs
---          Just (SomeNat p)
---                   | x:xs' <- xs
---                   , Triangulation tq <- lowly p xs'
---                         -> unsafeCoerce -- ghc-7.8 can't proove it, but
---                                         -- of course the types do match.
---                             . Triangulation $ map (Simplex x) tq
---          _ -> Triangulation []
---        n = natVal result
---        lowly :: forall n' . KnownNat n' => Proxy n' -> [x] -> Triangulation x n'
---        lowly _ xs' = primitiveTriangulation xs' :: Triangulation x n'
+ where 
+       (Tagged n) = theNatN :: Tagged n Int
+ 
+partitionsOfFstLength :: Int -> [a] -> [([a],[a])]
+partitionsOfFstLength 0 l = [([],l)]
+partitionsOfFstLength n [] = []
+partitionsOfFstLength n (x:xs) = first (x:) <$> partitionsOfFstLength (n-1) xs
+                              ++ second (x:) <$> partitionsOfFstLength n xs
 
 splxVertices :: Simplex n x -> [x]
 splxVertices (ZeroSimplex x) = [x]
@@ -457,7 +450,7 @@ splxVertices (Simplex x s') = x : splxVertices s'
 
 
 
-triangulate :: forall x n . (WithField ℝ Manifold x)
+triangulate :: forall x n . (KnownNat n, WithField ℝ Manifold x)
                  => ShadeTree x -> Triangulation n x
 triangulate (DisjointBranches _ brs)
     = Triangulation $ Hask.foldMap (getTriangulation . triangulate) brs
