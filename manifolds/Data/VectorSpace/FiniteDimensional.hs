@@ -153,7 +153,7 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
               
   
 instance (SmoothScalar x, KnownNat n) => FiniteDimensional (FreeVect n x) where
-  dimension = freeVectDimension
+  dimension = natTagPænultimate
   basisIndex = Tagged getInRange
   indexBasis = Tagged InRange
   asPackedVector (FreeVect arr) = Arr.convert arr

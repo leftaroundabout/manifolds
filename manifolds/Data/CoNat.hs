@@ -61,6 +61,13 @@ natToInt Z = 0; natToInt (S n) = 1 + natToInt n
 fromNat :: Num a => Nat -> a
 fromNat = fromIntegral . natToInt
 
+natTagLast :: forall n f n' . (KnownNat n, Num n') => Tagged (f n) n'
+natTagLast = retag (theNatN :: Tagged n n')
+natTagPænultimate :: forall n f n' x . (KnownNat n, Num n') => Tagged (f n x) n'
+natTagPænultimate = retag (theNatN :: Tagged n n')
+natTagAntepænultimate :: forall n f n' x y . (KnownNat n, Num n') => Tagged (f n x y) n'
+natTagAntepænultimate = retag (theNatN :: Tagged n n')
+
 natSelfSucc :: forall n . KnownNat n => Tagged (S n) Nat
 natSelfSucc = Tagged $ S n
  where (Tagged n) = theNat :: Tagged n Nat
@@ -139,9 +146,6 @@ instance (Num x, KnownNat n) => HasBasis (FreeVect n x) where
   decompose (FreeVect arr) = Arr.ifoldr (\i x l -> (InRange i, x) : l) [] arr
   decompose' (FreeVect arr) (InRange i) = arr Arr.! i
 
-
-freeVectDimension :: forall n x . KnownNat n => Tagged (FreeVect n x) Int
-freeVectDimension = retag (theNatN :: Tagged n Int)
 
 replicVector :: forall n x . KnownNat n => x -> FreeVect n x
 replicVector = FreeVect . Arr.replicate n

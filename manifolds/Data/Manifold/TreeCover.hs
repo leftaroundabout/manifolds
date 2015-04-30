@@ -382,6 +382,34 @@ instance Hask.Functor (Simplex n) where
   fmap f (ZeroSimplex x) = ZeroSimplex (f x)
   fmap f (Simplex x xs) = Simplex (f x) (fmap f xs)
 
+newtype BaryCoords n = BaryCoords { getBaryCoordsTail :: FreeVect n ℝ }
+ deriving (AdditiveGroup)
+
+instance (KnownNat n) => VectorSpace (BaryCoords n) where
+  type Scalar (BaryCoords n) = ℝ; μ *^ BaryCoords bcs = BaryCoords $ μ *^ bcs
+instance (KnownNat n) => HasBasis (BaryCoords n) where
+  type Basis (BaryCoords n) = Basis (FreeVect n ℝ)
+  basisValue = BaryCoords . basisValue;
+  decompose = decompose . getBaryCoordsTail; decompose' = decompose' . getBaryCoordsTail
+instance (KnownNat n) => FiniteDimensional (BaryCoords n) where
+  dimension = natTagLast
+  basisIndex = Tagged getInRange; indexBasis = Tagged InRange
+  asPackedVector = asPackedVector . getBaryCoordsTail
+  fromPackedVector = BaryCoords . fromPackedVector
+  
+  
+
+getBaryCoords :: BaryCoords n -> [ℝ]
+getBaryCoords (BaryCoords (FreeVect bcs)) = 1 - Arr.sum bcs : Arr.toList bcs
+
+mkBaryCoords :: forall n . KnownNat n => [ℝ] -> Option (BaryCoords n)
+mkBaryCoords bcs = fmap (BaryCoords . (^/sum bcs)) . freeVector . Arr.fromList $ tail bcs
+
+data ISimplex n x
+    = ISimplex { iSimplexBarycenter :: x
+               , iSimplexBCCordEmbed :: Embedding (Linear ℝ) (BaryCoords n) (Needle x)
+               }
+
 makeSimplex :: forall x n . KnownNat n => [x] -> Option (Simplex n x)
 makeSimplex [] = Option Nothing
 makeSimplex [x] = cozeroT $ ZeroSimplex x
@@ -396,8 +424,11 @@ simplexFaces (Simplex p qs@(Simplex _ _))
 
 data TriangBuilder n x = TriangBuilder {
          triangBody :: Triangulation n x
-       , triangBorderExp :: [[x] -> (Option (Simplex n x), [x])]
+       , triangBorderExpFav :: [[x] -> x]
        }
+
+-- startTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
+        -- => Simplex n x -> 
 
 type Array = HMat.Vector
 
@@ -422,7 +453,7 @@ barycenter = bc
        x' – x = case x'.-~.x of {Option(Just v)->v}
 
 toBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => HerMetric (Needle x) -> Simplex n x -> x -> FreeVect (S n) ℝ
+                 => HerMetric (Needle x) -> Simplex n x -> x -> BaryCoords n
 toBaryCoords m s = tobc
  where bc = barycenter s
        (Embedding _ (DenseLinear prj)) = simplexPlane m s
@@ -432,8 +463,8 @@ toBaryCoords m s = tobc
        tobc x = case x.-~.bc of
          Option (Just v) -> let rx = prj HMat.#> asPackedVector v - r₀
                             in finalise $ tmat HMat.#> rx
-       finalise v = case freeVector $ 1 - HMat.sumElements v : HMat.toList v of
-         Option (Just bv) -> bv
+       finalise v = case freeVector $ HMat.toList v of
+         Option (Just bv) -> BaryCoords bv
 
 
 primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
