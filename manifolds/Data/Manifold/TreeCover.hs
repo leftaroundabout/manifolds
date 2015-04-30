@@ -394,6 +394,10 @@ simplexFaces (Simplex p (ZeroSimplex q))    = Triangulation [ZeroSimplex p, Zero
 simplexFaces (Simplex p qs@(Simplex _ _))
      | Triangulation es <- simplexFaces qs  = Triangulation $ Simplex p <$> es
 
+data TriangBuilder n x = TriangBuilder {
+         triangBody :: Triangulation n x
+       , triangBorderExp :: [[x] -> (Option (Simplex n x), [x])]
+       }
 
 type Array = HMat.Vector
 
