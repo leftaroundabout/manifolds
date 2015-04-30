@@ -434,8 +434,13 @@ toBaryCoords m s = tobc
 
 primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
                              => [x] -> Triangulation n x
-primitiveTriangulation xs = undefined
- where 
+primitiveTriangulation xs = head $ build <$> buildOpts
+ where build :: ([x], [x]) -> Triangulation n x
+       build (mainVerts, sideVerts) = Triangulation [mainSplx]
+        where (Option (Just mainSplx)) = makeSimplex mainVerts
+--              mainFaces = Map.fromAscList . zip [0..] . getTriangulation
+--                                 $ simplexFaces mainSplx
+       buildOpts = partitionsOfFstLength n xs
        (Tagged n) = theNatN :: Tagged n Int
  
 partitionsOfFstLength :: Int -> [a] -> [([a],[a])]
