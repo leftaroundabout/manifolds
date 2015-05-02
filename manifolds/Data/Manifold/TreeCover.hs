@@ -469,6 +469,17 @@ toISimplex m s = ISimplex $ fromEmbedProject fromBrc toBrc
         where v = linearCombo $ (fromPackedVector r₀, b₀) : zip (fromPackedVector<$>rs) bs
               (b₀:bs) = getBaryCoords bccs
 
+fromISimplex :: forall x n . (KnownNat n, WithField ℝ Manifold x)
+                   => ISimplex n x -> Simplex n x
+fromISimplex (ISimplex emb) = s
+ where (Option (Just s))
+           = makeSimplex [ emb $-> jOnly
+                         | j <- [0..n]
+                         , let (Option (Just jOnly)) = mkBaryCoords [ if k==j then 1 else 0
+                                                                    | k<-[0..n] ]
+                         ]
+       (Tagged n) = theNatN :: Tagged n Int
+
 
 primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
                              => [x] -> Triangulation n x
