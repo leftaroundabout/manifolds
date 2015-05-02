@@ -438,7 +438,10 @@ simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
 simplexPlane m s = embedding
  where bc = barycenter s
        spread = map ((.-~.bc) >>> \(Option (Just v)) -> v) $ splxVertices s
-       (Option (Just embedding)) = spanHilbertSubspace m spread
+       embedding = case spanHilbertSubspace m spread of
+                     (Option (Just e)) -> e
+                     _ -> error "Trying to obtain simplexPlane from zero-volume\
+                                \ simplex (which cannot span sufficient basis vectors)."
 
 
 
@@ -446,7 +449,7 @@ simplexPlane m s = embedding
 barycenter :: forall x n . (KnownNat n, WithField ℝ Manifold x) => Simplex n x -> x
 barycenter = bc 
  where bc (ZeroSimplex x) = x
-       bc (Simplex x xs') = x .+~^ sumV [x'–x | x'<-splxVertices xs'] ^/ n
+       bc (Simplex x xs') = x .+~^ sumV [x'–x | x'<-splxVertices xs'] ^/ (n+1)
        
        Tagged n = theNatN :: Tagged n ℝ
        x' – x = case x'.-~.x of {Option(Just v)->v}
