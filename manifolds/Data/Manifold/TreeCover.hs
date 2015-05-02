@@ -382,33 +382,6 @@ instance Hask.Functor (Simplex n) where
   fmap f (ZeroSimplex x) = ZeroSimplex (f x)
   fmap f (Simplex x xs) = Simplex (f x) (fmap f xs)
 
-newtype BaryCoords n = BaryCoords { getBaryCoordsTail :: FreeVect n ℝ }
- deriving (AdditiveGroup)
-
-instance (KnownNat n) => VectorSpace (BaryCoords n) where
-  type Scalar (BaryCoords n) = ℝ; μ *^ BaryCoords bcs = BaryCoords $ μ *^ bcs
-instance (KnownNat n) => HasBasis (BaryCoords n) where
-  type Basis (BaryCoords n) = Basis (FreeVect n ℝ)
-  basisValue = BaryCoords . basisValue;
-  decompose = decompose . getBaryCoordsTail; decompose' = decompose' . getBaryCoordsTail
-instance (KnownNat n) => FiniteDimensional (BaryCoords n) where
-  dimension = natTagLast
-  basisIndex = Tagged getInRange; indexBasis = Tagged InRange
-  asPackedVector = asPackedVector . getBaryCoordsTail
-  fromPackedVector = BaryCoords . fromPackedVector
-  
-  
-
-getBaryCoords :: BaryCoords n -> [ℝ]
-getBaryCoords (BaryCoords (FreeVect bcs)) = 1 - Arr.sum bcs : Arr.toList bcs
-
-mkBaryCoords :: forall n . KnownNat n => [ℝ] -> Option (BaryCoords n)
-mkBaryCoords bcs = fmap (BaryCoords . (^/sum bcs)) . freeVector . Arr.fromList $ tail bcs
-
-data ISimplex n x
-    = ISimplex { iSimplexBarycenter :: x
-               , iSimplexBCCordEmbed :: Embedding (Linear ℝ) (BaryCoords n) (Needle x)
-               }
 
 makeSimplex :: forall x n . KnownNat n => [x] -> Option (Simplex n x)
 makeSimplex [] = Option Nothing
@@ -421,6 +394,32 @@ simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
 simplexFaces (Simplex p (ZeroSimplex q))    = Triangulation [ZeroSimplex p, ZeroSimplex q]
 simplexFaces (Simplex p qs@(Simplex _ _))
      | Triangulation es <- simplexFaces qs  = Triangulation $ Simplex p <$> es
+
+
+
+
+newtype BaryCoords n = BaryCoords { getBaryCoordsTail :: FreeVect n ℝ }
+
+instance (KnownNat n) => AffineSpace (BaryCoords n) where
+  type Diff (BaryCoords n) = FreeVect n ℝ
+  BaryCoords v .-. BaryCoords w = v ^-^ w
+  BaryCoords v .+^ w = BaryCoords $ v ^+^ w
+instance (KnownNat n) => Semimanifold (BaryCoords n) where
+  type Needle (BaryCoords n) = FreeVect n ℝ
+  (.+~^) = (.+^)
+instance (KnownNat n) => PseudoAffine (BaryCoords n) where
+  (.-~.) = pure .: (.-.)
+  
+getBaryCoords :: BaryCoords n -> [ℝ]
+getBaryCoords (BaryCoords (FreeVect bcs)) = 1 - Arr.sum bcs : Arr.toList bcs
+
+mkBaryCoords :: forall n . KnownNat n => [ℝ] -> Option (BaryCoords n)
+mkBaryCoords bcs = fmap (BaryCoords . (^/sum bcs)) . freeVector . Arr.fromList $ tail bcs
+
+newtype ISimplex n x = ISimplex { iSimplexBCCordEmbed :: Embedding (->) (BaryCoords n) x }
+
+
+
 
 data TriangBuilder n x = TriangBuilder {
          triangBody :: Triangulation n x
@@ -452,19 +451,23 @@ barycenter = bc
        Tagged n = theNatN :: Tagged n ℝ
        x' – x = case x'.-~.x of {Option(Just v)->v}
 
-toBaryCoords :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => HerMetric (Needle x) -> Simplex n x -> x -> BaryCoords n
-toBaryCoords m s = tobc
+toISimplex :: forall x n . (KnownNat n, WithField ℝ Manifold x)
+                 => HerMetric (Needle x) -> Simplex n x -> ISimplex n x
+toISimplex m s = ISimplex $ fromEmbedProject fromBrc toBrc
  where bc = barycenter s
-       (Embedding _ (DenseLinear prj)) = simplexPlane m s
+       (Embedding emb (DenseLinear prj))
+                         = simplexPlane m s
        (r₀:rs) = [ prj HMat.#> asPackedVector v
                    | x <- splxVertices s, let (Option (Just v)) = x.-~.bc ]
        tmat = HMat.inv $ HMat.fromColumns [ r - r₀ | r<-rs ] 
-       tobc x = case x.-~.bc of
+       toBrc x = case x.-~.bc of
          Option (Just v) -> let rx = prj HMat.#> asPackedVector v - r₀
                             in finalise $ tmat HMat.#> rx
        finalise v = case freeVector $ HMat.toList v of
          Option (Just bv) -> BaryCoords bv
+       fromBrc bccs = bc .+~^ (emb $ v)
+        where v = linearCombo $ (fromPackedVector r₀, b₀) : zip (fromPackedVector<$>rs) bs
+              (b₀:bs) = getBaryCoords bccs
 
 
 primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
