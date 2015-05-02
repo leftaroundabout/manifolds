@@ -437,7 +437,7 @@ simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
                -> Embedding (Linear ℝ) (FreeVect n ℝ) (Needle x)
 simplexPlane m s = embedding
  where bc = barycenter s
-       spread = map ((.-~.bc) >>> \(Option (Just v)) -> v) $ splxVertices s
+       spread = init . map ((.-~.bc) >>> \(Option (Just v)) -> v) $ splxVertices s
        embedding = case spanHilbertSubspace m spread of
                      (Option (Just e)) -> e
                      _ -> error "Trying to obtain simplexPlane from zero-volume\
