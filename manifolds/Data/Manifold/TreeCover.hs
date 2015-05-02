@@ -413,6 +413,12 @@ instance (KnownNat n) => PseudoAffine (BaryCoords n) where
 getBaryCoords :: BaryCoords n -> [ℝ]
 getBaryCoords (BaryCoords (FreeVect bcs)) = 1 - Arr.sum bcs : Arr.toList bcs
 
+getBaryCoord :: BaryCoords n -> Int -> ℝ
+getBaryCoord (BaryCoords (FreeVect bcs)) 0 = 1 - Arr.sum bcs
+getBaryCoord (BaryCoords (FreeVect bcs)) i = case bcs Arr.!? i of
+    Just a -> a
+    _      -> 0
+
 mkBaryCoords :: forall n . KnownNat n => [ℝ] -> Option (BaryCoords n)
 mkBaryCoords bcs = fmap (BaryCoords . (^/sum bcs)) . freeVector . Arr.fromList $ tail bcs
 
@@ -423,13 +429,20 @@ newtype ISimplex n x = ISimplex { iSimplexBCCordEmbed :: Embedding (->) (BaryCoo
 
 data TriangBuilder n x = TriangBuilder {
          triangBody :: Triangulation n x
-       , triangBorderExpFav :: [[x] -> x]
+       , triangBorderExpFav :: [[x] -> Option x]
        }
 
--- startTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
-        -- => Simplex n x -> 
+startTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
+        => ISimplex n x -> TriangBuilder n x
+startTriangulation ispl@(ISimplex emb)
+                     = TriangBuilder (Triangulation [fromISimplex ispl])
+                                     [ expandInDir j | j<-[0..n] ]
+ where expandInDir j xs = case sortBy (comparing snd) $ filter ((> -1) . snd) xs_bc of
+                            ((x, q) : _) | q<0   -> pure x
+                            _                    -> Hask.empty
+        where xs_bc = map (\x -> (x, getBaryCoord (emb >-$ x) j)) xs
+       (Tagged n) = theNatN :: Tagged n Int
 
-type Array = HMat.Vector
 
 
 simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
