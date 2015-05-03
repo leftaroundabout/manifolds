@@ -427,20 +427,25 @@ newtype ISimplex n x = ISimplex { iSimplexBCCordEmbed :: Embedding (->) (BaryCoo
 
 
 
-data TriangBuilder n x = TriangBuilder {
-         triangBody :: Triangulation n x
-       , triangBorderExpFav :: [[x] -> Option x]
-       }
+data TriangBuilder n x where
+  TriangVertices :: [x] -> TriangBuilder Z x
+  TriangBuilder :: Triangulation (S n) x
+                    -> [(Simplex n x, [x] -> Option x)]
+                            -> TriangBuilder (S n) x
 
 startTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
         => ISimplex n x -> TriangBuilder n x
-startTriangulation ispl@(ISimplex emb)
-                     = TriangBuilder (Triangulation [fromISimplex ispl])
-                                     [ expandInDir j | j<-[0..n] ]
- where expandInDir j xs = case sortBy (comparing snd) $ filter ((> -1) . snd) xs_bc of
+startTriangulation ispl@(ISimplex emb) = startWith $ fromISimplex ispl
+ where startWith (ZeroSimplex p) = TriangVertices [p]
+       startWith s@(Simplex _ _)
+                     = TriangBuilder (Triangulation [s])
+                                     [ (s', expandInDir j)
+                                     | j<-[0..n]
+                                     | s' <- getTriangulation $ simplexFaces s ]
+        where expandInDir j xs = case sortBy (comparing snd) $ filter ((> -1) . snd) xs_bc of
                             ((x, q) : _) | q<0   -> pure x
                             _                    -> Hask.empty
-        where xs_bc = map (\x -> (x, getBaryCoord (emb >-$ x) j)) xs
+               where xs_bc = map (\x -> (x, getBaryCoord (emb >-$ x) j)) xs
        (Tagged n) = theNatN :: Tagged n Int
 
 
