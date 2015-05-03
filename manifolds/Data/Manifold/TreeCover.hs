@@ -430,6 +430,7 @@ newtype ISimplex n x = ISimplex { iSimplexBCCordEmbed :: Embedding (->) (BaryCoo
 data TriangBuilder n x where
   TriangVertices :: [x] -> TriangBuilder Z x
   TriangBuilder :: Triangulation (S n) x
+                    -> [x]
                     -> [(Simplex n x, [x] -> Option x)]
                             -> TriangBuilder (S n) x
 
@@ -439,9 +440,10 @@ startTriangulation ispl@(ISimplex emb) = startWith $ fromISimplex ispl
  where startWith (ZeroSimplex p) = TriangVertices [p]
        startWith s@(Simplex _ _)
                      = TriangBuilder (Triangulation [s])
+                                     (splxVertices s)
                                      [ (s', expandInDir j)
-                                     | j<-[0..n]
-                                     | s' <- getTriangulation $ simplexFaces s ]
+                                       | j<-[0..n]
+                                       | s' <- getTriangulation $ simplexFaces s ]
         where expandInDir j xs = case sortBy (comparing snd) $ filter ((> -1) . snd) xs_bc of
                             ((x, q) : _) | q<0   -> pure x
                             _                    -> Hask.empty
