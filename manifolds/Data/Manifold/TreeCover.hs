@@ -20,6 +20,7 @@
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE OverloadedLists            #-}
 {-# LANGUAGE ParallelListComp           #-}
 {-# LANGUAGE UnicodeSyntax              #-}
 {-# LANGUAGE ConstraintKinds            #-}
@@ -388,12 +389,26 @@ makeSimplex [] = Option Nothing
 makeSimplex [x] = cozeroT $ ZeroSimplex x
 makeSimplex (x:xs) = fCosuccT (Simplex x <$> makeSimplex xs)
 
-newtype Triangulation n x = Triangulation { getTriangulation :: [Simplex n x] }
 
-simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
-simplexFaces (Simplex p (ZeroSimplex q))    = Triangulation [ZeroSimplex p, ZeroSimplex q]
-simplexFaces (Simplex p qs@(Simplex _ _))
-     | Triangulation es <- simplexFaces qs  = Triangulation $ Simplex p <$> es
+type Array = Arr.Vector
+
+data Triangulation n x where
+        TriangVertices :: Array x -> Triangulation Z x
+        TriangSkeleton :: Triangulation n x
+                            -> Array (FreeVect ((S (S n))) Int)
+                            -> Triangulation (S n) x
+
+-- simplexAsTriangulation :: forall n x . Simplex n x -> Triangulation n x
+-- simplexAsTriangulation (ZeroSimplex x) = TriangVertices x
+-- simplexAsTriangulation (Simplex x xs) = TriangSkeleton
+--  where (Tagged n) = theNatN :: Tagged n Int
+
+-- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
+-- simplexFaces (Simplex p (ZeroSimplex q))    = TriangVertices $ Arr.fromList [p, q]
+-- simplexFaces splx = carpent splx $ TriangVertices ps
+--  where ps = Arr.fromList $ p : splxVertices qs
+--        where carpent (ZeroSimplex (Simplex p qs@(Simplex _ _))
+--      | Triangulation es <- simplexFaces qs  = TriangSkeleton $ Simplex p <$> es
 
 
 
@@ -428,35 +443,35 @@ newtype ISimplex n x = ISimplex { iSimplexBCCordEmbed :: Embedding (->) (BaryCoo
 
 
 data TriangBuilder n x where
-  TriangVertices :: [x] -> TriangBuilder Z x
+  TriangVerticesSt :: [x] -> TriangBuilder Z x
   TriangBuilder :: Triangulation (S n) x
                     -> [x]
                     -> [(Simplex n x, [x] -> Option x)]
                             -> TriangBuilder (S n) x
 
-startTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
-        => ISimplex n x -> TriangBuilder n x
-startTriangulation ispl@(ISimplex emb) = startWith $ fromISimplex ispl
- where startWith (ZeroSimplex p) = TriangVertices [p]
-       startWith s@(Simplex _ _)
-                     = TriangBuilder (Triangulation [s])
-                                     (splxVertices s)
-                                     [ (s', expandInDir j)
-                                       | j<-[0..n]
-                                       | s' <- getTriangulation $ simplexFaces s ]
-        where expandInDir j xs = case sortBy (comparing snd) $ filter ((> -1) . snd) xs_bc of
-                            ((x, q) : _) | q<0   -> pure x
-                            _                    -> Hask.empty
-               where xs_bc = map (\x -> (x, getBaryCoord (emb >-$ x) j)) xs
-       (Tagged n) = theNatN :: Tagged n Int
+-- startTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
+--         => ISimplex n x -> TriangBuilder n x
+-- startTriangulation ispl@(ISimplex emb) = startWith $ fromISimplex ispl
+--  where startWith (ZeroSimplex p) = TriangVerticesSt [p]
+--        startWith s@(Simplex _ _)
+--                      = TriangBuilder (Triangulation [s])
+--                                      (splxVertices s)
+--                                      [ (s', expandInDir j)
+--                                        | j<-[0..n]
+--                                        | s' <- getTriangulation $ simplexFaces s ]
+--         where expandInDir j xs = case sortBy (comparing snd) $ filter ((> -1) . snd) xs_bc of
+--                             ((x, q) : _) | q<0   -> pure x
+--                             _                    -> Hask.empty
+--                where xs_bc = map (\x -> (x, getBaryCoord (emb >-$ x) j)) xs
+--        (Tagged n) = theNatN :: Tagged n Int
 
-extendTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
-                           => [x] -> TriangBuilder n x -> TriangBuilder n x
-extendTriangulation xs (TriangBuilder tr tb te) = foldr tryex (TriangBuilder tr tb []) te
- where tryex (bspl, expd) (TriangBuilder (Triangulation tr') tb' te')
-         | Option (Just fav) <- expd xs
-                    = let snew = Simplex fav bspl
-                      in TriangBuilder (Triangulation $ snew:tr') (fav:tb') undefined
+-- extendTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
+--                            => [x] -> TriangBuilder n x -> TriangBuilder n x
+-- extendTriangulation xs (TriangBuilder tr tb te) = foldr tryex (TriangBuilder tr tb []) te
+--  where tryex (bspl, expd) (TriangBuilder (Triangulation tr') tb' te')
+--          | Option (Just fav) <- expd xs
+--                     = let snew = Simplex fav bspl
+--                       in TriangBuilder (Triangulation $ snew:tr') (fav:tb') undefined
               
 
 
@@ -513,16 +528,16 @@ fromISimplex (ISimplex emb) = s
        (Tagged n) = theNatN :: Tagged n Int
 
 
-primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
-                             => [x] -> Triangulation n x
-primitiveTriangulation xs = head $ build <$> buildOpts
- where build :: ([x], [x]) -> Triangulation n x
-       build (mainVerts, sideVerts) = Triangulation [mainSplx]
-        where (Option (Just mainSplx)) = makeSimplex mainVerts
---              mainFaces = Map.fromAscList . zip [0..] . getTriangulation
---                                 $ simplexFaces mainSplx
-       buildOpts = partitionsOfFstLength n xs
-       (Tagged n) = theNatN :: Tagged n Int
+-- primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
+--                              => [x] -> Triangulation n x
+-- primitiveTriangulation xs = head $ build <$> buildOpts
+--  where build :: ([x], [x]) -> Triangulation n x
+--        build (mainVerts, sideVerts) = Triangulation [mainSplx]
+--         where (Option (Just mainSplx)) = makeSimplex mainVerts
+-- --              mainFaces = Map.fromAscList . zip [0..] . getTriangulation
+-- --                                 $ simplexFaces mainSplx
+--        buildOpts = partitionsOfFstLength n xs
+--        (Tagged n) = theNatN :: Tagged n Int
  
 partitionsOfFstLength :: Int -> [a] -> [([a],[a])]
 partitionsOfFstLength 0 l = [([],l)]
@@ -536,11 +551,11 @@ splxVertices (Simplex x s') = x : splxVertices s'
 
 
 
-triangulate :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => ShadeTree x -> Triangulation n x
-triangulate (DisjointBranches _ brs)
-    = Triangulation $ Hask.foldMap (getTriangulation . triangulate) brs
-triangulate (PlainLeaves xs) = primitiveTriangulation xs
+-- triangulate :: forall x n . (KnownNat n, WithField ℝ Manifold x)
+--                  => ShadeTree x -> Triangulation n x
+-- triangulate (DisjointBranches _ brs)
+--     = Triangulation $ Hask.foldMap (getTriangulation . triangulate) brs
+-- triangulate (PlainLeaves xs) = primitiveTriangulation xs
 
 -- triangBranches :: WithField ℝ Manifold x
 --                  => ShadeTree x -> Branchwise x (Triangulation x) n
@@ -625,7 +640,7 @@ chainsaw cpln (DisjointBranches _ brs) = Hask.foldMap (chainsaw cpln) brs
 chainsaw cpln (OverlappingBranches _ (Shade _ bexpa) brs) = Sawbones t1 t2 d1 d2
  where (Sawbones t1 t2 subD1 subD2)
              = Hask.foldMap (Hask.foldMap (chainsaw cpln) . boughContents) brs
-       [d1,d2] = fmap (foldl' go [] . foci) [subD1, subD2]
+       [d1,d2] = map (foldl' go [] . foci) [subD1, subD2]
         where go d' (dp,dqs) = case fathomCD dp of
                  Option (Just dpCD) | not $ any (shelter dpCD) dqs
                     -> dp:d' -- dp is close enough to cut plane to make dust.
