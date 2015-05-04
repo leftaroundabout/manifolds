@@ -20,7 +20,6 @@
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE OverloadedLists            #-}
 {-# LANGUAGE ParallelListComp           #-}
 {-# LANGUAGE UnicodeSyntax              #-}
 {-# LANGUAGE ConstraintKinds            #-}
@@ -398,10 +397,18 @@ data Triangulation n x where
                             -> Array (FreeVect ((S (S n))) Int)
                             -> Triangulation (S n) x
 
--- simplexAsTriangulation :: forall n x . Simplex n x -> Triangulation n x
--- simplexAsTriangulation (ZeroSimplex x) = TriangVertices x
--- simplexAsTriangulation (Simplex x xs) = TriangSkeleton
---  where (Tagged n) = theNatN :: Tagged n Int
+naïveTriangCone :: forall n x . x -> Triangulation n x -> Triangulation (S n) x
+naïveTriangCone x (TriangVertices xs)
+        = TriangSkeleton (TriangVertices $ xs `Arr.snoc` x)
+                         (Arr.imap (\j _ -> freeTuple $ (n,j)) xs)
+ where (Tagged n) = theNatN :: Tagged n Int
+ 
+
+simplexAsTriangulation :: forall n x . (KnownNat n)
+                            => Simplex n x -> Triangulation n x
+simplexAsTriangulation (ZeroSimplex x) = TriangVertices $ pure x
+simplexAsTriangulation (Simplex x xs) = TriangSkeleton undefined undefined
+ where (Tagged n) = theNatN :: Tagged n Int
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
 -- simplexFaces (Simplex p (ZeroSimplex q))    = TriangVertices $ Arr.fromList [p, q]

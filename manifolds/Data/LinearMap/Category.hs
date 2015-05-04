@@ -21,6 +21,7 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE UnicodeSyntax              #-}
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE PatternGuards              #-}
 {-# LANGUAGE TypeOperators              #-}
@@ -149,5 +150,26 @@ instance IsFreeSpace ℝ where
 instance ( SmoothScalar s, IsFreeSpace v, Scalar v ~ s, FiniteDimensional s, s ~ Scalar s )
              => IsFreeSpace (v,s) where
   type FreeDimension (v,s) = S (FreeDimension v)
+
+
+
+class VectorSpace v => FreeTuple v where
+  type Tuplity v :: Nat
+  freeTuple :: Isomorphism (->) v (FreeVect (Tuplity v) (Scalar v))
+
+#define FreeScalar(s)                                                             \
+instance FreeTuple (s) where {                                                     \
+  type Tuplity (s) = S Z;                                                           \
+  freeTuple = fromInversePair (FreeVect . pure) (\(FreeVect v) -> v Arr.! 0); }
+
+#define FreePair(s)                                                         \
+FreeScalar(s);                                                               \
+instance FreeTuple (s,s) where {                                              \
+  type Tuplity (s,s) = S(S Z);                                                 \
+  freeTuple = fromInversePair (\(a,b) -> FreeVect $ Arr.fromList[a,b])          \
+                              (\(FreeVect v) -> (v Arr.! 0, v Arr.! 1)); }
+
+FreePair(ℝ)
+FreePair(Int)
 
 
