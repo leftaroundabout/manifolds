@@ -450,6 +450,15 @@ startTriangulation ispl@(ISimplex emb) = startWith $ fromISimplex ispl
                where xs_bc = map (\x -> (x, getBaryCoord (emb >-$ x) j)) xs
        (Tagged n) = theNatN :: Tagged n Int
 
+extendTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
+                           => [x] -> TriangBuilder n x -> TriangBuilder n x
+extendTriangulation xs (TriangBuilder tr tb te) = foldr tryex (TriangBuilder tr tb []) te
+ where tryex (bspl, expd) (TriangBuilder (Triangulation tr') tb' te')
+         | Option (Just fav) <- expd xs
+                    = let snew = Simplex fav bspl
+                      in TriangBuilder (Triangulation $ snew:tr') (fav:tb') undefined
+              
+
 
 
 simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
