@@ -400,8 +400,16 @@ data Triangulation n x where
 naïveTriangCone :: forall n x . x -> Triangulation n x -> Triangulation (S n) x
 naïveTriangCone x (TriangVertices xs)
         = TriangSkeleton (TriangVertices $ xs `Arr.snoc` x)
-                         (Arr.imap (\j _ -> freeTuple $ (n,j)) xs)
- where (Tagged n) = theNatN :: Tagged n Int
+                         (Arr.imap (\j _ -> freeTuple $ (nxs,j)) xs)
+ where nxs = Arr.length xs
+naïveTriangCone x (TriangSkeleton skel skin) = case naïveTriangCone x skel of
+     (TriangSkeleton sinew flesh) ->
+      let bowels = Arr.imap (\j sk -> sk `freeSnoc` (j+nskel)) skin 
+          membranes = TriangSkeleton sinew $ flesh Arr.++ skin
+          nskel = case sinew of
+             TriangSkeleton _ fibre -> Arr.length fibre
+             TriangVertices vs -> Arr.length vs
+      in TriangSkeleton membranes bowels
  
 
 simplexAsTriangulation :: forall n x . (KnownNat n)

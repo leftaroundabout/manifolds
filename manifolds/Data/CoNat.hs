@@ -168,3 +168,13 @@ indices = FreeVect $ Arr.enumFromN 0 n
 perfectZipWith :: forall n a b c . KnownNat n
         => (a->b->c) -> FreeVect n a -> FreeVect n b -> FreeVect n c
 perfectZipWith f (FreeVect va) (FreeVect vb) = FreeVect $ Arr.zipWith f va vb
+
+
+
+freeCons :: a -> FreeVect n a -> FreeVect (S n) a
+freeCons x (FreeVect xs) = FreeVect $ Arr.cons x xs
+
+freeSnoc :: FreeVect n a -> a -> FreeVect (S n) a
+freeSnoc (FreeVect xs) x = FreeVect $ Arr.snoc xs x
+
+
