@@ -412,11 +412,9 @@ naïveTriangCone x (TriangSkeleton skel skin) = case naïveTriangCone x skel of
       in TriangSkeleton membranes bowels
  
 
-simplexAsTriangulation :: forall n x . (KnownNat n)
-                            => Simplex n x -> Triangulation n x
+simplexAsTriangulation :: forall n x . Simplex n x -> Triangulation n x
 simplexAsTriangulation (ZeroSimplex x) = TriangVertices $ pure x
-simplexAsTriangulation (Simplex x xs) = TriangSkeleton undefined undefined
- where (Tagged n) = theNatN :: Tagged n Int
+simplexAsTriangulation (Simplex x xs) = naïveTriangCone x $ simplexAsTriangulation xs
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
 -- simplexFaces (Simplex p (ZeroSimplex q))    = TriangVertices $ Arr.fromList [p, q]
