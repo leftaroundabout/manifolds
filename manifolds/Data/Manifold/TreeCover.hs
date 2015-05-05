@@ -394,7 +394,7 @@ type Array = Arr.Vector
 data Triangulation n x where
         TriangVertices :: Array x -> Triangulation Z x
         TriangSkeleton :: Triangulation n x
-                            -> Array (FreeVect ((S (S n))) Int)
+                            -> Array (Int ^ S (S n))
                             -> Triangulation (S n) x
 
 naïveTriangCone :: forall n x . x -> Triangulation n x -> Triangulation (S n) x
@@ -412,7 +412,7 @@ naïveTriangCone x (TriangSkeleton skel skin) = case naïveTriangCone x skel of
       in TriangSkeleton membranes bowels
  
 -- | Universally-quantified-safe triangulation reader monad.
-newtype TriangT t n x m y = TriangT { runTriangT :: Triangulation n x -> m y }
+newtype TriangT t n x m y = TriangT { runTriangT' :: Triangulation n x -> m y }
    deriving (Hask.Functor)
 instance (Hask.Applicative m) => Hask.Applicative (TriangT t n x m) where
   pure = TriangT . const . Hask.pure
@@ -421,10 +421,43 @@ instance (Hask.Monad m) => Hask.Monad (TriangT t n x m) where
   return = TriangT . const . Hask.return
   TriangT xs >>= f = TriangT $ \t -> xs t Hask.>>= \y -> let (TriangT zs) = f y in zs t
   
+runTriangT :: ∀ n x m y . (∀ t . TriangT t n x m y) -> Triangulation n x -> m y
+runTriangT t = runTriangT' (t :: TriangT () n x m y)
 
-simplexAsTriangulation :: forall n x . Simplex n x -> Triangulation n x
+simplexAsTriangulation :: ∀ n x . Simplex n x -> Triangulation n x
 simplexAsTriangulation (ZeroSimplex x) = TriangVertices $ pure x
 simplexAsTriangulation (Simplex x xs) = naïveTriangCone x $ simplexAsTriangulation xs
+
+forgetVolumes :: ∀ n x t m y . KnownNat n => TriangT t n x m y -> TriangT t (S n) x m y
+forgetVolumes (TriangT f) = TriangT $ f . \(TriangSkeleton l _) -> l
+
+
+newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
+
+lookSubSplcesIT :: ∀ t m n x . (Monad m (->), KnownNat n)
+               => SimplexIT t (S n) x -> TriangT t (S n) x m (SimplexIT t n x ^ S(S n))
+lookSubSplcesIT (SimplexIT i) = TriangT rc
+ where rc (TriangSkeleton _ ssb) = return . fmap SimplexIT $ ssb Arr.! i
+
+lookSplxVerticesIT :: ∀ t m n x . (Monad m (->), KnownNat n)
+               => SimplexIT t n x -> TriangT t n x m (SimplexIT t Z x ^ S n)
+lookSplxVerticesIT i = TriangT rc
+ where rc (TriangVertices vs) = return $ pure i 
+       rc (TriangSkeleton sk up) = undefined
+
+lookSplxsVerticesIT :: ∀ t m n x . (Monad m (->), KnownNat n)
+               => [SimplexIT t n x] -> TriangT t n x m [SimplexIT t Z x]
+lookSplxsVerticesIT is = TriangT rc
+ where rc (TriangVertices vs) = return is
+
+lookSimplex :: ∀ t m n x . (Monad m (->), KnownNat n)
+               => SimplexIT t n x -> TriangT t n x m (Simplex n x)
+lookSimplex (SimplexIT i) = undefined
+
+
+triangulationBulk :: ∀ n x . KnownNat n
+                       => Triangulation n x -> [Simplex n x]
+triangulationBulk (TriangVertices vs) = ZeroSimplex <$> Arr.toList vs
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
 -- simplexFaces (Simplex p (ZeroSimplex q))    = TriangVertices $ Arr.fromList [p, q]

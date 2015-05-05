@@ -126,6 +126,12 @@ newtype FreeVect (n::Nat) x = FreeVect
     { getFreeVect :: Arr.Vector x -- ^ MUST have length @n@.
     } deriving (Hask.Functor, Hask.Foldable)
 
+instance (KnownNat n) => Hask.Applicative (FreeVect n) where
+  pure = replicVector
+  (<*>) = perfectZipWith ($)
+
+type x ^ n = FreeVect n x
+
 instance (Num x, KnownNat n) => AffineSpace (FreeVect n x) where
   type Diff (FreeVect n x) = FreeVect n x
   (.-.) = perfectZipWith (-)
