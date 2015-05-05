@@ -49,6 +49,7 @@ import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Vector as Arr
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.List.FastNub
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
 import Data.Ord (comparing)
@@ -445,10 +446,14 @@ lookSplxVerticesIT i = TriangT rc
  where rc (TriangVertices vs) = return $ pure i 
        rc (TriangSkeleton sk up) = undefined
 
-lookSplxsVerticesIT :: ∀ t m n x . (Monad m (->), KnownNat n)
+lookSplxsVerticesIT :: ∀ t m n x . Monad m (->)
                => [SimplexIT t n x] -> TriangT t n x m [SimplexIT t Z x]
 lookSplxsVerticesIT is = TriangT rc
  where rc (TriangVertices vs) = return is
+       rc (TriangSkeleton sk up) = allDown sk
+        where (TriangT allDown) = lookSplxsVerticesIT
+                           $ SimplexIT <$> fastNub [ j | SimplexIT i <- is
+                                                       , j <- Hask.toList $ up Arr.! i ]
 
 lookSimplex :: ∀ t m n x . (Monad m (->), KnownNat n)
                => SimplexIT t n x -> TriangT t n x m (Simplex n x)
