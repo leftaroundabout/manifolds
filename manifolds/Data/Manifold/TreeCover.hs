@@ -411,6 +411,16 @@ naïveTriangCone x (TriangSkeleton skel skin) = case naïveTriangCone x skel of
              TriangVertices vs -> Arr.length vs
       in TriangSkeleton membranes bowels
  
+-- | Universally-quantified-safe triangulation reader monad.
+newtype TriangT t n x m y = TriangT { runTriangT :: Triangulation n x -> m y }
+   deriving (Hask.Functor)
+instance (Hask.Applicative m) => Hask.Applicative (TriangT t n x m) where
+  pure = TriangT . const . Hask.pure
+  TriangT fs <*> TriangT xs = TriangT $ \t -> fs t Hask.<*> xs t
+instance (Hask.Monad m) => Hask.Monad (TriangT t n x m) where
+  return = TriangT . const . Hask.return
+  TriangT xs >>= f = TriangT $ \t -> xs t Hask.>>= \y -> let (TriangT zs) = f y in zs t
+  
 
 simplexAsTriangulation :: forall n x . Simplex n x -> Triangulation n x
 simplexAsTriangulation (ZeroSimplex x) = TriangVertices $ pure x
