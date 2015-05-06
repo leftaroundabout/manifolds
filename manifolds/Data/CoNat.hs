@@ -15,6 +15,7 @@
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE RankNTypes                 #-}
@@ -89,6 +90,9 @@ class KnownNat (n :: Nat) where
   
   coNat :: (s Z->r) -> ( forall k . KnownNat k => s (S k) -> r ) -> s n -> r
   coNatT :: (c Z x->r) -> ( forall k . KnownNat k => c (S k) x -> r ) -> c n x -> r
+  
+  coInduce :: s Z -> (forall k . KnownNat k => s k -> s (S k)) -> s n
+  coInduceT :: c Z x -> (forall k . KnownNat k => c k x -> c (S k) x) -> c n x
 
 
 instance KnownNat Z where
@@ -97,12 +101,35 @@ instance KnownNat Z where
   cozero  = pure; cosucc _  = Hask.empty; fCosucc _  = Hask.empty
   cozeroT = pure; cosuccT _ = Hask.empty; fCosuccT _ = Hask.empty
   coNat f _ = f; coNatT f _ = f
+  coInduce s _ = s
+  coInduceT s _ = s
 instance (KnownNat n) => KnownNat (S n) where
   theNat = natSelfSucc
   theNatN = natSelfSuccN
   cozero _  = Hask.empty; cosucc v  = pure v; fCosucc v  = v
   cozeroT _ = Hask.empty; cosuccT v = pure v; fCosuccT v = v
   coNat _ f = f; coNatT _ f = f
+  coInduce s f = f $ coInduce s f
+  coInduceT s f = f $ coInduceT s f
+
+
+class (KnownNat k, KnownNat j) => (≤) (k::Nat) (j::Nat) where
+  succToMatch :: (forall n . KnownNat n => s n -> s (S n)) -> s k -> s j
+  succToMatchT :: (forall n . KnownNat n => c n x -> c (S n) x) -> c k x -> c j x
+
+instance (KnownNat n) => Z ≤ n where
+  succToMatch f s = coInduce s f
+  succToMatchT f s = coInduceT s f
+instance (k ≤ j) => (S k) ≤ (S j) where
+  succToMatch = stm
+   where stm :: ∀ k j s . (k≤j) => (forall n . KnownNat n => s n -> s (S n))
+                                     -> s (S k) -> s (S j)
+         stm f s = let (Tagged r) = succToMatchT ff
+                                      (Tagged s :: Tagged k (s (S k)))
+                                                :: Tagged j (s (S j))
+                       ff :: ∀n. KnownNat n => Tagged n (s (S k)) -> Tagged (S n) (s (S j))
+                       ff (Tagged q) = Tagged $ f q
+                   in r
 
 
 

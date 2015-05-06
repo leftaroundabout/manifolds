@@ -429,8 +429,12 @@ simplexAsTriangulation :: ∀ n x . Simplex n x -> Triangulation n x
 simplexAsTriangulation (ZeroSimplex x) = TriangVertices $ pure x
 simplexAsTriangulation (Simplex x xs) = naïveTriangCone x $ simplexAsTriangulation xs
 
+
 forgetVolumes :: ∀ n x t m y . KnownNat n => TriangT t n x m y -> TriangT t (S n) x m y
 forgetVolumes (TriangT f) = TriangT $ f . \(TriangSkeleton l _) -> l
+
+onSkeleton :: ∀ n k x t m y . (KnownNat n, KnownNat k)
+                 => TriangT t n x m y -> TriangT t k x m y
 
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
