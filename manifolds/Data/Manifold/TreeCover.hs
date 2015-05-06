@@ -439,14 +439,22 @@ onSkeleton = succToMatchTTT forgetVolumes
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
 
-lookSubSplcesIT :: ∀ t m n x . (Monad m (->), KnownNat n)
+lookSubSplcesIT :: ∀ t m n k x . (Monad m (->), KnownNat k, S k ≤ n)
+               => SimplexIT t (S k) x -> TriangT t n x m (SimplexIT t k x ^ S(S k))
+lookSubSplcesIT = onSkeleton . lookSubSplcesIT'
+
+lookSubSplcesIT' :: ∀ t m n x . (Monad m (->), KnownNat n)
                => SimplexIT t (S n) x -> TriangT t (S n) x m (SimplexIT t n x ^ S(S n))
-lookSubSplcesIT (SimplexIT i) = TriangT rc
+lookSubSplcesIT' (SimplexIT i) = TriangT rc
  where rc (TriangSkeleton _ ssb) = return . fmap SimplexIT $ ssb Arr.! i
 
-lookSplxVerticesIT :: ∀ t m n x . (Monad m (->), KnownNat n)
+lookSplxVerticesIT :: ∀ t m n k x . (Monad m (->), k ≤ n)
+               => SimplexIT t k x -> TriangT t n x m (SimplexIT t Z x ^ S k)
+lookSplxVerticesIT = onSkeleton . lookSplxVerticesIT'
+
+lookSplxVerticesIT' :: ∀ t m n x . (Monad m (->), KnownNat n)
                => SimplexIT t n x -> TriangT t n x m (SimplexIT t Z x ^ S n)
-lookSplxVerticesIT i = TriangT rc
+lookSplxVerticesIT' i = TriangT rc
  where rc (TriangVertices vs) = return $ pure i 
        rc (TriangSkeleton sk up) = undefined
 
@@ -459,9 +467,13 @@ lookSplxsVerticesIT is = TriangT rc
                            $ SimplexIT <$> fastNub [ j | SimplexIT i <- is
                                                        , j <- Hask.toList $ up Arr.! i ]
 
-lookSimplex :: ∀ t m n x . (Monad m (->), KnownNat n)
+lookSimplex :: ∀ t m n k x . (Monad m (->), k ≤ n)
+               => SimplexIT t k x -> TriangT t n x m (Simplex k x)
+lookSimplex = onSkeleton . lookSimplex'
+
+lookSimplex' :: ∀ t m n x . (Monad m (->), KnownNat n)
                => SimplexIT t n x -> TriangT t n x m (Simplex n x)
-lookSimplex (SimplexIT i) = undefined
+lookSimplex' (SimplexIT i) = undefined
 
 
 triangulationBulk :: ∀ n x . KnownNat n
