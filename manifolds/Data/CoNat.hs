@@ -26,6 +26,7 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE PolyKinds                  #-}
 
 module Data.CoNat where
 
@@ -113,23 +114,48 @@ instance (KnownNat n) => KnownNat (S n) where
   coInduceT s f = f $ coInduceT s f
 
 
+newtype NatTagAtPænultimate t x n
+           = NatTagAtPænultimate { getNatTagAtPænultimate :: t n x }
+mapNatTagAtPænultimate :: (s n x -> t m y)
+    -> NatTagAtPænultimate s x n -> NatTagAtPænultimate t y m
+mapNatTagAtPænultimate f (NatTagAtPænultimate x) = NatTagAtPænultimate $ f x
+
+newtype NatTagAtAntepænultimate t x y n
+           = NatTagAtAntepænultimate { getNatTagAtAntepænultimate :: t n x y }
+mapNatTagAtAntepænultimate :: (s n w x -> t m y z)
+    -> NatTagAtAntepænultimate s w x n -> NatTagAtAntepænultimate t y z m
+mapNatTagAtAntepænultimate f (NatTagAtAntepænultimate x) = NatTagAtAntepænultimate $ f x
+
+newtype NatTagAtPreantepænultimate t x y z n
+           = NatTagAtPreantepænultimate { getNatTagAtPreantepænultimate :: t n x y z }
+mapNatTagAtPreantepænultimate :: (s n u v w -> t m x y z)
+    -> NatTagAtPreantepænultimate s u v w n -> NatTagAtPreantepænultimate t x y z m
+mapNatTagAtPreantepænultimate f (NatTagAtPreantepænultimate x) = NatTagAtPreantepænultimate $ f x
+
 class (KnownNat k, KnownNat j) => (≤) (k::Nat) (j::Nat) where
-  succToMatch :: (forall n . KnownNat n => s n -> s (S n)) -> s k -> s j
-  succToMatchT :: (forall n . KnownNat n => c n x -> c (S n) x) -> c k x -> c j x
+  succToMatch :: (∀ n . KnownNat n => b n -> b (S n)) -> b k -> b j
+  succToMatchT :: (∀ n . KnownNat n => c n x -> c (S n) x) -> c k x -> c j x
+  succToMatchT f = getNatTagAtPænultimate
+         . succToMatch (mapNatTagAtPænultimate f) . NatTagAtPænultimate
+  succToMatchTT :: (∀ n . KnownNat n => d n x y -> d (S n) x y) -> d k x y -> d j x y
+  succToMatchTT f = getNatTagAtAntepænultimate
+         . succToMatch (mapNatTagAtAntepænultimate f) . NatTagAtAntepænultimate
+  succToMatchTTT :: (∀ n . KnownNat n => e n x y z -> e (S n) x y z)
+                      -> e k x y z -> e j x y z
+  succToMatchTTT f = getNatTagAtPreantepænultimate
+         . succToMatch (mapNatTagAtPreantepænultimate f) . NatTagAtPreantepænultimate
+
+
+newtype Cosucc'd s n = Cosucc'd { getSucc'd :: s (S n) }
+cosucc'dSucc :: ∀ s n . KnownNat n => (s (S n) -> s (S (S n)))
+                        -> Cosucc'd s n -> Cosucc'd s (S n)
+cosucc'dSucc f (Cosucc'd x) = Cosucc'd $ f x
 
 instance (KnownNat n) => Z ≤ n where
   succToMatch f s = coInduce s f
   succToMatchT f s = coInduceT s f
 instance (k ≤ j) => (S k) ≤ (S j) where
-  succToMatch = stm
-   where stm :: ∀ k j s . (k≤j) => (forall n . KnownNat n => s n -> s (S n))
-                                     -> s (S k) -> s (S j)
-         stm f s = let (Tagged r) = succToMatchT ff
-                                      (Tagged s :: Tagged k (s (S k)))
-                                                :: Tagged j (s (S j))
-                       ff :: ∀n. KnownNat n => Tagged n (s (S k)) -> Tagged (S n) (s (S j))
-                       ff (Tagged q) = Tagged $ f q
-                   in r
+  succToMatch f s = let (Cosucc'd r) = succToMatch (cosucc'dSucc f) (Cosucc'd s) in r
 
 
 
