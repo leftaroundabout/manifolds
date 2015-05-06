@@ -433,8 +433,8 @@ simplexAsTriangulation (Simplex x xs) = naïveTriangCone x $ simplexAsTriangulat
 forgetVolumes :: ∀ n x t m y . KnownNat n => TriangT t n x m y -> TriangT t (S n) x m y
 forgetVolumes (TriangT f) = TriangT $ f . \(TriangSkeleton l _) -> l
 
-onSkeleton :: ∀ n k x t m y . (KnownNat n, KnownNat k)
-                 => TriangT t n x m y -> TriangT t k x m y
+onSkeleton :: ∀ n k x t m y . (k ≤ n) => TriangT t k x m y -> TriangT t n x m y
+onSkeleton = succToMatchTTT forgetVolumes
 
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
