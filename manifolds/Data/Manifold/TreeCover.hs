@@ -415,13 +415,16 @@ naïveTriangCone x (TriangSkeleton skel skin) = case naïveTriangCone x skel of
 -- | Universally-quantified-safe triangulation reader monad.
 newtype TriangT t n x m y = TriangT { runTriangT' :: Triangulation n x -> m y }
    deriving (Hask.Functor)
-instance (Hask.Applicative m) => Hask.Applicative (TriangT t n x m) where
-  pure = TriangT . const . Hask.pure
-  TriangT fs <*> TriangT xs = TriangT $ \t -> fs t Hask.<*> xs t
-instance (Hask.Monad m) => Hask.Monad (TriangT t n x m) where
-  return = TriangT . const . Hask.return
-  TriangT xs >>= f = TriangT $ \t -> xs t Hask.>>= \y -> let (TriangT zs) = f y in zs t
-  
+instance (Hask.Functor m, Applicative m (->) (->))
+             => Hask.Applicative (TriangT t n x m) where
+  pure = TriangT . const . pure
+  TriangT fs <*> TriangT xs = TriangT $ \t -> fs t <*> xs t
+instance (Hask.Functor m, Monad m (->)) => Hask.Monad (TriangT t n x m) where
+  return = TriangT . const . return
+  TriangT xs >>= f = TriangT $ \t -> xs t >>= \y -> let (TriangT zs) = f y in zs t
+
+type HaskMonad m = (Hask.Applicative m, Hask.Monad m)
+
 runTriangT :: ∀ n x m y . (∀ t . TriangT t n x m y) -> Triangulation n x -> m y
 runTriangT t = runTriangT' (t :: TriangT () n x m y)
 
@@ -439,26 +442,32 @@ onSkeleton = succToMatchTTT forgetVolumes
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
 
-lookSubSplcesIT :: ∀ t m n k x . (Monad m (->), KnownNat k, S k ≤ n)
+lookSubSplcesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, S k ≤ n)
                => SimplexIT t (S k) x -> TriangT t n x m (SimplexIT t k x ^ S(S k))
 lookSubSplcesIT = onSkeleton . lookSubSplcesIT'
 
-lookSubSplcesIT' :: ∀ t m n x . (Monad m (->), KnownNat n)
+lookSubSplcesIT' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                => SimplexIT t (S n) x -> TriangT t (S n) x m (SimplexIT t n x ^ S(S n))
 lookSubSplcesIT' (SimplexIT i) = TriangT rc
  where rc (TriangSkeleton _ ssb) = return . fmap SimplexIT $ ssb Arr.! i
 
-lookSplxVerticesIT :: ∀ t m n k x . (Monad m (->), k ≤ n)
+lookSplxVerticesIT :: ∀ t m n k x . (HaskMonad m, k ≤ n)
                => SimplexIT t k x -> TriangT t n x m (SimplexIT t Z x ^ S k)
 lookSplxVerticesIT = onSkeleton . lookSplxVerticesIT'
 
-lookSplxVerticesIT' :: ∀ t m n x . (Monad m (->), KnownNat n)
+lookSplxVerticesIT' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                => SimplexIT t n x -> TriangT t n x m (SimplexIT t Z x ^ S n)
-lookSplxVerticesIT' i = TriangT rc
- where rc (TriangVertices vs) = return $ pure i 
+lookSplxVerticesIT' i = fmap 
+       (\vs -> case freeVector vs of
+          Option (Just vs') -> vs'
+          _ -> error $ "Impossible number " ++ show (length vs) ++ " of vertices for "
+                  ++ show n ++ "-simplex in `lookSplxVerticesIT'`."
+       ) $ lookSplxsVerticesIT [i]
+ where (Tagged n) = theNatN :: Tagged n Int
        rc (TriangSkeleton sk up) = undefined
+          
 
-lookSplxsVerticesIT :: ∀ t m n x . Monad m (->)
+lookSplxsVerticesIT :: ∀ t m n x . HaskMonad m
                => [SimplexIT t n x] -> TriangT t n x m [SimplexIT t Z x]
 lookSplxsVerticesIT is = TriangT rc
  where rc (TriangVertices vs) = return is
@@ -467,11 +476,11 @@ lookSplxsVerticesIT is = TriangT rc
                            $ SimplexIT <$> fastNub [ j | SimplexIT i <- is
                                                        , j <- Hask.toList $ up Arr.! i ]
 
-lookSimplex :: ∀ t m n k x . (Monad m (->), k ≤ n)
+lookSimplex :: ∀ t m n k x . (HaskMonad m, k ≤ n)
                => SimplexIT t k x -> TriangT t n x m (Simplex k x)
 lookSimplex = onSkeleton . lookSimplex'
 
-lookSimplex' :: ∀ t m n x . (Monad m (->), KnownNat n)
+lookSimplex' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                => SimplexIT t n x -> TriangT t n x m (Simplex n x)
 lookSimplex' (SimplexIT i) = undefined
 
