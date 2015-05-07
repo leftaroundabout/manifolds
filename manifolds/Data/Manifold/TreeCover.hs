@@ -384,10 +384,14 @@ instance Hask.Functor (Simplex n) where
   fmap f (Simplex x xs) = Simplex (f x) (fmap f xs)
 
 
-makeSimplex :: forall x n . KnownNat n => [x] -> Option (Simplex n x)
-makeSimplex [] = Option Nothing
-makeSimplex [x] = cozeroT $ ZeroSimplex x
-makeSimplex (x:xs) = fCosuccT (Simplex x <$> makeSimplex xs)
+makeSimplex :: ∀ x n . KnownNat n => x ^ S n -> Simplex n x
+makeSimplex xs = case makeSimplex' $ Hask.toList xs of
+     Option (Just s) -> s
+
+makeSimplex' :: ∀ x n . KnownNat n => [x] -> Option (Simplex n x)
+makeSimplex' [] = Option Nothing
+makeSimplex' [x] = cozeroT $ ZeroSimplex x
+makeSimplex' (x:xs) = fCosuccT (Simplex x <$> makeSimplex' xs)
 
 
 type Array = Arr.Vector
@@ -464,25 +468,33 @@ lookSplxVerticesIT' i = fmap
                   ++ show n ++ "-simplex in `lookSplxVerticesIT'`."
        ) $ lookSplxsVerticesIT [i]
  where (Tagged n) = theNatN :: Tagged n Int
-       rc (TriangSkeleton sk up) = undefined
           
 
 lookSplxsVerticesIT :: ∀ t m n x . HaskMonad m
                => [SimplexIT t n x] -> TriangT t n x m [SimplexIT t Z x]
 lookSplxsVerticesIT is = TriangT rc
- where rc (TriangVertices vs) = return is
+ where rc (TriangVertices _) = return is
        rc (TriangSkeleton sk up) = allDown sk
         where (TriangT allDown) = lookSplxsVerticesIT
                            $ SimplexIT <$> fastNub [ j | SimplexIT i <- is
                                                        , j <- Hask.toList $ up Arr.! i ]
 
+lookVertexIT :: ∀ t m n x . (HaskMonad m, KnownNat n)
+                                => SimplexIT t Z x -> TriangT t n x m x
+lookVertexIT = onSkeleton . lookVertexIT'
+
+lookVertexIT' :: ∀ t m x . HaskMonad m => SimplexIT t Z x -> TriangT t Z x m x
+lookVertexIT' (SimplexIT i) = TriangT $ \(TriangVertices vs) -> return $ vs Arr.! i
+
 lookSimplex :: ∀ t m n k x . (HaskMonad m, k ≤ n)
                => SimplexIT t k x -> TriangT t n x m (Simplex k x)
-lookSimplex = onSkeleton . lookSimplex'
+lookSimplex s = do 
+       vis <- lookSplxVerticesIT s
+       fmap makeSimplex $ mapM lookVertexIT vis
+-- lookSimplex = onSkeleton . lookSimplex'
 
-lookSimplex' :: ∀ t m n x . (HaskMonad m, KnownNat n)
-               => SimplexIT t n x -> TriangT t n x m (Simplex n x)
-lookSimplex' (SimplexIT i) = undefined
+-- lookSimplex' :: ∀ t m n x . (HaskMonad m, KnownNat n)
+--                => SimplexIT t n x -> TriangT t n x m (Simplex n x)
 
 
 triangulationBulk :: ∀ n x . KnownNat n
@@ -606,7 +618,7 @@ fromISimplex :: forall x n . (KnownNat n, WithField ℝ Manifold x)
                    => ISimplex n x -> Simplex n x
 fromISimplex (ISimplex emb) = s
  where (Option (Just s))
-           = makeSimplex [ emb $-> jOnly
+          = makeSimplex' [ emb $-> jOnly
                          | j <- [0..n]
                          , let (Option (Just jOnly)) = mkBaryCoords [ if k==j then 1 else 0
                                                                     | k<-[0..n] ]

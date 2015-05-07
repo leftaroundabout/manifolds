@@ -43,9 +43,11 @@ import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask
 import qualified Data.Foldable       as Hask
+import qualified Data.Traversable    as Hask
 
 
 import Control.Category.Constrained.Prelude hiding ((^))
+import Data.Traversable.Constrained
 
 
 import qualified Data.Vector as Arr
@@ -182,6 +184,9 @@ newtype FreeVect (n::Nat) x = FreeVect
 instance (KnownNat n) => Hask.Applicative (FreeVect n) where
   pure = replicVector
   (<*>) = perfectZipWith ($)
+instance (KnownNat n) => Traversable (FreeVect n) (FreeVect n) (->) (->) where
+  traverse f (FreeVect v) = fmap FreeVect . runAsHaskFunctor
+                              $ Hask.traverse (AsHaskFunctor . f) v
 
 type x ^ n = FreeVect n x
 
@@ -237,3 +242,12 @@ freeSnoc :: FreeVect n a -> a -> FreeVect (S n) a
 freeSnoc (FreeVect xs) x = FreeVect $ Arr.snoc xs x
 
 
+
+
+newtype AsHaskFunctor f x = AsHaskFunctor { runAsHaskFunctor :: f x }
+
+instance (Functor f (->) (->)) => Hask.Functor (AsHaskFunctor f) where
+  fmap f (AsHaskFunctor c) = AsHaskFunctor $ fmap f c
+instance (Monoidal f (->) (->)) => Hask.Applicative (AsHaskFunctor f) where
+  pure = runAsHaskFunctor . pure
+  AsHaskFunctor fs <*> AsHaskFunctor xs = AsHaskFunctor . fmap (uncurry ($)) $ fzip (fs, xs)
