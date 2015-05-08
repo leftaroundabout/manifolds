@@ -78,6 +78,8 @@ import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask
 import qualified Data.Foldable       as Hask
 
+import Data.Functor.Identity (runIdentity)
+
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import Control.Category.Constrained.Prelude hiding ((^))
@@ -491,15 +493,22 @@ lookSimplex :: ∀ t m n k x . (HaskMonad m, k ≤ n)
 lookSimplex s = do 
        vis <- lookSplxVerticesIT s
        fmap makeSimplex $ mapM lookVertexIT vis
--- lookSimplex = onSkeleton . lookSimplex'
 
--- lookSimplex' :: ∀ t m n x . (HaskMonad m, KnownNat n)
---                => SimplexIT t n x -> TriangT t n x m (Simplex n x)
+simplexITList :: ∀ t m n k x . (HaskMonad m, k ≤ n)
+               => TriangT t n x m [SimplexIT t k x]
+simplexITList = onSkeleton simplexITList'
+
+simplexITList' :: ∀ t m n x . (HaskMonad m, KnownNat n)
+               => TriangT t n x m [SimplexIT t n x]
+simplexITList' = TriangT $ return . sil
+ where sil :: Triangulation n x -> [SimplexIT t n x]
+       sil (TriangVertices vs) = [ SimplexIT i | i <- [0 .. Arr.length vs - 1] ]
+       sil (TriangSkeleton _ bk) = [ SimplexIT i | i <- [0 .. Arr.length bk - 1] ]
 
 
-triangulationBulk :: ∀ n x . KnownNat n
-                       => Triangulation n x -> [Simplex n x]
-triangulationBulk (TriangVertices vs) = ZeroSimplex <$> Arr.toList vs
+triangulationBulk :: ∀ t m n k x . (HaskMonad m, k ≤ n) => TriangT t n x m [Simplex k x]
+triangulationBulk = simplexITList >>= mapM lookSimplex
+    
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
 -- simplexFaces (Simplex p (ZeroSimplex q))    = TriangVertices $ Arr.fromList [p, q]
