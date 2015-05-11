@@ -44,7 +44,7 @@ module Data.Manifold.TreeCover (
     ) where
 
 
-import Data.List hiding (filter)
+import Data.List hiding (filter, all, elem)
 import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Vector as Arr
@@ -77,12 +77,13 @@ import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask
 import qualified Data.Foldable       as Hask
+import Data.Foldable (all, elem)
 
 import Data.Functor.Identity (runIdentity)
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
-import Control.Category.Constrained.Prelude hiding ((^))
+import Control.Category.Constrained.Prelude hiding ((^), all, elem)
 import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
@@ -468,14 +469,15 @@ onSkeleton = succToMatchTTT forgetVolumes
 
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
+          deriving (Eq)
 
-lookSubSplcesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, S k ≤ n)
+lookSplxFacesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, S k ≤ n)
                => SimplexIT t (S k) x -> TriangT t n x m (SimplexIT t k x ^ S(S k))
-lookSubSplcesIT = onSkeleton . lookSubSplcesIT'
+lookSplxFacesIT = onSkeleton . lookSplxFacesIT'
 
-lookSubSplcesIT' :: ∀ t m n x . (HaskMonad m, KnownNat n)
+lookSplxFacesIT' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                => SimplexIT t (S n) x -> TriangT t (S n) x m (SimplexIT t n x ^ S(S n))
-lookSubSplcesIT' (SimplexIT i) = triangReadT rc
+lookSplxFacesIT' (SimplexIT i) = triangReadT rc
  where rc (TriangSkeleton _ ssb) = return . fmap SimplexIT $ ssb Arr.! i
 
 lookSplxVerticesIT :: ∀ t m n k x . (HaskMonad m, k ≤ n)
@@ -530,6 +532,13 @@ simplexITList' = triangReadT $ return . sil
 
 triangulationBulk :: ∀ t m n k x . (HaskMonad m, k ≤ n) => TriangT t n x m [Simplex k x]
 triangulationBulk = simplexITList >>= mapM lookSimplex
+
+withThisSubsimplex :: ∀ t m n k j x . (HaskMonad m, j ≤ k, k ≤ n, j ≤ n)
+                   => SimplexIT t j x -> TriangT t n x m [SimplexIT t k x]
+withThisSubsimplex s = do
+      svs <- lookSplxVerticesIT s
+      simplexITList >>= filterM (lookSplxVerticesIT >>> fmap`id`
+                                      \s'vs -> all (`elem`s'vs) svs )
     
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x

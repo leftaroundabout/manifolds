@@ -38,6 +38,7 @@ import Data.VectorSpace
 import Data.AffineSpace
 import Data.Basis
 import Data.AdditiveGroup
+import qualified Data.List as List
     
 import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
@@ -233,6 +234,9 @@ perfectZipWith :: forall n a b c . KnownNat n
         => (a->b->c) -> FreeVect n a -> FreeVect n b -> FreeVect n c
 perfectZipWith f (FreeVect va) (FreeVect vb) = FreeVect $ Arr.zipWith f va vb
 
+freeSortBy :: forall n a . KnownNat n
+        => (a->a->Ordering) -> a^n -> a^n
+freeSortBy cmp (FreeVect xs) = FreeVect $ Arr.fromList (List.sortBy cmp $ Arr.toList xs)
 
 
 freeCons :: a -> FreeVect n a -> FreeVect (S n) a
