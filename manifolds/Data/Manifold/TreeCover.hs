@@ -401,7 +401,7 @@ type Array = Arr.Vector
 
 data Triangulation n x where
         TriangVertices :: Array x -> Triangulation Z x
-        TriangSkeleton :: Triangulation n x
+        TriangSkeleton :: KnownNat n => Triangulation n x
                             -> Array (Int ^ S (S n))
                             -> Triangulation (S n) x
 
@@ -539,6 +539,32 @@ withThisSubsimplex s = do
       svs <- lookSplxVerticesIT s
       simplexITList >>= filterM (lookSplxVerticesIT >>> fmap`id`
                                       \s'vs -> all (`elem`s'vs) svs )
+
+
+webinateTriang :: ∀ t m n k x . (HaskMonad m)
+         => SimplexIT t Z x -> SimplexIT t n x -> TriangT t (S n) x m (SimplexIT t (S n) x)
+webinateTriang (SimplexIT pt) (SimplexIT bs) = TriangT $ \(TriangSkeleton sk cnn)
+   -> let res = SimplexIT $ Arr.length cnn :: SimplexIT t (S n) x
+      in case sk of
+       TriangVertices _ -> return
+             $ ( res, TriangSkeleton sk $ Arr.snoc cnn (freeTuple$->$(pt, bs)) )
+       TriangSkeleton _ cnn'
+             -> let cnbs = cnn' Arr.! bs
+                in do (cnws,sk') <- runTriangT (
+                        forM (SimplexIT<$>cnbs)
+                           $ fmap tgetSimplexIT . webinateTriang (SimplexIT pt) ) sk
+                      let snocer = freeSnoc cnws bs
+                      return $ (res, TriangSkeleton sk' $ Arr.snoc cnn snocer)
+
+
+introVertToTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
+                  => x -> [SimplexIT t n x] -> TriangT t (S n) x m [SimplexIT t (S n) x]
+introVertToTriang v glues = do
+      j <- onSkeleton . TriangT $ return . tVertSnoc
+      return undefined
+ where tVertSnoc :: Triangulation Z x -> (Int, Triangulation Z x)
+       tVertSnoc (TriangVertices vs) = (Arr.length vs, TriangVertices $ vs `Arr.snoc` v)
+      
     
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
