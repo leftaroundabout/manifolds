@@ -400,19 +400,24 @@ makeSimplex' (x:xs) = fCosuccT (Simplex x <$> makeSimplex' xs)
 type Array = Arr.Vector
 
 data Triangulation n x where
-        TriangVertices :: Array x -> Triangulation Z x
-        TriangSkeleton :: KnownNat n => Triangulation n x
-                            -> Array (Int ^ S (S n))
-                            -> Triangulation (S n) x
+        TriangSkeleton :: KnownNat n
+                 => Triangulation n x  -- The lower-dimensional skeleton.
+                 -> Array              -- Array of `S n`-simplices in this triangulation.
+                       ( Int ^ S (S n)   -- “down link” – the subsimplices
+                       , [Int]           -- “up link” – what higher simplices have
+                       )                 --       this one as a subsimplex?
+                 -> Triangulation (S n) x
+        TriangVertices :: Array (x, [Int]) -> Triangulation Z x
 
 naïveTriangCone :: forall n x . x -> Triangulation n x -> Triangulation (S n) x
 naïveTriangCone x (TriangVertices xs)
-        = TriangSkeleton (TriangVertices $ xs `Arr.snoc` x)
-                         (Arr.imap (\j _ -> freeTuple $ (nxs,j)) xs)
+        = TriangSkeleton (TriangVertices $ Arr.imap (\j (x,_) -> (x,[j])) xs
+                                             `Arr.snoc` (x, [0 .. nxs-1])      )
+                         (Arr.imap (\j _ -> (freeTuple $ (nxs,j), [0])) xs)
  where nxs = Arr.length xs
 naïveTriangCone x (TriangSkeleton skel skin) = case naïveTriangCone x skel of
      (TriangSkeleton sinew flesh) ->
-      let bowels = Arr.imap (\j sk -> sk `freeSnoc` (j+nskel)) skin 
+      let bowels = Arr.imap (\j (sk,[]) -> (sk `freeSnoc` (j+nskel), [0])) skin 
           membranes = TriangSkeleton sinew $ flesh Arr.++ skin
           nskel = case sinew of
              TriangSkeleton _ fibre -> Arr.length fibre
@@ -455,7 +460,7 @@ runTriangT :: ∀ n x m y . (∀ t . TriangT t n x m y)
 runTriangT t = unsafeRunTriangT (t :: TriangT () n x m y)
 
 simplexAsTriangulation :: ∀ n x . Simplex n x -> Triangulation n x
-simplexAsTriangulation (ZeroSimplex x) = TriangVertices $ pure x
+simplexAsTriangulation (ZeroSimplex x) = TriangVertices $ pure (x,[])
 simplexAsTriangulation (Simplex x xs) = naïveTriangCone x $ simplexAsTriangulation xs
 
 
@@ -478,7 +483,7 @@ lookSplxFacesIT = onSkeleton . lookSplxFacesIT'
 lookSplxFacesIT' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                => SimplexIT t (S n) x -> TriangT t (S n) x m (SimplexIT t n x ^ S(S n))
 lookSplxFacesIT' (SimplexIT i) = triangReadT rc
- where rc (TriangSkeleton _ ssb) = return . fmap SimplexIT $ ssb Arr.! i
+ where rc (TriangSkeleton _ ssb) = return . fmap SimplexIT . fst $ ssb Arr.! i
 
 lookSplxVerticesIT :: ∀ t m n k x . (HaskMonad m, k ≤ n)
                => SimplexIT t k x -> TriangT t n x m (SimplexIT t Z x ^ S k)
@@ -501,8 +506,8 @@ lookSplxsVerticesIT is = triangReadT rc
  where rc (TriangVertices _) = return is
        rc (TriangSkeleton sk up) = unsafeEvalTriangT
               ( lookSplxsVerticesIT
-                           $ SimplexIT <$> fastNub [ j | SimplexIT i <- is
-                                                       , j <- Hask.toList $ up Arr.! i ]
+                      $ SimplexIT <$> fastNub [ j | SimplexIT i <- is
+                                                  , j <- Hask.toList . fst $ up Arr.! i ]
               ) sk
 
 lookVertexIT :: ∀ t m n x . (HaskMonad m, KnownNat n)
@@ -510,7 +515,7 @@ lookVertexIT :: ∀ t m n x . (HaskMonad m, KnownNat n)
 lookVertexIT = onSkeleton . lookVertexIT'
 
 lookVertexIT' :: ∀ t m x . HaskMonad m => SimplexIT t Z x -> TriangT t Z x m x
-lookVertexIT' (SimplexIT i) = triangReadT $ \(TriangVertices vs) -> return $ vs Arr.! i
+lookVertexIT' (SimplexIT i) = triangReadT $ \(TriangVertices vs) -> return.fst $ vs Arr.! i
 
 lookSimplex :: ∀ t m n k x . (HaskMonad m, k ≤ n)
                => SimplexIT t k x -> TriangT t n x m (Simplex k x)
@@ -547,13 +552,13 @@ webinateTriang (SimplexIT pt) (SimplexIT bs) = TriangT $ \(TriangSkeleton sk cnn
    -> let res = SimplexIT $ Arr.length cnn :: SimplexIT t (S n) x
       in case sk of
        TriangVertices _ -> return
-             $ ( res, TriangSkeleton sk $ Arr.snoc cnn (freeTuple$->$(pt, bs)) )
+             $ ( res, TriangSkeleton sk $ Arr.snoc cnn (freeTuple$->$(pt, bs), []) )
        TriangSkeleton _ cnn'
-             -> let cnbs = cnn' Arr.! bs
+             -> let (cnbs,_) = cnn' Arr.! bs
                 in do (cnws,sk') <- runTriangT (
                         forM (SimplexIT<$>cnbs)
                            $ fmap tgetSimplexIT . webinateTriang (SimplexIT pt) ) sk
-                      let snocer = freeSnoc cnws bs
+                      let snocer = (freeSnoc cnws bs, [undefined])
                       return $ (res, TriangSkeleton sk' $ Arr.snoc cnn snocer)
 
 
@@ -563,7 +568,7 @@ introVertToTriang v glues = do
       j <- onSkeleton . TriangT $ return . tVertSnoc
       return undefined
  where tVertSnoc :: Triangulation Z x -> (Int, Triangulation Z x)
-       tVertSnoc (TriangVertices vs) = (Arr.length vs, TriangVertices $ vs `Arr.snoc` v)
+       tVertSnoc (TriangVertices vs) = (Arr.length vs, TriangVertices $ vs `Arr.snoc` (v,[undefined]))
       
     
 
