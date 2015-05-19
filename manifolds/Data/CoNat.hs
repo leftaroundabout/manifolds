@@ -97,6 +97,10 @@ class KnownNat (n :: Nat) where
   
   coInduce :: s Z -> (forall k . KnownNat k => s k -> s (S k)) -> s n
   coInduceT :: c Z x -> (forall k . KnownNat k => c k x -> c (S k) x) -> c n x
+  
+  ftorCoInduce :: f (s Z) -> (forall k . KnownNat k => f (s k) -> f (s (S k))) -> f (s n)
+  ftorCoInduceT :: f (c Z x) -> (forall k . KnownNat k => f (c k x) -> f (c (S k) x))
+                         -> f (c n x)
 
 
 instance KnownNat Z where
@@ -107,6 +111,8 @@ instance KnownNat Z where
   coNat f _ = f; coNatT f _ = f
   coInduce s _ = s
   coInduceT s _ = s
+  ftorCoInduce s _ = s
+  ftorCoInduceT s _ = s
 instance (KnownNat n) => KnownNat (S n) where
   theNat = natSelfSucc
   theNatN = natSelfSuccN
@@ -115,6 +121,8 @@ instance (KnownNat n) => KnownNat (S n) where
   coNat _ f = f; coNatT _ f = f
   coInduce s f = f $ coInduce s f
   coInduceT s f = f $ coInduceT s f
+  ftorCoInduce s f = f $ ftorCoInduce s f
+  ftorCoInduceT s f = f $ ftorCoInduceT s f
 
 
 newtype NatTagAtPænultimate t x n
@@ -135,6 +143,13 @@ mapNatTagAtPreantepænultimate :: (s n u v w -> t m x y z)
     -> NatTagAtPreantepænultimate s u v w n -> NatTagAtPreantepænultimate t x y z m
 mapNatTagAtPreantepænultimate f (NatTagAtPreantepænultimate x) = NatTagAtPreantepænultimate $ f x
 
+newtype NatTagAtFtorPænultimate f t x n
+           = NatTagAtFtorPænultimate { getNatTagAtFtorPænultimate :: f (t n x) }
+mapNatTagAtFtorPænultimate :: (f (s n x) -> f (t m y))
+    -> NatTagAtFtorPænultimate f s x n -> NatTagAtFtorPænultimate f t y m
+mapNatTagAtFtorPænultimate f (NatTagAtFtorPænultimate x) = NatTagAtFtorPænultimate $ f x
+
+
 class (KnownNat k, KnownNat j) => (≤) (k::Nat) (j::Nat) where
   succToMatch :: (∀ n . KnownNat n => b n -> b (S n)) -> b k -> b j
   succToMatchT :: (∀ n . KnownNat n => c n x -> c (S n) x) -> c k x -> c j x
@@ -147,6 +162,11 @@ class (KnownNat k, KnownNat j) => (≤) (k::Nat) (j::Nat) where
                       -> e k x y z -> e j x y z
   succToMatchTTT f = getNatTagAtPreantepænultimate
          . succToMatch (mapNatTagAtPreantepænultimate f) . NatTagAtPreantepænultimate
+  
+  ftorSuccToMatch :: Functor f (->) (->) =>
+             (∀ n . KnownNat n => f (b n) -> f (b (S n))) -> f (b k) -> f (b j)
+  ftorSuccToMatchT :: (∀ n . KnownNat n => f (c n x) -> f (c (S n) x)) -> f (c k x) -> f (c j x)
+  ftorSuccToMatchT f = getNatTagAtFtorPænultimate . succToMatch (mapNatTagAtFtorPænultimate f) . NatTagAtFtorPænultimate
 
 
 newtype Cosucc'd s n = Cosucc'd { getSucc'd :: s (S n) }
@@ -154,11 +174,18 @@ cosucc'dSucc :: ∀ s n . KnownNat n => (s (S n) -> s (S (S n)))
                         -> Cosucc'd s n -> Cosucc'd s (S n)
 cosucc'dSucc f (Cosucc'd x) = Cosucc'd $ f x
 
+newtype FtorCosucc'd f s n = FtorCosucc'd { getFtorSucc'd :: f (s (S n)) }
+ftorCosucc'dSucc :: ∀ f s n . KnownNat n => (f (s (S n)) -> f(s (S (S n))))
+                        -> FtorCosucc'd f s n -> FtorCosucc'd f s (S n)
+ftorCosucc'dSucc f (FtorCosucc'd x) = FtorCosucc'd $ f x
+
 instance (KnownNat n) => Z ≤ n where
   succToMatch f s = coInduce s f
   succToMatchT f s = coInduceT s f
+  ftorSuccToMatch f s = ftorCoInduce s f
 instance (k ≤ j) => (S k) ≤ (S j) where
   succToMatch f s = let (Cosucc'd r) = succToMatch (cosucc'dSucc f) (Cosucc'd s) in r
+  ftorSuccToMatch f s = let (FtorCosucc'd r) = succToMatch (ftorCosucc'dSucc f) (FtorCosucc'd s) in r
 
 
 
