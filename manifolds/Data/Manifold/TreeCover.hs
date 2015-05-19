@@ -76,6 +76,7 @@ import Data.CoNat
 import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask
+import Control.Monad.Trans.List
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, elem)
 
@@ -459,6 +460,12 @@ runTriangT :: ∀ n x m y . (∀ t . TriangT t n x m y)
                   -> Triangulation n x -> m (y, Triangulation n x)
 runTriangT t = unsafeRunTriangT (t :: TriangT () n x m y)
 
+getEntireTriang :: ∀ t n x m . HaskMonad m => TriangT t n x m (Triangulation n x)
+getEntireTriang = TriangT $ \t -> pure (t, t)
+
+getTriang :: ∀ t n k x m . (HaskMonad m, k ≤ n) => TriangT t n x m (Triangulation k x)
+getTriang = onSkeleton getEntireTriang
+
 simplexAsTriangulation :: ∀ n x . Simplex n x -> Triangulation n x
 simplexAsTriangulation (ZeroSimplex x) = TriangVertices $ pure (x,[])
 simplexAsTriangulation (Simplex x xs) = naïveTriangCone x $ simplexAsTriangulation xs
@@ -535,6 +542,24 @@ simplexITList' = triangReadT $ return . sil
        sil (TriangSkeleton _ bk) = [ SimplexIT i | i <- [0 .. Arr.length bk - 1] ]
 
 
+superSimplices :: ∀ t m n k j x . (HaskMonad m, KnownNat k, S k ≤ n, k ≤ j, j ≤ n)
+                  => SimplexIT t k x -> TriangT t n x m [SimplexIT t j x]
+superSimplices = runListT . ftorSuccToMatchT lvlIt . pure
+ where lvlIt :: ∀ i . (i ≤ n, S i ≤ n) => ListT (TriangT t n x m) (SimplexIT t i x)
+                                        -> ListT (TriangT t n x m) (SimplexIT t (S i) x)
+       lvlIt (ListT m) = ListT . fmap concat $ mapM superSimplices' =<< m
+
+superSimplices' :: ∀ t m n k x . (HaskMonad m, KnownNat k, S k ≤ n)
+                  => SimplexIT t k x -> TriangT t n x m [SimplexIT t (S k) x]
+superSimplices' = onSkeleton superSimplices''
+
+superSimplices'' :: ∀ t m n x . (HaskMonad m, KnownNat n)
+                  => SimplexIT t n x -> TriangT t (S n) x m [SimplexIT t (S n) x]
+superSimplices'' (SimplexIT i) = fmap
+    ( \tr -> SimplexIT <$> case tr of TriangSkeleton _ tsps -> snd (tsps Arr.! i)
+    ) getEntireTriang
+
+
 triangulationBulk :: ∀ t m n k x . (HaskMonad m, k ≤ n) => TriangT t n x m [Simplex k x]
 triangulationBulk = simplexITList >>= mapM lookSimplex
 
@@ -544,6 +569,18 @@ withThisSubsimplex s = do
       svs <- lookSplxVerticesIT s
       simplexITList >>= filterM (lookSplxVerticesIT >>> fmap`id`
                                       \s'vs -> all (`elem`s'vs) svs )
+
+lookupSimplexCone :: ∀ t m n k x . (HaskMonad m, S k ≤ n)
+     => SimplexIT t Z x -> SimplexIT t k x -> TriangT t n x m (Option (SimplexIT t (S k) x))
+lookupSimplexCone tip base = do
+    tipSups  :: [SimplexIT t (S k) x] <- superSimplices tip
+    baseSups :: [SimplexIT t (S k) x] <- superSimplices base
+    return $ case intersect tipSups baseSups of
+       (res:_) -> pure res
+       _ -> Hask.empty
+    
+
+
 
 
 webinateTriang :: ∀ t m n k x . (HaskMonad m)
