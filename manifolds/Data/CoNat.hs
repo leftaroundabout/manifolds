@@ -189,29 +189,29 @@ instance (k ≤ j) => (S k) ≤ (S j) where
 
 
 class (i ≤ j, j ≤ k, i ≤ k) => WeakOrdTriple i j k where
-  succToMatchLtd :: (∀ n . (n≤k) => b n -> b (S n)) -> Tagged k (b i -> b j)
+  succToMatchLtd :: (∀ n . (KnownNat n, S n≤k) => b n -> b (S n)) -> Tagged k (b i -> b j)
 
 instance (KnownNat n) => WeakOrdTriple Z Z n where
   succToMatchLtd _ = Tagged id
 
-instance (WeakOrdTriple Z j k, WeakOrdTriple Z j (S k)) => WeakOrdTriple Z (S j) (S k) where
+instance (WeakOrdTriple Z j k, S j ≤ k) => WeakOrdTriple Z (S j) k where
   succToMatchLtd = stml
-   where stml :: ∀ j k b . (WeakOrdTriple Z j k, WeakOrdTriple Z j (S k)) => 
-                    (∀ n . (n≤S k) => b n -> b (S n)) -> Tagged (S k) (b Z -> b (S j))
+   where stml :: ∀ j k b . (WeakOrdTriple Z j k, S j ≤ k) => 
+                    (∀ n . (KnownNat n, S n≤k) => b n -> b (S n)) -> Tagged k (b Z -> b (S j))
          stml f = Tagged $ f . f'
-          where (Tagged f') = succToMatchLtd f :: Tagged (S k) (b Z -> b j)
+          where (Tagged f') = succToMatchLtd f :: Tagged k (b Z -> b j)
 
-instance (WeakOrdTriple i j k, WeakOrdTriple i j (S k))
-                 => WeakOrdTriple (S i) (S j) (S k) where
+instance (WeakOrdTriple i j k, S i ≤ k, S j ≤ k)
+                 => WeakOrdTriple (S i) (S j) k where
   succToMatchLtd = stml
-   where stml :: ∀ i j k b . (WeakOrdTriple i j k, WeakOrdTriple i j (S k)) => 
-                      (∀ n . (n≤S k) => b n -> b (S n)) -> Tagged (S k) (b (S i) -> b (S j))
+   where stml :: ∀ i j k b . (WeakOrdTriple i j k, S j ≤ k) => 
+                      (∀ n . (KnownNat n, S n≤k) => b n -> b (S n)) -> Tagged k (b (S i) -> b (S j))
          stml f = Tagged $
                    \s -> let (Tagged ff) = succToMatchLtd ltdCsdf
-                                             :: Tagged (S k) (Cosucc'd b i -> Cosucc'd b j)
+                                             :: Tagged k (Cosucc'd b i -> Cosucc'd b j)
                              (Cosucc'd r) = ff (Cosucc'd s)
                          in r
-          where ltdCsdf :: ∀ n . (n ≤ S k) => Cosucc'd b n -> Cosucc'd b (S n)
+          where ltdCsdf :: ∀ n . (KnownNat n, S n ≤ k) => Cosucc'd b n -> Cosucc'd b (S n)
                 ltdCsdf = cosucc'dSucc f
 
 
