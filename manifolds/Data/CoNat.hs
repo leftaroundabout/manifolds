@@ -143,6 +143,12 @@ mapNatTagAtPreantepænultimate :: (s n u v w -> t m x y z)
     -> NatTagAtPreantepænultimate s u v w n -> NatTagAtPreantepænultimate t x y z m
 mapNatTagAtPreantepænultimate f (NatTagAtPreantepænultimate x) = NatTagAtPreantepænultimate $ f x
 
+newtype NatTagAtFtorUltimate f t n
+           = NatTagAtFtorUltimate { getNatTagAtFtorUltimate :: f (t n) }
+mapNatTagAtFtorUltimate :: (f (s n) -> f (t m))
+    -> NatTagAtFtorUltimate f s n -> NatTagAtFtorUltimate f t m
+mapNatTagAtFtorUltimate f (NatTagAtFtorUltimate x) = NatTagAtFtorUltimate $ f x
+
 newtype NatTagAtFtorPænultimate f t x n
            = NatTagAtFtorPænultimate { getNatTagAtFtorPænultimate :: f (t n x) }
 mapNatTagAtFtorPænultimate :: (f (s n x) -> f (t m y))
@@ -152,21 +158,25 @@ mapNatTagAtFtorPænultimate f (NatTagAtFtorPænultimate x) = NatTagAtFtorPænult
 
 class (KnownNat k, KnownNat j) => (≤) (k::Nat) (j::Nat) where
   succToMatch :: (∀ n . KnownNat n => b n -> b (S n)) -> b k -> b j
-  succToMatchT :: (∀ n . KnownNat n => c n x -> c (S n) x) -> c k x -> c j x
-  succToMatchT f = getNatTagAtPænultimate
-         . succToMatch (mapNatTagAtPænultimate f) . NatTagAtPænultimate
-  succToMatchTT :: (∀ n . KnownNat n => d n x y -> d (S n) x y) -> d k x y -> d j x y
-  succToMatchTT f = getNatTagAtAntepænultimate
-         . succToMatch (mapNatTagAtAntepænultimate f) . NatTagAtAntepænultimate
-  succToMatchTTT :: (∀ n . KnownNat n => e n x y z -> e (S n) x y z)
-                      -> e k x y z -> e j x y z
-  succToMatchTTT f = getNatTagAtPreantepænultimate
-         . succToMatch (mapNatTagAtPreantepænultimate f) . NatTagAtPreantepænultimate
-  
-  ftorSuccToMatch :: Functor f (->) (->) =>
-             (∀ n . KnownNat n => f (b n) -> f (b (S n))) -> f (b k) -> f (b j)
-  ftorSuccToMatchT :: (∀ n . KnownNat n => f (c n x) -> f (c (S n) x)) -> f (c k x) -> f (c j x)
-  ftorSuccToMatchT f = getNatTagAtFtorPænultimate . succToMatch (mapNatTagAtFtorPænultimate f) . NatTagAtFtorPænultimate
+
+succToMatchT :: (k≤j) => (∀ n . KnownNat n => c n x -> c (S n) x) -> c k x -> c j x
+succToMatchT f = getNatTagAtPænultimate
+       . succToMatch (mapNatTagAtPænultimate f) . NatTagAtPænultimate
+succToMatchTT :: (k≤j) => (∀ n . KnownNat n => d n x y -> d (S n) x y) -> d k x y -> d j x y
+succToMatchTT f = getNatTagAtAntepænultimate
+       . succToMatch (mapNatTagAtAntepænultimate f) . NatTagAtAntepænultimate
+succToMatchTTT :: (k≤j) => (∀ n . KnownNat n => e n x y z -> e (S n) x y z)
+                    -> e k x y z -> e j x y z
+succToMatchTTT f = getNatTagAtPreantepænultimate
+       . succToMatch (mapNatTagAtPreantepænultimate f) . NatTagAtPreantepænultimate
+
+ftorSuccToMatch :: (k≤j) =>
+           (∀ n . KnownNat n => f (b n) -> f (b (S n))) -> f (b k) -> f (b j)
+ftorSuccToMatch f = getNatTagAtFtorUltimate
+       . succToMatch (mapNatTagAtFtorUltimate f) . NatTagAtFtorUltimate
+ftorSuccToMatchT :: (k≤j) => (∀ n . KnownNat n => f (c n x) -> f (c (S n) x)) -> f (c k x) -> f (c j x)
+ftorSuccToMatchT f = getNatTagAtFtorPænultimate
+       . succToMatch (mapNatTagAtFtorPænultimate f) . NatTagAtFtorPænultimate
 
 
 newtype Cosucc'd s n = Cosucc'd { getSucc'd :: s (S n) }
@@ -181,15 +191,17 @@ ftorCosucc'dSucc f (FtorCosucc'd x) = FtorCosucc'd $ f x
 
 instance (KnownNat n) => Z ≤ n where
   succToMatch f s = coInduce s f
-  succToMatchT f s = coInduceT s f
-  ftorSuccToMatch f s = ftorCoInduce s f
 instance (k ≤ j) => (S k) ≤ (S j) where
   succToMatch f s = let (Cosucc'd r) = succToMatch (cosucc'dSucc f) (Cosucc'd s) in r
-  ftorSuccToMatch f s = let (FtorCosucc'd r) = succToMatch (ftorCosucc'dSucc f) (FtorCosucc'd s) in r
 
 
 class (i ≤ j, j ≤ k, i ≤ k) => WeakOrdTriple i j k where
   succToMatchLtd :: (∀ n . (KnownNat n, S n≤k) => b n -> b (S n)) -> Tagged k (b i -> b j)
+
+succToMatchTLtd :: (WeakOrdTriple i j k) => 
+           (∀ n . (KnownNat n, S n≤k) => c n x -> c (S n) x) -> Tagged k (c i x -> c j x)
+succToMatchTLtd f = fmap ((getNatTagAtPænultimate .) . (. NatTagAtPænultimate))
+                            $ succToMatchLtd (mapNatTagAtPænultimate f)
 
 instance (KnownNat n) => WeakOrdTriple Z Z n where
   succToMatchLtd _ = Tagged id
@@ -214,6 +226,11 @@ instance (WeakOrdTriple i j k)
                          in r
           where ltdCsdf :: ∀ n . (KnownNat n, S n ≤ k) => Cosucc'd b n -> Cosucc'd b (S n)
                 ltdCsdf = cosucc'dSucc f
+
+
+
+
+
 
 
 newtype Range (n::Nat) = InRange { getInRange :: Int -- ^ MUST be between 0 and @n-1@.
