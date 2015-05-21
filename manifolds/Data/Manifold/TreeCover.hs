@@ -542,16 +542,19 @@ simplexITList' = triangReadT $ return . sil
        sil (TriangSkeleton _ bk) = [ SimplexIT i | i <- [0 .. Arr.length bk - 1] ]
 
 
-superSimplices :: ∀ t m n k j x . (HaskMonad m, KnownNat k, S k ≤ n, k ≤ j, j ≤ n)
+superSimplices :: ∀ t m n k j x . (HaskMonad m, WeakOrdTriple k j n)
                   => SimplexIT t k x -> TriangT t n x m [SimplexIT t j x]
-superSimplices = runListT . ftorSuccToMatchT lvlIt . pure
- where lvlIt :: ∀ i . (i ≤ n, S i ≤ n) => ListT (TriangT t n x m) (SimplexIT t i x)
+superSimplices = runListT . matchLevel . pure
+ where lvlIt :: ∀ i . (KnownNat i, S i ≤ n) => ListT (TriangT t n x m) (SimplexIT t i x)
                                         -> ListT (TriangT t n x m) (SimplexIT t (S i) x)
        lvlIt (ListT m) = ListT . fmap concat $ mapM superSimplices' =<< m
+       (Tagged matchLevel) = ftorSuccToMatchTLtd lvlIt
+                   :: Tagged n ( ListT (TriangT t n x m) (SimplexIT t k x)
+                                        -> ListT (TriangT t n x m) (SimplexIT t j x) )
 
 superSimplices' :: ∀ t m n k x . (HaskMonad m, KnownNat k, S k ≤ n)
                   => SimplexIT t k x -> TriangT t n x m [SimplexIT t (S k) x]
-superSimplices' = onSkeleton superSimplices''
+superSimplices' = onSkeleton . superSimplices''
 
 superSimplices'' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                   => SimplexIT t n x -> TriangT t (S n) x m [SimplexIT t (S n) x]
@@ -570,7 +573,8 @@ withThisSubsimplex s = do
       simplexITList >>= filterM (lookSplxVerticesIT >>> fmap`id`
                                       \s'vs -> all (`elem`s'vs) svs )
 
-lookupSimplexCone :: ∀ t m n k x . (HaskMonad m, S k ≤ n)
+lookupSimplexCone :: ∀ t m n k x . ( HaskMonad m, S k ≤ n
+                                   , WeakOrdTriple Z (S k) n, WeakOrdTriple k (S k) n )
      => SimplexIT t Z x -> SimplexIT t k x -> TriangT t n x m (Option (SimplexIT t (S k) x))
 lookupSimplexCone tip base = do
     tipSups  :: [SimplexIT t (S k) x] <- superSimplices tip
