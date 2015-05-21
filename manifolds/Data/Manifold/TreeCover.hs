@@ -547,7 +547,8 @@ superSimplices :: ∀ t m n k j x . (HaskMonad m, WeakOrdTriple k j n)
 superSimplices = runListT . matchLevel . pure
  where lvlIt :: ∀ i . (KnownNat i, S i ≤ n) => ListT (TriangT t n x m) (SimplexIT t i x)
                                         -> ListT (TriangT t n x m) (SimplexIT t (S i) x)
-       lvlIt (ListT m) = ListT . fmap concat $ mapM superSimplices' =<< m
+       lvlIt (ListT m) = ListT . fmap (fnubConcatBy $ comparing tgetSimplexIT)
+                                    $ mapM superSimplices' =<< m
        (Tagged matchLevel) = ftorSuccToMatchTLtd lvlIt
                    :: Tagged n ( ListT (TriangT t n x m) (SimplexIT t k x)
                                         -> ListT (TriangT t n x m) (SimplexIT t j x) )

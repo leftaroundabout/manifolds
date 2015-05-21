@@ -16,14 +16,16 @@ fastNub = map head . group . sort
 fastNubBy :: (a->a->Ordering) -> [a] -> [a]
 fastNubBy _ [] = []
 fastNubBy _ [e] = [e]
-fastNubBy cmp es = merge(fastNubBy cmp lhs)(fastNubBy cmp rhs)
+fastNubBy cmp es = fnubMergeBy cmp (fastNubBy cmp lhs) (fastNubBy cmp rhs)
  where (lhs,rhs) = splitAt (length es `quot` 2) es
-       merge [] rs = rs
-       merge ls [] = ls
-       merge (l:ls) (r:rs) = case cmp l r of
-                              LT -> l : merge ls (r:rs)
-                              GT -> r : merge (l:ls) rs
-                              EQ -> merge (l:ls) rs
+
+fnubMergeBy :: (a->a->Ordering) -> [a] -> [a] -> [a]
+fnubMergeBy _ [] rs = rs
+fnubMergeBy _ ls [] = ls
+fnubMergeBy cmp (l:ls) (r:rs) = case cmp l r of
+                              LT -> l : fnubMergeBy cmp ls (r:rs)
+                              GT -> r : fnubMergeBy cmp (l:ls) rs
+                              EQ -> fnubMergeBy cmp (l:ls) rs
 
 -- | Like 'fastNubBy', but doesn't just discard duplicates but \"merges\" them.
 -- @'fastNubBy' cmp = cmp `'fastNubByWith'` 'const'@.
@@ -41,3 +43,12 @@ fastNubByWith cmp cmb es = merge(fastNubByWith cmp cmb lhs)(fastNubByWith cmp cm
 
 sfGroupBy :: (a->a->Ordering) -> [a] -> [[a]]
 sfGroupBy cmp = fastNubByWith (cmp`on`head) (++) . map(:[])
+
+
+
+
+fnubConcatBy :: (a->a->Ordering) -> [[a]] -> [a]
+fnubConcatBy cmp = foldr (fnubMergeBy cmp) [] . map (fastNubBy cmp)
+
+fnubConcat :: FastNub a => [[a]] -> [a]
+fnubConcat = foldr (fnubMergeBy compare) [] . map fastNub
