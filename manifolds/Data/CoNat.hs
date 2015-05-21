@@ -201,11 +201,12 @@ instance (WeakOrdTriple Z j k, S j ≤ k) => WeakOrdTriple Z (S j) k where
          stml f = Tagged $ f . f'
           where (Tagged f') = succToMatchLtd f :: Tagged k (b Z -> b j)
 
-instance (WeakOrdTriple i j k, S i ≤ k, S j ≤ k)
-                 => WeakOrdTriple (S i) (S j) k where
+instance (WeakOrdTriple i j k)
+                 => WeakOrdTriple (S i) (S j) (S k) where
   succToMatchLtd = stml
-   where stml :: ∀ i j k b . (WeakOrdTriple i j k, S j ≤ k) => 
-                      (∀ n . (KnownNat n, S n≤k) => b n -> b (S n)) -> Tagged k (b (S i) -> b (S j))
+   where stml :: ∀ i j k b . (WeakOrdTriple i j k) => 
+                      (∀ n . (KnownNat n, S n≤S k) => b n -> b (S n))
+                          -> Tagged (S k) (b (S i) -> b (S j))
          stml f = Tagged $
                    \s -> let (Tagged ff) = succToMatchLtd ltdCsdf
                                              :: Tagged k (Cosucc'd b i -> Cosucc'd b j)
