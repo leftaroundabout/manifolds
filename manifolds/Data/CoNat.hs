@@ -259,6 +259,7 @@ instance (WeakOrdTriple i j k)
 
 
 
+type a<b = (WeakOrdTriple Z a b, WeakOrdTriple a (S a) b)
 
 
 

@@ -574,8 +574,7 @@ withThisSubsimplex s = do
       simplexITList >>= filterM (lookSplxVerticesIT >>> fmap`id`
                                       \s'vs -> all (`elem`s'vs) svs )
 
-lookupSimplexCone :: ∀ t m n k x . ( HaskMonad m, S k ≤ n
-                                   , WeakOrdTriple Z (S k) n, WeakOrdTriple k (S k) n )
+lookupSimplexCone :: ∀ t m n k x . ( HaskMonad m, k < n )
      => SimplexIT t Z x -> SimplexIT t k x -> TriangT t n x m (Option (SimplexIT t (S k) x))
 lookupSimplexCone tip base = do
     tipSups  :: [SimplexIT t (S k) x] <- superSimplices tip
@@ -588,9 +587,10 @@ lookupSimplexCone tip base = do
 
 
 
-webinateTriang :: ∀ t m n k x . (HaskMonad m)
+webinateTriang :: ∀ t m n k x . (HaskMonad m, KnownNat n)
          => SimplexIT t Z x -> SimplexIT t n x -> TriangT t (S n) x m (SimplexIT t (S n) x)
-webinateTriang (SimplexIT pt) (SimplexIT bs) = TriangT $ \(TriangSkeleton sk cnn)
+webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) =
+  TriangT $ \(TriangSkeleton sk cnn)
    -> let res = SimplexIT $ Arr.length cnn :: SimplexIT t (S n) x
       in case sk of
        TriangVertices _ -> return
