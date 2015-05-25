@@ -587,9 +587,10 @@ lookupSimplexCone tip base = do
 
 
 
-webinateTriang :: ∀ t m n k x . (HaskMonad m, KnownNat n)
+webinateTriang :: ∀ t m n k x . (HaskMonad m, n < (S n))
          => SimplexIT t Z x -> SimplexIT t n x -> TriangT t (S n) x m (SimplexIT t (S n) x)
-webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) =
+webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
+  existsReady <- lookupSimplexCone ptt bst
   TriangT $ \(TriangSkeleton sk cnn)
    -> let res = SimplexIT $ Arr.length cnn :: SimplexIT t (S n) x
       in case sk of
