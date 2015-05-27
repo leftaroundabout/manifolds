@@ -54,6 +54,7 @@ import Data.Traversable.Constrained
 import qualified Data.Vector as Arr
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
+import Unsafe.Coerce
 
     
 -- | Mainly intended to be used as a data kind.
@@ -102,6 +103,8 @@ class KnownNat (n :: Nat) where
   ftorCoInduceT :: f (c Z x) -> (forall k . KnownNat k => f (c k x) -> f (c (S k) x))
                          -> f (c n x)
 
+  tryToMatch :: KnownNat k => (∀ j . KnownNat j => b j -> b (S j)) -> b k -> Option (b n)
+
 
 instance KnownNat Z where
   theNat = Tagged Z
@@ -113,6 +116,13 @@ instance KnownNat Z where
   coInduceT s _ = s
   ftorCoInduce s _ = s
   ftorCoInduceT s _ = s
+  tryToMatch = ttmZ
+   where ttmZ :: ∀ b k . KnownNat k
+                    => (∀ j . KnownNat j => b j -> b (S j)) -> b k -> Option (b Z)
+         ttmZ sc nf = case k of
+                        Z -> return $ unsafeCoerce nf
+                        S _ -> Hask.empty
+          where (Tagged k) = theNat :: Tagged k Nat
 instance (KnownNat n) => KnownNat (S n) where
   theNat = natSelfSucc
   theNatN = natSelfSuccN
@@ -123,6 +133,15 @@ instance (KnownNat n) => KnownNat (S n) where
   coInduceT s f = f $ coInduceT s f
   ftorCoInduce s f = f $ ftorCoInduce s f
   ftorCoInduceT s f = f $ ftorCoInduceT s f
+  tryToMatch = ttmS
+   where ttmS :: ∀ b k n . (KnownNat k, KnownNat n)
+                    => (∀ j . KnownNat j => b j -> b (S j)) -> b k -> Option (b (S n))
+         ttmS sc nf | k == sn    = return $ unsafeCoerce nf
+                    | k <= sn    = tryToMatch sc $ sc nf
+                    | otherwise  = Hask.empty
+          where (Tagged k) = theNatN :: Tagged k Int
+                (Tagged sn) = theNatN :: Tagged (S n) Int
+                       
 
 
 newtype NatTagAtPænultimate t x n
@@ -162,8 +181,10 @@ mapNatTagAtFtorAntepænultimate :: (f (s n w x) -> f (t m y z))
 mapNatTagAtFtorAntepænultimate f (NatTagAtFtorAntepænultimate x) = NatTagAtFtorAntepænultimate $ f x
 
 
-class (KnownNat k, KnownNat j) => (≤) (k::Nat) (j::Nat) where
-  succToMatch :: (∀ n . KnownNat n => b n -> b (S n)) -> b k -> b j
+type k≤j = (KnownNat k, KnownNat j)
+
+succToMatch :: (k≤j) => (∀ n . KnownNat n => b n -> b (S n)) -> b k -> b j
+succToMatch f v = case tryToMatch f v of { Option (Just r) -> r }
 
 succToMatchT :: (k≤j) => (∀ n . KnownNat n => c n x -> c (S n) x) -> c k x -> c j x
 succToMatchT f = getNatTagAtPænultimate
@@ -197,11 +218,6 @@ newtype FtorCosucc'd f s n = FtorCosucc'd { getFtorSucc'd :: f (s (S n)) }
 ftorCosucc'dSucc :: ∀ f s n . KnownNat n => (f (s (S n)) -> f(s (S (S n))))
                         -> FtorCosucc'd f s n -> FtorCosucc'd f s (S n)
 ftorCosucc'dSucc f (FtorCosucc'd x) = FtorCosucc'd $ f x
-
-instance (KnownNat n) => Z ≤ n where
-  succToMatch f s = coInduce s f
-instance (k ≤ j) => (S k) ≤ (S j) where
-  succToMatch f s = let (Cosucc'd r) = succToMatch (cosucc'dSucc f) (Cosucc'd s) in r
 
 
 class (i ≤ j, j ≤ k, i ≤ k) => WeakOrdTriple i j k where
