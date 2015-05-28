@@ -181,6 +181,30 @@ mapNatTagAtFtorAntepænultimate :: (f (s n w x) -> f (t m y z))
 mapNatTagAtFtorAntepænultimate f (NatTagAtFtorAntepænultimate x) = NatTagAtFtorAntepænultimate $ f x
 
 
+tryToMatchT :: (KnownNat k, KnownNat j)
+                   => (∀ n . KnownNat n => c n x -> c (S n) x) -> c k x -> Option (c j x)
+tryToMatchT f = fmap getNatTagAtPænultimate
+       . tryToMatch (mapNatTagAtPænultimate f) . NatTagAtPænultimate
+tryToMatchTT ::(KnownNat k, KnownNat j) => (∀ n . KnownNat n => d n x y -> d (S n) x y) -> d k x y -> Option (d j x y)
+tryToMatchTT f = fmap getNatTagAtAntepænultimate
+       . tryToMatch (mapNatTagAtAntepænultimate f) . NatTagAtAntepænultimate
+tryToMatchTTT :: (KnownNat k, KnownNat j) => (∀ n . KnownNat n => e n x y z -> e (S n) x y z)
+                    -> e k x y z -> Option (e j x y z)
+tryToMatchTTT f = fmap getNatTagAtPreantepænultimate
+       . tryToMatch (mapNatTagAtPreantepænultimate f) . NatTagAtPreantepænultimate
+
+ftorTryToMatch :: (KnownNat k, KnownNat j) =>
+           (∀ n . KnownNat n => f (b n) -> f (b (S n))) -> f (b k) -> Option (f (b j))
+ftorTryToMatch f = fmap getNatTagAtFtorUltimate
+       . tryToMatch (mapNatTagAtFtorUltimate f) . NatTagAtFtorUltimate
+ftorTryToMatchT :: (KnownNat k, KnownNat j) => (∀ n . KnownNat n => f (c n x) -> f (c (S n) x)) -> f (c k x) -> Option (f (c j x))
+ftorTryToMatchT f = fmap getNatTagAtFtorPænultimate
+       . tryToMatch (mapNatTagAtFtorPænultimate f) . NatTagAtFtorPænultimate
+ftorTryToMatchTT :: (KnownNat k, KnownNat j) => (∀ n . KnownNat n => f (d n x y) -> f (d (S n) x y)) -> f (d k x y) -> Option (f (d j x y))
+ftorTryToMatchTT f = fmap getNatTagAtFtorAntepænultimate
+       . tryToMatch (mapNatTagAtFtorAntepænultimate f) . NatTagAtFtorAntepænultimate
+
+
 
 
 

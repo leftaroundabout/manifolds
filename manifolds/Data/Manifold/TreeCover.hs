@@ -463,7 +463,8 @@ runTriangT t = unsafeRunTriangT (t :: TriangT () n x m y)
 getEntireTriang :: ∀ t n x m . HaskMonad m => TriangT t n x m (Triangulation n x)
 getEntireTriang = TriangT $ \t -> pure (t, t)
 
-getTriang :: ∀ t n k x m . (HaskMonad m, k ≤ n) => TriangT t n x m (Triangulation k x)
+getTriang :: ∀ t n k x m . (HaskMonad m, KnownNat k, KnownNat n)
+                   => TriangT t n x m (Triangulation k x)
 getTriang = onSkeleton getEntireTriang
 
 simplexAsTriangulation :: ∀ n x . Simplex n x -> Triangulation n x
@@ -476,14 +477,14 @@ forgetVolumes :: ∀ n x t m y . (KnownNat n, HaskMonad m)
 forgetVolumes (TriangT f) = TriangT $ \(TriangSkeleton l bk)
                              -> fmap (\(y, l') -> (y, TriangSkeleton l' bk)) $ f l
 
-onSkeleton :: ∀ n k x t m y . (k ≤ n, HaskMonad m) => TriangT t k x m y -> TriangT t n x m y
-onSkeleton = succToMatchTTT forgetVolumes
+onSkeleton :: ∀ n k x t m y . (KnownNat k, KnownNat n, HaskMonad m) => TriangT t k x m y -> TriangT t n x m y
+onSkeleton = tryToMatchTTT forgetVolumes
 
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
           deriving (Eq)
 
-lookSplxFacesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, S k ≤ n)
+lookSplxFacesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, S KnownNat k, KnownNat n)
                => SimplexIT t (S k) x -> TriangT t n x m (SimplexIT t k x ^ S(S k))
 lookSplxFacesIT = onSkeleton . lookSplxFacesIT'
 
@@ -492,7 +493,7 @@ lookSplxFacesIT' :: ∀ t m n x . (HaskMonad m, KnownNat n)
 lookSplxFacesIT' (SimplexIT i) = triangReadT rc
  where rc (TriangSkeleton _ ssb) = return . fmap SimplexIT . fst $ ssb Arr.! i
 
-lookSplxVerticesIT :: ∀ t m n k x . (HaskMonad m, k ≤ n)
+lookSplxVerticesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                => SimplexIT t k x -> TriangT t n x m (SimplexIT t Z x ^ S k)
 lookSplxVerticesIT = onSkeleton . lookSplxVerticesIT'
 
@@ -524,13 +525,13 @@ lookVertexIT = onSkeleton . lookVertexIT'
 lookVertexIT' :: ∀ t m x . HaskMonad m => SimplexIT t Z x -> TriangT t Z x m x
 lookVertexIT' (SimplexIT i) = triangReadT $ \(TriangVertices vs) -> return.fst $ vs Arr.! i
 
-lookSimplex :: ∀ t m n k x . (HaskMonad m, k ≤ n)
+lookSimplex :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                => SimplexIT t k x -> TriangT t n x m (Simplex k x)
 lookSimplex s = do 
        vis <- lookSplxVerticesIT s
        fmap makeSimplex $ mapM lookVertexIT vis
 
-simplexITList :: ∀ t m n k x . (HaskMonad m, k ≤ n)
+simplexITList :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                => TriangT t n x m [SimplexIT t k x]
 simplexITList = onSkeleton simplexITList'
 
@@ -545,7 +546,7 @@ simplexITList' = triangReadT $ return . sil
 superSimplices :: ∀ t m n k j x . (HaskMonad m, WeakOrdTriple k j n)
                   => SimplexIT t k x -> TriangT t n x m [SimplexIT t j x]
 superSimplices = runListT . matchLevel . pure
- where lvlIt :: ∀ i . (KnownNat i, S i ≤ n) => ListT (TriangT t n x m) (SimplexIT t i x)
+ where lvlIt :: ∀ i . (KnownNat i, S KnownNat i, KnownNat n) => ListT (TriangT t n x m) (SimplexIT t i x)
                                         -> ListT (TriangT t n x m) (SimplexIT t (S i) x)
        lvlIt (ListT m) = ListT . fmap (fnubConcatBy $ comparing tgetSimplexIT)
                                     $ mapM superSimplices' =<< m
@@ -553,7 +554,7 @@ superSimplices = runListT . matchLevel . pure
                    :: Tagged n ( ListT (TriangT t n x m) (SimplexIT t k x)
                                         -> ListT (TriangT t n x m) (SimplexIT t j x) )
 
-superSimplices' :: ∀ t m n k x . (HaskMonad m, KnownNat k, S k ≤ n)
+superSimplices' :: ∀ t m n k x . (HaskMonad m, KnownNat k, S KnownNat k, KnownNat n)
                   => SimplexIT t k x -> TriangT t n x m [SimplexIT t (S k) x]
 superSimplices' = onSkeleton . superSimplices''
 
@@ -564,17 +565,17 @@ superSimplices'' (SimplexIT i) = fmap
     ) getEntireTriang
 
 
-triangulationBulk :: ∀ t m n k x . (HaskMonad m, k ≤ n) => TriangT t n x m [Simplex k x]
+triangulationBulk :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n) => TriangT t n x m [Simplex k x]
 triangulationBulk = simplexITList >>= mapM lookSimplex
 
-withThisSubsimplex :: ∀ t m n k j x . (HaskMonad m, j ≤ k, k ≤ n, j ≤ n)
+withThisSubsimplex :: ∀ t m n k j x . (HaskMonad m, KnownNat j, KnownNat k, KnownNat n)
                    => SimplexIT t j x -> TriangT t n x m [SimplexIT t k x]
 withThisSubsimplex s = do
       svs <- lookSplxVerticesIT s
       simplexITList >>= filterM (lookSplxVerticesIT >>> fmap`id`
                                       \s'vs -> all (`elem`s'vs) svs )
 
-lookupSimplexCone :: ∀ t m n k x . ( HaskMonad m, k < n )
+lookupSimplexCone :: ∀ t m n k x . ( HaskMonad m, KnownNat k, KnownNat n )
      => SimplexIT t Z x -> SimplexIT t k x -> TriangT t n x m (Option (SimplexIT t (S k) x))
 lookupSimplexCone tip base = do
     tipSups  :: [SimplexIT t (S k) x] <- superSimplices tip
