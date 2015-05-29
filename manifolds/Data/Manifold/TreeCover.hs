@@ -410,6 +410,13 @@ data Triangulation n x where
                  -> Triangulation (S n) x
         TriangVertices :: Array (x, [Int]) -> Triangulation Z x
 
+instance (KnownNat n) => Semigroup (Triangulation n x) where
+  TriangVertices vs1 <> TriangVertices vs2 = undefined
+  TriangSkeleton sk1 sp1 <> TriangSkeleton sk2 sp2 = undefined
+instance (KnownNat n) => Monoid (Triangulation n x) where
+  mappend = (<>)
+  mempty = undefined
+
 naïveTriangCone :: forall n x . x -> Triangulation n x -> Triangulation (S n) x
 naïveTriangCone x (TriangVertices xs)
         = TriangSkeleton (TriangVertices $ Arr.imap (\j (x,_) -> (x,[j])) xs
@@ -478,13 +485,15 @@ forgetVolumes (TriangT f) = TriangT $ \(TriangSkeleton l bk)
                              -> fmap (\(y, l') -> (y, TriangSkeleton l' bk)) $ f l
 
 onSkeleton :: ∀ n k x t m y . (KnownNat k, KnownNat n, HaskMonad m) => TriangT t k x m y -> TriangT t n x m y
-onSkeleton = tryToMatchTTT forgetVolumes
+onSkeleton q@(TriangT qf) = case tryToMatchTTT forgetVolumes q of
+    Option (Just q') -> q'
+    _ -> TriangT $ \_ -> fmap (second $ const mempty) (qf mempty)
 
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
           deriving (Eq)
 
-lookSplxFacesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, S KnownNat k, KnownNat n)
+lookSplxFacesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                => SimplexIT t (S k) x -> TriangT t n x m (SimplexIT t k x ^ S(S k))
 lookSplxFacesIT = onSkeleton . lookSplxFacesIT'
 
@@ -543,18 +552,18 @@ simplexITList' = triangReadT $ return . sil
        sil (TriangSkeleton _ bk) = [ SimplexIT i | i <- [0 .. Arr.length bk - 1] ]
 
 
-superSimplices :: ∀ t m n k j x . (HaskMonad m, WeakOrdTriple k j n)
+superSimplices :: ∀ t m n k j x . (HaskMonad m, KnownNat k, KnownNat j, KnownNat n)
                   => SimplexIT t k x -> TriangT t n x m [SimplexIT t j x]
-superSimplices = runListT . matchLevel . pure
- where lvlIt :: ∀ i . (KnownNat i, S KnownNat i, KnownNat n) => ListT (TriangT t n x m) (SimplexIT t i x)
+superSimplices = runListT . defLstt . matchLevel . pure
+ where lvlIt :: ∀ i . (KnownNat i, KnownNat n) => ListT (TriangT t n x m) (SimplexIT t i x)
                                         -> ListT (TriangT t n x m) (SimplexIT t (S i) x)
        lvlIt (ListT m) = ListT . fmap (fnubConcatBy $ comparing tgetSimplexIT)
                                     $ mapM superSimplices' =<< m
-       (Tagged matchLevel) = ftorSuccToMatchTLtd lvlIt
-                   :: Tagged n ( ListT (TriangT t n x m) (SimplexIT t k x)
-                                        -> ListT (TriangT t n x m) (SimplexIT t j x) )
+       matchLevel = ftorTryToMatchT lvlIt
+       defLstt (Option (Just lt)) = lt
+       defLstt _ = ListT $ return []
 
-superSimplices' :: ∀ t m n k x . (HaskMonad m, KnownNat k, S KnownNat k, KnownNat n)
+superSimplices' :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                   => SimplexIT t k x -> TriangT t n x m [SimplexIT t (S k) x]
 superSimplices' = onSkeleton . superSimplices''
 
@@ -588,7 +597,7 @@ lookupSimplexCone tip base = do
 
 
 
-webinateTriang :: ∀ t m n k x . (HaskMonad m, n < (S n))
+webinateTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
          => SimplexIT t Z x -> SimplexIT t n x -> TriangT t (S n) x m (SimplexIT t (S n) x)
 webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
   existsReady <- lookupSimplexCone ptt bst
