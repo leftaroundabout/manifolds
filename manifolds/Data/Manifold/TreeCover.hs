@@ -601,18 +601,28 @@ webinateTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
          => SimplexIT t Z x -> SimplexIT t n x -> TriangT t (S n) x m (SimplexIT t (S n) x)
 webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
   existsReady <- lookupSimplexCone ptt bst
-  TriangT $ \(TriangSkeleton sk cnn)
-   -> let res = SimplexIT $ Arr.length cnn :: SimplexIT t (S n) x
-      in case sk of
-       TriangVertices _ -> return
-             $ ( res, TriangSkeleton sk $ Arr.snoc cnn (freeTuple$->$(pt, bs), []) )
-       TriangSkeleton _ cnn'
-             -> let (cnbs,_) = cnn' Arr.! bs
-                in do (cnws,sk') <- runTriangT (
-                        forM (SimplexIT<$>cnbs)
-                           $ fmap tgetSimplexIT . webinateTriang (SimplexIT pt) ) sk
-                      let snocer = (freeSnoc cnws bs, [undefined])
-                      return $ (res, TriangSkeleton sk' $ Arr.snoc cnn snocer)
+  case existsReady of
+   Option (Just ext) -> return ext
+   _ -> TriangT $ \(TriangSkeleton sk cnn)
+         -> let res = SimplexIT $ Arr.length cnn      :: SimplexIT t (S n) x
+            in case sk of
+             TriangVertices _ -> return
+                   $ ( res, TriangSkeleton sk $ Arr.snoc cnn (freeTuple$->$(pt, bs), []) )
+             TriangSkeleton _ cnn'
+                   -> let (cnbs,_) = cnn' Arr.! bs
+                      in do (cnws,sk') <- runTriangT ( do
+                              forM (SimplexIT<$>cnbs)
+                                 $ fmap tgetSimplexIT . webinateTriang (SimplexIT pt)
+                             ) sk
+                            let snocer = (freeSnoc cnws bs, [])
+                            return $ (res, TriangSkeleton sk' $ Arr.snoc cnn snocer)
+ where addUplink' :: SimplexIT t (S n) x -> SimplexIT t n x -> TriangT t (S n) x m ()
+       addUplink' (SimplexIT i) (SimplexIT j) = TriangT $ \(TriangSkeleton sk cnn)
+         -> let sk' = case sk of
+                       TriangVertices vs -> TriangVertices vs
+            in return ((), TriangSkeleton sk' cnn)
+                                                    
+
 
 
 introVertToTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
