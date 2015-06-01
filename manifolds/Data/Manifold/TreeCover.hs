@@ -622,7 +622,9 @@ webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
                        TriangVertices vs
                            -> let (v,ul) = vs Arr.! j
                               in TriangVertices $ vs Arr.// [(j, (v, i:ul))]
-                       TriangSkeleton skd us -> TriangSkeleton skd us
+                       TriangSkeleton skd us
+                           -> let (b,tl) = us Arr.! j
+                              in TriangSkeleton skd $ us Arr.// [(j, (b, i:tl))]
             in return ((), TriangSkeleton sk' cnn)
                                                     
 
