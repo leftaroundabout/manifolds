@@ -619,7 +619,10 @@ webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
  where addUplink' :: SimplexIT t (S n) x -> SimplexIT t n x -> TriangT t (S n) x m ()
        addUplink' (SimplexIT i) (SimplexIT j) = TriangT $ \(TriangSkeleton sk cnn)
          -> let sk' = case sk of
-                       TriangVertices vs -> TriangVertices vs
+                       TriangVertices vs
+                           -> let (v,ul) = vs Arr.! j
+                              in TriangVertices $ vs Arr.// [(j, (v, i:ul))]
+                       TriangSkeleton skd us -> TriangSkeleton skd us
             in return ((), TriangSkeleton sk' cnn)
                                                     
 
