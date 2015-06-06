@@ -610,9 +610,11 @@ webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
                    $ ( res, TriangSkeleton sk $ Arr.snoc cnn (freeTuple$->$(pt, bs), []) )
              TriangSkeleton _ cnn'
                    -> let (cnbs,_) = cnn' Arr.! bs
-                      in do (cnws,sk') <- runTriangT ( do
-                              forM (SimplexIT<$>cnbs)
-                                 $ fmap tgetSimplexIT . webinateTriang (SimplexIT pt)
+                      in do (cnws,sk') <- unsafeRunTriangT (
+                              forM cnbs $ \j -> do
+                                 kt@(SimplexIT k) <- webinateTriang ptt (SimplexIT j)
+                                 onSkeleton $ addUplink' res kt
+                                 return k
                              ) sk
                             let snocer = (freeSnoc cnws bs, [])
                             return $ (res, TriangSkeleton sk' $ Arr.snoc cnn snocer)
