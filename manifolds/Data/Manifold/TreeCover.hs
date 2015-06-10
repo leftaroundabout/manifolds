@@ -633,12 +633,14 @@ webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
 
 
 introVertToTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
-                  => x -> [SimplexIT t n x] -> TriangT t (S n) x m [SimplexIT t (S n) x]
+                  => x -> [SimplexIT t n x] -> TriangT t (S n) x m (SimplexIT t Z x)
 introVertToTriang v glues = do
-      j <- onSkeleton . TriangT $ return . tVertSnoc
-      return undefined
+      j <- fmap SimplexIT . onSkeleton . TriangT $ return . tVertSnoc
+      mapM_ (webinateTriang j) glues
+      return j
  where tVertSnoc :: Triangulation Z x -> (Int, Triangulation Z x)
-       tVertSnoc (TriangVertices vs) = (Arr.length vs, TriangVertices $ vs `Arr.snoc` (v,[undefined]))
+       tVertSnoc (TriangVertices vs)
+           = (Arr.length vs, TriangVertices $ vs `Arr.snoc` (v,[]))
       
     
 
