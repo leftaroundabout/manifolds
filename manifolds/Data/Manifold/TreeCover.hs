@@ -410,12 +410,23 @@ data Triangulation n x where
                  -> Triangulation (S n) x
         TriangVertices :: Array (x, [Int]) -> Triangulation Z x
 
+-- | Combine two triangulations (assumed as disjoint) to a single, non-connected complex.
 instance (KnownNat n) => Semigroup (Triangulation n x) where
-  TriangVertices vs1 <> TriangVertices vs2 = undefined
-  TriangSkeleton sk1 sp1 <> TriangSkeleton sk2 sp2 = undefined
+  TriangVertices vs₁ <> TriangVertices vs₂ = TriangVertices $ vs₁ Arr.++ vs₂
+  TriangSkeleton sk₁ sp₁ <> TriangSkeleton sk₂ sp₂
+            = TriangSkeleton (sk₁ <> shiftUprefs (Arr.length sp₁) sk₂)
+                             (sp₁ Arr.++ fmap (first $ fmap (+ nTopSplxs sk₁)) sp₂)
+   where shiftUprefs :: Int -> Triangulation n' x -> Triangulation n' x
+         shiftUprefs δn (TriangVertices vs)
+                       = TriangVertices $ fmap (second $ fmap (+δn)) vs
+         shiftUprefs δn (TriangSkeleton sk' vs)
+                       = TriangSkeleton sk' $ fmap (second $ fmap (+δn)) vs
+         nTopSplxs :: Triangulation n' x -> Int
+         nTopSplxs (TriangVertices vs) = Arr.length vs
+         nTopSplxs (TriangSkeleton _ vs) = Arr.length vs
 instance (KnownNat n) => Monoid (Triangulation n x) where
   mappend = (<>)
-  mempty = undefined
+  mempty = coInduceT (TriangVertices mempty) (`TriangSkeleton`mempty)
 
 naïveTriangCone :: forall n x . x -> Triangulation n x -> Triangulation (S n) x
 naïveTriangCone x (TriangVertices xs)
