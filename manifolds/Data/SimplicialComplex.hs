@@ -1,5 +1,5 @@
 -- |
--- Module      : Data.Manifold.TreeCover
+-- Module      : Data.SimplicialComplex
 -- Copyright   : (c) Justus Sagemüller 2015
 -- License     : GPL v3
 -- 
@@ -30,7 +30,26 @@
 {-# LANGUAGE DataKinds                  #-}
 
 
-module Data.SimplicialComplex where
+module Data.SimplicialComplex (
+        -- * Simplices
+          Simplex(..)
+        -- ** Construction
+        , makeSimplex, makeSimplex'
+        -- ** Deconstruction
+        , simplexVertices, simplexVertices'
+        -- * Simplicial complexes
+        , Triangulation
+        -- * Triangulation-builder monad
+        , TriangT
+        , evalTriangT, runTriangT, getTriang
+        -- ** Subsimplex-references
+        , SimplexIT, simplexITList, lookSimplex
+        -- ** Building triangulations
+        , introVertToTriang
+        , webinateTriang
+        -- * Misc util for the monad
+        , HaskMonad
+        ) where
 
 
 
@@ -94,11 +113,20 @@ makeSimplex' [] = Option Nothing
 makeSimplex' [x] = cozeroT $ ZeroSimplex x
 makeSimplex' (x:xs) = fCosuccT (Simplex x <$> makeSimplex' xs)
 
+simplexVertices :: ∀ x n . Simplex n x -> x ^ S n
+simplexVertices (ZeroSimplex x) = pure x
+simplexVertices (Simplex x s) = freeCons x (simplexVertices s)
+
+simplexVertices' :: ∀ x n . Simplex n x -> [x]
+simplexVertices' (ZeroSimplex x) = [x]
+simplexVertices' (Simplex x s) = x : simplexVertices' s
 
 
 type Array = Arr.Vector
 
-data Triangulation n x where
+-- | An /n/-dimensional /abstract simplicial complex/ is a collection of /n/-simplices
+--   which are &#x201c;glued together&#x201d; in some way.
+data Triangulation (n :: Nat) (x :: *) where
         TriangSkeleton :: KnownNat n
                  => Triangulation n x  -- The lower-dimensional skeleton.
                  -> Array              -- Array of `S n`-simplices in this triangulation.
@@ -145,7 +173,10 @@ naïveTriangCone x (TriangSkeleton skel skin) = case naïveTriangCone x skel of
 
 
  
--- | Universally-quantified-safe triangulation reader monad.
+-- | A &#x201c;conservative&#x201d; state monad containing a 'Triangulation'. It
+--   can be extended by new simplices, which can then be indexed using 'SimplexIT'.
+--   The universally-quantified @t@ argument ensures you can't index simplices that
+--   don't actually exist in this triangulation.
 newtype TriangT t n x m y = TriangT {
             unsafeRunTriangT :: Triangulation n x -> m (y, Triangulation n x) }
    deriving (Hask.Functor)
