@@ -47,8 +47,9 @@ module Data.SimplicialComplex (
         -- ** Building triangulations
         , introVertToTriang
         , webinateTriang
-        -- * Misc util for the monad
+        -- * Misc util
         , HaskMonad
+        , Nat, One, Two, Three, Succ
         ) where
 
 
@@ -383,5 +384,13 @@ introVertToTriang v glues = do
            = (Arr.length vs, TriangVertices $ vs `Arr.snoc` (v,[]))
       
 
+
+
+
+type Zero = Z
+type One = S Zero
+type Two = S One
+type Three = S Two
+type Succ = S
 
 
