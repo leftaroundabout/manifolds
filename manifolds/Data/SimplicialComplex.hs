@@ -39,6 +39,7 @@ module Data.SimplicialComplex (
         , simplexVertices, simplexVertices'
         -- * Simplicial complexes
         , Triangulation
+        , singleSimplex
         -- * Triangulation-builder monad
         , TriangT
         , evalTriangT, runTriangT, getTriang
@@ -100,6 +101,7 @@ data Simplex :: Nat -> * -> * where
    ZeroSimplex :: !x -> Simplex Z x
    Simplex :: !x -> !(Simplex n x) -> Simplex (S n) x
 
+deriving instance (Show x) => Show (Simplex n x)
 instance Hask.Functor (Simplex n) where
   fmap f (ZeroSimplex x) = ZeroSimplex (f x)
   fmap f (Simplex x xs) = Simplex (f x) (fmap f xs)
@@ -126,7 +128,8 @@ simplexVertices' (Simplex x s) = x : simplexVertices' s
 type Array = Arr.Vector
 
 -- | An /n/-dimensional /abstract simplicial complex/ is a collection of /n/-simplices
---   which are &#x201c;glued together&#x201d; in some way.
+--   which are &#x201c;glued together&#x201d; in some way. The preferred way to construct
+--   such complexes is to run a 'TriangT' builder.
 data Triangulation (n :: Nat) (x :: *) where
         TriangSkeleton :: KnownNat n
                  => Triangulation n x  -- The lower-dimensional skeleton.
@@ -136,6 +139,14 @@ data Triangulation (n :: Nat) (x :: *) where
                        )                 --       this one as a subsimplex?
                  -> Triangulation (S n) x
         TriangVertices :: Array (x, [Int]) -> Triangulation Z x
+deriving instance (Show x) => Show (Triangulation n x)
+
+-- | Consider a single simplex as a simplicial complex, consisting only of
+--   this simplex and its faces.
+singleSimplex :: Simplex n x -> Triangulation n x
+singleSimplex (ZeroSimplex x) = TriangVertices $ pure (x, [])
+singleSimplex (Simplex x s) = naïveTriangCone x $ singleSimplex s
+
 
 -- | Combine two triangulations (assumed as disjoint) to a single, non-connected complex.
 instance (KnownNat n) => Semigroup (Triangulation n x) where

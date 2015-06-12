@@ -235,6 +235,9 @@ instance (KnownNat n) => Hask.Applicative (FreeVect n) where
 instance (KnownNat n) => Traversable (FreeVect n) (FreeVect n) (->) (->) where
   traverse f (FreeVect v) = fmap FreeVect . runAsHaskFunctor
                               $ Hask.traverse (AsHaskFunctor . f) v
+instance (KnownNat n, Show x) => Show (FreeVect n x) where
+  show (FreeVect v) = "(freeTuple $->$ ("
+            ++ List.intercalate "," [show x | x<-Arr.toList v] ++ "))"
 
 type x ^ n = FreeVect n x
 
