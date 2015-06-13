@@ -34,7 +34,7 @@ module Data.SimplicialComplex (
         -- * Simplices
           Simplex(..)
         -- ** Construction
-        , makeSimplex, makeSimplex'
+        , (.<.), makeSimplex, makeSimplex'
         -- ** Deconstruction
         , simplexVertices, simplexVertices'
         -- * Simplicial complexes
@@ -95,16 +95,22 @@ import Data.Foldable.Constrained
 
 import GHC.Generics (Generic)
 
+infixr 5 :<|, .<.
 
 -- | An /n/-simplex is a connection of /n/+1 points in a simply connected region of a manifold.
 data Simplex :: Nat -> * -> * where
-   ZeroSimplex :: !x -> Simplex Z x
-   Simplex :: KnownNat n => !x -> !(Simplex n x) -> Simplex (S n) x
+   ZS :: !x -> Simplex Z x
+   (:<|) :: KnownNat n => !x -> !(Simplex n x) -> Simplex (S n) x
 
 deriving instance (Show x) => Show (Simplex n x)
 instance Hask.Functor (Simplex n) where
-  fmap f (ZeroSimplex x) = ZeroSimplex (f x)
-  fmap f (Simplex x xs) = Simplex (f x) (fmap f xs)
+  fmap f (ZS x) = ZS (f x)
+  fmap f (x:<|xs) = f x :<| fmap f xs
+
+-- | Use this together with ':<|' to easily build simplices, like you might construct lists.
+--   E.g. @(0,0) ':<|' (1,0) '.<.' (0,1) :: 'Simplex' 'Two' ℝ²@.
+(.<.) :: x -> x -> Simplex One x
+x .<. y = x :<| ZS y
 
 
 makeSimplex :: ∀ x n . KnownNat n => x ^ S n -> Simplex n x
@@ -113,16 +119,16 @@ makeSimplex xs = case makeSimplex' $ Hask.toList xs of
 
 makeSimplex' :: ∀ x n . KnownNat n => [x] -> Option (Simplex n x)
 makeSimplex' [] = Option Nothing
-makeSimplex' [x] = cozeroT $ ZeroSimplex x
-makeSimplex' (x:xs) = fCosuccT (Simplex x <$> makeSimplex' xs)
+makeSimplex' [x] = cozeroT $ ZS x
+makeSimplex' (x:xs) = fCosuccT ((x:<|) <$> makeSimplex' xs)
 
 simplexVertices :: ∀ x n . Simplex n x -> x ^ S n
-simplexVertices (ZeroSimplex x) = pure x
-simplexVertices (Simplex x s) = freeCons x (simplexVertices s)
+simplexVertices (ZS x) = pure x
+simplexVertices (x :<| s) = freeCons x (simplexVertices s)
 
 simplexVertices' :: ∀ x n . Simplex n x -> [x]
-simplexVertices' (ZeroSimplex x) = [x]
-simplexVertices' (Simplex x s) = x : simplexVertices' s
+simplexVertices' (ZS x) = [x]
+simplexVertices' (x :<| s) = x : simplexVertices' s
 
 
 type Array = Arr.Vector
@@ -144,8 +150,8 @@ deriving instance (Show x) => Show (Triangulation n x)
 -- | Consider a single simplex as a simplicial complex, consisting only of
 --   this simplex and its faces.
 singleSimplex :: ∀ n x . KnownNat n => Simplex n x -> Triangulation n x
-singleSimplex (ZeroSimplex x) = TriangVertices $ pure (x, [])
-singleSimplex (Simplex x s)
+singleSimplex (ZS x) = TriangVertices $ pure (x, [])
+singleSimplex (x :<| s)
          = runIdentity . execTriangT insX $ TriangSkeleton (singleSimplex s) mempty
  where insX :: ∀ t . TriangT t n x Identity ()
        insX = introVertToTriang x [SimplexIT 0] >> return()

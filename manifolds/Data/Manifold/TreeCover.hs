@@ -469,8 +469,8 @@ simplexPlane m s = embedding
 -- simplexShade :: forall x n . (KnownNat n, WithField ℝ Manifold x)
 barycenter :: forall x n . (KnownNat n, WithField ℝ Manifold x) => Simplex n x -> x
 barycenter = bc 
- where bc (ZeroSimplex x) = x
-       bc (Simplex x xs') = x .+~^ sumV [x'–x | x'<-splxVertices xs'] ^/ (n+1)
+ where bc (ZS x) = x
+       bc (x :<| xs') = x .+~^ sumV [x'–x | x'<-splxVertices xs'] ^/ (n+1)
        
        Tagged n = theNatN :: Tagged n ℝ
        x' – x = case x'.-~.x of {Option(Just v)->v}
@@ -523,8 +523,8 @@ partitionsOfFstLength n (x:xs) = first (x:) <$> partitionsOfFstLength (n-1) xs
                               ++ second (x:) <$> partitionsOfFstLength n xs
 
 splxVertices :: Simplex n x -> [x]
-splxVertices (ZeroSimplex x) = [x]
-splxVertices (Simplex x s') = x : splxVertices s'
+splxVertices (ZS x) = [x]
+splxVertices (x :<| s') = x : splxVertices s'
 
 
 

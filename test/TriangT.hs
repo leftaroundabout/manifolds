@@ -17,7 +17,7 @@ triangTest = do
 main :: IO ()
 main = do
    splxs <- evalTriangT triangTest . singleSimplex
-      $ Simplex (0^&0) $ Simplex (0^&1) $ ZeroSimplex (1^&0)
+      $ 0^&0 :<| 0^&1 .<. 1^&0
    return ()
    
 
