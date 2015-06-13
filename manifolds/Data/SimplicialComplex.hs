@@ -86,7 +86,7 @@ import Control.Monad.Trans.List
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, elem)
 
-import Data.Functor.Identity (runIdentity)
+import Data.Functor.Identity (Identity, runIdentity)
 
 import Control.Category.Constrained.Prelude hiding ((^), all, elem)
 import Control.Arrow.Constrained
@@ -99,7 +99,7 @@ import GHC.Generics (Generic)
 -- | An /n/-simplex is a connection of /n/+1 points in a simply connected region of a manifold.
 data Simplex :: Nat -> * -> * where
    ZeroSimplex :: !x -> Simplex Z x
-   Simplex :: !x -> !(Simplex n x) -> Simplex (S n) x
+   Simplex :: KnownNat n => !x -> !(Simplex n x) -> Simplex (S n) x
 
 deriving instance (Show x) => Show (Simplex n x)
 instance Hask.Functor (Simplex n) where
@@ -143,9 +143,12 @@ deriving instance (Show x) => Show (Triangulation n x)
 
 -- | Consider a single simplex as a simplicial complex, consisting only of
 --   this simplex and its faces.
-singleSimplex :: Simplex n x -> Triangulation n x
+singleSimplex :: ∀ n x . KnownNat n => Simplex n x -> Triangulation n x
 singleSimplex (ZeroSimplex x) = TriangVertices $ pure (x, [])
-singleSimplex (Simplex x s) = naïveTriangCone x $ singleSimplex s
+singleSimplex (Simplex x s)
+         = runIdentity . execTriangT insX $ TriangSkeleton (singleSimplex s) mempty
+ where insX :: ∀ t . TriangT t n x Identity ()
+       insX = introVertToTriang x [SimplexIT 0] >> return()
 
 
 -- | Combine two triangulations (assumed as disjoint) to a single, non-connected complex.
@@ -165,21 +168,6 @@ instance (KnownNat n) => Semigroup (Triangulation n x) where
 instance (KnownNat n) => Monoid (Triangulation n x) where
   mappend = (<>)
   mempty = coInduceT (TriangVertices mempty) (`TriangSkeleton`mempty)
-
-naïveTriangCone :: forall n x . x -> Triangulation n x -> Triangulation (S n) x
-naïveTriangCone x (TriangVertices xs)
-        = TriangSkeleton (TriangVertices $ Arr.imap (\j (x,_) -> (x,[j])) xs
-                                             `Arr.snoc` (x, [0 .. nxs-1])      )
-                         (Arr.imap (\j _ -> (freeTuple $ (nxs,j), [0])) xs)
- where nxs = Arr.length xs
-naïveTriangCone x (TriangSkeleton skel skin) = case naïveTriangCone x skel of
-     (TriangSkeleton sinew flesh) ->
-      let bowels = Arr.imap (\j (sk,[]) -> (sk `freeSnoc` (j+nskel), [0])) skin 
-          membranes = TriangSkeleton sinew $ flesh Arr.++ skin
-          nskel = case sinew of
-             TriangSkeleton _ fibre -> Arr.length fibre
-             TriangVertices vs -> Arr.length vs
-      in TriangSkeleton membranes bowels
 
 
 
@@ -211,6 +199,10 @@ unsafeEvalTriangT :: ∀ n t x m y . HaskMonad m
                          => TriangT t n x m y -> Triangulation n x -> m y
 unsafeEvalTriangT t = fmap fst . unsafeRunTriangT t
 
+execTriangT :: ∀ n x m y . HaskMonad m => (∀ t . TriangT t n x m y)
+                  -> Triangulation n x -> m (Triangulation n x)
+execTriangT t = fmap snd . unsafeRunTriangT (t :: TriangT () n x m y)
+
 evalTriangT :: ∀ n x m y . HaskMonad m => (∀ t . TriangT t n x m y)
                   -> Triangulation n x -> m y
 evalTriangT t = fmap fst . unsafeRunTriangT (t :: TriangT () n x m y)
@@ -226,9 +218,6 @@ getTriang :: ∀ t n k x m . (HaskMonad m, KnownNat k, KnownNat n)
                    => TriangT t n x m (Triangulation k x)
 getTriang = onSkeleton getEntireTriang
 
-simplexAsTriangulation :: ∀ n x . Simplex n x -> Triangulation n x
-simplexAsTriangulation (ZeroSimplex x) = TriangVertices $ pure (x,[])
-simplexAsTriangulation (Simplex x xs) = naïveTriangCone x $ simplexAsTriangulation xs
 
 
 forgetVolumes :: ∀ n x t m y . (KnownNat n, HaskMonad m)
