@@ -50,7 +50,7 @@ module Data.SimplicialComplex (
         , webinateTriang
         -- * Misc util
         , HaskMonad
-        , Nat, One, Two, Three, Succ
+        , Nat, Zero, One, Two, Three, Succ
         ) where
 
 
@@ -194,7 +194,7 @@ instance (Hask.Functor m, Monad m (->))
 instance (Hask.Functor m, Monad m (->)) => Hask.Monad (TriangT t n x m) where
   return x = TriangT $ pure . (x,)
   TriangT xs >>= f = TriangT $
-      \t -> xs t >>= \(y,t') -> let (TriangT zs) = f y in zs t
+      \t -> xs t >>= \(y,t') -> let (TriangT zs) = f y in zs t'
 
 type HaskMonad m = (Hask.Applicative m, Hask.Monad m)
 
@@ -393,6 +393,7 @@ introVertToTriang v glues = do
 
 
 
+-- | Type-level zero of kind 'Nat'.
 type Zero = Z
 type One = S Zero
 type Two = S One
