@@ -145,6 +145,9 @@ data Triangulation (n :: Nat) (x :: *) where
                        )                 --       this one as a subsimplex?
                  -> Triangulation (S n) x
         TriangVertices :: Array (x, [Int]) -> Triangulation Z x
+instance Hask.Functor (Triangulation n) where
+  fmap f (TriangVertices vs) = TriangVertices $ first f <$> vs
+  fmap f (TriangSkeleton sk vs) = TriangSkeleton (f<$>sk) vs
 deriving instance (Show x) => Show (Triangulation n x)
 
 -- | Consider a single simplex as a simplicial complex, consisting only of
