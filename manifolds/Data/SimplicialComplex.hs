@@ -319,9 +319,11 @@ superSimplices' = onSkeleton . superSimplices''
 
 superSimplices'' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                   => SimplexIT t n x -> TriangT t (S n) x m [SimplexIT t (S n) x]
-superSimplices'' (SimplexIT i) = fmap
-    ( \tr -> SimplexIT <$> case tr of TriangSkeleton _ tsps -> snd (tsps Arr.! i)
-    ) getEntireTriang
+superSimplices'' (SimplexIT i) =
+    fmap ( \tr -> SimplexIT <$> case tr of
+                    TriangSkeleton (TriangSkeleton _ tsps) _ -> snd (tsps Arr.! i)
+                    TriangSkeleton (TriangVertices tsps) _ -> snd (tsps Arr.! i)
+         ) getEntireTriang
 
 
 triangulationBulk :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n) => TriangT t n x m [Simplex k x]
