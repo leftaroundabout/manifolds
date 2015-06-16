@@ -366,21 +366,21 @@ webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
                       in do (cnws,sk') <- unsafeRunTriangT (
                               forM cnbs $ \j -> do
                                  kt@(SimplexIT k) <- webinateTriang ptt (SimplexIT j)
-                                 Option (Just ()) <- onSkeleton $ addUplink' res kt
+                                 addUplink' res kt
                                  return k
                              ) sk
                             let snocer = (freeSnoc cnws bs, [])
                             return $ (res, TriangSkeleton sk' $ Arr.snoc cnn snocer)
- where addUplink' :: SimplexIT t (S n) x -> SimplexIT t n x -> TriangT t (S n) x m ()
-       addUplink' (SimplexIT i) (SimplexIT j) = TriangT $ \(TriangSkeleton sk cnn)
-         -> let sk' = case sk of
+ where addUplink' :: SimplexIT t (S n) x -> SimplexIT t n x -> TriangT t n x m ()
+       addUplink' (SimplexIT i) (SimplexIT j) = TriangT
+        $ \sk -> pure ((), case sk of
                        TriangVertices vs
                            -> let (v,ul) = vs Arr.! j
                               in TriangVertices $ vs Arr.// [(j, (v, i:ul))]
                        TriangSkeleton skd us
                            -> let (b,tl) = us Arr.! j
                               in TriangSkeleton skd $ us Arr.// [(j, (b, i:tl))]
-            in return ((), TriangSkeleton sk' cnn)
+                   )
                                                     
 
 
