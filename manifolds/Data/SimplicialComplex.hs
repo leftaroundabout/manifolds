@@ -224,7 +224,7 @@ getEntireTriang :: ∀ t n x m . HaskMonad m => TriangT t n x m (Triangulation n
 getEntireTriang = TriangT $ \t -> pure (t, t)
 
 getTriang :: ∀ t n k x m . (HaskMonad m, KnownNat k, KnownNat n)
-                   => TriangT t n x m (Triangulation k x)
+                   => TriangT t n x m (Option (Triangulation k x))
 getTriang = onSkeleton getEntireTriang
 
 
@@ -234,10 +234,11 @@ forgetVolumes :: ∀ n x t m y . (KnownNat n, HaskMonad m)
 forgetVolumes (TriangT f) = TriangT $ \(TriangSkeleton l bk)
                              -> fmap (\(y, l') -> (y, TriangSkeleton l' bk)) $ f l
 
-onSkeleton :: ∀ n k x t m y . (KnownNat k, KnownNat n, HaskMonad m) => TriangT t k x m y -> TriangT t n x m y
+onSkeleton :: ∀ n k x t m y . (KnownNat k, KnownNat n, HaskMonad m)
+                   => TriangT t k x m y -> TriangT t n x m (Option y)
 onSkeleton q@(TriangT qf) = case tryToMatchTTT forgetVolumes q of
-    Option (Just q') -> q'
-    _ -> TriangT $ \_ -> fmap (second $ const mempty) (qf mempty)
+    Option (Just q') -> pure <$> q'
+    _ -> return Hask.empty
 
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
@@ -245,7 +246,7 @@ newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: In
 
 lookSplxFacesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                => SimplexIT t (S k) x -> TriangT t n x m (SimplexIT t k x ^ S(S k))
-lookSplxFacesIT = onSkeleton . lookSplxFacesIT'
+lookSplxFacesIT = fmap (\(Option(Just r))->r) . onSkeleton . lookSplxFacesIT'
 
 lookSplxFacesIT' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                => SimplexIT t (S n) x -> TriangT t (S n) x m (SimplexIT t n x ^ S(S n))
@@ -254,7 +255,7 @@ lookSplxFacesIT' (SimplexIT i) = triangReadT rc
 
 lookSplxVerticesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                => SimplexIT t k x -> TriangT t n x m (SimplexIT t Z x ^ S k)
-lookSplxVerticesIT = onSkeleton . lookSplxVerticesIT'
+lookSplxVerticesIT = fmap (\(Option(Just r))->r) . onSkeleton . lookSplxVerticesIT'
 
 lookSplxVerticesIT' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                => SimplexIT t n x -> TriangT t n x m (SimplexIT t Z x ^ S n)
@@ -279,7 +280,7 @@ lookSplxsVerticesIT is = triangReadT rc
 
 lookVertexIT :: ∀ t m n x . (HaskMonad m, KnownNat n)
                                 => SimplexIT t Z x -> TriangT t n x m x
-lookVertexIT = onSkeleton . lookVertexIT'
+lookVertexIT = fmap (\(Option(Just r))->r) . onSkeleton . lookVertexIT'
 
 lookVertexIT' :: ∀ t m x . HaskMonad m => SimplexIT t Z x -> TriangT t Z x m x
 lookVertexIT' (SimplexIT i) = triangReadT $ \(TriangVertices vs) -> return.fst $ vs Arr.! i
@@ -292,7 +293,7 @@ lookSimplex s = do
 
 simplexITList :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                => TriangT t n x m [SimplexIT t k x]
-simplexITList = onSkeleton simplexITList'
+simplexITList = fmap (\(Option(Just r))->r) $ onSkeleton simplexITList'
 
 simplexITList' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                => TriangT t n x m [SimplexIT t n x]
@@ -315,7 +316,7 @@ superSimplices = runListT . defLstt . matchLevel . pure
 
 superSimplices' :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                   => SimplexIT t k x -> TriangT t n x m [SimplexIT t (S k) x]
-superSimplices' = onSkeleton . superSimplices''
+superSimplices' = fmap (\(Option(Just r))->r) . onSkeleton . superSimplices''
 
 superSimplices'' :: ∀ t m n x . (HaskMonad m, KnownNat n)
                   => SimplexIT t n x -> TriangT t (S n) x m [SimplexIT t (S n) x]
@@ -365,7 +366,7 @@ webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
                       in do (cnws,sk') <- unsafeRunTriangT (
                               forM cnbs $ \j -> do
                                  kt@(SimplexIT k) <- webinateTriang ptt (SimplexIT j)
-                                 onSkeleton $ addUplink' res kt
+                                 Option (Just ()) <- onSkeleton $ addUplink' res kt
                                  return k
                              ) sk
                             let snocer = (freeSnoc cnws bs, [])
@@ -387,7 +388,8 @@ webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
 introVertToTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
                   => x -> [SimplexIT t n x] -> TriangT t (S n) x m (SimplexIT t Z x)
 introVertToTriang v glues = do
-      j <- fmap SimplexIT . onSkeleton . TriangT $ return . tVertSnoc
+      j <- fmap (\(Option(Just k)) -> SimplexIT k) . onSkeleton . TriangT
+             $ return . tVertSnoc
       mapM_ (webinateTriang j) glues
       return j
  where tVertSnoc :: Triangulation Z x -> (Int, Triangulation Z x)
