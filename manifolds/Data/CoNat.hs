@@ -303,5 +303,5 @@ newtype AsHaskFunctor f x = AsHaskFunctor { runAsHaskFunctor :: f x }
 instance (Functor f (->) (->)) => Hask.Functor (AsHaskFunctor f) where
   fmap f (AsHaskFunctor c) = AsHaskFunctor $ fmap f c
 instance (Monoidal f (->) (->)) => Hask.Applicative (AsHaskFunctor f) where
-  pure = runAsHaskFunctor . pure
+  pure x = fmap (const x) . AsHaskFunctor $ pureUnit ()
   AsHaskFunctor fs <*> AsHaskFunctor xs = AsHaskFunctor . fmap (uncurry ($)) $ fzip (fs, xs)
