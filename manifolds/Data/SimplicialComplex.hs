@@ -357,17 +357,24 @@ webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
   case existsReady of
    Option (Just ext) -> return ext
    _ -> TriangT $ \(TriangSkeleton sk cnn)
-         -> let res = SimplexIT $ Arr.length cnn      :: SimplexIT t (S n) x
+         -> let resi = Arr.length cnn
+                res = SimplexIT $ Arr.length cnn      :: SimplexIT t (S n) x
             in case sk of
-             TriangVertices _ -> return
-                   $ ( res, TriangSkeleton sk $ Arr.snoc cnn (freeTuple$->$(pt, bs), []) )
+             TriangVertices vs -> return
+                   $ ( res
+                     , TriangSkeleton (TriangVertices
+                           $ vs Arr.// [ (pt, second (resi:) $ vs Arr.! pt)
+                                       , (bs, second (resi:) $ vs Arr.! bs) ]
+                               ) $ Arr.snoc cnn (freeTuple$->$(pt, bs), []) )
              TriangSkeleton _ cnn'
                    -> let (cnbs,_) = cnn' Arr.! bs
-                      in do (cnws,sk') <- unsafeRunTriangT (
-                              forM cnbs $ \j -> do
+                      in do (cnws,sk') <- unsafeRunTriangT ( do
+                              cnws <- forM cnbs $ \j -> do
                                  kt@(SimplexIT k) <- webinateTriang ptt (SimplexIT j)
                                  addUplink' res kt
                                  return k
+                              addUplink' res bst
+                              return cnws
                              ) sk
                             let snocer = (freeSnoc cnws bs, [])
                             return $ (res, TriangSkeleton sk' $ Arr.snoc cnn snocer)
