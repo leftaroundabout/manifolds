@@ -10,6 +10,7 @@ import Diagrams.Prelude
 triangTest :: TriangT t Two R2 IO [Simplex Two R2]
 triangTest = do
    --[r0] <- simplexITList
+   disjointSimplex $ 0^&0 :<| 0^&1 .<. 1^&0
    [s0,s1,s2] <- simplexITList
    introVertToTriang (1 ^& 1) [s0]
    introVertToTriang ((-1) ^& 1) [s1]
@@ -18,7 +19,7 @@ triangTest = do
 
 main :: IO ()
 main = do
-   splxs <- evalTriangT triangTest . singleSimplex $ 0^&0 :<| 0^&1 .<. 1^&0
+   splxs <- evalTriangT triangTest
    print splxs
    return ()
    

@@ -46,6 +46,8 @@ module Data.SimplicialComplex (
         -- ** Subsimplex-references
         , SimplexIT, simplexITList, lookSimplex
         -- ** Building triangulations
+        , disjointTriangulation
+        , disjointSimplex
         , introVertToTriang
         , webinateTriang
         -- * Misc util
@@ -159,6 +161,10 @@ singleSimplex (x :<| s)
  where insX :: ∀ t . TriangT t n x Identity ()
        insX = introVertToTriang x [SimplexIT 0] >> return()
 
+nTopSplxs :: Triangulation n' x -> Int
+nTopSplxs (TriangVertices vs) = Arr.length vs
+nTopSplxs (TriangSkeleton _ vs) = Arr.length vs
+
 
 -- | Combine two triangulations (assumed as disjoint) to a single, non-connected complex.
 instance (KnownNat n) => Semigroup (Triangulation n x) where
@@ -171,9 +177,6 @@ instance (KnownNat n) => Semigroup (Triangulation n x) where
                        = TriangVertices $ fmap (second $ fmap (+δn)) vs
          shiftUprefs δn (TriangSkeleton sk' vs)
                        = TriangSkeleton sk' $ fmap (second $ fmap (+δn)) vs
-         nTopSplxs :: Triangulation n' x -> Int
-         nTopSplxs (TriangVertices vs) = Arr.length vs
-         nTopSplxs (TriangSkeleton _ vs) = Arr.length vs
 instance (KnownNat n) => Monoid (Triangulation n x) where
   mappend = (<>)
   mempty = coInduceT (TriangVertices mempty) (`TriangSkeleton`mempty)
@@ -212,9 +215,8 @@ execTriangT :: ∀ n x m y . HaskMonad m => (∀ t . TriangT t n x m y)
                   -> Triangulation n x -> m (Triangulation n x)
 execTriangT t = fmap snd . unsafeRunTriangT (t :: TriangT () n x m y)
 
-evalTriangT :: ∀ n x m y . HaskMonad m => (∀ t . TriangT t n x m y)
-                  -> Triangulation n x -> m y
-evalTriangT t = fmap fst . unsafeRunTriangT (t :: TriangT () n x m y)
+evalTriangT :: ∀ n x m y . HaskMonad m => (∀ t . TriangT t n x m y) -> m y
+evalTriangT t = fmap fst $ unsafeRunTriangT (t :: TriangT () n x m y) mempty
 
 runTriangT :: ∀ n x m y . (∀ t . TriangT t n x m y)
                   -> Triangulation n x -> m (y, Triangulation n x)
@@ -348,6 +350,14 @@ lookupSimplexCone tip base = do
     
 
 
+-- | Import an entire triangulation, as disjoint from everything already in the monad.
+disjointTriangulation :: ∀ t m n x . (KnownNat n, HaskMonad m)
+       => Triangulation n x -> TriangT t n x m (SimplexIT t n x)
+disjointTriangulation t = TriangT $ \tr -> return ( SimplexIT $ nTopSplxs tr, tr <> t )
+
+disjointSimplex :: ∀ t m n x . (KnownNat n, HaskMonad m)
+       => Simplex n x -> TriangT t n x m (SimplexIT t n x)
+disjointSimplex = disjointTriangulation . singleSimplex
 
 
 webinateTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
