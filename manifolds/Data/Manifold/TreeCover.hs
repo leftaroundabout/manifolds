@@ -77,11 +77,9 @@ import Data.CoNat
 import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask
-import Control.Monad.Trans.List
+import Control.Monad.Trans.State
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, elem)
-
-import Data.Functor.Identity (runIdentity)
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
@@ -426,6 +424,8 @@ data TriangBuilder n x where
                     -> [(Simplex n x, [x] -> Option x)]
                             -> TriangBuilder (S n) x
 
+
+
 -- startTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
 --         => ISimplex n x -> TriangBuilder n x
 -- startTriangulation ispl@(ISimplex emb) = startWith $ fromISimplex ispl
@@ -504,6 +504,14 @@ fromISimplex (ISimplex emb) = s
                          ]
        (Tagged n) = theNatN :: Tagged n Int
 
+
+type FullTriang t n x = TriangT t n ()
+          (State (Map.Map (SimplexIT t n ()) (ISimplex n x)))
+
+singleFullSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
+          => ISimplex n x -> FullTriang t n x (SimplexIT t n ())
+singleFullSimplex = undefined
+       
 
 -- primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
 --                              => [x] -> Triangulation n x

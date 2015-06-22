@@ -85,6 +85,7 @@ import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask
 import Control.Monad.Trans.List
+import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, elem)
 
@@ -202,6 +203,9 @@ instance (Hask.Functor m, Monad m (->)) => Hask.Monad (TriangT t n x m) where
   TriangT xs >>= f = TriangT $
       \t -> xs t >>= \(y,t') -> let (TriangT zs) = f y in zs t'
 
+instance MonadTrans (TriangT t n x) where
+  lift m = TriangT $ \tr -> Hask.liftM (,tr) m
+
 type HaskMonad m = (Hask.Applicative m, Hask.Monad m)
 
 triangReadT :: ∀ t n x m y . HaskMonad m => (Triangulation n x -> m y) -> TriangT t n x m y
@@ -244,7 +248,7 @@ onSkeleton q@(TriangT qf) = case tryToMatchTTT forgetVolumes q of
 
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT' :: Int }
-          deriving (Eq)
+          deriving (Eq, Ord)
 
 -- | A unique (for the given dimension) ID of a triagulation's simplex. It is the index
 --   where that simplex can be found in the 'simplexITList'.
