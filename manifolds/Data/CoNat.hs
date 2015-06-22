@@ -288,6 +288,13 @@ freeSortBy :: forall n a . KnownNat n
         => (a->a->Ordering) -> a^n -> a^n
 freeSortBy cmp (FreeVect xs) = FreeVect $ Arr.fromList (List.sortBy cmp $ Arr.toList xs)
 
+freeRotate :: ∀ n a . KnownNat n => Int -> a^n -> a^n
+freeRotate j' = \(FreeVect v) -> FreeVect $ Arr.unsafeBackpermute v rot
+ where (Tagged n) = theNatN :: Tagged n Int
+       rot = Arr.enumFromN j (n-j) Arr.++ Arr.enumFromN 0 j
+       j = j'`mod`n
+
+
 
 freeCons :: a -> FreeVect n a -> FreeVect (S n) a
 freeCons x (FreeVect xs) = FreeVect $ Arr.cons x xs

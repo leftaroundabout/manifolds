@@ -78,8 +78,9 @@ import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask
 import Control.Monad.Trans.State
+import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
-import Data.Foldable (all, elem)
+import Data.Foldable (all, elem, toList)
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
@@ -504,13 +505,35 @@ fromISimplex (ISimplex emb) = s
                          ]
        (Tagged n) = theNatN :: Tagged n Int
 
+iSimplexSideViews :: ∀ n x . KnownNat n => ISimplex n x -> [ISimplex n x]
+iSimplexSideViews = \(ISimplex is)
+              -> take n $ [ISimplex $ rot j is | j<-[0..] ]
+ where rot j (Embedding emb proj)
+            = Embedding ( emb . BaryCoords . freeRotate j     . getBaryCoordsTail        )
+                        (       BaryCoords . freeRotate (n-j) . getBaryCoordsTail . proj )
+       (Tagged n) = theNatN :: Tagged n Int
 
-type FullTriang t n x = TriangT t n ()
-          (State (Map.Map (SimplexIT t n ()) (ISimplex n x)))
+
+type FullTriang t n x = TriangT t n x
+          (State (Map.Map (SimplexIT t n x) (ISimplex n x)))
+
+type TriangBuild t n x = TriangT t (S n) x
+          (State (Map.Map (SimplexIT t n x) (ISimplex (S n) x)))
 
 singleFullSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
-          => ISimplex n x -> FullTriang t n x (SimplexIT t n ())
-singleFullSimplex = undefined
+          => ISimplex n x -> FullTriang t n x (SimplexIT t n x)
+singleFullSimplex is = do
+   frame <- disjointSimplex (fromISimplex is)
+   lift . modify' $ Map.insert frame is
+   return frame
+       
+fullOpenSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
+          => ISimplex (S n) x -> TriangBuild t n x [SimplexIT t n x]
+fullOpenSimplex is = do
+   frame <- disjointSimplex (fromISimplex is)
+   [fside] <- toList <$> lookSplxFacesIT frame
+   lift . modify' $ Map.insert fside is
+   return [fside]
        
 
 -- primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)

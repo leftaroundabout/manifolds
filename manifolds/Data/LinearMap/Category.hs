@@ -169,7 +169,22 @@ instance FreeTuple (s,s) where {                                              \
   freeTuple = fromInversePair (\(a,b) -> FreeVect $ Arr.fromList[a,b])          \
                               (\(FreeVect v) -> (v Arr.! 0, v Arr.! 1)); }
 
-FreePair(ℝ)
-FreePair(Int)
+#define FreeTriple(s)                                                            \
+FreePair(s);                                                                      \
+instance FreeTuple (s,s,s) where {                                                 \
+  type Tuplity (s,s,s) = S(S(S Z));                                                 \
+  freeTuple = fromInversePair (\(a,b,c) -> FreeVect $ Arr.fromList[a,b,c])           \
+                              (\(FreeVect v) -> (v Arr.! 0, v Arr.! 1, v Arr.! 2)); };\
+instance FreeTuple (s,(s,s)) where {                                                 \
+  type Tuplity (s,(s,s)) = S(S(S Z));                                                 \
+  freeTuple = fromInversePair (\(a,(b,c)) -> FreeVect $ Arr.fromList[a,b,c])           \
+                              (\(FreeVect v) -> (v Arr.! 0, (v Arr.! 1, v Arr.! 2))); };\
+instance FreeTuple ((s,s),s) where {                                                 \
+  type Tuplity ((s,s),s) = S(S(S Z));                                                 \
+  freeTuple = fromInversePair (\((a,b),c) -> FreeVect $ Arr.fromList[a,b,c])           \
+                              (\(FreeVect v) -> ((v Arr.! 0, v Arr.! 1), v Arr.! 2)); }
+
+FreeTriple(ℝ)
+FreeTriple(Int)
 
 
