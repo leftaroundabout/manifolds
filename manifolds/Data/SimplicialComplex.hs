@@ -44,7 +44,7 @@ module Data.SimplicialComplex (
         , TriangT
         , evalTriangT, runTriangT, getTriang
         -- ** Subsimplex-references
-        , SimplexIT, simplexITList, lookSimplex
+        , SimplexIT, simplexITList, lookSimplex, tgetSimplexIT
         -- ** Building triangulations
         , disjointTriangulation
         , disjointSimplex
@@ -215,8 +215,8 @@ execTriangT :: ∀ n x m y . HaskMonad m => (∀ t . TriangT t n x m y)
                   -> Triangulation n x -> m (Triangulation n x)
 execTriangT t = fmap snd . unsafeRunTriangT (t :: TriangT () n x m y)
 
-evalTriangT :: ∀ n x m y . HaskMonad m => (∀ t . TriangT t n x m y) -> m y
-evalTriangT t = fmap fst $ unsafeRunTriangT (t :: TriangT () n x m y) mempty
+evalTriangT :: ∀ n x m y . (KnownNat n, HaskMonad m) => (∀ t . TriangT t n x m y) -> m y
+evalTriangT t = fmap fst (unsafeRunTriangT (t :: TriangT () n x m y) mempty)
 
 runTriangT :: ∀ n x m y . (∀ t . TriangT t n x m y)
                   -> Triangulation n x -> m (y, Triangulation n x)
@@ -243,8 +243,13 @@ onSkeleton q@(TriangT qf) = case tryToMatchTTT forgetVolumes q of
     _ -> return Hask.empty
 
 
-newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT :: Int }
+newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT' :: Int }
           deriving (Eq)
+
+-- | A unique (for the given dimension) ID of a triagulation's simplex. It is the index
+--   where that simplex can be found in the 'simplexITList'.
+tgetSimplexIT :: SimplexIT t n x -> Int
+tgetSimplexIT = tgetSimplexIT'
 
 lookSplxFacesIT :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
                => SimplexIT t (S k) x -> TriangT t n x m (SimplexIT t k x ^ S(S k))
