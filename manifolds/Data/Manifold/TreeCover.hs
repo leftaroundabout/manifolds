@@ -531,9 +531,10 @@ fullOpenSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
           => ISimplex (S n) x -> TriangBuild t n x [SimplexIT t n x]
 fullOpenSimplex is = do
    frame <- disjointSimplex (fromISimplex is)
-   [fside] <- toList <$> lookSplxFacesIT frame
-   lift . modify' $ Map.insert fside is
-   return [fside]
+   fsides <- toList <$> lookSplxFacesIT frame
+   lift . forM (zip fsides $ iSimplexSideViews is)
+      $ \(fside,is') -> modify' $ Map.insert fside is'
+   return fsides
        
 
 -- primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
