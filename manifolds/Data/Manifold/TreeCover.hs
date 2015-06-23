@@ -535,6 +535,19 @@ fullOpenSimplex is = do
    lift . forM (zip fsides $ iSimplexSideViews is)
       $ \(fside,is') -> modify' $ Map.insert fside is'
    return fsides
+
+spanSemiOpenSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
+          => HerMetric (Needle x) -> SimplexIT t Z x -> NonEmpty (SimplexIT t n x)
+                  -> TriangBuild t n x [SimplexIT t n x]
+spanSemiOpenSimplex m p bs@(b:|_) = do
+   frame <- webinateTriang p b
+   backSplx <- lookSimplex frame
+   let iSplx = toISimplex m backSplx
+   fsides <- toList <$> lookSplxFacesIT frame
+   let sviews = filter (not . (`elem`bs) . fst) $ zip fsides (iSimplexSideViews iSplx)
+   lift . forM sviews $ \(fside,is') -> modify' $ Map.insert fside is'
+   return $ fst <$> sviews
+   
        
 
 -- primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
