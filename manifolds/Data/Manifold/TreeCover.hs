@@ -76,7 +76,7 @@ import Data.CoNat
 
 import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
-import qualified Control.Monad       as Hask
+import qualified Control.Monad       as Hask hiding(forM_)
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
@@ -546,6 +546,7 @@ spanSemiOpenSimplex m p bs@(b:|_) = do
    fsides <- toList <$> lookSplxFacesIT frame
    let sviews = filter (not . (`elem`bs) . fst) $ zip fsides (iSimplexSideViews iSplx)
    lift . forM sviews $ \(fside,is') -> modify' $ Map.insert fside is'
+   lift . Hask.forM_ bs $ \fside -> modify' $ Map.delete fside
    return $ fst <$> sviews
    
        
