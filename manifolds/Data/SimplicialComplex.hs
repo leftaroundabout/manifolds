@@ -339,6 +339,15 @@ lookSupersimplicesIT'' (SimplexIT i) =
                     TriangSkeleton (TriangVertices tsps) _ -> snd (tsps Arr.! i)
          ) getEntireTriang
 
+sharedBoundary :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
+         => SimplexIT t (S k) x -> SimplexIT t (S k) x
+           -> TriangT t n x m (Option (SimplexIT t k x))
+sharedBoundary i j = do
+   iSubs <- lookSplxFacesIT i
+   jSubs <- lookSplxFacesIT j
+   return . Option . listToMaybe
+      . fastNub $ Hask.toList iSubs ++ Hask.toList jSubs
+
 
 triangulationBulk :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n) => TriangT t n x m [Simplex k x]
 triangulationBulk = simplexITList >>= mapM lookSimplex
