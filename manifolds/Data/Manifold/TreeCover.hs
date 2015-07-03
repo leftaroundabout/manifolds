@@ -450,6 +450,7 @@ data TriangBuilder n x where
 --          | Option (Just fav) <- expd xs
 --                     = let snew = Simplex fav bspl
 --                       in TriangBuilder (Triangulation $ snew:tr') (fav:tb') undefined
+
               
 
 
@@ -536,10 +537,17 @@ fullOpenSimplex is = do
       $ \(fside,is') -> modify' $ Map.insert fside is'
    return fsides
 
-spanSemiOpenSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
-          => HerMetric (Needle x) -> SimplexIT t Z x -> NonEmpty (SimplexIT t n x)
-                  -> TriangBuild t n x [SimplexIT t n x]
-spanSemiOpenSimplex m p bs@(b:|_) = do
+
+spanSemiOpenSimplex :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
+          => HerMetric (Needle x)  -- ^ Metric which can be used to determine the
+                                   --   goodness of angles in the new simplex.
+          -> SimplexIT t Z x       -- ^ Tip of the desired simplex.
+          -> SimplexIT t n x       -- ^ Base of the desired simplex.
+          -> TriangBuild t n x [SimplexIT t n x]
+                                   -- ^ Return the exposed faces of the new simplices.
+spanSemiOpenSimplex m p b = do
+   neighbours <- filterM isAdjacent =<< lookSupersimplicesIT p
+   let bs = b:|neighbours
    frame <- webinateTriang p b
    backSplx <- lookSimplex frame
    let iSplx = toISimplex m backSplx
@@ -548,7 +556,9 @@ spanSemiOpenSimplex m p bs@(b:|_) = do
    lift . forM sviews $ \(fside,is') -> modify' $ Map.insert fside is'
    lift . Hask.forM_ bs $ \fside -> modify' $ Map.delete fside
    return $ fst <$> sviews
-   
+ where isAdjacent = fmap (isJust . getOption) . sharedBoundary b
+
+
        
 
 -- primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)

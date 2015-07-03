@@ -46,6 +46,7 @@ module Data.SimplicialComplex (
         -- ** Subsimplex-references
         , SimplexIT, simplexITList, lookSimplex
         , lookSplxFacesIT, lookSupersimplicesIT, tgetSimplexIT
+        , sharedBoundary
         -- ** Building triangulations
         , disjointTriangulation
         , disjointSimplex
