@@ -452,6 +452,11 @@ data TriangBuilder n x where
 --                       in TriangBuilder (Triangulation $ snew:tr') (fav:tb') undefined
 
               
+bottomExtendSuitability :: (KnownNat n, WithField ℝ Manifold x)
+                => ISimplex (S n) x -> x -> ℝ
+bottomExtendSuitability (ISimplex emb) x = case getBaryCoord (emb >-$ x) 0 of
+     0 -> 0
+     r -> recip r
 
 
 
