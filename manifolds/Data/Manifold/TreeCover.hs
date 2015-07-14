@@ -458,6 +458,13 @@ bottomExtendSuitability (ISimplex emb) x = case getBaryCoord (emb >-$ x) 0 of
      0 -> 0
      r -> recip r
 
+optimalBottomExtension :: (KnownNat n, WithField ℝ Manifold x)
+                => ISimplex (S n) x -> [x] -> Option Int
+optimalBottomExtension s xs
+      = case filter ((>0).snd)
+               $ zipWith ((. bottomExtendSuitability s) . (,)) [0..] xs of
+             [] -> Hask.empty
+             qs -> pure . fst . maximumBy (comparing snd) $ qs
 
 
 simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
