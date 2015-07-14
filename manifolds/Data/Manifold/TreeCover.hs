@@ -531,7 +531,8 @@ type FullTriang t n x = TriangT t n x
           (State (Map.Map (SimplexIT t n x) (ISimplex n x)))
 
 type TriangBuild t n x = TriangT t (S n) x
-          (State (Map.Map (SimplexIT t n x) (ISimplex (S n) x)))
+          (State (Map.Map (SimplexIT t n x)
+                          (HerMetric (Needle x), ISimplex (S n) x) ))
 
 singleFullSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
           => ISimplex n x -> FullTriang t n x (SimplexIT t n x)
@@ -541,23 +542,23 @@ singleFullSimplex is = do
    return frame
        
 fullOpenSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
-          => ISimplex (S n) x -> TriangBuild t n x [SimplexIT t n x]
-fullOpenSimplex is = do
+          => HerMetric (Needle x) -> Simplex (S n) x -> TriangBuild t n x [SimplexIT t n x]
+fullOpenSimplex m s = do
+   let is = toISimplex m s
    frame <- disjointSimplex (fromISimplex is)
    fsides <- toList <$> lookSplxFacesIT frame
    lift . forM (zip fsides $ iSimplexSideViews is)
-      $ \(fside,is') -> modify' $ Map.insert fside is'
+      $ \(fside,is') -> modify' $ Map.insert fside (m,is')
    return fsides
 
 
 spanSemiOpenSimplex :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
-          => HerMetric (Needle x)  -- ^ Metric which can be used to determine the
-                                   --   goodness of angles in the new simplex.
-          -> SimplexIT t Z x       -- ^ Tip of the desired simplex.
+          => SimplexIT t Z x       -- ^ Tip of the desired simplex.
           -> SimplexIT t n x       -- ^ Base of the desired simplex.
           -> TriangBuild t n x [SimplexIT t n x]
                                    -- ^ Return the exposed faces of the new simplices.
-spanSemiOpenSimplex m p b = do
+spanSemiOpenSimplex p b = do
+   m <- lift $ fst <$> (Map.!b) <$>  get
    neighbours <- filterM isAdjacent =<< lookSupersimplicesIT p
    let bs = b:|neighbours
    frame <- webinateTriang p b
@@ -565,12 +566,15 @@ spanSemiOpenSimplex m p b = do
    let iSplx = toISimplex m backSplx
    fsides <- toList <$> lookSplxFacesIT frame
    let sviews = filter (not . (`elem`bs) . fst) $ zip fsides (iSimplexSideViews iSplx)
-   lift . forM sviews $ \(fside,is') -> modify' $ Map.insert fside is'
+   lift . forM sviews $ \(fside,is') -> modify' $ Map.insert fside (m,is')
    lift . Hask.forM_ bs $ \fside -> modify' $ Map.delete fside
    return $ fst <$> sviews
  where isAdjacent = fmap (isJust . getOption) . sharedBoundary b
 
-
+-- multiextendTriang :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
+--           => [(HerMetric (Needle x), x)] -> TriangBuild t n x [SimplexIT t n x]
+-- multiextendTriang ps = do
+   
        
 
 -- primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
