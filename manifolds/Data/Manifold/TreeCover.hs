@@ -571,9 +571,16 @@ spanSemiOpenSimplex p b = do
    return $ fst <$> sviews
  where isAdjacent = fmap (isJust . getOption) . sharedBoundary b
 
--- multiextendTriang :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
---           => [(HerMetric (Needle x), x)] -> TriangBuild t n x [SimplexIT t n x]
--- multiextendTriang ps = do
+multiextendTriang :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
+          => [SimplexIT t Z x] -> TriangBuild t n x ()
+multiextendTriang vs = do
+   ps <- mapM lookVertexIT vs
+   sides <- lift $ Map.toList <$> get
+   forM_ sides $ \(f,(m,s)) ->
+      case optimalBottomExtension s ps of
+        Option (Just c) -> spanSemiOpenSimplex (vs !! c) f
+        _               -> return []
+   
    
        
 
