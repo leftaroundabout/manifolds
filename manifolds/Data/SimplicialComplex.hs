@@ -377,12 +377,16 @@ lookupSimplexCone tip base = do
 
 -- | Import an entire triangulation, as disjoint from everything already in the monad.
 disjointTriangulation :: ∀ t m n x . (KnownNat n, HaskMonad m)
-       => Triangulation n x -> TriangT t n x m (SimplexIT t n x)
-disjointTriangulation t = TriangT $ \tr -> return ( SimplexIT $ nTopSplxs tr, tr <> t )
+       => Triangulation n x -> TriangT t n x m [SimplexIT t n x]
+disjointTriangulation t = TriangT $
+                       \tr -> return ( [ SimplexIT k
+                                       | k <- take (nTopSplxs t) [nTopSplxs tr ..] ]
+                                     , tr <> t )
 
 disjointSimplex :: ∀ t m n x . (KnownNat n, HaskMonad m)
        => Simplex n x -> TriangT t n x m (SimplexIT t n x)
-disjointSimplex = disjointTriangulation . singleSimplex
+disjointSimplex s = TriangT $ \tr -> return ( SimplexIT $ nTopSplxs tr
+                                            , tr <> singleSimplex s    )
 
 
 webinateTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
