@@ -42,7 +42,7 @@ module Data.SimplicialComplex (
         , singleSimplex
         -- * Triangulation-builder monad
         , TriangT
-        , evalTriangT, runTriangT, getTriang
+        , evalTriangT, runTriangT, doTriangT, getTriang
         -- ** Subsimplex-references
         , SimplexIT, simplexITList, lookSimplex
         , lookSplxFacesIT, lookSupersimplicesIT, tgetSimplexIT
@@ -228,6 +228,9 @@ evalTriangT t = fmap fst (unsafeRunTriangT (t :: TriangT () n x m y) mempty)
 runTriangT :: ∀ n x m y . (∀ t . TriangT t n x m y)
                   -> Triangulation n x -> m (y, Triangulation n x)
 runTriangT t = unsafeRunTriangT (t :: TriangT () n x m y)
+
+doTriangT :: ∀ n x m y . KnownNat n => (∀ t . TriangT t n x m y) -> m (y, Triangulation n x)
+doTriangT t = runTriangT t mempty
 
 getEntireTriang :: ∀ t n x m . HaskMonad m => TriangT t n x m (Triangulation n x)
 getEntireTriang = TriangT $ \t -> pure (t, t)
