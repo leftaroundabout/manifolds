@@ -169,6 +169,8 @@ nTopSplxs :: Triangulation n' x -> Int
 nTopSplxs (TriangVertices vs) = Arr.length vs
 nTopSplxs (TriangSkeleton _ vs) = Arr.length vs
 
+nSplxs :: (KnownNat k, KnownNat n) => Triangulation n x -> Tagged k Int
+nSplxs = undefined
 
 -- | Combine two triangulations (assumed as disjoint) to a single, non-connected complex.
 instance (KnownNat n) => Semigroup (Triangulation n x) where
@@ -395,7 +397,7 @@ mixinTriangulation :: ∀ t m k n x . (KnownNat n, KnownNat k, HaskMonad m)
 mixinTriangulation t
       = TriangT $ \tr -> do
            (sqs, tr') <- doTriangT t'
-           let n = nTopSplxs tr
+           let (Tagged n) = nSplxs tr :: Tagged k Int
            return ( [ SimplexIT $ n + k | k <- sqs ], tr <> tr' )
  where t' :: ∀ s . TriangT s n x m [Int]
        t' = fmap (map tgetSimplexIT) t
