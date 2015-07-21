@@ -40,6 +40,7 @@ module Data.Manifold.PseudoAffine (
               Manifold
             , Semimanifold(..)
             , PseudoAffine(..)
+            , Metric, Metric'
             -- * Regions within a manifold
             , Region
             -- * Hierarchy of manifold-categories
@@ -199,6 +200,9 @@ type HilbertSpace x = ( LinearManifold x, InnerSpace x
                       , Needle x ~ x, DualSpace x ~ x, Floating (Scalar x) )
 
 
+type Metric x = HerMetric (Needle x)
+type Metric' x = HerMetric' (Needle x)
+
 
 -- | Interpolate between points, approximately linearly.
 palerp :: (PseudoAffine x, VectorSpace (Needle x))
@@ -331,7 +335,7 @@ toS¹range φ = (φ+pi)`mod'`tau - pi
 
 
 
-type LinDevPropag d c = HerMetric (Needle c) -> HerMetric (Needle d)
+type LinDevPropag d c = Metric c -> Metric d
 
 dev_ε_δ :: RealDimension a
                 => (a -> a) -> LinDevPropag a a

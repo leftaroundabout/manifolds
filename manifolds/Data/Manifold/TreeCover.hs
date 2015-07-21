@@ -78,6 +78,7 @@ import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask hiding(forM_)
 import Control.Monad.Trans.State
+import Control.Monad.Trans.Writer
 import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, elem, toList)
@@ -95,7 +96,7 @@ import GHC.Generics (Generic)
 
 -- | Possibly / Partially / asymPtotically singular metric.
 data PSM x = PSM {
-       psmExpanse :: !(HerMetric' (Needle x))
+       psmExpanse :: !(Metric' x)
      , relevantEigenspan :: ![DualSpace (Needle x)]
      }
        
@@ -108,7 +109,7 @@ data PSM x = PSM {
 --   For a /precise/ description of an arbitrarily-shaped connected subset of a manifold,
 --   there is 'Region', whose implementation is vastly more complex.
 data Shade x = Shade { shadeCtr :: !x
-                     , shadeExpanse :: !(HerMetric' (Needle x)) }
+                     , shadeExpanse :: !(Metric' x) }
 
 instance (AffineManifold x) => Semimanifold (Shade x) where
   type Needle (Shade x) = Diff x
@@ -468,8 +469,7 @@ optimalBottomExtension s xs
 
 
 simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
-        => HerMetric (Needle x) -> Simplex n x
-               -> Embedding (Linear ℝ) (FreeVect n ℝ) (Needle x)
+        => Metric x -> Simplex n x -> Embedding (Linear ℝ) (FreeVect n ℝ) (Needle x)
 simplexPlane m s = embedding
  where bc = barycenter s
        spread = init . map ((.-~.bc) >>> \(Option (Just v)) -> v) $ splxVertices s
@@ -490,7 +490,7 @@ barycenter = bc
        x' – x = case x'.-~.x of {Option(Just v)->v}
 
 toISimplex :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                 => HerMetric (Needle x) -> Simplex n x -> ISimplex n x
+                 => Metric x -> Simplex n x -> ISimplex n x
 toISimplex m s = ISimplex $ fromEmbedProject fromBrc toBrc
  where bc = barycenter s
        (Embedding emb (DenseLinear prj))
@@ -531,8 +531,7 @@ type FullTriang t n x = TriangT t n x
           (State (Map.Map (SimplexIT t n x) (ISimplex n x)))
 
 type TriangBuild t n x = TriangT t (S n) x
-          (State (Map.Map (SimplexIT t n x)
-                          (HerMetric (Needle x), ISimplex (S n) x) ))
+          ( State (Map.Map (SimplexIT t n x) (Metric x, ISimplex (S n) x) ))
 
 singleFullSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
           => ISimplex n x -> FullTriang t n x (SimplexIT t n x)
@@ -542,7 +541,7 @@ singleFullSimplex is = do
    return frame
        
 fullOpenSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
-          => HerMetric (Needle x) -> Simplex (S n) x -> TriangBuild t n x [SimplexIT t n x]
+          => Metric x -> Simplex (S n) x -> TriangBuild t n x [SimplexIT t n x]
 fullOpenSimplex m s = do
    let is = toISimplex m s
    frame <- disjointSimplex (fromISimplex is)
@@ -580,6 +579,31 @@ multiextendTriang vs = do
       case optimalBottomExtension s ps of
         Option (Just c) -> spanSemiOpenSimplex (vs !! c) f
         _               -> return []
+
+-- autoglueTriangulation :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
+--            => (∀ t' . TriangBuild t' n x ()) -> TriangBuild t n x ()
+-- autoglueTriangulation tb = do
+--     WriterT gls <- mixinTriangulation tb'
+--     lift . forM_ gls $ \(ms,i) ->
+--         modify' $ Map.insert i ms
+--  where tb' :: ∀ t' . TriangBuild t' n x ( WriterT (Metric x, ISimplex (S n) x)
+--                                                   []
+--                                                   (SimplexIT t' n' x)
+--                                         )
+--        tb' = do
+--            tb
+--            tbBounds <- lift get
+--            return . WriterT $ flip <$> Map.toList tbBounds
+--          
+                    
+--  where tr :: Triangulation n x
+--        outfc :: Map.Map (SimplexIT t n' x) (Metric x, ISimplex n x)
+--        (((), tr), outfc) = runState (doTriangT tb') mempty
+--        tb' :: ∀ t' . TriangT t' n x 
+--                         ( State ( Map.Map (SimplexIT t' n' x)
+--                              (Metric x, ISimplex n x) ) ) ()
+--        tb' = tb
+   
    
    
        
