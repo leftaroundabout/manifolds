@@ -51,6 +51,7 @@ module Data.SimplicialComplex (
         -- ** Building triangulations
         , disjointTriangulation
         , disjointSimplex
+        , mixinTriangulation
         , introVertToTriang
         , webinateTriang
         -- * Misc util
@@ -397,6 +398,8 @@ disjointSimplex s = TriangT $ \tr -> return ( SimplexIT $ nTopSplxs tr
                                             , tr <> singleSimplex s    )
 
 
+-- | Import a triangulation like with 'disjointTriangulation',
+--   together with references to some of its subsimplices.
 mixinTriangulation :: ∀ t m f k n x . ( KnownNat n, KnownNat k
                                       , HaskMonad m, Functor f (->) (->) )
        => (∀ s . TriangT s n x m (f (SimplexIT s k x)))
