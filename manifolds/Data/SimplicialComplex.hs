@@ -397,16 +397,17 @@ disjointSimplex s = TriangT $ \tr -> return ( SimplexIT $ nTopSplxs tr
                                             , tr <> singleSimplex s    )
 
 
-mixinTriangulation :: ∀ t m k n x . (KnownNat n, KnownNat k, HaskMonad m)
-       => (∀ s . TriangT s n x m [SimplexIT s k x])
-              -> TriangT t n x m [SimplexIT t k x]
+mixinTriangulation :: ∀ t m f k n x . ( KnownNat n, KnownNat k
+                                      , HaskMonad m, Functor f (->) (->) )
+       => (∀ s . TriangT s n x m (f (SimplexIT s k x)))
+              -> TriangT t n x m (f (SimplexIT t k x))
 mixinTriangulation t
       = TriangT $ \tr -> do
            (sqs, tr') <- doTriangT t'
            let (Tagged n) = nSplxs tr :: Tagged k Int
-           return ( [ SimplexIT $ n + k | k <- sqs ], tr <> tr' )
- where t' :: ∀ s . TriangT s n x m [Int]
-       t' = fmap (map tgetSimplexIT) t
+           return ( fmap (\k -> SimplexIT $ n + k) sqs, tr <> tr' )
+ where t' :: ∀ s . TriangT s n x m (f Int)
+       t' = fmap (fmap tgetSimplexIT) t
 
 
 webinateTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
