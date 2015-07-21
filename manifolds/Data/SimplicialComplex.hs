@@ -169,8 +169,14 @@ nTopSplxs :: Triangulation n' x -> Int
 nTopSplxs (TriangVertices vs) = Arr.length vs
 nTopSplxs (TriangSkeleton _ vs) = Arr.length vs
 
-nSplxs :: (KnownNat k, KnownNat n) => Triangulation n x -> Tagged k Int
-nSplxs = undefined
+nSplxs :: ∀ k n x . (KnownNat k, KnownNat n) => Triangulation n x -> Tagged k Int
+nSplxs t = case t of
+      TriangVertices vs   | n == k  -> Tagged $ Arr.length vs
+      TriangSkeleton _ vs | n == k  -> Tagged $ Arr.length vs
+      TriangSkeleton sk _ | n > k   -> nSplxs sk
+      _                             -> Tagged 0
+ where (Tagged k) = theNatN :: Tagged k Int
+       (Tagged n) = theNatN :: Tagged n Int
 
 -- | Combine two triangulations (assumed as disjoint) to a single, non-connected complex.
 instance (KnownNat n) => Semigroup (Triangulation n x) where
