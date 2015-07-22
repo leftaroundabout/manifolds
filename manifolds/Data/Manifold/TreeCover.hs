@@ -77,6 +77,7 @@ import Data.CoNat
 import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask hiding(forM_)
+import Data.Functor.Identity
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 import Control.Monad.Trans.Class
@@ -116,7 +117,7 @@ instance (AffineManifold x) => Semimanifold (Shade x) where
   Shade c e .+~^ v = Shade (c.+^v) e
   Shade c e .-~^ v = Shade (c.-^v) e
 
-fullShade :: WithField ℝ Manifold x => x -> HerMetric' (Needle x) -> Shade x
+fullShade :: WithField ℝ Manifold x => x -> Metric' x -> Shade x
 fullShade ctr expa = Shade ctr expa
 
 subshadeId' :: WithField ℝ Manifold x
@@ -151,7 +152,7 @@ pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
                              (p₀, mempty)
                              ( zip [1..] $ p₀:psr )
 
-pointsShades' :: WithField ℝ Manifold x => HerMetric' (Needle x) -> [x] -> [([x], Shade x)]
+pointsShades' :: WithField ℝ Manifold x => Metric' x -> [x] -> [([x], Shade x)]
 pointsShades' _ [] = []
 pointsShades' minExt ps = case expa of 
                            Option (Just e) -> (ps, fullShade ctr e)
@@ -295,7 +296,7 @@ instance WithField ℝ Manifold x => Monoid (ShadeTree x) where
 -- <<images/examples/simple-2d-ShadeTree.png>>
 fromLeafPoints :: forall x. WithField ℝ Manifold x => [x] -> ShadeTree x
 fromLeafPoints = go zeroV
- where go :: HerMetric' (Needle x) -> [x] -> ShadeTree x
+ where go :: Metric' x -> [x] -> ShadeTree x
        go preShExpa = \xs -> case pointsShades' (preShExpa^/10) xs of
                      [] -> mempty
                      [(_,rShade)] -> let trials = sShIdPartition rShade xs
@@ -580,21 +581,22 @@ multiextendTriang vs = do
         Option (Just c) -> spanSemiOpenSimplex (vs !! c) f
         _               -> return []
 
--- autoglueTriangulation :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
---            => (∀ t' . TriangBuild t' n x ()) -> TriangBuild t n x ()
--- autoglueTriangulation tb = do
---     WriterT gls <- mixinTriangulation tb'
---     lift . forM_ gls $ \(ms,i) ->
---         modify' $ Map.insert i ms
---  where tb' :: ∀ t' . TriangBuild t' n x ( WriterT (Metric x, ISimplex (S n) x)
---                                                   []
---                                                   (SimplexIT t' n' x)
---                                         )
---        tb' = do
---            tb
---            tbBounds <- lift get
---            return . WriterT $ flip <$> Map.toList tbBounds
---          
+autoglueTriangulation :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
+           => (∀ t' . TriangBuild t' n' x ()) -> TriangBuild t n' x ()
+autoglueTriangulation tb = do
+    WriterT gls <- liftInTriangT $ mixinTriangulation tb'
+    lift . forM_ gls $ \(i,ms) ->
+        modify' $ Map.insert i ms
+ where tb' :: ∀ s . TriangT s n x
+                     Identity
+                     (WriterT (Metric x, ISimplex n x) [] (SimplexIT s n' x))
+       tb' = unliftInTriangT (`evalStateT`mempty) tb''
+        where tb'' :: TriangBuild s n' x
+                        (WriterT (Metric x, ISimplex n x) [] (SimplexIT s n' x))
+              tb'' = do tb
+                        tbBounds <- lift get
+                        return . WriterT $ Map.toList tbBounds
+         
                     
 --  where tr :: Triangulation n x
 --        outfc :: Map.Map (SimplexIT t n' x) (Metric x, ISimplex n x)

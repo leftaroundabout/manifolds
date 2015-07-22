@@ -55,7 +55,7 @@ module Data.SimplicialComplex (
         , introVertToTriang
         , webinateTriang
         -- * Misc util
-        , HaskMonad
+        , HaskMonad, liftInTriangT, unliftInTriangT
         , Nat, Zero, One, Two, Three, Succ
         ) where
 
@@ -247,6 +247,14 @@ getEntireTriang = TriangT $ \t -> pure (t, t)
 getTriang :: ∀ t n k x m . (HaskMonad m, KnownNat k, KnownNat n)
                    => TriangT t n x m (Option (Triangulation k x))
 getTriang = onSkeleton getEntireTriang
+
+liftInTriangT :: ∀ t n x m μ y . (HaskMonad m, MonadTrans μ)
+                   => TriangT t n x m y -> TriangT t n x (μ m) y
+liftInTriangT (TriangT b) = TriangT $ lift . b
+
+unliftInTriangT :: ∀ t n x m μ y . (HaskMonad m, MonadTrans μ)
+                   => (∀ m' a . μ m a -> m a) -> TriangT t n x (μ m) y -> TriangT t n x m y
+unliftInTriangT unlift (TriangT b) = TriangT $ \t -> unlift (b t)
 
 
 
