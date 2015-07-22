@@ -581,21 +581,22 @@ multiextendTriang vs = do
         Option (Just c) -> spanSemiOpenSimplex (vs !! c) f
         _               -> return []
 
-autoglueTriangulation :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
+autoglueTriangulation :: ∀ t n n' n'' x
+            . (KnownNat n'', WithField ℝ Manifold x, n~S n', n'~S n'')
            => (∀ t' . TriangBuild t' n' x ()) -> TriangBuild t n' x ()
 autoglueTriangulation tb = do
+    mbBounds <- Map.toList <$> lift get
     WriterT gls <- liftInTriangT $ mixinTriangulation tb'
-    lift . forM_ gls $ \(i,ms) ->
+    lift . forM_ gls $ \(i,ms) -> do
         modify' $ Map.insert i ms
+    multiextendTriang undefined
  where tb' :: ∀ s . TriangT s n x
                      Identity
                      (WriterT (Metric x, ISimplex n x) [] (SimplexIT s n' x))
-       tb' = unliftInTriangT (`evalStateT`mempty) tb''
-        where tb'' :: TriangBuild s n' x
-                        (WriterT (Metric x, ISimplex n x) [] (SimplexIT s n' x))
-              tb'' = do tb
-                        tbBounds <- lift get
-                        return . WriterT $ Map.toList tbBounds
+       tb' = unliftInTriangT (`evalStateT`mempty) $ do
+                  tb
+                  tbBounds <- lift get
+                  return . WriterT $ Map.toList tbBounds
          
                     
 --  where tr :: Triangulation n x
