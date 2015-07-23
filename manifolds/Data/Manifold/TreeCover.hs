@@ -586,17 +586,29 @@ autoglueTriangulation :: ∀ t n n' n'' x
            => (∀ t' . TriangBuild t' n' x ()) -> TriangBuild t n' x ()
 autoglueTriangulation tb = do
     mbBounds <- Map.toList <$> lift get
-    WriterT gls <- liftInTriangT $ mixinTriangulation tb'
-    lift . forM_ gls $ \(i,ms) -> do
+    mps <- pointsOfSurf mbBounds
+    
+    WriterT gbBounds <- liftInTriangT $ mixinTriangulation tb'
+    lift . forM_ gbBounds $ \(i,ms) -> do
         modify' $ Map.insert i ms
-    multiextendTriang undefined
- where tb' :: ∀ s . TriangT s n x
-                     Identity
+    gps <- pointsOfSurf gbBounds
+    
+    autoglue mps gbBounds
+    autoglue gps mbBounds
+    
+ where tb' :: ∀ s . TriangT s n x Identity
                      (WriterT (Metric x, ISimplex n x) [] (SimplexIT s n' x))
-       tb' = unliftInTriangT (`evalStateT`mempty) $ do
-                  tb
-                  tbBounds <- lift get
-                  return . WriterT $ Map.toList tbBounds
+       tb' = unliftInTriangT (`evalStateT`mempty) $
+                  tb >> (WriterT . Map.toList) <$> lift get
+       
+       pointsOfSurf s = fnubConcatMap Hask.toList <$> forM s (lookSplxVerticesIT . fst)
+       
+       autoglue vs sides = do
+          ps <- mapM lookVertexIT vs
+          forM_ sides $ \(f,(m,s)) ->
+            case optimalBottomExtension s ps of
+             Option (Just c) -> spanSemiOpenSimplex (vs !! c) f
+             _               -> return []
          
                     
 --  where tr :: Triangulation n x

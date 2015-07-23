@@ -52,3 +52,6 @@ fnubConcatBy cmp = foldr (fnubMergeBy cmp) [] . map (fastNubBy cmp)
 
 fnubConcat :: FastNub a => [[a]] -> [a]
 fnubConcat = foldr (fnubMergeBy compare) [] . map fastNub
+
+fnubConcatMap :: FastNub b => (a -> [b]) -> [a] -> [b]
+fnubConcatMap f = fnubConcat . map f
