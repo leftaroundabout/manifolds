@@ -41,6 +41,8 @@ module Data.Manifold.TreeCover (
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..)
+       -- ** Triangulation-builders
+       , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
     ) where
 
 
@@ -533,6 +535,9 @@ type FullTriang t n x = TriangT t n x
 
 type TriangBuild t n x = TriangT t (S n) x
           ( State (Map.Map (SimplexIT t n x) (Metric x, ISimplex (S n) x) ))
+
+doTriangBuild :: KnownNat n => (∀ t . TriangBuild t n x ()) -> Triangulation (S n) x
+doTriangBuild t = runIdentity (snd <$> doTriangT (unliftInTriangT (`evalStateT`mempty) t))
 
 singleFullSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
           => ISimplex n x -> FullTriang t n x (SimplexIT t n x)
