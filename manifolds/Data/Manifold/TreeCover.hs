@@ -536,8 +536,9 @@ type FullTriang t n x = TriangT t n x
 type TriangBuild t n x = TriangT t (S n) x
           ( State (Map.Map (SimplexIT t n x) (Metric x, ISimplex (S n) x) ))
 
-doTriangBuild :: KnownNat n => (∀ t . TriangBuild t n x ()) -> Triangulation (S n) x
-doTriangBuild t = runIdentity (snd <$> doTriangT (unliftInTriangT (`evalStateT`mempty) t))
+doTriangBuild :: KnownNat n => (∀ t . TriangBuild t n x ()) -> [Simplex (S n) x]
+doTriangBuild t = runIdentity (fst <$>
+  doTriangT (unliftInTriangT (`evalStateT`mempty) t >> simplexITList >>= mapM lookSimplex))
 
 singleFullSimplex :: ∀ t n x . (KnownNat n, WithField ℝ Manifold x)
           => ISimplex n x -> FullTriang t n x (SimplexIT t n x)
@@ -614,6 +615,27 @@ autoglueTriangulation tb = do
             case optimalBottomExtension s ps of
              Option (Just c) -> spanSemiOpenSimplex (vs !! c) f
              _               -> return []
+
+
+data AutoTriang n x where
+  AutoTriang :: { getAutoTriang :: ∀ t . TriangBuild t n x () } -> AutoTriang (S n) x
+
+instance (KnownNat n, WithField ℝ Manifold x) => Semigroup (AutoTriang (S (S n)) x) where
+  (<>) = autoTriangMappend
+
+autoTriangMappend :: ∀ n n' n'' x . ( KnownNat n'', n ~ S n', n' ~ S n''
+                                    , WithField ℝ Manifold x             )
+          => AutoTriang n x -> AutoTriang n x -> AutoTriang n x
+AutoTriang a `autoTriangMappend` AutoTriang b = AutoTriang c
+ where c :: ∀ t . TriangBuild t n' x ()
+       c = a >> autoglueTriangulation b
+
+elementaryTriang :: (KnownNat n', n~S n', WithField ℝ HilbertSpace x)
+                      => Simplex n x -> AutoTriang n x
+elementaryTriang t = AutoTriang (fullOpenSimplex euclideanMetric t >> return ())
+
+breakdownAutoTriang :: ∀ n n' x . (KnownNat n', n ~ S n') => AutoTriang n x -> [Simplex n x]
+breakdownAutoTriang (AutoTriang t) = doTriangBuild t
          
                     
 --  where tr :: Triangulation n x

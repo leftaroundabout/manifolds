@@ -4,6 +4,7 @@ module TriangT where
 
 
 import Data.SimplicialComplex
+import Data.Manifold.TreeCover
 import Graphics.Dynamic.Plot.R2
 import Diagrams.Prelude
 
