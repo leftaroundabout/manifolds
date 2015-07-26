@@ -7,21 +7,21 @@ import Data.SimplicialComplex
 import Data.Manifold.TreeCover
 import Graphics.Dynamic.Plot.R2
 import Diagrams.Prelude
+import Diagrams.Backend.Cairo
 
-triangTest :: TriangT t Two R2 IO [Simplex Two R2]
-triangTest = do
-   --[r0] <- simplexITList
-   disjointSimplex $ 0^&0 :<| 0^&1 .<. 1^&0
-   [s0,s1,s2] <- simplexITList
-   introVertToTriang (1 ^& 1) [s0]
-   introVertToTriang ((-1) ^& 1) [s1]
-   introVertToTriang (1 ^& (-1)) [s2]
-   mapM lookSimplex =<< simplexITList
+triangTest :: AutoTriang Two P2
+triangTest =
+   elementaryTriang (p2(0,0) :<| p2(0,1) .<. p2(1,0))
+   <> elementaryTriang (p2(1.5,0.5) :<| p2(0.5,1.5) .<. p2(1.5,1.5))
+
+plotTriangle :: Simplex Two P2 -> DynamicPlottable
+plotTriangle s = plot (fromVertices (last vs : vs) & lc red :: Diagram B R2)
+ where vs = simplexVertices' s
 
 main :: IO ()
 main = do
-   splxs <- evalTriangT triangTest
-   print splxs
+   let trings = breakdownAutoTriang triangTest
+   plotWindow $ plotTriangle <$> trings
    return ()
    
 

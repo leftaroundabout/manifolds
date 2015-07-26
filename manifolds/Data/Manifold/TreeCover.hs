@@ -588,6 +588,9 @@ multiextendTriang vs = do
         Option (Just c) -> spanSemiOpenSimplex (vs !! c) f
         _               -> return []
 
+-- | BUGGY: this does connect the supplied triangulations, but it doesn't choose
+--   the right boundary simplices yet. Probable cause: inconsistent internal
+--   numbering of the subsimplices.
 autoglueTriangulation :: ∀ t n n' n'' x
             . (KnownNat n'', WithField ℝ Manifold x, n~S n', n'~S n'')
            => (∀ t' . TriangBuild t' n' x ()) -> TriangBuild t n' x ()
