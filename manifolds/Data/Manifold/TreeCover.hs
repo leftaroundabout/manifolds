@@ -43,6 +43,7 @@ module Data.Manifold.TreeCover (
        , sShSaw, chainsaw, HasFlatView(..)
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
+       , AutoTriang, elementaryTriang, breakdownAutoTriang
     ) where
 
 
@@ -630,9 +631,10 @@ AutoTriang a `autoTriangMappend` AutoTriang b = AutoTriang c
  where c :: ∀ t . TriangBuild t n' x ()
        c = a >> autoglueTriangulation b
 
-elementaryTriang :: (KnownNat n', n~S n', WithField ℝ HilbertSpace x)
+elementaryTriang :: ∀ n n' x . (KnownNat n', n~S n', WithField ℝ EuclidSpace x)
                       => Simplex n x -> AutoTriang n x
-elementaryTriang t = AutoTriang (fullOpenSimplex euclideanMetric t >> return ())
+elementaryTriang t = AutoTriang (fullOpenSimplex m t >> return ())
+ where (Tagged m) = euclideanMetric :: Tagged x (Metric x)
 
 breakdownAutoTriang :: ∀ n n' x . (KnownNat n', n ~ S n') => AutoTriang n x -> [Simplex n x]
 breakdownAutoTriang (AutoTriang t) = doTriangBuild t

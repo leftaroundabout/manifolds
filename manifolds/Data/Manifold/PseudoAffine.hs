@@ -40,7 +40,7 @@ module Data.Manifold.PseudoAffine (
               Manifold
             , Semimanifold(..)
             , PseudoAffine(..)
-            , Metric, Metric'
+            , Metric, Metric', euclideanMetric
             -- * Regions within a manifold
             , Region
             -- * Hierarchy of manifold-categories
@@ -55,6 +55,7 @@ module Data.Manifold.PseudoAffine (
             , LinearManifold
             , WithField
             , HilbertSpace
+            , EuclidSpace
             -- * Misc
             , palerp
             ) where
@@ -199,7 +200,15 @@ type AffineManifold m = ( PseudoAffine m, AffineSpace m
 type HilbertSpace x = ( LinearManifold x, InnerSpace x
                       , Needle x ~ x, DualSpace x ~ x, Floating (Scalar x) )
 
+-- | An euclidean space is a real affine space whose tangent space is a Hilbert space.
+type EuclidSpace x = ( AffineManifold x, InnerSpace (Diff x)
+                     , DualSpace (Diff x) ~ Diff x, Floating (Scalar (Diff x)) )
 
+euclideanMetric :: EuclidSpace x => Tagged x (Metric x)
+euclideanMetric = Tagged euclideanMetric'
+
+
+-- | The word &#x201c;metric&#x201d; is used in the sense as in general relativity. Cf. 'HerMetric'.
 type Metric x = HerMetric (Needle x)
 type Metric' x = HerMetric' (Needle x)
 

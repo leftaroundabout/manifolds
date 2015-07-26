@@ -204,6 +204,7 @@ type FlatManifold v = (MetricSpace v, Manifold v, v~TangentSpace v)
 
 
 
+type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
 
 isInUpperHemi :: EuclidSpace v => v -> Bool
 isInUpperHemi v = (snd . head) (decompose v) >= 0

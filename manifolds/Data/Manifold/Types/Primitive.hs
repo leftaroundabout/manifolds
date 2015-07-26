@@ -49,7 +49,7 @@ module Data.Manifold.Types.Primitive (
         , CD¹(..), Cℝay(..)
         -- * Utility (deprecated)
         , NaturallyEmbedded(..)
-        , GraphWindowSpec(..), Endomorphism, (^), EuclidSpace, EqFloating
+        , GraphWindowSpec(..), Endomorphism, (^), EqFloating
    ) where
 
 
@@ -72,7 +72,6 @@ import Data.Foldable.Constrained
 
 
 
-type EuclidSpace v = (HasBasis v, EqFloating(Scalar v), Eq v)
 type EqFloating f = (Eq f, Ord f, Floating f)
 
 

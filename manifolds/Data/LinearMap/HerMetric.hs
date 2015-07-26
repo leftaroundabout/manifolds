@@ -19,7 +19,7 @@ module Data.LinearMap.HerMetric (
   , metricSq, metricSq', metric, metric', metrics, metrics'
   -- * Defining metrics
   , projector, projector'
-  , euclideanMetric 
+  , euclideanMetric'
   -- * Metrics induce inner products
   , spanHilbertSubspace
   , spanSubHilbertSpace
@@ -335,8 +335,8 @@ class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
 ket ^<.> bra = bra <.>^ ket
 
 
-euclideanMetric :: forall v . (HasMetric v, InnerSpace v) => HerMetric v
-euclideanMetric = HerMetric . pure $ HMat.ident n
+euclideanMetric' :: forall v . (HasMetric v, InnerSpace v) => HerMetric v
+euclideanMetric' = HerMetric . pure $ HMat.ident n
  where (Tagged n) = dimension :: Tagged v Int
 
 -- -- | Associate a Hilbert space vector canonically with its dual-space counterpart,
@@ -475,5 +475,5 @@ spanSubHilbertSpace :: forall s v w
         . (HasMetric v, InnerSpace v, Scalar v ~ s, IsFreeSpace w, Scalar w ~ s)
       => [v]
           -> Option (Embedding (Linear s) w v)
-spanSubHilbertSpace = spanHilbertSubspace euclideanMetric
+spanSubHilbertSpace = spanHilbertSubspace euclideanMetric'
 
