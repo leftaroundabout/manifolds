@@ -15,7 +15,7 @@ triangTest =
    <> elementaryTriang (p2(1.5,0.5) :<| p2(0.5,1.5) .<. p2(1.5,1.5))
 
 plotTriangle :: Simplex Two P2 -> DynamicPlottable
-plotTriangle s = plot (fromVertices (last vs : vs) & lc red :: Diagram B R2)
+plotTriangle s = shapePlot $ fromVertices (last vs : vs) & strokeLocLoop & opacity 0.3
  where vs = simplexVertices' s
 
 main :: IO ()
