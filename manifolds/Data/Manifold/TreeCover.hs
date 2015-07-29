@@ -404,9 +404,12 @@ instance (KnownNat n) => Semimanifold (BaryCoords n) where
   (.+~^) = (.+^)
 instance (KnownNat n) => PseudoAffine (BaryCoords n) where
   (.-~.) = pure .: (.-.)
+
+getBaryCoords :: BaryCoords n -> ℝ ^ S n
+getBaryCoords (BaryCoords (FreeVect bcs)) = FreeVect $ (1 - Arr.sum bcs) `Arr.cons` bcs
   
-getBaryCoords :: BaryCoords n -> [ℝ]
-getBaryCoords (BaryCoords (FreeVect bcs)) = 1 - Arr.sum bcs : Arr.toList bcs
+getBaryCoords' :: BaryCoords n -> [ℝ]
+getBaryCoords' (BaryCoords (FreeVect bcs)) = 1 - Arr.sum bcs : Arr.toList bcs
 
 getBaryCoord :: BaryCoords n -> Int -> ℝ
 getBaryCoord (BaryCoords (FreeVect bcs)) 0 = 1 - Arr.sum bcs
@@ -414,8 +417,11 @@ getBaryCoord (BaryCoords (FreeVect bcs)) i = case bcs Arr.!? i of
     Just a -> a
     _      -> 0
 
-mkBaryCoords :: forall n . KnownNat n => [ℝ] -> Option (BaryCoords n)
-mkBaryCoords bcs = fmap (BaryCoords . (^/sum bcs)) . freeVector . Arr.fromList $ tail bcs
+mkBaryCoords :: KnownNat n => ℝ ^ S n -> BaryCoords n
+mkBaryCoords (FreeVect bcs) = BaryCoords $ FreeVect (Arr.tail bcs) ^/ Arr.sum bcs
+
+mkBaryCoords' :: KnownNat n => [ℝ] -> Option (BaryCoords n)
+mkBaryCoords' bcs = fmap (BaryCoords . (^/sum bcs)) . freeVector . Arr.fromList $ tail bcs
 
 newtype ISimplex n x = ISimplex { iSimplexBCCordEmbed :: Embedding (->) (BaryCoords n) x }
 
@@ -508,7 +514,7 @@ toISimplex m s = ISimplex $ fromEmbedProject fromBrc toBrc
          Option (Just bv) -> BaryCoords bv
        fromBrc bccs = bc .+~^ (emb $ v)
         where v = linearCombo $ (fromPackedVector r₀, b₀) : zip (fromPackedVector<$>rs) bs
-              (b₀:bs) = getBaryCoords bccs
+              (b₀:bs) = getBaryCoords' bccs
 
 fromISimplex :: forall x n . (KnownNat n, WithField ℝ Manifold x)
                    => ISimplex n x -> Simplex n x
@@ -516,8 +522,8 @@ fromISimplex (ISimplex emb) = s
  where (Option (Just s))
           = makeSimplex' [ emb $-> jOnly
                          | j <- [0..n]
-                         , let (Option (Just jOnly)) = mkBaryCoords [ if k==j then 1 else 0
-                                                                    | k<-[0..n] ]
+                         , let (Option (Just jOnly)) = mkBaryCoords' [ if k==j then 1 else 0
+                                                                     | k<-[0..n] ]
                          ]
        (Tagged n) = theNatN :: Tagged n Int
 
@@ -525,8 +531,8 @@ iSimplexSideViews :: ∀ n x . KnownNat n => ISimplex n x -> [ISimplex n x]
 iSimplexSideViews = \(ISimplex is)
               -> take (n+1) $ [ISimplex $ rot j is | j<-[0..] ]
  where rot j (Embedding emb proj)
-            = Embedding ( emb . BaryCoords . freeRotate j     . getBaryCoordsTail        )
-                        (       BaryCoords . freeRotate (n-j) . getBaryCoordsTail . proj )
+            = Embedding ( emb . mkBaryCoords . freeRotate j     . getBaryCoords        )
+                        (       mkBaryCoords . freeRotate (n-j) . getBaryCoords . proj )
        (Tagged n) = theNatN :: Tagged n Int
 
 
