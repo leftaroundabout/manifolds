@@ -94,7 +94,6 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
-import Unsafe.Coerce
 import GHC.Generics (Generic)
 
 
@@ -524,7 +523,7 @@ fromISimplex (ISimplex emb) = s
 
 iSimplexSideViews :: ∀ n x . KnownNat n => ISimplex n x -> [ISimplex n x]
 iSimplexSideViews = \(ISimplex is)
-              -> take n $ [ISimplex $ rot j is | j<-[0..] ]
+              -> take (n+1) $ [ISimplex $ rot j is | j<-[0..] ]
  where rot j (Embedding emb proj)
             = Embedding ( emb . BaryCoords . freeRotate j     . getBaryCoordsTail        )
                         (       BaryCoords . freeRotate (n-j) . getBaryCoordsTail . proj )

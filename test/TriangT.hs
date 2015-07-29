@@ -8,6 +8,8 @@ import Data.Manifold.TreeCover
 import Graphics.Dynamic.Plot.R2
 import Diagrams.Prelude
 import Diagrams.Backend.Cairo
+import IPPrint.Colored
+
 
 triangTest :: AutoTriang Two P2
 triangTest =
@@ -21,6 +23,7 @@ plotTriangle s = shapePlot $ fromVertices (last vs : vs) & strokeLocLoop & opaci
 main :: IO ()
 main = do
    let trings = breakdownAutoTriang triangTest
+   cpprint trings
    plotWindow $ plotTriangle <$> trings
    return ()
    

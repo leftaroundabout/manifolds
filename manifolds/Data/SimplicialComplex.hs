@@ -271,7 +271,7 @@ onSkeleton q@(TriangT qf) = case tryToMatchTTT forgetVolumes q of
 
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT' :: Int }
-          deriving (Eq, Ord)
+          deriving (Eq, Ord, Show)
 
 -- | A unique (for the given dimension) ID of a triagulation's simplex. It is the index
 --   where that simplex can be found in the 'simplexITList'.
