@@ -47,7 +47,7 @@ module Data.Manifold.TreeCover (
     ) where
 
 
-import Data.List hiding (filter, all, elem)
+import Data.List hiding (filter, all, elem, sum)
 import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Vector as Arr
@@ -77,7 +77,7 @@ import Data.Manifold.PseudoAffine
 import Data.Embedding
 import Data.CoNat
 
-import qualified Prelude as Hask hiding(foldl)
+import qualified Prelude as Hask hiding(foldl, sum)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask hiding(forM_)
 import Data.Functor.Identity
@@ -85,13 +85,14 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
-import Data.Foldable (all, elem, toList)
+import Data.Foldable (all, elem, toList, sum)
+import Data.Traversable (forM)
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
-import Control.Category.Constrained.Prelude hiding ((^), all, elem)
+import Control.Category.Constrained.Prelude hiding ((^), all, elem, sum, forM)
 import Control.Arrow.Constrained
-import Control.Monad.Constrained
+import Control.Monad.Constrained hiding (forM)
 import Data.Foldable.Constrained
 
 import GHC.Generics (Generic)
@@ -564,13 +565,28 @@ fullOpenSimplex m s = do
    return fsides
 
 
+hypotheticalSimplex :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
+          => SimplexIT t Z x
+           -> SimplexIT t n x
+           -> TriangBuild t n x ( Option (Double, [SimplexIT t n x]) )
+hypotheticalSimplex p b = do
+   x <- lookVertexIT p
+   neighbours <- filterM isAdjacent =<< lookSupersimplicesIT p
+   let bs = b:|neighbours
+   qs <- lift $ forM bs $ \b' -> (Map.!b) <$> get
+   let scores = forM qs $ \(_,is) -> case bottomExtendSuitability is x of
+                                      s | s>0  -> pure s
+                                      _        -> Hask.empty
+   return $ fmap (\scs -> (sum scs, neighbours)) scores
+ where isAdjacent = fmap (isJust . getOption) . sharedBoundary b
+
 spanSemiOpenSimplex :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
           => SimplexIT t Z x       -- ^ Tip of the desired simplex.
           -> SimplexIT t n x       -- ^ Base of the desired simplex.
           -> TriangBuild t n x [SimplexIT t n x]
                                    -- ^ Return the exposed faces of the new simplices.
 spanSemiOpenSimplex p b = do
-   m <- lift $ fst <$> (Map.!b) <$>  get
+   m <- lift $ fst <$> (Map.!b) <$> get
    neighbours <- filterM isAdjacent =<< lookSupersimplicesIT p
    let bs = b:|neighbours
    frame <- webinateTriang p b
