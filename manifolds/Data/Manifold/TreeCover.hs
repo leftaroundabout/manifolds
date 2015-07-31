@@ -24,6 +24,7 @@
 {-# LANGUAGE UnicodeSyntax              #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE PatternGuards              #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -573,10 +574,11 @@ hypotheticalSimplex p b = do
    x <- lookVertexIT p
    neighbours <- filterM isAdjacent =<< lookSupersimplicesIT p
    let bs = b:|neighbours
-   qs <- lift $ forM bs $ \b' -> (Map.!b) <$> get
-   let scores = forM qs $ \(_,is) -> case bottomExtendSuitability is x of
-                                      s | s>0  -> pure s
-                                      _        -> Hask.empty
+   qs <- lift $ forM bs $ \b' -> Map.lookup b' <$> get
+   let scores = forM qs $ \case
+                  Just(_,is) | s<-bottomExtendSuitability is x, s>0
+                          -> pure s
+                  _       -> Hask.empty
    return $ fmap (\scs -> (sum scs, neighbours)) scores
  where isAdjacent = fmap (isJust . getOption) . sharedBoundary b
 
@@ -634,12 +636,16 @@ autoglueTriangulation tb = do
        
        pointsOfSurf s = fnubConcatMap Hask.toList <$> forM s (lookSplxVerticesIT . fst)
        
+       autoglue :: [SimplexIT t Z x] -> [(SimplexIT t n' x, (Metric x, ISimplex n x))]
+                       -> TriangBuild t n' x ()
        autoglue vs sides = do
-          ps <- mapM lookVertexIT vs
-          forM_ sides $ \(f,(m,s)) ->
-            case optimalBottomExtension s ps of
-             Option (Just c) -> spanSemiOpenSimplex (vs !! c) f
-             _               -> return []
+          forM_ sides $ \(f,_) -> do
+             possibs <- forM vs $ \p -> fmap(p,) <$> hypotheticalSimplex p f
+             case catOptions possibs of
+               [] -> return ()
+               qs -> do
+                 spanSemiOpenSimplex (fst `id` maximumBy (comparing $ fst.snd) qs) f
+                 return ()
 
 
 data AutoTriang n x where
@@ -871,6 +877,8 @@ foci (x:xs) = (x,xs) : fmap (second (x:)) (foci xs)
 (.:) = (.) . (.)
 
 
+catOptions :: [Option a] -> [a]
+catOptions = catMaybes . map getOption
 
 
 
