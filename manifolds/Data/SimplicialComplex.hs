@@ -368,7 +368,7 @@ sharedBoundary i j = do
    iSubs <- lookSplxFacesIT i
    jSubs <- lookSplxFacesIT j
    return . Option . listToMaybe
-      . fastNub $ Hask.toList iSubs ++ Hask.toList jSubs
+      $ fnubIntersect (Hask.toList iSubs) (Hask.toList jSubs)
 
 
 triangulationBulk :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n) => TriangT t n x m [Simplex k x]

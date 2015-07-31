@@ -55,3 +55,11 @@ fnubConcat = foldr (fnubMergeBy compare) [] . map fastNub
 
 fnubConcatMap :: FastNub b => (a -> [b]) -> [a] -> [b]
 fnubConcatMap f = fnubConcat . map f
+
+fnubIntersect :: FastNub a => [a] -> [a] -> [a]
+fnubIntersect xs ys = fis (fastNub xs) (fastNub ys)
+ where fis [] _ = []
+       fis _ [] = []
+       fis (x:xs) (y:ys) | x<y  = fis xs (y:ys)
+                         | x>y  = fis (x:xs) ys
+                         | otherwise  = x : fis xs ys
