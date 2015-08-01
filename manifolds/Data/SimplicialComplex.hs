@@ -48,6 +48,7 @@ module Data.SimplicialComplex (
         , lookSplxFacesIT, lookSupersimplicesIT, tgetSimplexIT
         , lookVertexIT, lookSplxVerticesIT
         , sharedBoundary
+        , distinctSimplices, NeighbouringSimplices
         -- ** Building triangulations
         , disjointTriangulation
         , disjointSimplex
@@ -364,11 +365,22 @@ lookSupersimplicesIT'' (SimplexIT i) =
 sharedBoundary :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
          => SimplexIT t (S k) x -> SimplexIT t (S k) x
            -> TriangT t n x m (Option (SimplexIT t k x))
-sharedBoundary i j = do
-   iSubs <- lookSplxFacesIT i
-   jSubs <- lookSplxFacesIT j
-   return . Option . listToMaybe
-      $ fnubIntersect (Hask.toList iSubs) (Hask.toList jSubs)
+sharedBoundary i j = fmap snd <$> distinctSimplices i j
+
+type NeighbouringSimplices t n x = ((SimplexIT t Z x, SimplexIT t Z x), SimplexIT t n x)
+
+distinctSimplices :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n)
+         => SimplexIT t (S k) x -> SimplexIT t (S k) x
+           -> TriangT t n x m (Option (NeighbouringSimplices t k x))
+distinctSimplices i j = do
+   [iSubs,jSubs] <- mapM lookSplxFacesIT [i,j]
+   case fnubIntersect (Hask.toList iSubs) (Hask.toList jSubs) of
+     [shBound] -> do
+          shVerts <- lookSplxVerticesIT shBound
+          [[iIVert], [jIVert]] <- forM [i,j]
+              $ fmap (filter (not . (`elem` shVerts)) . Hask.toList) . lookSplxVerticesIT
+          return $ pure ((iIVert, jIVert), shBound)
+     _         -> return Hask.empty
 
 
 triangulationBulk :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n) => TriangT t n x m [Simplex k x]

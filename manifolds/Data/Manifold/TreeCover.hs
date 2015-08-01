@@ -78,15 +78,16 @@ import Data.Manifold.PseudoAffine
 import Data.Embedding
 import Data.CoNat
 
-import qualified Prelude as Hask hiding(foldl, sum)
+import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
-import qualified Control.Monad       as Hask hiding(forM_)
+import qualified Control.Monad       as Hask hiding(forM_, sequence)
 import Data.Functor.Identity
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, elem, toList, sum)
+import qualified Data.Traversable as Hask
 import Data.Traversable (forM)
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
@@ -566,21 +567,24 @@ fullOpenSimplex m s = do
    return fsides
 
 
-hypotheticalSimplex :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
+hypotheticalSimplexScore :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
           => SimplexIT t Z x
            -> SimplexIT t n x
-           -> TriangBuild t n x ( Option (Double, [SimplexIT t n x]) )
-hypotheticalSimplex p b = do
-   x <- lookVertexIT p
-   neighbours <- filterM isAdjacent =<< lookSupersimplicesIT p
-   let bs = b:|neighbours
-   qs <- lift $ forM bs $ \b' -> Map.lookup b' <$> get
-   let scores = forM qs $ \case
-                  Just(_,is) | s<-bottomExtendSuitability is x, s>0
-                          -> pure s
-                  _       -> Hask.empty
-   return $ fmap (\scs -> (sum scs, neighbours)) scores
- where isAdjacent = fmap (isJust . getOption) . sharedBoundary b
+           -> TriangBuild t n x ( Option Double )
+hypotheticalSimplexScore p b = do
+   altViews :: [(SimplexIT t Z x, SimplexIT t n x)] <- do
+      pSups <- lookSupersimplicesIT p
+      nOpts <- forM pSups $ \psup -> fmap (fmap $ \((bq,_p), _b') -> (bq,psup))
+                      $ distinctSimplices b psup
+      return $ catOptions nOpts
+   scores <- forM ((p,b) :| altViews) $ \(p',b') -> do
+      x <- lookVertexIT p'
+      q <- lift $ Map.lookup b' <$> get
+      return $ case q of
+         Just(_,is) | s<-bottomExtendSuitability is x, s>0
+                 -> pure s
+         _       -> Hask.empty
+   return . fmap sum $ Hask.sequence scores
 
 spanSemiOpenSimplex :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
           => SimplexIT t Z x       -- ^ Tip of the desired simplex.
@@ -640,11 +644,11 @@ autoglueTriangulation tb = do
                        -> TriangBuild t n' x ()
        autoglue vs sides = do
           forM_ sides $ \(f,_) -> do
-             possibs <- forM vs $ \p -> fmap(p,) <$> hypotheticalSimplex p f
+             possibs <- forM vs $ \p -> fmap(p,) <$> hypotheticalSimplexScore p f
              case catOptions possibs of
                [] -> return ()
                qs -> do
-                 spanSemiOpenSimplex (fst `id` maximumBy (comparing $ fst.snd) qs) f
+                 spanSemiOpenSimplex (fst `id` maximumBy (comparing $ snd) qs) f
                  return ()
 
 
