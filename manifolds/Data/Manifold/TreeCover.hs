@@ -27,6 +27,7 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE LiberalTypeSynonyms        #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE DataKinds                  #-}
 
@@ -92,7 +93,8 @@ import Data.Traversable (forM)
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
-import Control.Category.Constrained.Prelude hiding ((^), all, elem, sum, forM)
+import Control.Category.Constrained.Prelude hiding
+     ((^), all, elem, sum, forM, Foldable(..), Traversable)
 import Control.Arrow.Constrained
 import Control.Monad.Constrained hiding (forM)
 import Data.Foldable.Constrained
@@ -245,11 +247,11 @@ instance (Semigroup c) => Semigroup (DBranches' x c) where
   
 
 
-instance (NFData x) => NFData (ShadeTree x) where
+instance (NFData x, NFData (DualSpace (Needle x))) => NFData (ShadeTree x) where
   rnf (PlainLeaves xs) = rnf xs
   rnf (DisjointBranches n bs) = n `seq` rnf (NE.toList bs)
   rnf (OverlappingBranches n sh bs) = n `seq` sh `seq` rnf (NE.toList bs)
-instance (NFData x) => NFData (DBranch x)
+instance (NFData x, NFData (DualSpace (Needle x))) => NFData (DBranch x)
   
 -- | Experimental. There might be a more powerful instance possible.
 instance (AffineManifold x) => Semimanifold (ShadeTree x) where

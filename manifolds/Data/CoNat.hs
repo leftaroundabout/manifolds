@@ -47,7 +47,7 @@ import qualified Data.Foldable       as Hask
 import qualified Data.Traversable    as Hask
 
 
-import Control.Category.Constrained.Prelude hiding ((^))
+import Control.Category.Constrained.Prelude hiding ((^), Foldable(..), Traversable(..))
 import Data.Traversable.Constrained
 
 
@@ -269,8 +269,8 @@ replicVector = FreeVect . Arr.replicate n
 
 freeVector :: forall l n x . (KnownNat n, Hask.Foldable l) => l x -> Option (FreeVect n x)
 freeVector c'
-    | length c == n  = pure . FreeVect $ Arr.fromList c
-    | otherwise      = Hask.empty
+    | List.length c == n  = pure . FreeVect $ Arr.fromList c
+    | otherwise           = Hask.empty
  where (Tagged n) = theNatN :: Tagged n Int
        c = Hask.toList c'
 

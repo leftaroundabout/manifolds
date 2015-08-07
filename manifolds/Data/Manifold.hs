@@ -45,7 +45,7 @@ import Data.Manifold.Types.Primitive
 
 import qualified Prelude
 
-import Control.Category.Constrained.Prelude hiding ((^))
+import Control.Category.Constrained.Prelude hiding ((^), Foldable(..))
 import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
@@ -597,7 +597,7 @@ finiteGraphContinℝtoℝ² (GraphWindowSpec{..}) fc
                       
         
 midBetween :: (VectorSpace v, Fractional(Scalar v)) => [v] -> v
-midBetween vs = sumV vs ^/ (fromIntegral $ length vs)
+midBetween vs = sumV vs ^/ (fromIntegral $ Prelude.length vs)
 
 
 
