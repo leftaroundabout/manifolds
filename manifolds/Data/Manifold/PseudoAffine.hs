@@ -30,6 +30,8 @@
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
 {-# LANGUAGE TypeOperators            #-}
+{-# LANGUAGE UnicodeSyntax            #-}
+{-# LANGUAGE MultiWayIf               #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE RecordWildCards          #-}
 {-# LANGUAGE CPP                      #-}
@@ -577,6 +579,10 @@ minDblfuncs (Differentiable f) (Differentiable g) = Differentiable h
               (gx, g', devg) = g x
 
 
+postEndo :: ∀ c a b . (HasAgent c, Object c a, Object c b)
+                        => c a a -> GenericAgent c b a -> GenericAgent c b a
+postEndo = genericAgentMap
+
 
 -- | A pathwise connected subset of a manifold @m@, whose tangent space has scalar @s@.
 data Region s m = Region { regionRefPoint :: m
@@ -804,11 +810,10 @@ instance (RealDimension n, LocallyScalable n a)
 instance (RealDimension n, LocallyScalable n a)
             => Fractional (PWDfblFuncValue n a n) where
   fromRational i = point $ fromRational i
-  recip = (PWDiffable rcipPW $~)
-   where rcipPW a₀
-          | a₀<0       = (negativePreRegion, Differentiable negp)
-          | otherwise  = (positivePreRegion, Differentiable posp)
-         negp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+  recip = postEndo . PWDiffable $ \a₀ -> if a₀<0
+                                          then (negativePreRegion, Differentiable negp)
+                                          else (positivePreRegion, Differentiable posp)
+   where negp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
                  -- ε = 1/x − δ/x² − 1/(x+δ)
                  -- ε·x + ε·δ = 1 + δ/x − δ/x − δ²/x² − 1
                  --           = -δ²/x²
@@ -1024,11 +1029,10 @@ instance (RealDimension n, LocallyScalable n a)
 instance (RealDimension n, LocallyScalable n a)
             => Fractional (RWDfblFuncValue n a n) where
   fromRational i = point $ fromRational i
-  recip = (RWDiffable rcipPW $~)
-   where rcipPW a₀
-          | a₀<0       = (negativePreRegion, pure (Differentiable negp))
-          | otherwise  = (positivePreRegion, pure (Differentiable posp))
-         negp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+  recip = postEndo . RWDiffable $ \a₀ -> if a₀<0
+                                    then (negativePreRegion, pure (Differentiable negp))
+                                    else (positivePreRegion, pure (Differentiable posp))
+   where negp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
                  -- ε = 1/x − δ/x² − 1/(x+δ)
                  -- ε·x + ε·δ = 1 + δ/x − δ/x − δ²/x² − 1
                  --           = -δ²/x²
@@ -1067,10 +1071,10 @@ instance (RealDimension n, LocallyScalable n a)
                  --   = eˣ · 2·(cosh(δ) − 1)
                  -- cosh(δ) ≥ ε/(2·eˣ) + 1
                  -- δ ≥ acosh(ε/(2·eˣ) + 1)
-  log = (RWDiffable lnRW $~)
-   where lnRW x | x > 0      = (positivePreRegion, pure (Differentiable lnPosR))
-                | otherwise  = (negativePreRegion, notDefinedHere)
-         lnPosR x = ( log x, recip x *^ idL, dev_ε_δ $ \ε -> x * sqrt(1 - exp(-ε)) )
+  log = postEndo . RWDiffable $ \x -> if x>0
+                                  then (positivePreRegion, pure (Differentiable lnPosR))
+                                  else (negativePreRegion, notDefinedHere)
+   where lnPosR x = ( log x, recip x *^ idL, dev_ε_δ $ \ε -> x * sqrt(1 - exp(-ε)) )
                  -- ε = ln x + (-δ)/x − ln(x−δ)
                  --   = ln (x / ((x−δ) · exp(δ/x)))
                  -- x/e^ε = (x−δ) · exp(δ/x)
@@ -1081,10 +1085,10 @@ instance (RealDimension n, LocallyScalable n a)
                  -- γ ≥ sqrt(1 − exp(-ε)) 
                  -- δ ≥ x · sqrt(1 − exp(-ε)) 
                     
-  sqrt = (RWDiffable sqrtRW $~)
-   where sqrtRW x | x > 0      = (positivePreRegion, pure (Differentiable sqrtPosR))
-                  | otherwise  = (negativePreRegion, notDefinedHere)
-         sqrtPosR x = ( sx, idL ^/ (2*sx), dev_ε_δ $
+  sqrt = postEndo . RWDiffable $ \x -> if x>0
+                                   then (positivePreRegion, pure (Differentiable sqrtPosR))
+                                   else (negativePreRegion, notDefinedHere)
+   where sqrtPosR x = ( sx, idL ^/ (2*sx), dev_ε_δ $
                           \ε -> 2 * (s2 * sqrt sx^3 * sqrt ε + signum (ε*2-sx) * sx * ε) )
           where sx = sqrt x; s2 = sqrt 2
                  -- Exact inverse of O(δ²) remainder.
@@ -1133,21 +1137,21 @@ instance (RealDimension n, LocallyScalable n a)
                  -- away from the only place where the function is not virtually constant
                  -- (around 0).
    
-  asin = (RWDiffable asinRW $~)
-   where asinRW x | x < (-1)   = (preRegionFromMinInfTo (-1), notDefinedHere)  
-                  | x > 1      = (preRegionToInfFrom 1, notDefinedHere)
-                  | otherwise  = (intervalPreRegion (-1,1), pure (Differentiable asinDefdR))
-         asinDefdR x = ( asinx, asin'x *^ idL, dev_ε_δ δ )
+  asin = postEndo . RWDiffable $ \x -> if
+                  | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
+                  | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
+                  | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable asinDefdR))
+   where asinDefdR x = ( asinx, asin'x *^ idL, dev_ε_δ δ )
           where asinx = asin x; asin'x = recip (sqrt $ 1 - x^2)
                 c = 1 - x^2 
                 δ ε = sqrt ε * c
                  -- Empirical, with epsEst upper bound.
 
-  acos = (RWDiffable acosRW $~)
-   where acosRW x | x < (-1)   = (preRegionFromMinInfTo (-1), notDefinedHere)  
-                  | x > 1      = (preRegionToInfFrom 1, notDefinedHere)
-                  | otherwise  = (intervalPreRegion (-1,1), pure (Differentiable acosDefdR))
-         acosDefdR x = ( acosx, acos'x *^ idL, dev_ε_δ δ )
+  acos = postEndo . RWDiffable $ \x -> if
+                  | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
+                  | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
+                  | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable acosDefdR))
+   where acosDefdR x = ( acosx, acos'x *^ idL, dev_ε_δ δ )
           where acosx = acos x; acos'x = - recip (sqrt $ 1 - x^2)
                 c = 1 - x^2
                 δ ε = sqrt ε * c -- Like for asin – it's just a translation/reflection.
@@ -1159,21 +1163,21 @@ instance (RealDimension n, LocallyScalable n a)
                  -- Empirical, modified from log function (the area hyperbolic sine
                  -- resembles two logarithmic lobes), with epsEst-checked lower bound.
   
-  acosh = (RWDiffable acoshRW $~)
-   where acoshRW x | x > 0      = (positivePreRegion, pure (Differentiable acoshDfb))
-                  | otherwise  = (negativePreRegion, notDefinedHere)
-         acoshDfb x = ( acosh x, idL ^/ sqrt(x^2 - 2), dev_ε_δ δ )
+  acosh = postEndo . RWDiffable $ \x -> if x>0
+                                   then (positivePreRegion, pure (Differentiable acoshDfb))
+                                   else (negativePreRegion, notDefinedHere)
+   where acoshDfb x = ( acosh x, idL ^/ sqrt(x^2 - 2), dev_ε_δ δ )
           where δ ε = (2 - 1/sqrt x) * (s2 * sqrt sx^3 * sqrt(ε/s2) + signum (ε*s2-sx) * sx * ε/s2) 
                 sx = sqrt(x-1)
                 s2 = sqrt 2
                  -- Empirical, modified from sqrt function – the area hyperbolic cosine
                  -- strongly resembles \x -> sqrt(2 · (x-1)).
                     
-  atanh = (RWDiffable atnhRW $~)
-   where atnhRW x | x < (-1)   = (preRegionFromMinInfTo (-1), notDefinedHere)  
-                  | x > 1      = (preRegionToInfFrom 1, notDefinedHere)
-                  | otherwise  = (intervalPreRegion (-1,1), pure (Differentiable atnhDefdR))
-         atnhDefdR x = ( atanh x, recip(1-x^2) *^ idL, dev_ε_δ $ \ε -> sqrt(tanh ε)*(1-abs x) )
+  atanh = postEndo . RWDiffable $ \x -> if
+                  | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
+                  | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
+                  | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable atnhDefdR))
+   where atnhDefdR x = ( atanh x, recip(1-x^2) *^ idL, dev_ε_δ $ \ε -> sqrt(tanh ε)*(1-abs x) )
                  -- Empirical, with epsEst upper bound.
   
   
