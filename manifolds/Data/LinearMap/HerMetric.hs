@@ -8,6 +8,7 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE UnicodeSyntax              #-}
 
 
 
@@ -24,6 +25,10 @@ module Data.LinearMap.HerMetric (
   , spanHilbertSubspace
   , spanSubHilbertSpace
   , IsFreeSpace
+  -- * Factorise to intervals
+  , factoriseMetric
+  , factoriseMetric'
+  , metricAsLength
   -- * Utility for metrics
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
@@ -448,7 +453,32 @@ orthonormalPairsWith met = mkON
                      
 
 
-spanHilbertSubspace :: forall s v w
+-- | Project a metric on each of the factors of a product space.
+--   Matrix-wise speaking, this considers only the two diagonal block
+--   parts, and disregards cross-variance terms.
+factoriseMetric :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
+               => HerMetric (v,w) -> (HerMetric v, HerMetric w)
+factoriseMetric (HerMetric Nothing) = (HerMetric Nothing, HerMetric Nothing)
+factoriseMetric (HerMetric (Just mvw)) = (HerMetric (Just mv), HerMetric (Just mw))
+ where mv = HMat.subMatrix (0,0) (dv,dv) mvw
+       mw = HMat.subMatrix (dv,dv) (dw,dw) mvw
+       (Tagged dv) = dimension :: Tagged v Int
+       (Tagged dw) = dimension :: Tagged w Int
+
+factoriseMetric' :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
+               => HerMetric' (v,w) -> (HerMetric' v, HerMetric' w)
+factoriseMetric' (HerMetric' Nothing) = (HerMetric' Nothing, HerMetric' Nothing)
+factoriseMetric' (HerMetric' (Just mvw)) = (HerMetric' (Just mv), HerMetric' (Just mw))
+ where mv = HMat.subMatrix (0,0) (dv,dv) mvw
+       mw = HMat.subMatrix (dv,dv) (dw,dw) mvw
+       (Tagged dv) = dimension :: Tagged v Int
+       (Tagged dw) = dimension :: Tagged w Int
+
+metricAsLength :: HerMetric' ℝ -> ℝ
+metricAsLength = recip . (`metric'`1)
+
+
+spanHilbertSubspace :: ∀ s v w
    . (HasMetric v, Scalar v ~ s, IsFreeSpace w, Scalar w ~ s)
       => HerMetric v   -- ^ Metric to induce the inner product on the Hilbert space.
           -> [v]       -- ^ @n@ linearly independent vectors, to span the subspace @w@.
