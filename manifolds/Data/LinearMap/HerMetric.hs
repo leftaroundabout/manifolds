@@ -26,9 +26,8 @@ module Data.LinearMap.HerMetric (
   , spanSubHilbertSpace
   , IsFreeSpace
   -- * Factorise to intervals
-  , factoriseMetric
-  , factoriseMetric'
-  , metricAsLength
+  , factoriseMetric, factoriseMetric'
+  , metricAsLength, metric'AsLength
   -- * Utility for metrics
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
@@ -454,28 +453,22 @@ orthonormalPairsWith met = mkON
 
 
 -- | Project a metric on each of the factors of a product space.
---   Matrix-wise speaking, this considers only the two diagonal block
---   parts, and disregards cross-variance terms.
 factoriseMetric :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric (v,w) -> (HerMetric v, HerMetric w)
 factoriseMetric (HerMetric Nothing) = (HerMetric Nothing, HerMetric Nothing)
-factoriseMetric (HerMetric (Just mvw)) = (HerMetric (Just mv), HerMetric (Just mw))
- where mv = HMat.subMatrix (0,0) (dv,dv) mvw
-       mw = HMat.subMatrix (dv,dv) (dw,dw) mvw
-       (Tagged dv) = dimension :: Tagged v Int
-       (Tagged dw) = dimension :: Tagged w Int
+factoriseMetric met = (sumV *** sumV) . unzip
+                   $ (projector.fst &&& projector.snd) <$> eigenSpan' met
 
 factoriseMetric' :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric' (v,w) -> (HerMetric' v, HerMetric' w)
-factoriseMetric' (HerMetric' Nothing) = (HerMetric' Nothing, HerMetric' Nothing)
-factoriseMetric' (HerMetric' (Just mvw)) = (HerMetric' (Just mv), HerMetric' (Just mw))
- where mv = HMat.subMatrix (0,0) (dv,dv) mvw
-       mw = HMat.subMatrix (dv,dv) (dw,dw) mvw
-       (Tagged dv) = dimension :: Tagged v Int
-       (Tagged dw) = dimension :: Tagged w Int
+factoriseMetric' met = (sumV *** sumV) . unzip
+                   $ (projector'.fst &&& projector'.snd) <$> eigenSpan met
 
-metricAsLength :: HerMetric' ℝ -> ℝ
-metricAsLength = recip . (`metric'`1)
+metricAsLength :: HerMetric ℝ -> ℝ
+metricAsLength = recip . (`metric`1)
+
+metric'AsLength :: HerMetric' ℝ -> ℝ
+metric'AsLength = recip . (`metric'`1)
 
 
 spanHilbertSubspace :: ∀ s v w
