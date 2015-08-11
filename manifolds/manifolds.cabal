@@ -68,6 +68,7 @@ Library
                      Data.LinearMap.HerMetric
                      -- Data.Manifold.Visualisation.R3.GLUT
                      Data.Manifold.Types
+                     Data.Manifold.Griddable
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive
                    Data.CoNat
