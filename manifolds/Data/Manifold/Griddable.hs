@@ -93,6 +93,10 @@ data GridAxis m g = GridAxInterval (Shade m)
                   | GridAxisClosed g (GridAxis m g)
              deriving (Hask.Functor)
 
+gshmap :: (Shade m -> Shade n) -> GridAxis m g -> GridAxis n g
+gshmap f (GridAxInterval i) = GridAxInterval $ f i
+gshmap f (GridAxCons i g ax) = GridAxCons (f i) g $ gshmap f ax
+gshmap f (GridAxisClosed g ax) = GridAxisClosed g $ gshmap f ax
 
 axisEnumFromStepTo :: (ℝ->a) -> ℝ -> ℝ -> ℝ -> GridAxis ℝ a
 axisEnumFromStepTo f l st r
@@ -130,6 +134,22 @@ instance Griddable ℝ String where
          lqef n | n > 0      = floor $ lg   n
                 | n < 0      = floor $ lg (-n)
 
+
+instance (Griddable m a, Griddable n a) => Griddable (m,n) a where
+  data GriddingParameters (m,n) a = PairGriddingParameters {
+               fstGriddingParams :: GriddingParameters m a
+             , sndGriddingParams :: GriddingParameters n a }
+  mkGridding (PairGriddingParameters p₁ p₂) n i
+          = gshmap ( uncurry fullShade . (                  (,c₂).shadeCtr
+                                         &&& (`productMetric'`e₂).shadeExpanse) )
+              <$> g₁s
+         ++ gshmap ( uncurry fullShade . (                  (c₁,).shadeCtr
+                                         &&& ( productMetric' e₁).shadeExpanse) )
+              <$> g₂s
+   where g₁s = mkGridding p₁ n $ fullShade c₁ e₁
+         g₂s = mkGridding p₂ n $ fullShade c₂ e₂
+         (c₁,c₂) = shadeCtr i
+         (e₁,e₂) = factoriseMetric' $ shadeExpanse i
 
 prettyFloatShow :: Int -> Double -> String
 prettyFloatShow _ 0 = "0"
