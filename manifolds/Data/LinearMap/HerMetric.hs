@@ -25,8 +25,9 @@ module Data.LinearMap.HerMetric (
   , spanHilbertSubspace
   , spanSubHilbertSpace
   , IsFreeSpace
-  -- * Factorise to intervals
+  -- * One-dimensional axes and product spaces
   , factoriseMetric, factoriseMetric'
+  , productMetric, productMetric'
   , metricAsLength, metric'AsLength
   -- * Utility for metrics
   , transformMetric, transformMetric'
@@ -452,7 +453,8 @@ orthonormalPairsWith met = mkON
                      
 
 
--- | Project a metric on each of the factors of a product space.
+-- | Project a metric on each of the factors of a product space. This works by
+--   projecting the eigenvectors into both subspaces.
 factoriseMetric :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric (v,w) -> (HerMetric v, HerMetric w)
 factoriseMetric (HerMetric Nothing) = (HerMetric Nothing, HerMetric Nothing)
@@ -463,6 +465,30 @@ factoriseMetric' :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar 
                => HerMetric' (v,w) -> (HerMetric' v, HerMetric' w)
 factoriseMetric' met = (sumV *** sumV) . unzip
                    $ (projector'.fst &&& projector'.snd) <$> eigenSpan met
+
+productMetric :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
+               => HerMetric v -> HerMetric w -> HerMetric (v,w)
+productMetric (HerMetric Nothing) (HerMetric Nothing) = HerMetric Nothing
+productMetric (HerMetric (Just mv)) (HerMetric (Just mw))
+        = HerMetric . Just $ HMat.diagBlock [mv, mw]
+productMetric (HerMetric Nothing) (HerMetric (Just mw))
+        = HerMetric . Just $ HMat.diagBlock [HMat.konst 0 (dv,dv), mw]
+ where (Tagged dv) = dimension :: Tagged v Int
+productMetric (HerMetric (Just mv)) (HerMetric Nothing)
+        = HerMetric . Just $ HMat.diagBlock [mv, HMat.konst 0 (dw,dw)]
+ where (Tagged dw) = dimension :: Tagged w Int
+
+productMetric' :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
+               => HerMetric' v -> HerMetric' w -> HerMetric' (v,w)
+productMetric' (HerMetric' Nothing) (HerMetric' Nothing) = HerMetric' Nothing
+productMetric' (HerMetric' (Just mv)) (HerMetric' (Just mw))
+        = HerMetric' . Just $ HMat.diagBlock [mv, mw]
+productMetric' (HerMetric' Nothing) (HerMetric' (Just mw))
+        = HerMetric' . Just $ HMat.diagBlock [HMat.konst 0 (dv,dv), mw]
+ where (Tagged dv) = dimension :: Tagged v Int
+productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
+        = HerMetric' . Just $ HMat.diagBlock [mv, HMat.konst 0 (dw,dw)]
+ where (Tagged dw) = dimension :: Tagged w Int
 
 metricAsLength :: HerMetric ℝ -> ℝ
 metricAsLength = recip . (`metric`1)
