@@ -32,7 +32,7 @@
 {-# LANGUAGE DataKinds                  #-}
 
 
-module Data.Manifold.Griddable () where
+module Data.Manifold.Griddable (GridAxis(..), Griddable(..)) where
 
 
 import Data.List hiding (filter, all, elem, sum)

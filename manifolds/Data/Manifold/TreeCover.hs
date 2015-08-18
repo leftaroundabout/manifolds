@@ -151,6 +151,7 @@ subshadeId (Shade c expa) = subshadeId' c . NE.fromList $ eigenCoSpan expa
 pointsShades :: WithField ℝ Manifold x => [x] -> [Shade x]
 pointsShades = map snd . pointsShades' zeroV
 
+
 pseudoECM :: WithField ℝ Manifold x => NonEmpty x -> (x, ([x],[x]))
 pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
                                   -> case p.-~.acc of 
@@ -170,6 +171,31 @@ pointsShades' minExt ps = case expa of
        expa = ( (^+^minExt) . (^/ fromIntegral(length ps)) . sumV . map projector' )
               <$> mapM (.-~.ctr) ps
        
+
+-- | Attempt to reduce the shades to fewer (ideally, a single one), which still cover
+--   at least the same area.
+shadesMerge :: WithField ℝ Manifold x
+                 => ℝ -- ^ &#x201c;Fuzz factor&#x201d; &#x2014; how far two shades can be apart to still be merged.
+                 -> [Shade x]
+                 -> [Shade x]
+shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs) = case extractJust tryMerge shs of
+          (Just mg₁, shs') -> shadesMerge fuzz
+                                $ shs'++[mg₁] -- Append to end to prevent undue weighting
+                                              -- of first shade and its mergers.
+          (_, shs') -> sh₁ : shadesMerge fuzz shs' 
+ where tryMerge (Shade c₂ e₂)
+           | Option (Just v) <- c₁.-~.c₂
+           , Option (Just v') <- c₂.-~.c₁
+           , [e₁',e₂'] <- recipMetric<$>[e₁, e₂] 
+           , b₁ <- metric e₂' v
+           , b₂ <- metric e₁' v
+           , b₁==0 || b₂==0 || fuzz/b₁ + fuzz/b₂ > 1
+                  = Just $ let cc = c₂ .+~^ v ^/ 2
+                               Option (Just cv₁) = c₁.-~.cc
+                               Option (Just cv₂) = c₂.-~.cc
+                           in Shade cc . sumV $ [e₁, e₂] ++ projector'<$>[cv₁, cv₂] 
+           | otherwise  = Nothing
+shadesMerge _ shs = shs
 
 minusLogOcclusion :: (PseudoAffine x, HasMetric (Needle x)
              , s ~ (Scalar (Needle x)), RealDimension s )
@@ -909,4 +935,14 @@ instance HasFlatView Sawboneses where
         ]
   superFlatView = foldMap go . flatView
    where go (t,ds) = t : ds
+
+
+
+
+
+
+extractJust :: (a->Maybe b) -> [a] -> (Maybe b, [a])
+extractJust f [] = (Nothing,[])
+extractJust f (x:xs) | Just r <- f x  = (Just r, xs)
+                     | otherwise      = second (x:) $ extractJust f xs
 
