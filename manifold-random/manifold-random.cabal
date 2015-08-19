@@ -26,7 +26,7 @@ library
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.8
                        , random-fu >=0.2 && <0.3
-                       , manifolds >=0.1.2.0 && < 0.2
+                       , manifolds >=0.1.4 && < 0.2
                        , vector-space
   -- hs-source-dirs:      
   default-language:    Haskell2010

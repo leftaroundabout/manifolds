@@ -34,9 +34,9 @@
 
 module Data.Manifold.TreeCover (
        -- * Shades 
-         Shade(..)
+         Shade(..), Shade'(..)
        -- ** Lenses and constructors
-       , shadeCtr, shadeExpanse, fullShade, pointsShades
+       , shadeCtr, shadeExpanse, shadeNarrowness, fullShade, fullShade', pointsShades
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints
        -- * Simple view helpers
@@ -121,11 +121,27 @@ data PSM x = PSM {
 data Shade x = Shade { _shadeCtr :: !x
                      , _shadeExpanse :: !(Metric' x) }
 
-shadeCtr :: Functor f (->) (->) => (x->f x) -> Shade x -> f (Shade x)
-shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
+-- | A &#x201c;co-shade&#x201d; can describe ellipsoid regions as well, but unlike
+--   'Shade' it can be unlimited / infinitely wide in some directions.
+--   It does OTOH need to have nonzero thickness, which 'Shade' needs not.
+data Shade' x = Shade' { _shade'Ctr :: !x
+                       , _shade'Narrowness :: !(Metric x) }
+
+class IsShade shade where
+  -- | Access the center of a 'Shade' or a 'Shade''.
+  shadeCtr :: Functor f (->) (->) => (x->f x) -> shade x -> f (shade x)
+
+instance IsShade Shade where
+  shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
 
 shadeExpanse :: Functor f (->) (->) => (Metric' x -> f (Metric' x)) -> Shade x -> f (Shade x)
 shadeExpanse f (Shade c e) = fmap (Shade c) $ f e
+
+instance IsShade Shade' where
+  shadeCtr f (Shade' c e) = fmap (`Shade'`e) $ f c
+
+shadeNarrowness :: Functor f (->) (->) => (Metric x -> f (Metric x)) -> Shade' x -> f (Shade' x)
+shadeNarrowness f (Shade' c e) = fmap (Shade' c) $ f e
 
 instance (AffineManifold x) => Semimanifold (Shade x) where
   type Needle (Shade x) = Diff x
@@ -134,6 +150,9 @@ instance (AffineManifold x) => Semimanifold (Shade x) where
 
 fullShade :: WithField ℝ Manifold x => x -> Metric' x -> Shade x
 fullShade ctr expa = Shade ctr expa
+
+fullShade' :: WithField ℝ Manifold x => x -> Metric x -> Shade' x
+fullShade' ctr expa = Shade' ctr expa
 
 subshadeId' :: WithField ℝ Manifold x
                    => x -> NonEmpty (DualSpace (Needle x)) -> x -> (Int, HourglassBulb)
