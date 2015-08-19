@@ -49,7 +49,7 @@ module Data.Manifold.Types.Primitive (
         , CD¹(..), Cℝay(..)
         -- * Utility (deprecated)
         , NaturallyEmbedded(..)
-        , GraphWindowSpec(..), Endomorphism, (^), EqFloating
+        , GraphWindowSpec(..), Endomorphism, (^), (^.), EqFloating
    ) where
 
 
@@ -59,6 +59,8 @@ import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
 import Data.Monoid
+
+import Control.Applicative (Const(..))
 
 import qualified Prelude
 
@@ -247,7 +249,14 @@ instance InnerSpace () where
   () <.> () = 0
 
 
+infixr 8 ^
 
 (^) :: Num a => a -> Int -> a
 (^) = (Prelude.^)
+
+
+infixl 8 ^.
+{-# INLINE (^.) #-}
+(^.) :: s -> (forall f . Prelude.Functor f => (a->f a) -> s->f s) -> a
+o ^. g = getConst (g Const o)
 

@@ -34,7 +34,9 @@
 
 module Data.Manifold.TreeCover (
        -- * Shades 
-         Shade, shadeCtr, shadeExpanse, fullShade, pointsShades
+         Shade(..)
+       -- ** Lenses and constructors
+       , shadeCtr, shadeExpanse, fullShade, pointsShades
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints
        -- * Simple view helpers
@@ -116,8 +118,14 @@ data PSM x = PSM {
 -- 
 --   For a /precise/ description of an arbitrarily-shaped connected subset of a manifold,
 --   there is 'Region', whose implementation is vastly more complex.
-data Shade x = Shade { shadeCtr :: !x
-                     , shadeExpanse :: !(Metric' x) }
+data Shade x = Shade { _shadeCtr :: !x
+                     , _shadeExpanse :: !(Metric' x) }
+
+shadeCtr :: Functor f (->) (->) => (x->f x) -> Shade x -> f (Shade x)
+shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
+
+shadeExpanse :: Functor f (->) (->) => (Metric' x -> f (Metric' x)) -> Shade x -> f (Shade x)
+shadeExpanse f (Shade c e) = fmap (Shade c) $ f e
 
 instance (AffineManifold x) => Semimanifold (Shade x) where
   type Needle (Shade x) = Diff x
@@ -340,7 +348,7 @@ fromLeafPoints = go zeroV
                                          Just redBrchs
                                            -> OverlappingBranches
                                                   (length xs) rShade
-                                                  (branchProc (shadeExpanse rShade) redBrchs)
+                                                  (branchProc (_shadeExpanse rShade) redBrchs)
                                          _ -> PlainLeaves xs
                      partitions -> DisjointBranches (length xs)
                                    . NE.fromList

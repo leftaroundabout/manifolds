@@ -57,9 +57,9 @@ import Data.Proxy
 
 import Data.SimplicialComplex
 import Data.Manifold.Types
-import Data.Manifold.Types.Primitive ((^))
+import Data.Manifold.Types.Primitive ((^), (^.))
 import Data.Manifold.PseudoAffine
-import Data.Manifold.TreeCover (Shade, fullShade, shadeCtr, shadeExpanse)
+import Data.Manifold.TreeCover (Shade(..), fullShade, shadeCtr, shadeExpanse)
     
 import Data.Embedding
 import Data.CoNat
@@ -117,12 +117,11 @@ class (WithField ℝ Manifold m) => Griddable m g where
 
 instance Griddable ℝ String where
   data GriddingParameters ℝ String = ℝGridParam
-  mkGridding ℝGridParam n i = [ax]
-   where c = shadeCtr i
-         expa = metric'AsLength $ shadeExpanse i
-         
-         l = c - expa
+  mkGridding ℝGridParam n (Shade c expa') = [ax]
+   where l = c - expa
          r = c + expa
+         
+         expa = metric'AsLength expa'
          
          (Just ax) = find ((>=n) . axisGrLength)
                 $ [ let qe = 10^^lqe' * nb
@@ -139,17 +138,16 @@ instance (Griddable m a, Griddable n a) => Griddable (m,n) a where
   data GriddingParameters (m,n) a = PairGriddingParameters {
                fstGriddingParams :: GriddingParameters m a
              , sndGriddingParams :: GriddingParameters n a }
-  mkGridding (PairGriddingParameters p₁ p₂) n i
-          = gshmap ( uncurry fullShade . (                  (,c₂).shadeCtr
-                                         &&& (`productMetric'`e₂).shadeExpanse) )
+  mkGridding (PairGriddingParameters p₁ p₂) n (Shade (c₁,c₂) e₁e₂)
+          = gshmap ( uncurry fullShade . (                  (,c₂).(^.shadeCtr)
+                                         &&& (`productMetric'`e₂).(^.shadeExpanse)) )
               <$> g₁s
-         ++ gshmap ( uncurry fullShade . (                  (c₁,).shadeCtr
-                                         &&& ( productMetric' e₁).shadeExpanse) )
+         ++ gshmap ( uncurry fullShade . (                  (c₁,).(^.shadeCtr)
+                                         &&& ( productMetric' e₁).(^.shadeExpanse)) )
               <$> g₂s
    where g₁s = mkGridding p₁ n $ fullShade c₁ e₁
          g₂s = mkGridding p₂ n $ fullShade c₂ e₂
-         (c₁,c₂) = shadeCtr i
-         (e₁,e₂) = factoriseMetric' $ shadeExpanse i
+         (e₁,e₂) = factoriseMetric' e₁e₂ 
 
 prettyFloatShow :: Int -> Double -> String
 prettyFloatShow _ 0 = "0"
@@ -169,8 +167,8 @@ data Interval = Interval { ivLBound, ivRBound :: ℝ }
 
 shade2Intvl :: Shade ℝ -> Interval
 shade2Intvl sh = Interval l r
- where c = shadeCtr sh
-       expa = metric'AsLength $ shadeExpanse sh
+ where c = sh ^. shadeCtr
+       expa = metric'AsLength $ sh ^. shadeExpanse
        l = c - expa; r = c + expa
 
 intvl2Shade :: Interval -> Shade ℝ
