@@ -42,7 +42,7 @@ module Data.Manifold.TreeCover (
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
-       , sShSaw, chainsaw, HasFlatView(..)
+       , sShSaw, chainsaw, HasFlatView(..), shadesMerge
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
        , AutoTriang, elementaryTriang, breakdownAutoTriang
@@ -172,12 +172,15 @@ pointsShades' minExt ps = case expa of
               <$> mapM (.-~.ctr) ps
        
 
--- | Attempt to reduce the shades to fewer (ideally, a single one), which still cover
---   at least the same area.
+-- | Attempt to reduce the number of shades to fewer (ideally, a single one).
+--   In the simplest cases these should guaranteed cover the same area;
+--   for non-flat manifolds it only works in a heuristic sense.
 shadesMerge :: WithField ℝ Manifold x
-                 => ℝ -- ^ &#x201c;Fuzz factor&#x201d; &#x2014; how far two shades can be apart to still be merged.
-                 -> [Shade x]
-                 -> [Shade x]
+                 => ℝ -- ^ How near (inverse normalised distance, relative to shade expanse)
+                      --   two shades must be to be merged. If this is zero, any shades
+                      --   in the same connected region of a manifold are merged.
+                 -> [Shade x] -- ^ A list of /n/ shades.
+                 -> [Shade x] -- ^ /m/ &#x2264; /n/ shades which cover at least the same area.
 shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs) = case extractJust tryMerge shs of
           (Just mg₁, shs') -> shadesMerge fuzz
                                 $ shs'++[mg₁] -- Append to end to prevent undue weighting
@@ -189,7 +192,7 @@ shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs) = case extractJust tryMerge shs
            , [e₁',e₂'] <- recipMetric<$>[e₁, e₂] 
            , b₁ <- metric e₂' v
            , b₂ <- metric e₁' v
-           , b₁==0 || b₂==0 || fuzz/b₁ + fuzz/b₂ > 1
+           , fuzz*b₁*b₂ <= b₁ + b₂
                   = Just $ let cc = c₂ .+~^ v ^/ 2
                                Option (Just cv₁) = c₁.-~.cc
                                Option (Just cv₂) = c₂.-~.cc
