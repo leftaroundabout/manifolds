@@ -128,8 +128,11 @@ data Shade' x = Shade' { _shade'Ctr :: !x
                        , _shade'Narrowness :: !(Metric x) }
 
 class IsShade shade where
+--  type (*) shade :: *->*
   -- | Access the center of a 'Shade' or a 'Shade''.
   shadeCtr :: Functor f (->) (->) => (x->f x) -> shade x -> f (shade x)
+--  -- | Convert between 'Shade' and 'Shade' (which must be neither singular nor infinite).
+--  unsafeDualShade :: WithField ℝ Manifold x => shade x -> shade* x
 
 instance IsShade Shade where
   shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c

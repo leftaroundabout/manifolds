@@ -41,7 +41,6 @@ Library
                      , vector-space>=0.8
                      , MemoTrie
                      , vector
-                     , vector-algorithms
                      , hmatrix >= 0.16 && < 0.18
                      , containers
                      , comonad
