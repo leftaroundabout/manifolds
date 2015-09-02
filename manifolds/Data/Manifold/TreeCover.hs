@@ -338,25 +338,23 @@ instance WithField ℝ Manifold x => Monoid (ShadeTree x) where
    where ne (PlainLeaves []) = False; ne _ = True
 
 
--- | Build a really quite nicely balanced tree from a cloud of points, on
---   any real manifold.
+-- | Build a quite nicely balanced tree from a cloud of points, on any real manifold.
 -- 
 --   Example:
 -- 
 -- @
--- > :m +Graphics.Dynamic.Plot.R2 Data.Manifold.TreeCover Data.VectorSpace Data.AffineSpace
--- > import Diagrams.Prelude ((^&), P2, R2, circle, fc, (&), moveTo, green)
---  
--- > let testPts0 = [0^&0, 0^&1, 1^&1, 1^&2, 2^&2] :: [P2]  -- Generate sort-of&#x2013;random point cloud
--- > let testPts1 = [p .+^ v^/3 | p<-testPts0, v <- [0^&0, (-1)^&1, 1^&2]]
--- > let testPts2 = [p .+^ v^/4 | p<-testPts1, v <- [0^&0, (-1)^&1, 1^&2]]
--- > let testPts3 = [p .+^ v^/5 | p<-testPts2, v <- [0^&0, (-2)^&1, 1^&2]]
--- > let testPts4 = [p .+^ v^/7 | p<-testPts3, v <- [0^&1, (-2)^&1, 1^&2]]
--- > length testPts4
---     405
+-- > :m +Graphics.Dynamic.Plot.R2 Data.Manifold.TreeCover Data.VectorSpace Data.AffineSpace 
+-- > import Diagrams.Prelude ((^&), p2, r2, P2, circle, fc, (&), moveTo, opacity)
 -- 
--- > plotWindow [ plot . onlyNodes $ fromLeafPoints testPts4
--- >            , plot [circle 0.06 & moveTo p & fc green :: PlainGraphics | p <- testPts4] ]
+-- >   -- Generate sort-of&#x2013;random cloud of lots of points
+-- > let testPts0 = p2 \<$\> [(0,0), (0,1), (1,1), (1,2), (2,2)] :: [P2 Double]
+-- > let testPts1 = [p .+^ v^/3 | p\<-testPts0, v \<- r2\<$\>[(0,0), (-1,1), (1,2)]]
+-- > let testPts2 = [p .+^ v^/4 | p\<-testPts1, v \<- r2\<$\>[(0,0), (-1,1), (1,2)]]
+-- > let testPts3 = [p .+^ v^/5 | p\<-testPts2, v \<- r2\<$\>[(0,0), (-2,1), (1,2)]]
+-- > let testPts4 = [p .+^ v^/7 | p\<-testPts3, v \<- r2\<$\>[(0,1), (-1,1), (1,2)]]
+-- 
+-- > plotWindow [ plot [ shapePlot $ circle 0.06 & moveTo p & opacity 0.3 | p <- testPts4 ]
+-- >            , plot . onlyNodes $ 'fromLeafPoints' testPts4 ]
 -- @
 -- 
 -- <<images/examples/simple-2d-ShadeTree.png>>
