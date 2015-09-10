@@ -45,6 +45,8 @@ module Data.LinearMap.HerMetric (
   -- * Fundamental requirements
   , MetricScalar
   , FiniteDimensional(..)
+  -- * Misc
+  , Stiefel1(..)
   ) where
     
 
@@ -526,3 +528,12 @@ spanSubHilbertSpace :: forall s v w
           -> Option (Embedding (Linear s) w v)
 spanSubHilbertSpace = spanHilbertSubspace euclideanMetric'
 
+
+-- | The /n/-th Stiefel manifold is the space of all possible configurations of
+--   /n/ orthonormal vectors. In the case /n/ = 1, simply the subspace of normalised
+--   vectors, i.e. equivalent to the 'UnitSphere'. Even so, it strictly speaking
+--   requires the containing space to be at least metric (if not Hilbert); we would
+--   however like to be able to use this concept also in spaces with no inner product,
+--   therefore we define this space not as normalised vectors, but rather as all
+--   vectors modulo scaling by positive factors.
+newtype Stiefel1 v = Stiefel1 { getStiefel1N :: DualSpace v }

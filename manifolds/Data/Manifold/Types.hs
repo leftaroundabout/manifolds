@@ -90,15 +90,6 @@ instance (c) => PseudoAffine (t) where {     \
   a.-~.b = pure (a.-.b);      }
 
 
--- | The /n/-th Stiefel manifold is the space of all possible configurations of
---   /n/ orthonormal vectors. In the case /n/ = 1, simply the subspace of normalised
---   vectors, i.e. equivalent to the 'UnitSphere'. Even so, it strictly speaking
---   requires the containing space to be at least metric (if not Hilbert); we would
---   however like to be able to use this concept also in spaces with no inner product,
---   therefore we define this space not as normalised vectors, but rather as all
---   vectors modulo scaling by positive factors.
-newtype Stiefel1 v = Stiefel1 { getStiefel1N :: DualSpace v }
-
 newtype Stiefel1Needle v = Stiefel1Needle { getStiefel1Tangent :: HMat.Vector (Scalar v) }
 newtype Stiefel1Basis v = Stiefel1Basis { getStiefel1Basis :: Int }
 s1bTrie :: forall v b. FiniteDimensional v => (Stiefel1Basis v->b) -> Stiefel1Basis v:->:b

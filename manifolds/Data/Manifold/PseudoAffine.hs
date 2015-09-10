@@ -17,6 +17,14 @@
 -- diffeomorphic. At the moment, we mainly focus on /region-wise differentiable functions/,
 -- which are a promising compromise between flexibility of definition and provability of
 -- analytic properties. In particular, they are well-suited for visualisation purposes.
+-- 
+-- The classes in this module are mostly aimed at manifolds /without boundary/.
+-- Manifolds with boundary (which we call @MWBound@, never /manifold/!)
+-- are more or less treated as a disjoint sum of the interior and the boundary.
+-- To understand how this module works, best first forget about boundaries – in this case,
+-- @'Interior' x ~ x@, 'fromInterior' and 'toInterior' are trivial, and
+-- '.+~|', '|-~.' and 'betweenBounds' are irrelevant.
+-- The manifold structure of the boundary itself is not considered at all here.
 
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE UndecidableInstances     #-}
@@ -88,6 +96,7 @@ import Data.CoNat
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import qualified Prelude
+import qualified Control.Applicative as Hask
 
 import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
@@ -100,11 +109,13 @@ import Data.Foldable.Constrained
 infix 6 .-~.
 infixl 6 .+~^, .-~^
 
-class (AdditiveGroup (Needle x)) => Semimanifold x where
+class ( AdditiveGroup (Needle x), Interior (Interior x) ~ Interior x )
+          => Semimanifold x where
+  {-# MINIMAL ((.+~^) | fromInterior), toInterior, translateP #-}
   -- | The space of &#x201c;natural&#x201d; ways starting from some reference point
   --   and going to some particular target point. Hence,
   --   the name: like a compass needle, but also with an actual length.
-  --   For affine space, 'Needle' is simply the space of
+  --   For affine spaces, 'Needle' is simply the space of
   --   line segments (aka vectors) between two points, i.e. the same as 'Diff'.
   --   The 'AffineManifold' constraint makes that requirement explicit.
   -- 
@@ -112,8 +123,36 @@ class (AdditiveGroup (Needle x)) => Semimanifold x where
   --   used somewhat synonymously).
   type Needle x :: *
   
-  -- | Generalised translation operation.
-  (.+~^) :: x -> Needle x -> x
+  -- | Manifolds with boundary are a bit tricky. We support such manifolds,
+  --   but carry out most calculations only in “the fleshy part” – the
+  --   interior, which is an “infinite space”, so you can arbitrarily scale paths.
+  -- 
+  --   The default implementation is @'Interior' x = x@, which corresponds
+  --   to a manifold that has no boundary to begin with.
+  type Interior x :: *
+  type Interior x = x
+  
+  -- | Generalised translation operation. Note that the result will always also
+  --   be in the interior; scaling up the needle can only get you ever /closer/
+  --   to a boundary.
+  (.+~^) :: Interior x -> Needle x -> x
+  (.+~^) = addvp
+   where addvp :: ∀ x . Semimanifold x => Interior x -> Needle x -> x
+         addvp p = fromInterior . tp p
+          where (Tagged tp) = translateP :: Tagged x (Interior x -> Needle x -> Interior x)
+    
+  -- | 'id' sans boundary.
+  fromInterior :: Interior x -> x
+  fromInterior p = p .+~^ zeroV 
+  
+  toInterior :: x -> Option (Interior x)
+  
+  -- | The signature of '.+~^' should really be @'Interior' x -> 'Needle' x -> 'Interior' x@,
+  --   only, this is not possible because it only consists of non-injective type families.
+  --   The solution is this tagged signature, which is of course rather unwieldy. That's
+  --   why '.+~^' has the stronger, but easier usable signature. Without boundary, these
+  --   functions should be equivalent.
+  translateP :: Tagged x (Interior x -> Needle x -> Interior x)
   
   -- | Shorthand for @\\p v -> p .+~^ 'negateV' v@, which should obey the /asymptotic/ law
   --   
@@ -126,17 +165,22 @@ class (AdditiveGroup (Needle x)) => Semimanifold x where
   --   as /O/ (/&#x3b7;/&#xb2;). For large vectors, it will however behave differently,
   --   except in flat spaces (where all this should be equivalent to the 'AffineSpace'
   --   instance).
-  (.-~^) :: x -> Needle x -> x
+  (.-~^) :: Interior x -> Needle x -> x
   p .-~^ v = p .+~^ negateV v
 
--- | This is the class underlying manifolds. ('Manifold' only adds an extra constraint that
---   would be circular if it was in a single class. You can always just use 'Manifold'
---   as a constraint in your signatures, but you must /define/ only 'PseudoAffine' for
---   manifold types &#x2013; the 'Manifold' instance follows universally from this.)
+  -- | This deals (crudely) with boundary points. See '|-~.' for explanation.
+  (.+~|) :: Interior x -> Stiefel1 (Needle x) -> Option x
+  _ .+~| _ = Hask.empty
+  
+-- | This is the class underlying manifolds. ('Manifold' only precludes boundaries
+--   and adds an extra constraint that would be circular if it was in a single
+--   class. You can always just use 'Manifold' as a constraint in your signatures,
+--   but you must /define/ only 'PseudoAffine' for manifold types &#x2013;
+--   the 'Manifold' instance follows universally from this, if @'Interior x ~ x@.)
 --   
---   The interface is almost identical to the better-known 'AffineSpace' class, but unlike
---   in the mathematical definition of affine spaces we don't require associativity 
---   of '.+~^' with '^+^' &#x2013; except in an asymptotic sense for small vectors.
+--   The interface is (boundaries aside) almost identical to the better-known
+--   'AffineSpace' class, but we don't require associativity of '.+~^' with '^+^'
+--   &#x2013; except in an /asymptotic sense/ for small vectors.
 --   
 --   That innocent-looking change makes the class applicable to vastly more general types:
 --   while an affine space is basically nothing but a vector space without particularly
@@ -146,22 +190,59 @@ class (AdditiveGroup (Needle x)) => Semimanifold x where
 --   manifolds in their usual maths definition (with an atlas of charts: a family of
 --   overlapping regions of the topological space, each homeomorphic to the 'Needle'
 --   vector space or some simply-connected subset thereof).
-class Semimanifold x => PseudoAffine x where
+class (Semimanifold x, Semimanifold (Interior x), Interior (Interior x) ~ Interior x)
+        => PseudoAffine x where
   -- | The path reaching from one point to another.
-  --   Should only yield 'Nothing' if the points are on disjoint segments of a
-  --   non&#x2013;path-connected manifold. Otherwise, the identity
+  --   Should only yield 'Nothing' if
+  -- 
+  --   * The points are on disjoint segments of a non&#x2013;path-connected space.
+  -- 
+  --   * Either of the points is on the boundary. Use '|-~.' to deal with this.
+  -- 
+  --   On manifolds, the identity
   --   
   -- @
   -- p .+~^ (q.-~.p) &#x2261; q
   -- @
   --   
   --   should hold, at least save for floating-point precision limits etc..
-  (.-~.) :: x -> x -> Option (Needle x)
+  (.-~.) :: x -> Interior x -> Option (Needle x)
+  
+  -- | '.-~.' and '.+~^' only really work in manifolds without boundary. If you consider
+  --   the path between two points, one of which lies on the boundary, it can't really
+  --   be possible to scale this path any longer – it would have to reach “out of the
+  --   manifold”. To adress this problem, these functions basically consider only the
+  --   /interior/ of the space.
+  -- 
+  --   '|-~.' projects the special case of boundary points on the /closure/ of the
+  --   tangent space – the space of “directional infinities”, which is homeomorphic
+  --   to the first Stiefel manifold.
+  -- 
+  --   Concretely: @b |-~. p@ yields a result iff @b@ lies on the boundary.
+  -- 
+  --   The default implementation is to always yield 'Nothing',
+  --   i.e. it assumes the manifold has no boundary.
+  --   
+  --   Morally, the signature should be @(|-~.) :: Boundary x -> Interior x -> Option (Stiefel1 (Needle x))@.
+  --   Likewise, @(.+~|) :: Interior x -> Stiefel1 (Needle x) -> Boundary x@,
+  --   and @betweenBounds :: Boundary x -> Boundary x@.
+  --   We avoid a @Boundary@ type family, to simplify treatment of manifolds.
+  --   However, in the future a dedicated class @MWBound@ might be added, which would be
+  --   able to treat boundaries better.
+  (|-~.) :: x -> Interior x -> Option (Stiefel1 (Needle x))
+  _|-~._ = Option Nothing
+  
+  -- | This function simply yields one point in the interior which lies in between the points on the
+  --   boundary, so interpolation is possible even if you only have two point on opposite boundaries.
+  betweenBounds :: x -> x -> Option (Interior x)
+  betweenBounds _ _ = Option Nothing
+  
+  
   
 
 -- | See 'Semimanifold' and 'PseudoAffine' for the methods.
-class (PseudoAffine m, LinearManifold (Needle m)) => Manifold m
-instance (PseudoAffine m, LinearManifold (Needle m)) => Manifold m
+class (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold m
+instance (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold m
 
 type LocallyScalable s x = ( PseudoAffine x, (Needle x) ~ Needle x
                            , HasMetric (Needle x)
@@ -190,7 +271,7 @@ type RealDimension r = ( PseudoAffine r, Needle r ~ r
                        , RealFloat r )
 
 -- | The 'AffineSpace' class plus manifold constraints.
-type AffineManifold m = ( PseudoAffine m, AffineSpace m
+type AffineManifold m = ( PseudoAffine m, Interior m ~ m, AffineSpace m
                         , Needle m ~ Diff m, LinearManifold (Diff m) )
 
 -- | A Hilbert space is a /complete/ inner product space. Being a vector space, it is
@@ -216,9 +297,12 @@ type Metric' x = HerMetric' (Needle x)
 
 
 -- | Interpolate between points, approximately linearly.
-palerp :: (PseudoAffine x, VectorSpace (Needle x))
+palerp :: Manifold x
     => x -> x -> Option (Scalar (Needle x) -> x)
-palerp p1 p2 = fmap (\v t -> p1 .+~^ t *^ v) $ p2 .-~. p1
+palerp p1 p2 = case p2 .-~. p1 of
+  Option (Just v) | Option (Just p1') <- toInterior p1
+      -> return $ \t -> p1' .+~^ t *^ v
+  _ -> Hask.empty
 
 
 
@@ -241,6 +325,7 @@ instance PseudoAffine (ZeroDim k) where
 
 instance (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
   type Needle (a,b) = (Needle a, Needle b)
+  type Interior (a,b) = (Interior a, Interior b)
   (a,b).+~^(v,w) = (a.+~^v, b.+~^w)
   (a,b).-~^(v,w) = (a.-~^v, b.-~^w)
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
@@ -248,6 +333,7 @@ instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
 
 instance (Semimanifold a, Semimanifold b, Semimanifold c) => Semimanifold (a,b,c) where
   type Needle (a,b,c) = (Needle a, Needle b, Needle c)
+  type Interior (a,b,c) = (Interior a, Interior b, Interior c)
   (a,b,c).+~^(v,w,x) = (a.+~^v, b.+~^w, c.+~^x)
   (a,b,c).-~^(v,w,x) = (a.-~^v, b.-~^w, c.-~^x)
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
@@ -323,16 +409,16 @@ instance PseudoAffine ℝP² where
    | otherwise  = pure ( r₁*^embed(S¹ φ₁) ^-^ r₀*^embed(S¹ φ₀) )
 
 
-instance (PseudoAffine m, VectorSpace (Needle m), Scalar (Needle m) ~ ℝ)
-             => Semimanifold (CD¹ m) where
-  type Needle (CD¹ m) = (Needle m, ℝ)
-  CD¹ h₀ m₀ .+~^ (h₁δm, δh)
-      = let h₁ = min 1 . max 1e-300 $ h₀+δh; δm = h₁δm^/h₁
-        in CD¹ h₁ (m₀.+~^δm)
-instance (PseudoAffine m, VectorSpace (Needle m), Scalar (Needle m) ~ ℝ)
-             => PseudoAffine (CD¹ m) where
-  CD¹ h₁ m₁ .-~. CD¹ h₀ m₀
-     = fmap ( \δm -> (h₁*^δm, h₁-h₀) ) $ m₁.-~.m₀
+-- instance (PseudoAffine m, VectorSpace (Needle m), Scalar (Needle m) ~ ℝ)
+--              => Semimanifold (CD¹ m) where
+--   type Needle (CD¹ m) = (Needle m, ℝ)
+--   CD¹ h₀ m₀ .+~^ (h₁δm, δh)
+--       = let h₁ = min 1 . max 1e-300 $ h₀+δh; δm = h₁δm^/h₁
+--         in CD¹ h₁ (m₀.+~^δm)
+-- instance (PseudoAffine m, VectorSpace (Needle m), Scalar (Needle m) ~ ℝ)
+--              => PseudoAffine (CD¹ m) where
+--   CD¹ h₁ m₁ .-~. CD¹ h₀ m₀
+--      = fmap ( \δm -> (h₁*^δm, h₁-h₀) ) $ m₁.-~.m₀
                                
 
 

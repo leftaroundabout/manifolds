@@ -230,8 +230,7 @@ shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs) = case extractJust tryMerge shs
            | otherwise  = Nothing
 shadesMerge _ shs = shs
 
-minusLogOcclusion :: (PseudoAffine x, HasMetric (Needle x)
-             , s ~ (Scalar (Needle x)), RealDimension s )
+minusLogOcclusion :: ( Manifold x, s ~ (Scalar (Needle x)), RealDimension s )
                 => Shade x -> x -> s
 minusLogOcclusion (Shade p₀ δ) = occ
  where occ p = case p .-~. p₀ of
@@ -240,8 +239,7 @@ minusLogOcclusion (Shade p₀ δ) = occ
        δinv = recipMetric δ
   
 -- | Check the statistical likelyhood of a point being within a shade.
-occlusion :: (PseudoAffine x, HasMetric (Needle x)
-             , s ~ (Scalar (Needle x)), RealDimension s )
+occlusion :: ( Manifold x, s ~ (Scalar (Needle x)), RealDimension s )
                 => Shade x -> x -> s
 occlusion (Shade p₀ δ) = occ
  where occ p = case p .-~. p₀ of
