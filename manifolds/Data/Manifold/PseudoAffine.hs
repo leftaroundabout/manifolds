@@ -296,12 +296,18 @@ type Metric x = HerMetric (Needle x)
 type Metric' x = HerMetric' (Needle x)
 
 
--- | Interpolate between points, approximately linearly.
-palerp :: Manifold x
-    => x -> x -> Option (Scalar (Needle x) -> x)
-palerp p1 p2 = case p2 .-~. p1 of
-  Option (Just v) | Option (Just p1') <- toInterior p1
-      -> return $ \t -> p1' .+~^ t *^ v
+-- | Interpolate between points, approximately linearly. For
+--   points that aren't close neighbours (i.e. lie in an almost
+--   flat region), the pathway is basically undefined – save for
+--   its end points.
+-- 
+--   A proper, really well-defined (on global scales) interpolation
+--   only makes sense on a Riemannian manifold, as geodesics.
+--   This is a task to be tackled in the future.
+palerp :: ∀ x. Manifold x
+    => Interior x -> Interior x -> Option (Scalar (Needle x) -> x)
+palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
+  Option (Just v) -> return $ \t -> p1 .+~^ t *^ v
   _ -> Hask.empty
 
 
