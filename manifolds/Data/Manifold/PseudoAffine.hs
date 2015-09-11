@@ -410,6 +410,20 @@ instance PseudoAffine S¹ where
      | otherwise   = pure δφ
    where δφ = φ₁ - φ₀
 
+instance Semimanifold D¹ where
+  type Needle D¹ = ℝ
+  type Interior D¹ = ℝ
+  fromInterior = D¹ . tanh
+  toInterior (D¹ x) | abs x < 1  = return $ atanh x
+                    | otherwise  = Hask.empty
+  translateP = Tagged (+)
+instance PseudoAffine D¹ where
+  D¹ 1 .-~. _ = Hask.empty
+  D¹ (-1) .-~. _ = Hask.empty
+  D¹ x .-~. y
+    | abs x < 1  = return $ atanh x - y
+    | otherwise  = Hask.empty
+
 instance Semimanifold S² where
   type Needle S² = ℝ²
   fromInterior = id
