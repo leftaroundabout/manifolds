@@ -85,8 +85,11 @@ import Data.Foldable.Constrained
 #define deriveAffine(c,t)                \
 instance (c) => Semimanifold (t) where {  \
   type Needle (t) = Diff (t);              \
-  (.+~^) = (.+^) };                         \
-instance (c) => PseudoAffine (t) where {     \
+  fromInterior = id;                        \
+  toInterior = pure;                         \
+  translateP = Tagged (.+~^);                 \
+  (.+~^) = (.+^) };                            \
+instance (c) => PseudoAffine (t) where {        \
   a.-~.b = pure (a.-.b);      }
 
 
@@ -154,19 +157,12 @@ s1nF = \f -> Stiefel1Needle $ HMat.fromList [f $ basisValue b | b <- cb]
 
 instance (WithField k LinearManifold v, Real k) => Semimanifold (Stiefel1 v) where 
   type Needle (Stiefel1 v) = Stiefel1Needle v
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
   Stiefel1 s .+~^ Stiefel1Needle n = Stiefel1 . fromPackedVector . HMat.scale (signum s'i)
    $ if| ν==0      -> s' -- ν'≡0 is a special case of this, so we can otherwise assume ν'>0.
--- --  | ν<=1      -> let -- κ = (-1 − 1/(ν−1)) / ν'
---                        -- m ∝         spro +         κ · n
---                        --   ∝ (1−ν) · spro + (1−ν) · κ · n
---                        --   = (1−ν) · spro + (-(1−ν) − -1)/ν' · n
---                        m = HMat.scale (1-ν) spro + HMat.scale (ν/ν') n
---                    in insi (1-ν) m
-       | ν<=2      -> let -- κ = (1/(ν−1) − 1) / ν'
-                          -- m ∝       - spro +         κ · n
-                          --   ∝ (1−ν) · spro + (ν−1) · κ · n
-                          --   = (1−ν) · spro + (1 − (ν−1))/ν' · n
-                          m = HMat.scale ιmν spro + HMat.scale ((1-abs ιmν)/ν') n
+       | ν<=2      -> let m = HMat.scale ιmν spro + HMat.scale ((1-abs ιmν)/ν') n
                           ιmν = 1-ν 
                       in insi ιmν m
        | otherwise -> let m = HMat.scale ιmν spro + HMat.scale ((abs ιmν-1)/ν') n
@@ -190,8 +186,7 @@ instance (WithField k LinearManifold v, Real k) => PseudoAffine (Stiefel1 v) whe
             s'i | v <- HMat.scale (recip s'i) delis - tpro
                 , absv <- l2norm v
                 , absv > 0
-                       -> let μ -- = (1 − recip (|v| + 1)) / |v| for sgn sᵢ = sgn tᵢ
-                                   = (signum (t'i/s'i) - recip(absv + 1)) / absv
+                       -> let μ = (signum (t'i/s'i) - recip(absv + 1)) / absv
                           in HMat.scale μ v
                 | t'i/s'i > 0  -> samePoint
                 | otherwise    -> antipode

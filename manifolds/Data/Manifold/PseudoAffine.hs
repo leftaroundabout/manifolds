@@ -151,7 +151,7 @@ class ( AdditiveGroup (Needle x), Interior (Interior x) ~ Interior x )
   --   only, this is not possible because it only consists of non-injective type families.
   --   The solution is this tagged signature, which is of course rather unwieldy. That's
   --   why '.+~^' has the stronger, but easier usable signature. Without boundary, these
-  --   functions should be equivalent.
+  --   functions should be equivalent, i.e. @translateP = Tagged (.+~^)@.
   translateP :: Tagged x (Interior x -> Needle x -> Interior x)
   
   -- | Shorthand for @\\p v -> p .+~^ 'negateV' v@, which should obey the /asymptotic/ law
@@ -309,8 +309,11 @@ palerp p1 p2 = case p2 .-~. p1 of
 #define deriveAffine(t)          \
 instance Semimanifold (t) where { \
   type Needle (t) = Diff (t);      \
-  (.+~^) = (.+^) };                 \
-instance PseudoAffine (t) where {    \
+  fromInterior = id;                \
+  toInterior = pure;                 \
+  translateP = Tagged (.+^);          \
+  (.+~^) = (.+^) };                    \
+instance PseudoAffine (t) where {       \
   a.-~.b = pure (a.-.b);      }
 
 deriveAffine(Double)
@@ -318,8 +321,11 @@ deriveAffine(Rational)
 
 instance Semimanifold (ZeroDim k) where
   type Needle (ZeroDim k) = ZeroDim k
+  fromInterior = id
+  toInterior = pure
   Origin .+~^ Origin = Origin
   Origin .-~^ Origin = Origin
+  translateP = Tagged (.+~^)
 instance PseudoAffine (ZeroDim k) where
   Origin .-~. Origin = pure Origin
 
@@ -328,6 +334,16 @@ instance (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
   type Interior (a,b) = (Interior a, Interior b)
   (a,b).+~^(v,w) = (a.+~^v, b.+~^w)
   (a,b).-~^(v,w) = (a.-~^v, b.-~^w)
+  fromInterior (i,j) = (fromInterior i, fromInterior j)
+  toInterior (a,b) = fzip (toInterior a, toInterior b)
+  translateP = tp
+   where tp :: ∀ a b . (Semimanifold a, Semimanifold b)
+                     => Tagged (a,b) ( (Interior a, Interior b) 
+                                    -> (Needle a, Needle b)
+                                    -> (Interior a, Interior b) )
+         tp = Tagged $ \(a,b) (v,w) -> (ta a v, tb b w)
+          where Tagged ta = translateP :: Tagged a (Interior a -> Needle a -> Interior a)
+                Tagged tb = translateP :: Tagged b (Interior b -> Needle b -> Interior b)
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   (a,b).-~.(c,d) = liftA2 (,) (a.-~.c) (b.-~.d)
 
@@ -336,11 +352,25 @@ instance (Semimanifold a, Semimanifold b, Semimanifold c) => Semimanifold (a,b,c
   type Interior (a,b,c) = (Interior a, Interior b, Interior c)
   (a,b,c).+~^(v,w,x) = (a.+~^v, b.+~^w, c.+~^x)
   (a,b,c).-~^(v,w,x) = (a.-~^v, b.-~^w, c.-~^x)
+  fromInterior (i,j,k) = (fromInterior i, fromInterior j, fromInterior k)
+  toInterior (a,b,c) = liftA3 (,,) (toInterior a) (toInterior b) (toInterior c)
+  translateP = tp
+   where tp :: ∀ a b v . (Semimanifold a, Semimanifold b, Semimanifold c)
+                     => Tagged (a,b,c) ( (Interior a, Interior b, Interior c) 
+                                      -> (Needle a, Needle b, Needle c)
+                                      -> (Interior a, Interior b, Interior c) )
+         tp = Tagged $ \(a,b,c) (v,w,x) -> (ta a v, tb b w, tc c x)
+          where Tagged ta = translateP :: Tagged a (Interior a -> Needle a -> Interior a)
+                Tagged tb = translateP :: Tagged b (Interior b -> Needle b -> Interior b)
+                Tagged tc = translateP :: Tagged c (Interior c -> Needle c -> Interior c)
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
   (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
 
 instance (MetricScalar a, KnownNat n) => Semimanifold (FreeVect n a) where
   type Needle (FreeVect n a) = FreeVect n a
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
   (.+~^) = (.+^)
 instance (MetricScalar a, KnownNat n) => PseudoAffine (FreeVect n a) where
   a.-~.b = pure (a.-.b)
@@ -348,6 +378,9 @@ instance (MetricScalar a, KnownNat n) => PseudoAffine (FreeVect n a) where
 
 instance Semimanifold S⁰ where
   type Needle S⁰ = ℝ⁰
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
   p .+~^ Origin = p
   p .-~^ Origin = p
 instance PseudoAffine S⁰ where
@@ -357,6 +390,9 @@ instance PseudoAffine S⁰ where
 
 instance Semimanifold S¹ where
   type Needle S¹ = ℝ
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
   S¹ φ₀ .+~^ δφ
      | φ' < 0     = S¹ $ φ' + tau
      | otherwise  = S¹ $ φ'
@@ -370,6 +406,9 @@ instance PseudoAffine S¹ where
 
 instance Semimanifold S² where
   type Needle S² = ℝ²
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
   S² ϑ₀ φ₀ .+~^ δv
      | ϑ₀ < pi/2  = sphereFold PositiveHalfSphere $ ϑ₀*^embed(S¹ φ₀) ^+^ δv
      | otherwise  = sphereFold NegativeHalfSphere $ (pi-ϑ₀)*^embed(S¹ φ₀) ^+^ δv
@@ -390,6 +429,9 @@ sphereFold hfSphere v
 
 instance Semimanifold ℝP² where
   type Needle ℝP² = ℝ²
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
   ℝP² r₀ φ₀ .+~^ (δr, δφ)
    | r₀ > 1/2   = case r₀ + δr of
                    r₁ | r₁ > 1     -> ℝP² (2-r₁) (toS¹range $ φ₀+δφ+pi)

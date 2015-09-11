@@ -148,6 +148,9 @@ shadeNarrowness f (Shade' c e) = fmap (Shade' c) $ f e
 
 instance (AffineManifold x) => Semimanifold (Shade x) where
   type Needle (Shade x) = Diff x
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
   Shade c e .+~^ v = Shade (c.+^v) e
   Shade c e .-~^ v = Shade (c.-^v) e
 
@@ -313,6 +316,9 @@ instance (NFData x, NFData (DualSpace (Needle x))) => NFData (DBranch x)
 -- | Experimental. There might be a more powerful instance possible.
 instance (AffineManifold x) => Semimanifold (ShadeTree x) where
   type Needle (ShadeTree x) = Diff x
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
   PlainLeaves xs .+~^ v = PlainLeaves $ (.+^v)<$>xs 
   OverlappingBranches n sh br .+~^ v
         = OverlappingBranches n (sh.+~^v)
@@ -461,6 +467,9 @@ instance (KnownNat n) => AffineSpace (BaryCoords n) where
   BaryCoords v .+^ w = BaryCoords $ v ^+^ w
 instance (KnownNat n) => Semimanifold (BaryCoords n) where
   type Needle (BaryCoords n) = FreeVect n ℝ
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
   (.+~^) = (.+^)
 instance (KnownNat n) => PseudoAffine (BaryCoords n) where
   (.-~.) = pure .: (.-.)
