@@ -88,13 +88,21 @@ import GHC.Generics (Generic)
 
 class PseudoAffine x => Geodesic x where
   geodesicBetween :: s ~ Scalar (Needle x)
-      => x -> x -> Option (Differentiable s s x)
+      => x -> x -> Option (D¹ -> x)
 
-#define deriveAffineGD(x)                 \
-instance Geodesic x where {              \
-  geodesicBetween a b = return $          \
-      alg (\t -> point a ^+^ t * point s)    \
-   where s = b - a;                         \
+
+
+#define deriveAffineGD(x)                                         \
+instance Geodesic x where {                                        \
+  geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹ \
  }
 
 deriveAffineGD(ℝ)
+
+instance (Geodesic a, Geodesic b) => Geodesic (a,b) where
+  geodesicBetween (a,b) (α,β) = liftA2 (&&&) (geodesicBetween a α) (geodesicBetween b β)
+
+instance (Geodesic a, Geodesic b, Geodesic c) => Geodesic (a,b,c) where
+  geodesicBetween (a,b,c) (α,β,γ)
+      = liftA3 (\ia ib ic t -> (ia t, ib t, ic t))
+           (geodesicBetween a α) (geodesicBetween b β) (geodesicBetween c γ)
