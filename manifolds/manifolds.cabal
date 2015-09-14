@@ -70,6 +70,7 @@ Library
                      Data.Manifold.Griddable
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive
+                   Data.Manifold.Cone
                    Data.Manifold.Riemannian
                    Data.CoNat
                    Data.Embedding
