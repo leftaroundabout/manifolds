@@ -37,7 +37,7 @@ module Data.Manifold.Types.Primitive (
         , Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
         -- * Linear manifolds
-        , ZeroDim(..)
+        , ZeroDim(..), isoAttachZeroDim
         , ℝ⁰, ℝ, ℝ², ℝ³
         -- * Hyperspheres
         , S⁰(..), S¹(..), S²(..)
@@ -68,6 +68,8 @@ import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
+
+import Data.Embedding
 
 
 
@@ -102,6 +104,13 @@ instance HasBasis (ZeroDim k) where
   basisValue = absurd
   decompose Origin = []
   decompose' Origin = absurd
+
+{-# INLINE isoAttachZeroDim #-}
+isoAttachZeroDim :: ( WellPointed c, UnitObject c ~ (), ObjectPair c a ()
+                    , Object c (ZeroDim k), ObjectPair c a (ZeroDim k)
+                    , PointObject c (ZeroDim k) )
+                       => Isomorphism c a (a, ZeroDim k)
+isoAttachZeroDim = second (Isomorphism (const Origin) terminal) . attachUnit
 
 -- | The zero-dimensional sphere is actually just two points. Implementation might
 --   therefore change to @ℝ⁰ 'Control.Category.Constrained.+' ℝ⁰@: the disjoint sum of two
