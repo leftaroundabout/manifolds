@@ -146,16 +146,16 @@ instance ConeSemimfd S⁰ where
   toCD¹Interior (CD¹ x PositiveHalfSphere) = return $ bijectIntvtoℝ x
   toCD¹Interior (CD¹ x NegativeHalfSphere) = return $ -bijectℝtoIntv x
 
--- instance ConeSemimfd S¹ where
---   type CℝayInterior S¹ = ℝ²
---   fromCℝayInterior (x,y) = Cℝay r (S¹ $ atan2 y x)
---    where r = sqrt (x^2 + y^2)
---   toCℝayInterior (Cℝay r (S¹ φ)) = return (r * cos φ, r * sin φ)
---   fromCD¹Interior x | x>0        = CD¹ (bijectℝtoIntv x) PositiveHalfSphere
---                     | otherwise  = CD¹ (-bijectℝtoIntv x) NegativeHalfSphere
---   toCD¹Interior (CD¹ 1 _) = Hask.empty
---   toCD¹Interior (CD¹ x PositiveHalfSphere) = return $ bijectIntvtoℝ x
---   toCD¹Interior (CD¹ x NegativeHalfSphere) = return $ -bijectℝtoIntv x
+instance ConeSemimfd S¹ where
+  type CℝayInterior S¹ = ℝ²
+  coneNeedle = Tagged id
+  fromCℝayInterior (x,y) = Cℝay r (S¹ $ atan2 y x)
+   where r = sqrt (x^2 + y^2)
+  toCℝayInterior (Cℝay r (S¹ φ)) = return (r * cos φ, r * sin φ)
+  fromCD¹Interior (x,y) = CD¹ (bijectℝtoIntv $ sqrt (x^2 + y^2)) (S¹ $ atan2 y x)
+  toCD¹Interior (CD¹ 1 _) = Hask.empty
+  toCD¹Interior (CD¹ r (S¹ φ)) = return (r' * cos φ, r' * sin φ)
+   where r' = bijectIntvtoℝ r
 
 -- instance (ConeSemimfd a, ConeSemimfd b) => ConeSemimfd (a,b) where
 --   type CℝayInterior (a,b) = (CℝayInterior 
