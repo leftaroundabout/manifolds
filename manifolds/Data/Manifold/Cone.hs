@@ -70,14 +70,20 @@ type ConeNeedle m = (ℝ, Needle m)
 class ( Semimanifold m, Semimanifold (CℝayInterior m)
       , Interior (CℝayInterior m) ~ CℝayInterior m )
            => ConeSemimfd m where
-  {-# MINIMAL fromCℝayInterior, fromCD¹Interior
-            , toCℝayInterior  , toCD¹Interior  , coneNeedle #-}
+  {-# MINIMAL (fromCℝayInterior | fromCD¹Interior)
+            , (toCℝayInterior | toCD¹Interior)
+            , coneNeedle #-}
   type CℝayInterior m :: *
   
   fromCℝayInterior :: CℝayInterior m -> Cℝay m
+  fromCℝayInterior = projCD¹ToCℝay . fromCD¹Interior
   fromCD¹Interior :: CℝayInterior m -> CD¹ m
+  fromCD¹Interior = embCℝayToCD¹ . fromCℝayInterior
+  
   toCℝayInterior :: Cℝay m -> Option (CℝayInterior m)
+  toCℝayInterior = toCD¹Interior . embCℝayToCD¹
   toCD¹Interior :: CD¹ m -> Option (CℝayInterior m)
+  toCD¹Interior = toCℝayInterior . projCD¹ToCℝay
   
   coneNeedle :: Tagged m ( Isomorphism (->) (Needle (CℝayInterior m)) (ConeNeedle m) )
   
@@ -123,13 +129,14 @@ instance ConeSemimfd ℝ where
   type CℝayInterior ℝ = ℝ²
   coneNeedle = Tagged id
   fromCℝayInterior (q,b) = Cℝay (q'+b') (q'-b')
-   where [q', b'] = bijectℝtoℝplus <$> [q,b]
+   where [q', b'] = ((/2) . bijectℝtoℝplus) <$> [q,b]
+  toCℝayInterior (Cℝay 0 _) = Hask.empty
   toCℝayInterior (Cℝay h x) = pure (q,b)
-   where [q, b] = (bijectℝplustoℝ . (/2)) <$> [h+x, h-x]
+   where [q, b] = bijectℝplustoℝ <$> [h+x, h-x]
   fromCD¹Interior (q,b) = CD¹ (bijectℝplustoIntv $ q'+b') (q'-b')
-   where [q', b'] = bijectℝtoℝplus <$> [q,b]
+   where [q', b'] = ((/2) . bijectℝtoℝplus) <$> [q,b]
   toCD¹Interior (CD¹ h x) = pure (q,b)
-   where [q, b] = (bijectℝplustoℝ . (/2)) <$> [h+x, h-x]
+   where [q, b] = bijectℝplustoℝ <$> [h+x, h-x]
          h' = bijectIntvtoℝplus h
   cℝayTranslateP = Tagged (^+^)
 
@@ -157,20 +164,30 @@ instance ConeSemimfd S¹ where
   toCD¹Interior (CD¹ r (S¹ φ)) = return (r' * cos φ, r' * sin φ)
    where r' = bijectIntvtoℝ r
 
--- instance (ConeSemimfd a, ConeSemimfd b) => ConeSemimfd (a,b) where
---   type CℝayInterior (a,b) = (CℝayInterior 
---   fromCℝayInterior (q,b) = Cℝay (q'+b') (q'-b')
---    where [q', b'] = bijectℝtoℝplus <$> [q,b]
---   toCℝayInterior (Cℝay h x) = pure (q,b)
---    where [q, b] = (bijectℝplustoℝ . (/2)) <$> [h+x, h-x]
---   fromCD¹Interior (q,b) = CD¹ (bijectℝplustoIntv $ q'+b') (q'-b')
---    where [q', b'] = bijectℝtoℝplus <$> [q,b]
---   toCD¹Interior (CD¹ h x) = pure (q,b)
---    where [q, b] = (bijectℝplustoℝ . (/2)) <$> [h+x, h-x]
---          h' = bijectIntvtoℝplus h
---   cℝayTranslateP = Tagged (^+^)
+-- | Products of simply connected spaces.
+instance ( PseudoAffine x, PseudoAffine y
+         , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y) )
+                => ConeSemimfd (x,y) where
+  type CℝayInterior (x,y) = (ℝ, (Interior x, Interior y))
+  
+  coneNeedle = Tagged id
+  
+  fromCℝayInterior ri = Cℝay h . fromInterior . fromPackedVector
+                         $ subtract (h/n) `Arr.map` Arr.tail cmps
+   where h = Arr.sum cmps
+         cmps = bijectℝtoℝplus `HMat.cmap` asPackedVector ri
+         n = fromIntegral $ Arr.length cmps
+  
+  toCℝayInterior (Cℝay h v) | h/=0, Option (Just vi) <- toInterior v 
+   = let cmps'' = asPackedVector vi
+         cmps' = (+ h/n) `HMat.cmap` cmps''
+         cmps = (h - Arr.sum cmps') `Arr.cons` cmps
+         n = fromIntegral $ Arr.length cmps
+     in return $ fromPackedVector (bijectℝplustoℝ `Arr.map` cmps)
+  toCℝayInterior (Cℝay _ _) = Hask.empty
 
 
+-- Some essential homeomorphisms
 bijectℝtoℝplus      , bijectℝplustoℝ
  , bijectIntvtoℝplus, bijectℝplustoIntv
  ,     bijectIntvtoℝ, bijectℝtoIntv
@@ -179,7 +196,7 @@ bijectℝtoℝplus      , bijectℝplustoℝ
 bijectℝplustoℝ x = x - 1/x
 bijectℝtoℝplus y = y/2 + sqrt(y^2/4 + 1)
 
--- ]0, 1[ ↔ ℝ⁺
+-- [0, 1[ ↔ ℝ⁺
 bijectℝplustoIntv y = 1 - recip (y+1)
 bijectIntvtoℝplus x = recip(1-x) - 1
 
@@ -190,6 +207,12 @@ bijectℝtoIntv y | y>0        = -1/(2*y) + sqrt(1/(4*y^2) + 1)
                  -- 0 = x² + x/y - 1
                  -- x = -1/2y ± sqrt(1/4y² + 1)
 bijectIntvtoℝ x = x / (1-x^2)
+
+embCℝayToCD¹ :: Cℝay m -> CD¹ m
+embCℝayToCD¹ (Cℝay h m) = CD¹ (bijectℝplustoIntv h) m
+
+projCD¹ToCℝay :: CD¹ m -> Cℝay m
+projCD¹ToCℝay (CD¹ h m) = Cℝay (bijectIntvtoℝplus h) m
 
 -- instance (WithScalar ℝ PseudoAffine m) => Semimanifold (Cℝay m) where
 --   type Needle (Cℝay m) = (Needle m, ℝ)

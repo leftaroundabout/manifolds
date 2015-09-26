@@ -190,7 +190,8 @@ class ( AdditiveGroup (Needle x), Interior (Interior x) ~ Interior x )
 --   manifolds in their usual maths definition (with an atlas of charts: a family of
 --   overlapping regions of the topological space, each homeomorphic to the 'Needle'
 --   vector space or some simply-connected subset thereof).
-class (Semimanifold x, Semimanifold (Interior x), Interior (Interior x) ~ Interior x)
+class ( Semimanifold x, Semimanifold (Interior x)
+      , Needle (Interior x) ~ Needle x, Interior (Interior x) ~ Interior x)
         => PseudoAffine x where
   -- | The path reaching from one point to another.
   --   Should only yield 'Nothing' if
