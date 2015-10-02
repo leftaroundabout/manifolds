@@ -938,6 +938,58 @@ sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
 sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `OverlappingBranches`"
 
 
+
+-- | Essentially the same as @(x,y)@, but not considered as a product topology.
+--   The 'Semimanifold' etc. instances just copy the topology of @x@, ignoring @y@.
+data x`WithAny`y = WithAny y x
+ deriving (Hask.Functor)
+
+instance (Semimanifold x) => Semimanifold (x`WithAny`y) where
+  type Needle (WithAny x y) = Needle x
+  type Interior (WithAny x y) = Interior x `WithAny` y
+  WithAny y x .+~^ δx = WithAny y $ x.+~^δx
+  fromInterior (WithAny y x) = WithAny y $ fromInterior x
+  toInterior (WithAny y x) = fmap (WithAny y) $ toInterior x
+  translateP = tpWD
+   where tpWD :: ∀ x y . Semimanifold x => Tagged (WithAny x y)
+                            (Interior x`WithAny`y -> Needle x -> Interior x`WithAny`y)
+         tpWD = Tagged `id` \(WithAny y x) δx -> WithAny y $ tpx x δx
+          where Tagged tpx = translateP :: Tagged x (Interior x -> Needle x -> Interior x)
+            
+instance (PseudoAffine x) => PseudoAffine (x`WithAny`y) where
+  WithAny _ x .-~. WithAny _ ξ = x.-~.ξ
+
+instance (AffineSpace x) => AffineSpace (x`WithAny`y) where
+  type Diff (WithAny x y) = Diff x
+  WithAny _ x .-. WithAny _ ξ = x.-.ξ
+  WithAny y x .+^ δx = WithAny y $ x.+^δx 
+
+instance (VectorSpace x, Monoid y) => VectorSpace (x`WithAny`y) where
+  type Scalar (WithAny x y) = Scalar x
+  μ *^ WithAny y x = WithAny y $ μ*^x 
+
+instance (AdditiveGroup x, Monoid y) => AdditiveGroup (x`WithAny`y) where
+  zeroV = WithAny mempty zeroV
+  negateV (WithAny y x) = WithAny y $ negateV x
+  WithAny y x ^+^ WithAny υ ξ = WithAny (mappend y υ) (x^+^ξ)
+
+instance (AdditiveGroup x) => Hask.Applicative (WithAny x) where
+  pure x = WithAny x zeroV
+  WithAny f x <*> WithAny t ξ = WithAny (f t) (x^+^ξ)
+  
+instance (AdditiveGroup x) => Hask.Monad (WithAny x) where
+  return x = WithAny x zeroV
+  WithAny y x >>= f = WithAny r $ x^+^q
+   where WithAny r q = f y
+
+
+-- treeDensity :: WithField ℝ Manifold x => ShadeTree x -> x -> Metric x
+-- treeDensity (PlainLeaves lvs) | locShape
+
+
+
+
+
 foci :: [a] -> [(a,[a])]
 foci [] = []
 foci (x:xs) = (x,xs) : fmap (second (x:)) (foci xs)
