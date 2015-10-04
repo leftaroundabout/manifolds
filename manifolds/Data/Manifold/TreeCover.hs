@@ -991,15 +991,16 @@ shadeWithoutAnything (Shade (WithAny _ b) e) = Shade b e
 type x`Shaded`y = ShadeTree (x`WithAny`y)
 
 stiWithDensity :: (WithField ℝ Manifold x, WithField ℝ LinearManifold y)
-         => x`Shaded`y -> x -> (ℝ, y)
+         => x`Shaded`y -> x -> Cℝay y
 stiWithDensity (PlainLeaves lvs)
   | [locShape@(Shade baryc expa)] <- pointsShades $ _topological <$> lvs
        = let nlvs = fromIntegral $ length lvs :: ℝ
              indiShapes = [(Shade p expa, y) | WithAny y p <- lvs]
          in \x -> let lcCoeffs = [ occlusion psh x | (psh, _) <- indiShapes ]
-                  in case sum lcCoeffs of
-                      0 -> (0, linearCombo $ zip (snd<$>indiShapes) (repeat $ recip nlvs))
-                      η -> (η, linearCombo $ zip (snd<$>indiShapes) ((/η)<$>lcCoeffs) )
+                      dens = sum lcCoeffs
+                  in Cℝay dens . linearCombo . zip (snd<$>indiShapes)
+                       $ (/dens)<$>lcCoeffs
+-- stiWithDensity (DisjointBranches lvs)
 
 
 
