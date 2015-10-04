@@ -1000,7 +1000,9 @@ stiWithDensity (PlainLeaves lvs)
                       dens = sum lcCoeffs
                   in Cℝay dens . linearCombo . zip (snd<$>indiShapes)
                        $ (/dens)<$>lcCoeffs
--- stiWithDensity (DisjointBranches lvs)
+stiWithDensity (DisjointBranches _ lvs) = \x -> foldr1 qGather $ (`stiWithDensity`x)<$>lvs
+ where qGather (Cℝay 0 _) o = o
+       qGather o _ = o
 
 
 
