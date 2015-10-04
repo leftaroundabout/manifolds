@@ -941,7 +941,9 @@ sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `Overlappi
 
 -- | Essentially the same as @(x,y)@, but not considered as a product topology.
 --   The 'Semimanifold' etc. instances just copy the topology of @x@, ignoring @y@.
-data x`WithAny`y = WithAny y x
+data x`WithAny`y
+      = WithAny { _untopological :: y
+                , _topological :: !x  }
  deriving (Hask.Functor)
 
 instance (Semimanifold x) => Semimanifold (x`WithAny`y) where
@@ -982,9 +984,22 @@ instance (AdditiveGroup x) => Hask.Monad (WithAny x) where
   WithAny y x >>= f = WithAny r $ x^+^q
    where WithAny r q = f y
 
+shadeWithoutAnything :: Shade (x`WithAny`y) -> Shade x
+shadeWithoutAnything (Shade (WithAny _ b) e) = Shade b e
 
--- treeDensity :: WithField ℝ Manifold x => ShadeTree x -> x -> Metric x
--- treeDensity (PlainLeaves lvs) | locShape
+-- | This is to 'ShadeTree' as 'Data.Map.Map' is to 'Data.Set.Set'.
+type x`Shaded`y = ShadeTree (x`WithAny`y)
+
+stiWithDensity :: (WithField ℝ Manifold x, WithField ℝ LinearManifold y)
+         => x`Shaded`y -> x -> (ℝ, y)
+stiWithDensity (PlainLeaves lvs)
+  | [locShape@(Shade baryc expa)] <- pointsShades $ _topological <$> lvs
+       = let nlvs = fromIntegral $ length lvs :: ℝ
+             indiShapes = [(Shade p expa, y) | WithAny y p <- lvs]
+         in \x -> let lcCoeffs = [ occlusion psh x | (psh, _) <- indiShapes ]
+                  in case sum lcCoeffs of
+                      0 -> (0, linearCombo $ zip (snd<$>indiShapes) (repeat $ recip nlvs))
+                      η -> (η, linearCombo $ zip (snd<$>indiShapes) ((/η)<$>lcCoeffs) )
 
 
 
