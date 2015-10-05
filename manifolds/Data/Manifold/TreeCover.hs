@@ -275,11 +275,6 @@ instance Foldable Hourglass (->) (->) where
 flipHour :: Hourglass s -> Hourglass s
 flipHour (Hourglass u l) = Hourglass l u
 
-newtype Hourglasses s = Hourglasses {
-             getHourglasses :: NonEmpty (Hourglass s) }
-    deriving (Generic, Hask.Functor, Hask.Foldable)
-instance (NFData s) => NFData (Hourglasses s)
-
 data HourglassBulb = UpperBulb | LowerBulb
 oneBulb :: HourglassBulb -> (a->a) -> Hourglass a->Hourglass a
 oneBulb UpperBulb f (Hourglass u l) = Hourglass (f u) l
@@ -990,7 +985,7 @@ shadeWithoutAnything (Shade (WithAny _ b) e) = Shade b e
 -- | This is to 'ShadeTree' as 'Data.Map.Map' is to 'Data.Set.Set'.
 type x`Shaded`y = ShadeTree (x`WithAny`y)
 
-stiWithDensity :: (WithField ℝ Manifold x, WithField ℝ LinearManifold y)
+stiWithDensity :: (WithField ℝ Manifold x, WithField ℝ HilbertSpace y)
          => x`Shaded`y -> x -> Cℝay y
 stiWithDensity (PlainLeaves lvs)
   | [locShape@(Shade baryc expa)] <- pointsShades $ _topological <$> lvs
@@ -1003,9 +998,26 @@ stiWithDensity (PlainLeaves lvs)
 stiWithDensity (DisjointBranches _ lvs) = \x -> foldr1 qGather $ (`stiWithDensity`x)<$>lvs
  where qGather (Cℝay 0 _) o = o
        qGather o _ = o
+stiWithDensity (OverlappingBranches n (Shade (WithAny _ bc) extend) brs) = ovbSWD
+ where ovbSWD x = case x .-~. bc of
+           Option (Just v)
+             | dist² <- metricSq ε v
+             , dist² < 9
+             , att <- exp(1/(dist²-9)+1/9)
+               -> qGather att $ fmap ($x) downPrepared
+           _ -> coneTip
+       ε = recipMetric extend
+       downPrepared = dp =<< brs
+        where dp (DBranch _ (Hourglass up dn))
+                 = fmap stiWithDensity $ up:|[dn]
+       qGather att contribs = Cℝay dens
+                 $ linearCombo [(v, d/dens) | Cℝay d v <- NE.toList contribs]
+        where dens = att * sum (hParamCℝay <$> contribs)
 
 
 
+coneTip :: (AdditiveGroup v) => Cℝay v
+coneTip = Cℝay 0 zeroV
 
 
 foci :: [a] -> [(a,[a])]
