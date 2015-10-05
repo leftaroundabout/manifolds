@@ -237,7 +237,9 @@ minusLogOcclusion :: ( Manifold x, s ~ (Scalar (Needle x)), RealDimension s )
                 => Shade x -> x -> s
 minusLogOcclusion (Shade p₀ δ) = occ
  where occ p = case p .-~. p₀ of
-         Option(Just vd) -> metricSq δinv vd
+         Option(Just vd) | mSq <- metricSq δinv vd
+                         , mSq == mSq  -- avoid NaN
+                         -> mSq
          _               -> 1/0
        δinv = recipMetric δ
   
@@ -246,7 +248,9 @@ occlusion :: ( Manifold x, s ~ (Scalar (Needle x)), RealDimension s )
                 => Shade x -> x -> s
 occlusion (Shade p₀ δ) = occ
  where occ p = case p .-~. p₀ of
-         Option(Just vd) -> exp . negate $ metricSq δinv vd
+         Option(Just vd) | mSq <- metricSq δinv vd
+                         , mSq == mSq  -- avoid NaN
+                         -> exp (negate mSq)
          _               -> zeroV
        δinv = recipMetric δ
 
@@ -993,8 +997,9 @@ stiWithDensity (PlainLeaves lvs)
              indiShapes = [(Shade p expa, y) | WithAny y p <- lvs]
          in \x -> let lcCoeffs = [ occlusion psh x | (psh, _) <- indiShapes ]
                       dens = sum lcCoeffs
+                      recipDens = case dens of {0 -> 0; x -> recip x}
                   in Cℝay dens . linearCombo . zip (snd<$>indiShapes)
-                       $ (/dens)<$>lcCoeffs
+                       $ (*recipDens)<$>lcCoeffs
 stiWithDensity (DisjointBranches _ lvs)
            = \x -> foldr1 qGather $ (`stiWithDensity`x)<$>lvs
  where qGather (Cℝay 0 _) o = o
@@ -1012,8 +1017,9 @@ stiWithDensity (OverlappingBranches n (Shade (WithAny _ bc) extend) brs) = ovbSW
         where dp (DBranch _ (Hourglass up dn))
                  = fmap stiWithDensity $ up:|[dn]
        qGather att contribs = Cℝay dens
-                 $ linearCombo [(v, d/dens) | Cℝay d v <- NE.toList contribs]
+                 $ linearCombo [(v, d*recipDens) | Cℝay d v <- NE.toList contribs]
         where dens = att * sum (hParamCℝay <$> contribs)
+              recipDens = case dens of {0 -> 0; x -> recip x}
 
 
 smoothInterpolate :: (WithField ℝ Manifold x, WithField ℝ LinearManifold y)
