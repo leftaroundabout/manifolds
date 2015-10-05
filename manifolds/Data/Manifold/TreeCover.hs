@@ -997,9 +997,8 @@ stiWithDensity (PlainLeaves lvs)
              indiShapes = [(Shade p expa, y) | WithAny y p <- lvs]
          in \x -> let lcCoeffs = [ occlusion psh x | (psh, _) <- indiShapes ]
                       dens = sum lcCoeffs
-                      recipDens = case dens of {0 -> 0; x -> recip x}
-                  in Cℝay dens . linearCombo . zip (snd<$>indiShapes)
-                       $ (*recipDens)<$>lcCoeffs
+                  in mkCone dens . linearCombo . zip (snd<$>indiShapes)
+                       $ (/dens)<$>lcCoeffs
 stiWithDensity (DisjointBranches _ lvs)
            = \x -> foldr1 qGather $ (`stiWithDensity`x)<$>lvs
  where qGather (Cℝay 0 _) o = o
@@ -1016,10 +1015,9 @@ stiWithDensity (OverlappingBranches n (Shade (WithAny _ bc) extend) brs) = ovbSW
        downPrepared = dp =<< brs
         where dp (DBranch _ (Hourglass up dn))
                  = fmap stiWithDensity $ up:|[dn]
-       qGather att contribs = Cℝay dens
-                 $ linearCombo [(v, d*recipDens) | Cℝay d v <- NE.toList contribs]
-        where dens = att * sum (hParamCℝay <$> contribs)
-              recipDens = case dens of {0 -> 0; x -> recip x}
+       qGather att contribs = mkCone (att*dens)
+                 $ linearCombo [(v, d/dens) | Cℝay d v <- NE.toList contribs]
+        where dens = sum (hParamCℝay <$> contribs)
 
 
 smoothInterpolate :: (WithField ℝ Manifold x, WithField ℝ LinearManifold y)
@@ -1036,6 +1034,10 @@ smoothInterpolate l = \x ->
 
 coneTip :: (AdditiveGroup v) => Cℝay v
 coneTip = Cℝay 0 zeroV
+
+mkCone :: AdditiveGroup v => ℝ -> v -> Cℝay v
+mkCone 0 _ = coneTip
+mkCone h v = Cℝay h v
 
 
 foci :: [a] -> [(a,[a])]
