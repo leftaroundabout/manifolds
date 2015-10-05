@@ -44,14 +44,14 @@ module Data.Manifold.TreeCover (
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
-       , sShSaw, chainsaw, HasFlatView(..), shadesMerge
+       , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
        , AutoTriang, elementaryTriang, breakdownAutoTriang
     ) where
 
 
-import Data.List hiding (filter, all, elem, sum)
+import Data.List hiding (filter, all, elem, sum, foldr1)
 import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.Vector as Arr
@@ -89,14 +89,14 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
-import Data.Foldable (all, elem, toList, sum)
+import Data.Foldable (all, elem, toList, sum, foldr1)
 import qualified Data.Traversable as Hask
 import Data.Traversable (forM)
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import Control.Category.Constrained.Prelude hiding
-     ((^), all, elem, sum, forM, Foldable(..), Traversable)
+     ((^), all, elem, sum, forM, Foldable(..), foldr1, Traversable)
 import Control.Arrow.Constrained
 import Control.Monad.Constrained hiding (forM)
 import Data.Foldable.Constrained
@@ -985,7 +985,7 @@ shadeWithoutAnything (Shade (WithAny _ b) e) = Shade b e
 -- | This is to 'ShadeTree' as 'Data.Map.Map' is to 'Data.Set.Set'.
 type x`Shaded`y = ShadeTree (x`WithAny`y)
 
-stiWithDensity :: (WithField ℝ Manifold x, WithField ℝ HilbertSpace y)
+stiWithDensity :: (WithField ℝ Manifold x, WithField ℝ LinearManifold y)
          => x`Shaded`y -> x -> Cℝay y
 stiWithDensity (PlainLeaves lvs)
   | [locShape@(Shade baryc expa)] <- pointsShades $ _topological <$> lvs
@@ -995,7 +995,8 @@ stiWithDensity (PlainLeaves lvs)
                       dens = sum lcCoeffs
                   in Cℝay dens . linearCombo . zip (snd<$>indiShapes)
                        $ (/dens)<$>lcCoeffs
-stiWithDensity (DisjointBranches _ lvs) = \x -> foldr1 qGather $ (`stiWithDensity`x)<$>lvs
+stiWithDensity (DisjointBranches _ lvs)
+           = \x -> foldr1 qGather $ (`stiWithDensity`x)<$>lvs
  where qGather (Cℝay 0 _) o = o
        qGather o _ = o
 stiWithDensity (OverlappingBranches n (Shade (WithAny _ bc) extend) brs) = ovbSWD
@@ -1014,6 +1015,17 @@ stiWithDensity (OverlappingBranches n (Shade (WithAny _ bc) extend) brs) = ovbSW
                  $ linearCombo [(v, d/dens) | Cℝay d v <- NE.toList contribs]
         where dens = att * sum (hParamCℝay <$> contribs)
 
+
+smoothInterpolate :: (WithField ℝ Manifold x, WithField ℝ LinearManifold y)
+             => NonEmpty (x,y) -> x -> y
+smoothInterpolate l = \x ->
+             case ltr x of
+               Cℝay 0 _ -> defy
+               Cℝay _ y -> y
+ where defy = linearCombo [(y, 1/n) | WithAny y _ <- l']
+       n = fromIntegral $ length l'
+       l' = (uncurry WithAny . swap) <$> NE.toList l
+       ltr = stiWithDensity $ fromLeafPoints l'
 
 
 coneTip :: (AdditiveGroup v) => Cℝay v
