@@ -118,19 +118,19 @@ data PSM x = PSM {
 -- 
 --   For a /precise/ description of an arbitrarily-shaped connected subset of a manifold,
 --   there is 'Region', whose implementation is vastly more complex.
-data Shade x = Shade { _shadeCtr :: !x
+data Shade x = Shade { _shadeCtr :: !(Interior x)
                      , _shadeExpanse :: !(Metric' x) }
 
 -- | A &#x201c;co-shade&#x201d; can describe ellipsoid regions as well, but unlike
 --   'Shade' it can be unlimited / infinitely wide in some directions.
 --   It does OTOH need to have nonzero thickness, which 'Shade' needs not.
-data Shade' x = Shade' { _shade'Ctr :: !x
+data Shade' x = Shade' { _shade'Ctr :: !(Interior x)
                        , _shade'Narrowness :: !(Metric x) }
 
 class IsShade shade where
 --  type (*) shade :: *->*
   -- | Access the center of a 'Shade' or a 'Shade''.
-  shadeCtr :: Functor f (->) (->) => (x->f x) -> shade x -> f (shade x)
+  shadeCtr :: Functor f (->) (->) => (Interior x->f (Interior x)) -> shade x -> f (shade x)
 --  -- | Convert between 'Shade' and 'Shade' (which must be neither singular nor infinite).
 --  unsafeDualShade :: WithField ℝ Manifold x => shade x -> shade* x
 

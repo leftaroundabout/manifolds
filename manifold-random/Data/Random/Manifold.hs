@@ -30,7 +30,7 @@ instance D_S x => Distribution Shade x where
   rvarT (Shade c e) = shadeT' c e
 
 shadeT' :: (PseudoAffine x, HasMetric (Needle x), Scalar (Needle x) ~ ℝ)
-                      => x -> HerMetric' (Needle x) -> RVarT m x
+                      => Interior x -> HerMetric' (Needle x) -> RVarT m x
 shadeT' ctr expa = ((ctr.+~^) . sumV) <$> mapM (\v -> (v^*) <$> stdNormalT) eigSpan
    where eigSpan = eigenSpan expa
 
