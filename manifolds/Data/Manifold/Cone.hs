@@ -67,7 +67,8 @@ import Data.Embedding
 
 type ConeNeedle m = (ℝ, Needle m)
 
-class ( Semimanifold m, Semimanifold (CℝayInterior m)
+class ( Semimanifold m, Semimanifold (Interior (Interior m))
+      , Semimanifold (CℝayInterior m)
       , Interior (CℝayInterior m) ~ CℝayInterior m )
            => ConeSemimfd m where
   {-# MINIMAL (fromCℝayInterior | fromCD¹Interior)
@@ -169,22 +170,45 @@ instance ( PseudoAffine x, PseudoAffine y
          , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y) )
                 => ConeSemimfd (x,y) where
   type CℝayInterior (x,y) = (ℝ, (Interior x, Interior y))
-  
   coneNeedle = Tagged id
+  fromCℝayInterior = simplyCncted_fromCℝayInterior
+  toCℝayInterior = simplyCncted_toCℝayInterior
   
-  fromCℝayInterior ri = Cℝay h . fromInterior . fromPackedVector
+instance (ConeSemimfd x, PseudoAffine (Cℝay x), WithField ℝ HilbertSpace (CℝayInterior x))
+              => ConeSemimfd (Cℝay x) where
+  type CℝayInterior (Cℝay x) = (ℝ, CℝayInterior x)
+      
+  --coneNeedle ::     Needle (CℝayInterior m) <-> ConeNeedle m
+  --         ≡ Needle (CℝayInterior (Cℝay x)) <-> (ℝ, Needle (Cℝay x))
+  --         ≡     Needle (ℝ, CℝayInterior x) <-> (ℝ, ConeNeedle x)
+  --         ≡   (ℝ, Needle (CℝayInterior x)) <-> (ℝ, (ℝ, Needle x))
+  coneNeedle = coneConeNeedle
+   where coneConeNeedle :: ∀ x . (ConeSemimfd x)
+           => Tagged (Cℝay x) (Isomorphism (->) (ℝ, Needle (CℝayInterior x))
+                                                (ℝ, (ℝ, Needle x)) )
+         coneConeNeedle = Tagged $ second cn
+          where Tagged cn = coneNeedle
+                 :: Tagged x (Isomorphism (->) (Needle (CℝayInterior x)) (ConeNeedle x))
+  fromCℝayInterior = simplyCncted_fromCℝayInterior
+  toCℝayInterior = simplyCncted_toCℝayInterior
+  
+simplyCncted_fromCℝayInterior :: (PseudoAffine x, WithField ℝ HilbertSpace (Interior x))
+        => (ℝ, Interior x) -> Cℝay x
+simplyCncted_fromCℝayInterior ri = Cℝay h . fromInterior . fromPackedVector
                          $ subtract (h/n) `Arr.map` Arr.tail cmps
    where h = Arr.sum cmps
          cmps = bijectℝtoℝplus `HMat.cmap` asPackedVector ri
          n = fromIntegral $ Arr.length cmps
   
-  toCℝayInterior (Cℝay h v) | h/=0, Option (Just vi) <- toInterior v 
+simplyCncted_toCℝayInterior :: (PseudoAffine x, WithField ℝ HilbertSpace (Interior x))
+        => Cℝay x -> Option (ℝ, Interior x)
+simplyCncted_toCℝayInterior (Cℝay h v) | h/=0, Option (Just vi) <- toInterior v 
    = let cmps'' = asPackedVector vi
          cmps' = (+ h/n) `HMat.cmap` cmps''
          cmps = (h - Arr.sum cmps') `Arr.cons` cmps
          n = fromIntegral $ Arr.length cmps
      in return $ fromPackedVector (bijectℝplustoℝ `Arr.map` cmps)
-  toCℝayInterior (Cℝay _ _) = Hask.empty
+simplyCncted_toCℝayInterior (Cℝay _ _) = Hask.empty
 
 
 -- Some essential homeomorphisms
