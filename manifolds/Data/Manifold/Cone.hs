@@ -65,15 +65,14 @@ import Data.Foldable.Constrained
 import Data.Manifold.PseudoAffine
 import Data.Embedding
 
-type ConeNeedle m = (ℝ, Needle m)
+type ConeNeedle m = Needle (CℝayInterior m)
 
 class ( Semimanifold m, Semimanifold (Interior (Interior m))
       , Semimanifold (CℝayInterior m)
       , Interior (CℝayInterior m) ~ CℝayInterior m )
            => ConeSemimfd m where
   {-# MINIMAL (fromCℝayInterior | fromCD¹Interior)
-            , (toCℝayInterior | toCD¹Interior)
-            , coneNeedle #-}
+            , (toCℝayInterior | toCD¹Interior) #-}
   type CℝayInterior m :: *
   
   fromCℝayInterior :: CℝayInterior m -> Cℝay m
@@ -85,29 +84,11 @@ class ( Semimanifold m, Semimanifold (Interior (Interior m))
   toCℝayInterior = toCD¹Interior . embCℝayToCD¹
   toCD¹Interior :: CD¹ m -> Option (CℝayInterior m)
   toCD¹Interior = toCℝayInterior . projCD¹ToCℝay
+
   
-  coneNeedle :: Tagged m ( Isomorphism (->) (Needle (CℝayInterior m)) (ConeNeedle m) )
+class ( ConeSemimfd m, WithField ℝ HilbertSpace (Interior m) ) => SConn'dConeMfd m where
+  coneNeedle :: Tagged m ( Isomorphism (->) (ConeNeedle m) (ℝ, Needle m) )
   
-  cℝayTranslateP :: Tagged (Cℝay m)
-        (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
-  cℝayTranslateP = cpt
-   where cpt :: ∀ m . ConeSemimfd m => Tagged (Cℝay m)
-                   (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
-         cpt = Tagged $ \ri cn -> ri .+~^ (cni $<-$ cn)
-          where Tagged cni = coneNeedle :: Tagged m
-                                 (Isomorphism (->) (Needle (CℝayInterior m)) (ConeNeedle m))
-                Tagged trp = translateP :: Tagged (CℝayInterior m)
-                                 (CℝayInterior m -> Needle (CℝayInterior m) -> CℝayInterior m)
-  cD¹TranslateP :: Tagged (CD¹ m)
-        (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
-  cD¹TranslateP = cpt
-   where cpt :: ∀ m . ConeSemimfd m => Tagged (CD¹ m)
-                   (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
-         cpt = Tagged $ \ri cn -> ri .+~^ (cni $<-$ cn)
-          where Tagged cni = coneNeedle :: Tagged m
-                                 (Isomorphism (->) (Needle (CℝayInterior m)) (ConeNeedle m))
-                Tagged trp = translateP :: Tagged (CℝayInterior m)
-                                 (CℝayInterior m -> Needle (CℝayInterior m) -> CℝayInterior m)
 
 
 
@@ -116,19 +97,26 @@ instance (ConeSemimfd m) => Semimanifold (Cℝay m) where
   type Interior (Cℝay m) = CℝayInterior m
   fromInterior = fromCℝayInterior
   toInterior = toCℝayInterior
-  translateP = cℝayTranslateP
+  translateP = ctp
+   where ctp :: Tagged (Cℝay m) (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
+         ctp = Tagged ctp'
+          where Tagged ctp' = translateP
+                  :: Tagged (CℝayInterior m) (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
 
 instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
   type Needle (CD¹ m) = ConeNeedle m
   type Interior (CD¹ m) = CℝayInterior m
   fromInterior = fromCD¹Interior
   toInterior = toCD¹Interior
-  translateP = cD¹TranslateP
+  translateP = ctp
+   where ctp :: Tagged (CD¹ m) (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
+         ctp = Tagged ctp'
+          where Tagged ctp' = translateP
+                  :: Tagged (CℝayInterior m) (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
 
 
 instance ConeSemimfd ℝ where
   type CℝayInterior ℝ = ℝ²
-  coneNeedle = Tagged id
   fromCℝayInterior (q,b) = Cℝay (q'+b') (q'-b')
    where [q', b'] = ((/2) . bijectℝtoℝplus) <$> [q,b]
   toCℝayInterior (Cℝay 0 _) = Hask.empty
@@ -139,11 +127,11 @@ instance ConeSemimfd ℝ where
   toCD¹Interior (CD¹ h x) = pure (q,b)
    where [q, b] = bijectℝplustoℝ <$> [h+x, h-x]
          h' = bijectIntvtoℝplus h
-  cℝayTranslateP = Tagged (^+^)
+instance SConn'dConeMfd ℝ where
+  coneNeedle = Tagged id
 
 instance ConeSemimfd S⁰ where
   type CℝayInterior S⁰ = ℝ
-  coneNeedle = Tagged isoAttachZeroDim
   fromCℝayInterior x | x>0        = Cℝay x PositiveHalfSphere
                      | otherwise  = Cℝay (-x) NegativeHalfSphere
   toCℝayInterior (Cℝay x PositiveHalfSphere) = return x
@@ -156,7 +144,6 @@ instance ConeSemimfd S⁰ where
 
 instance ConeSemimfd S¹ where
   type CℝayInterior S¹ = ℝ²
-  coneNeedle = Tagged id
   fromCℝayInterior (x,y) = Cℝay r (S¹ $ atan2 y x)
    where r = sqrt (x^2 + y^2)
   toCℝayInterior (Cℝay r (S¹ φ)) = return (r * cos φ, r * sin φ)
@@ -170,27 +157,28 @@ instance ( PseudoAffine x, PseudoAffine y
          , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y) )
                 => ConeSemimfd (x,y) where
   type CℝayInterior (x,y) = (ℝ, (Interior x, Interior y))
-  coneNeedle = Tagged id
   fromCℝayInterior = simplyCncted_fromCℝayInterior
   toCℝayInterior = simplyCncted_toCℝayInterior
+instance ( PseudoAffine x, PseudoAffine y
+         , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y) )
+                => SConn'dConeMfd (x,y) where
+  coneNeedle = Tagged id
+
   
 instance (ConeSemimfd x, PseudoAffine (Cℝay x), WithField ℝ HilbertSpace (CℝayInterior x))
               => ConeSemimfd (Cℝay x) where
   type CℝayInterior (Cℝay x) = (ℝ, CℝayInterior x)
-      
-  --coneNeedle ::     Needle (CℝayInterior m) <-> ConeNeedle m
-  --         ≡ Needle (CℝayInterior (Cℝay x)) <-> (ℝ, Needle (Cℝay x))
-  --         ≡     Needle (ℝ, CℝayInterior x) <-> (ℝ, ConeNeedle x)
-  --         ≡   (ℝ, Needle (CℝayInterior x)) <-> (ℝ, (ℝ, Needle x))
-  coneNeedle = coneConeNeedle
-   where coneConeNeedle :: ∀ x . (ConeSemimfd x)
-           => Tagged (Cℝay x) (Isomorphism (->) (ℝ, Needle (CℝayInterior x))
-                                                (ℝ, (ℝ, Needle x)) )
-         coneConeNeedle = Tagged $ second cn
-          where Tagged cn = coneNeedle
-                 :: Tagged x (Isomorphism (->) (Needle (CℝayInterior x)) (ConeNeedle x))
   fromCℝayInterior = simplyCncted_fromCℝayInterior
   toCℝayInterior = simplyCncted_toCℝayInterior
+-- instance (ConeSemimfd x, PseudoAffine (Cℝay x), WithField ℝ HilbertSpace (CℝayInterior x))
+--               => SConn'dConeMfd (Cℝay x) where
+--   coneNeedle = coneConeNeedle
+--    where coneConeNeedle :: ∀ x . (ConeSemimfd x)
+--            => Tagged (Cℝay x) (Isomorphism (->) (ConeNeedle (Cℝay x))
+--                                                 (ℝ, (ConeNeedle x)) )
+--          coneConeNeedle = Tagged $ second cn
+--           where Tagged cn = coneNeedle
+--                  :: Tagged x (Isomorphism (->) (Needle (CℝayInterior x)) (ℝ, Needle x))
   
 simplyCncted_fromCℝayInterior :: (PseudoAffine x, WithField ℝ HilbertSpace (Interior x))
         => (ℝ, Interior x) -> Cℝay x
