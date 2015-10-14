@@ -17,6 +17,7 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE UnicodeSyntax              #-}
 
 
 
@@ -24,6 +25,7 @@
 module Data.VectorSpace.FiniteDimensional (
     FiniteDimensional(..)
   , SmoothScalar 
+  , FinVecArrRep(..), concreteArrRep, (⊗), splitArrRep
   ) where
     
 
@@ -31,6 +33,7 @@ module Data.VectorSpace.FiniteDimensional (
 
 import Prelude hiding ((^))
 
+import Data.AffineSpace
 import Data.VectorSpace
 import Data.LinearMap
 import Data.Basis
@@ -42,6 +45,9 @@ import Control.Applicative
     
 import Data.Manifold.Types.Primitive
 import Data.CoNat
+import Data.Embedding
+
+import Control.Arrow
 
 import qualified Data.Vector as Arr
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
@@ -54,7 +60,6 @@ import qualified Numeric.LinearAlgebra.HMatrix as HMat
 type SmoothScalar s = ( VectorSpace s, HMat.Numeric s, HMat.Field s
                       , Num(HMat.Vector s), HMat.Indexable(HMat.Vector s)s
                       , HMat.Normed(HMat.Vector s) )
-
 
 -- | Many linear algebra operations are best implemented via packed, dense 'HMat.Matrix'es.
 --   For one thing, that makes common general vector operations quite efficient,
@@ -160,4 +165,91 @@ instance (SmoothScalar x, KnownNat n) => FiniteDimensional (FreeVect n x) where
   fromPackedVector arr = FreeVect (Arr.convert arr)
   -- asPackedMatrix = _ -- could be done quite efficiently here!
                                                           
+
+
+-- | Semantically the same as @'Tagged' tag refvs@, but directly uses the
+--   packed-vector array representation.
+newtype FinVecArrRep tag refvs scalar
+      = FinVecArrRep { getFinVecArrRep :: HMat.Vector scalar }
+
+instance (SmoothScalar s) => AffineSpace (FinVecArrRep t b s) where
+  type Diff (FinVecArrRep t b s) = FinVecArrRep t b s
+  (.-.) = (^-^)
+  (.+^) = (^+^)
+  
+instance (SmoothScalar s) => AdditiveGroup (FinVecArrRep t b s) where
+  zeroV = FinVecArrRep $ 0 HMat.|> []
+  negateV (FinVecArrRep v) = FinVecArrRep $ negate v
+  FinVecArrRep v ^+^ FinVecArrRep w
+   | HMat.size v == 0  = FinVecArrRep w
+   | HMat.size w == 0  = FinVecArrRep w
+   | otherwise         = FinVecArrRep $ v + w
+
+instance (SmoothScalar s) => VectorSpace (FinVecArrRep t b s) where
+  type Scalar (FinVecArrRep t b s) = s
+  μ *^ FinVecArrRep v = FinVecArrRep $ HMat.scale μ v
+
+instance (SmoothScalar s) => InnerSpace (FinVecArrRep t b s) where
+  FinVecArrRep v <.> FinVecArrRep w
+   | HMat.size v == 0  = 0
+   | HMat.size w == 0  = 0
+   | otherwise         = v`HMat.dot`w
+
+concreteArrRep :: (SmoothScalar s, FiniteDimensional r, Scalar r ~ s)
+           => Isomorphism (->) r (FinVecArrRep t r s)
+concreteArrRep = Isomorphism (FinVecArrRep     . asPackedVector)
+                             (fromPackedVector . getFinVecArrRep)
+
+(⊗) :: ∀ t s v w . ( SmoothScalar s, FiniteDimensional v, FiniteDimensional w
+                   , Scalar v ~ s, Scalar w ~ s )
+          => FinVecArrRep t v s -> FinVecArrRep t w s -> FinVecArrRep t (v,w) s
+FinVecArrRep v ⊗ FinVecArrRep w
+  | HMat.size v + HMat.size w == 0  = FinVecArrRep v
+  | HMat.size v == 0                = FinVecArrRep $ HMat.vjoin [HMat.konst 0 nv, w]
+  | HMat.size w == 0                = FinVecArrRep $ HMat.vjoin [v, HMat.konst 0 nw]
+  | otherwise                       = FinVecArrRep $ HMat.vjoin [v,w]
+ where Tagged nv = dimension :: Tagged v Int
+       Tagged nw = dimension :: Tagged w Int
+
+splitArrRep :: ∀ t s v w . ( SmoothScalar s, FiniteDimensional v, FiniteDimensional w
+                   , Scalar v ~ s, Scalar w ~ s )
+          => FinVecArrRep t (v,w) s -> (FinVecArrRep t v s, FinVecArrRep t w s)
+splitArrRep (FinVecArrRep vw)
+  | HMat.size vw == 0   = (FinVecArrRep vw, FinVecArrRep vw)
+  | otherwise           = ( FinVecArrRep $ HMat.subVector 0 nv vw
+                          , FinVecArrRep $ HMat.subVector nv nw vw )
+ where Tagged nv = dimension :: Tagged v Int
+       Tagged nw = dimension :: Tagged w Int
+                  
+
+instance (SmoothScalar s, FiniteDimensional r, Scalar r ~ s)
+                 => HasBasis (FinVecArrRep t r s) where
+  type Basis (FinVecArrRep t r s) = Basis r
+  basisValue = (concreteArrRep$->$) . basisValue
+  decompose = decompose . (concreteArrRep$<-$)
+  decompose' = decompose' . (concreteArrRep$<-$)
+
+instance (SmoothScalar s, FiniteDimensional r, Scalar r ~ s)
+                 => FiniteDimensional (FinVecArrRep t r s) where
+  dimension = d
+   where d :: ∀ t r s . FiniteDimensional r => Tagged (FinVecArrRep t r s) Int
+         d = Tagged n
+          where Tagged n = dimension :: Tagged r Int
+  indexBasis = d
+   where d :: ∀ t r s . FiniteDimensional r => Tagged (FinVecArrRep t r s) (Int -> Basis r)
+         d = Tagged n
+          where Tagged n = indexBasis :: Tagged r (Int -> Basis r)
+  basisIndex = d
+   where d :: ∀ t r s . FiniteDimensional r => Tagged (FinVecArrRep t r s) (Basis r -> Int)
+         d = Tagged n
+          where Tagged n = basisIndex :: Tagged r (Basis r -> Int)
+  asPackedVector = apv
+   where apv :: ∀ t r s . (FiniteDimensional r, SmoothScalar s)
+                     => FinVecArrRep t r s -> HMat.Vector s
+         apv (FinVecArrRep v)
+             | HMat.size v == 0  = HMat.konst 0 n
+             | otherwise         = v
+          where Tagged n = dimension :: Tagged r Int
+  fromPackedVector = FinVecArrRep
+
 

@@ -92,6 +92,7 @@ import Data.Tagged
 import Data.Manifold.Types.Primitive
 
 import Data.CoNat
+import Data.VectorSpace.FiniteDimensional
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
@@ -325,6 +326,16 @@ instance PseudoAffine (t) where {       \
 
 deriveAffine(Double)
 deriveAffine(Rational)
+
+instance AffineSpace (FinVecArrRep t b s) => Semimanifold (FinVecArrRep t b s) where
+  type Needle (FinVecArrRep t b s) = FinVecArrRep t b s
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+^)
+  (.+~^) = (.+^)
+instance AffineSpace (FinVecArrRep t b s) => PseudoAffine (FinVecArrRep t b s) where
+  a.-~.b = pure (a.-.b)
+  
 
 instance Semimanifold (ZeroDim k) where
   type Needle (ZeroDim k) = ZeroDim k
