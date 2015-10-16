@@ -13,6 +13,7 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE ConstraintKinds            #-}
@@ -169,7 +170,10 @@ instance (SmoothScalar x, KnownNat n) => FiniteDimensional (FreeVect n x) where
 
 -- | Semantically the same as @'Tagged' tag refvs@, but directly uses the
 --   packed-vector array representation.
-newtype FinVecArrRep tag refvs scalar
+-- 
+--   The tag should really be kind-polymorphic, but at least GHC-7.8 doesn't quite
+--   handle the associated types of the manifold classes then.
+newtype FinVecArrRep (tag :: * -> *) refvs scalar
       = FinVecArrRep { getFinVecArrRep :: HMat.Vector scalar }
 
 instance (SmoothScalar s) => AffineSpace (FinVecArrRep t b s) where

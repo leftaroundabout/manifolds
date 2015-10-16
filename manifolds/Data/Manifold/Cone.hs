@@ -51,6 +51,7 @@ import Data.Tagged
 import Data.Manifold.Types.Primitive
 
 import Data.CoNat
+import Data.VectorSpace.FiniteDimensional
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
@@ -65,24 +66,29 @@ import Data.Foldable.Constrained
 import Data.Manifold.PseudoAffine
 import Data.Embedding
 
-type ConeNeedle m = Needle (CℝayInterior m)
+
+
+type ConeVecArr m = FinVecArrRep Cℝay (CℝayInterior m) (Scalar (Needle m))
+type ConeNeedle m = Needle (ConeVecArr m)
+type SConn'dConeVecArr m = FinVecArrRep Cℝay (ℝ, Interior m) ℝ
+
 
 class ( Semimanifold m, Semimanifold (Interior (Interior m))
-      , Semimanifold (CℝayInterior m)
-      , Interior (CℝayInterior m) ~ CℝayInterior m )
+      , Semimanifold (ConeVecArr m)
+      , Interior (ConeVecArr m) ~ ConeVecArr m )
            => ConeSemimfd m where
   {-# MINIMAL (fromCℝayInterior | fromCD¹Interior)
             , (toCℝayInterior | toCD¹Interior) #-}
   type CℝayInterior m :: *
   
-  fromCℝayInterior :: CℝayInterior m -> Cℝay m
+  fromCℝayInterior :: ConeVecArr m -> Cℝay m
   fromCℝayInterior = projCD¹ToCℝay . fromCD¹Interior
-  fromCD¹Interior :: CℝayInterior m -> CD¹ m
+  fromCD¹Interior :: ConeVecArr m -> CD¹ m
   fromCD¹Interior = embCℝayToCD¹ . fromCℝayInterior
   
-  toCℝayInterior :: Cℝay m -> Option (CℝayInterior m)
+  toCℝayInterior :: Cℝay m -> Option (ConeVecArr m)
   toCℝayInterior = toCD¹Interior . embCℝayToCD¹
-  toCD¹Interior :: CD¹ m -> Option (CℝayInterior m)
+  toCD¹Interior :: CD¹ m -> Option (ConeVecArr m)
   toCD¹Interior = toCℝayInterior . projCD¹ToCℝay
 
   
@@ -94,108 +100,107 @@ class ( ConeSemimfd m, WithField ℝ HilbertSpace (Interior m) ) => SConn'dConeM
 
 instance (ConeSemimfd m) => Semimanifold (Cℝay m) where
   type Needle (Cℝay m) = ConeNeedle m
-  type Interior (Cℝay m) = CℝayInterior m
+  type Interior (Cℝay m) = ConeVecArr m
   fromInterior = fromCℝayInterior
   toInterior = toCℝayInterior
   translateP = ctp
-   where ctp :: Tagged (Cℝay m) (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
+   where ctp :: Tagged (Cℝay m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
          ctp = Tagged ctp'
           where Tagged ctp' = translateP
-                  :: Tagged (CℝayInterior m) (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
+                  :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
 
 instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
   type Needle (CD¹ m) = ConeNeedle m
-  type Interior (CD¹ m) = CℝayInterior m
+  type Interior (CD¹ m) = ConeVecArr m
   fromInterior = fromCD¹Interior
   toInterior = toCD¹Interior
   translateP = ctp
-   where ctp :: Tagged (CD¹ m) (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
+   where ctp :: Tagged (CD¹ m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
          ctp = Tagged ctp'
           where Tagged ctp' = translateP
-                  :: Tagged (CℝayInterior m) (CℝayInterior m -> ConeNeedle m -> CℝayInterior m)
+                  :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
 
 
 instance ConeSemimfd ℝ where
   type CℝayInterior ℝ = ℝ²
-  fromCℝayInterior (q,b) = Cℝay (q'+b') (q'-b')
-   where [q', b'] = ((/2) . bijectℝtoℝplus) <$> [q,b]
+  fromCℝayInterior (FinVecArrRep qb) = Cℝay (q'+b') (q'-b')
+   where [q', b'] = HMat.toList $ HMat.cmap ((/2) . bijectℝtoℝplus) qb
   toCℝayInterior (Cℝay 0 _) = Hask.empty
-  toCℝayInterior (Cℝay h x) = pure (q,b)
-   where [q, b] = bijectℝplustoℝ <$> [h+x, h-x]
-  fromCD¹Interior (q,b) = CD¹ (bijectℝplustoIntv $ q'+b') (q'-b')
-   where [q', b'] = ((/2) . bijectℝtoℝplus) <$> [q,b]
-  toCD¹Interior (CD¹ h x) = pure (q,b)
-   where [q, b] = bijectℝplustoℝ <$> [h+x, h-x]
-         h' = bijectIntvtoℝplus h
-instance SConn'dConeMfd ℝ where
-  coneNeedle = Tagged id
+  toCℝayInterior (Cℝay h x) = pure . FinVecArrRep 
+                              . HMat.cmap bijectℝplustoℝ $ HMat.fromList [h+x, h-x]
+  fromCD¹Interior (FinVecArrRep qb) = CD¹ (bijectℝplustoIntv $ q'+b') (q'-b')
+   where [q', b'] = HMat.toList $ HMat.cmap ((/2) . bijectℝtoℝplus) qb
+  toCD¹Interior (CD¹ h x) = pure . FinVecArrRep
+                              . HMat.cmap bijectℝplustoℝ $ HMat.fromList [h'+x, h'-x]
+   where h' = bijectIntvtoℝplus h
 
 instance ConeSemimfd S⁰ where
   type CℝayInterior S⁰ = ℝ
-  fromCℝayInterior x | x>0        = Cℝay x PositiveHalfSphere
-                     | otherwise  = Cℝay (-x) NegativeHalfSphere
-  toCℝayInterior (Cℝay x PositiveHalfSphere) = return x
-  toCℝayInterior (Cℝay x NegativeHalfSphere) = return $ -x
-  fromCD¹Interior x | x>0        = CD¹ (bijectℝtoIntv x) PositiveHalfSphere
-                    | otherwise  = CD¹ (-bijectℝtoIntv x) NegativeHalfSphere
+  fromCℝayInterior xa | x>0        = Cℝay x PositiveHalfSphere
+                      | otherwise  = Cℝay (-x) NegativeHalfSphere
+   where x = getFinVecArrRep xa HMat.! 0
+  toCℝayInterior (Cℝay x PositiveHalfSphere) = return . FinVecArrRep $ HMat.scalar x
+  toCℝayInterior (Cℝay x NegativeHalfSphere) = return . FinVecArrRep . HMat.scalar $ -x
+  fromCD¹Interior xa | x>0        = CD¹ (bijectℝtoIntv x) PositiveHalfSphere
+                     | otherwise  = CD¹ (-bijectℝtoIntv x) NegativeHalfSphere
+   where x = getFinVecArrRep xa HMat.! 0
   toCD¹Interior (CD¹ 1 _) = Hask.empty
-  toCD¹Interior (CD¹ x PositiveHalfSphere) = return $ bijectIntvtoℝ x
-  toCD¹Interior (CD¹ x NegativeHalfSphere) = return $ -bijectℝtoIntv x
+  toCD¹Interior (CD¹ x PositiveHalfSphere)
+        = return . FinVecArrRep . HMat.scalar $ bijectIntvtoℝ x
+  toCD¹Interior (CD¹ x NegativeHalfSphere)
+        = return . FinVecArrRep . HMat.scalar $ -bijectℝtoIntv x
 
 instance ConeSemimfd S¹ where
   type CℝayInterior S¹ = ℝ²
-  fromCℝayInterior (x,y) = Cℝay r (S¹ $ atan2 y x)
-   where r = sqrt (x^2 + y^2)
-  toCℝayInterior (Cℝay r (S¹ φ)) = return (r * cos φ, r * sin φ)
-  fromCD¹Interior (x,y) = CD¹ (bijectℝtoIntv $ sqrt (x^2 + y^2)) (S¹ $ atan2 y x)
+  fromCℝayInterior (FinVecArrRep xy) = Cℝay r (S¹ $ atan2 y x)
+   where r = HMat.norm_2 xy
+         [x,y] = HMat.toList xy
+  toCℝayInterior (Cℝay r (S¹ φ)) = return . FinVecArrRep
+                    . HMat.scale r $ HMat.fromList [cos φ, sin φ]
+  fromCD¹Interior (FinVecArrRep xy) = CD¹ (bijectℝtoIntv r) (S¹ $ atan2 y x)
+   where r = HMat.norm_2 xy
+         [x,y] = HMat.toList xy
   toCD¹Interior (CD¹ 1 _) = Hask.empty
-  toCD¹Interior (CD¹ r (S¹ φ)) = return (r' * cos φ, r' * sin φ)
+  toCD¹Interior (CD¹ r (S¹ φ)) = return . FinVecArrRep
+                    . HMat.scale r' $ HMat.fromList [cos φ, sin φ]
    where r' = bijectIntvtoℝ r
+
 
 -- | Products of simply connected spaces.
 instance ( PseudoAffine x, PseudoAffine y
-         , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y) )
-                => ConeSemimfd (x,y) where
+         , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y)
+         , LinearManifold (FinVecArrRep Cℝay (ℝ, (Interior x, Interior y)) ℝ)
+         ) => ConeSemimfd (x,y) where
   type CℝayInterior (x,y) = (ℝ, (Interior x, Interior y))
   fromCℝayInterior = simplyCncted_fromCℝayInterior
   toCℝayInterior = simplyCncted_toCℝayInterior
-instance ( PseudoAffine x, PseudoAffine y
-         , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y) )
-                => SConn'dConeMfd (x,y) where
-  coneNeedle = Tagged id
 
   
-instance (ConeSemimfd x, PseudoAffine (Cℝay x), WithField ℝ HilbertSpace (CℝayInterior x))
-              => ConeSemimfd (Cℝay x) where
-  type CℝayInterior (Cℝay x) = (ℝ, CℝayInterior x)
+instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
+         , HilbertSpace (CℝayInterior x)
+         , HilbertSpace (FinVecArrRep Cℝay (CℝayInterior x) ℝ)
+         ) => ConeSemimfd (Cℝay x) where
+  type CℝayInterior (Cℝay x) = (ℝ, ConeVecArr x)
   fromCℝayInterior = simplyCncted_fromCℝayInterior
   toCℝayInterior = simplyCncted_toCℝayInterior
--- instance (ConeSemimfd x, PseudoAffine (Cℝay x), WithField ℝ HilbertSpace (CℝayInterior x))
---               => SConn'dConeMfd (Cℝay x) where
---   coneNeedle = coneConeNeedle
---    where coneConeNeedle :: ∀ x . (ConeSemimfd x)
---            => Tagged (Cℝay x) (Isomorphism (->) (ConeNeedle (Cℝay x))
---                                                 (ℝ, (ConeNeedle x)) )
---          coneConeNeedle = Tagged $ second cn
---           where Tagged cn = coneNeedle
---                  :: Tagged x (Isomorphism (->) (Needle (CℝayInterior x)) (ℝ, Needle x))
+  
   
 simplyCncted_fromCℝayInterior :: (PseudoAffine x, WithField ℝ HilbertSpace (Interior x))
-        => (ℝ, Interior x) -> Cℝay x
-simplyCncted_fromCℝayInterior ri = Cℝay h . fromInterior . fromPackedVector
+        => SConn'dConeVecArr x -> Cℝay x
+simplyCncted_fromCℝayInterior (FinVecArrRep ri) = Cℝay h . fromInterior . fromPackedVector
                          $ subtract (h/n) `Arr.map` Arr.tail cmps
    where h = Arr.sum cmps
-         cmps = bijectℝtoℝplus `HMat.cmap` asPackedVector ri
+         cmps = bijectℝtoℝplus `HMat.cmap` ri
          n = fromIntegral $ Arr.length cmps
   
 simplyCncted_toCℝayInterior :: (PseudoAffine x, WithField ℝ HilbertSpace (Interior x))
-        => Cℝay x -> Option (ℝ, Interior x)
+        => Cℝay x -> Option (SConn'dConeVecArr x)
 simplyCncted_toCℝayInterior (Cℝay h v) | h/=0, Option (Just vi) <- toInterior v 
    = let cmps'' = asPackedVector vi
          cmps' = (+ h/n) `HMat.cmap` cmps''
          cmps = (h - Arr.sum cmps') `Arr.cons` cmps
          n = fromIntegral $ Arr.length cmps
-     in return $ fromPackedVector (bijectℝplustoℝ `Arr.map` cmps)
+     in return $ FinVecArrRep (bijectℝplustoℝ `Arr.map` cmps)
 simplyCncted_toCℝayInterior (Cℝay _ _) = Hask.empty
 
 

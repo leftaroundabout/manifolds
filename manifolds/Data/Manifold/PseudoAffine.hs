@@ -256,7 +256,7 @@ type LocallyScalable s x = ( PseudoAffine x, (Needle x) ~ Needle x
 --   
 --   (Actually, 'LinearManifold' is stronger than 'VectorSpace' at the moment, since
 --   'HasMetric' requires 'FiniteDimensional'. This might be lifted in the future.)
-type LinearManifold x = ( PseudoAffine x, Needle x ~ x, HasMetric x )
+type LinearManifold x = ( PseudoAffine x, Interior x ~ x, Needle x ~ x, HasMetric x )
 
 -- | Require some constraint on a manifold, and also fix the type of the manifold's
 --   underlying field. For example, @WithField &#x211d; 'HilbertSpace' v@ constrains
@@ -268,7 +268,7 @@ type LinearManifold x = ( PseudoAffine x, Needle x ~ x, HasMetric x )
 type WithField s c x = ( c x, s ~ Scalar (Needle x) )
 
 -- | The 'RealFloat' class plus manifold constraints.
-type RealDimension r = ( PseudoAffine r, Needle r ~ r
+type RealDimension r = ( PseudoAffine r, Interior r ~ r, Needle r ~ r
                        , HasMetric r, DualSpace r ~ r, Scalar r ~ r
                        , RealFloat r )
 
@@ -283,7 +283,8 @@ type AffineManifold m = ( PseudoAffine m, Interior m ~ m, AffineSpace m
 --   but since 'Manifold's are at the moment confined to finite dimension, they are in
 --   fact (trivially) complete.)
 type HilbertSpace x = ( LinearManifold x, InnerSpace x
-                      , Needle x ~ x, DualSpace x ~ x, Floating (Scalar x) )
+                      , Interior x ~ x, Needle x ~ x, DualSpace x ~ x
+                      , Floating (Scalar x) )
 
 -- | An euclidean space is a real affine space whose tangent space is a Hilbert space.
 type EuclidSpace x = ( AffineManifold x, InnerSpace (Diff x)
@@ -327,13 +328,14 @@ instance PseudoAffine (t) where {       \
 deriveAffine(Double)
 deriveAffine(Rational)
 
-instance AffineSpace (FinVecArrRep t b s) => Semimanifold (FinVecArrRep t b s) where
+instance SmoothScalar s => Semimanifold (FinVecArrRep t b s) where
   type Needle (FinVecArrRep t b s) = FinVecArrRep t b s
+  type Interior (FinVecArrRep t b s) = FinVecArrRep t b s
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+^)
   (.+~^) = (.+^)
-instance AffineSpace (FinVecArrRep t b s) => PseudoAffine (FinVecArrRep t b s) where
+instance SmoothScalar s => PseudoAffine (FinVecArrRep t b s) where
   a.-~.b = pure (a.-.b)
   
 
