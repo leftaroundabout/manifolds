@@ -117,6 +117,11 @@ instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
           where Tagged ctp' = translateP
                   :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
 
+instance (ConeSemimfd m, SmoothScalar (Scalar (Needle m))) => PseudoAffine (Cℝay m) where
+  p.-~.i = (.-~.i) =<< toInterior p
+instance (ConeSemimfd m, SmoothScalar (Scalar (Needle m))) => PseudoAffine (CD¹ m) where
+  p.-~.i = (.-~.i) =<< toInterior p
+
 
 instance ConeSemimfd ℝ where
   type CℝayInterior ℝ = ℝ²
@@ -130,9 +135,6 @@ instance ConeSemimfd ℝ where
   toCD¹Interior (CD¹ h x) = pure . FinVecArrRep
                               . HMat.cmap bijectℝplustoℝ $ HMat.fromList [h'+x, h'-x]
    where h' = bijectIntvtoℝplus h
-
-instance PseudoAffine (Cℝay ℝ) where p.-~.i = (.-~.i) =<< toInterior p
-instance PseudoAffine (CD¹ ℝ) where p.-~.i = (.-~.i) =<< toInterior p
 
 instance ConeSemimfd S⁰ where
   type CℝayInterior S⁰ = ℝ
@@ -150,8 +152,6 @@ instance ConeSemimfd S⁰ where
   toCD¹Interior (CD¹ x NegativeHalfSphere)
         = return . FinVecArrRep . HMat.scalar $ -bijectℝtoIntv x
 
-instance PseudoAffine (Cℝay S⁰) where p.-~.i = (.-~.i) =<< toInterior p
-instance PseudoAffine (CD¹ S⁰) where p.-~.i = (.-~.i) =<< toInterior p
 
 instance ConeSemimfd S¹ where
   type CℝayInterior S¹ = ℝ²
@@ -168,9 +168,6 @@ instance ConeSemimfd S¹ where
                     . HMat.scale r' $ HMat.fromList [cos φ, sin φ]
    where r' = bijectIntvtoℝ r
 
-instance PseudoAffine (Cℝay S¹) where p.-~.i = (.-~.i) =<< toInterior p
-instance PseudoAffine (CD¹ S¹) where
-  p.-~.i = (.-~.i) =<< toInterior p
                                       
 
 
@@ -183,17 +180,18 @@ instance ( PseudoAffine x, PseudoAffine y
   fromCℝayInterior = simplyCncted_fromCℝayInterior
   toCℝayInterior = simplyCncted_toCℝayInterior
 
-instance ( PseudoAffine x, PseudoAffine y
-         , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y)
-         , LinearManifold (FinVecArrRep Cℝay (ℝ, (Interior x, Interior y)) ℝ)
-         ) => PseudoAffine (Cℝay(x,y)) where
-  p.-~.i = (.-~.i) =<< toInterior p
-instance ( PseudoAffine x, PseudoAffine y
-         , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y)
-         , LinearManifold (FinVecArrRep Cℝay (ℝ, (Interior x, Interior y)) ℝ)
-         ) => PseudoAffine (CD¹(x,y)) where
-  p.-~.i = (.-~.i) =<< toInterior p
 
+  
+instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
+         , HilbertSpace (CℝayInterior x)
+         , HilbertSpace (FinVecArrRep Cℝay (CℝayInterior x) ℝ)
+         ) => ConeSemimfd (CD¹ x) where
+  type CℝayInterior (CD¹ x) = (ℝ, ConeVecArr x)
+  fromCℝayInterior i = Cℝay h (embCℝayToCD¹ o)
+   where (Cℝay h o) = simplyCncted_fromCℝayInterior i
+  toCℝayInterior (Cℝay _ (CD¹ 1 _)) = Hask.empty
+  toCℝayInterior (Cℝay h p) = simplyCncted_toCℝayInterior $ Cℝay h (projCD¹ToCℝay p)
+  
   
 instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
          , HilbertSpace (CℝayInterior x)
@@ -203,16 +201,6 @@ instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
   fromCℝayInterior = simplyCncted_fromCℝayInterior
   toCℝayInterior = simplyCncted_toCℝayInterior
   
-instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
-         , HilbertSpace (CℝayInterior x)
-         , HilbertSpace (FinVecArrRep Cℝay (CℝayInterior x) ℝ)
-         ) => PseudoAffine (Cℝay (Cℝay x)) where
-  p.-~.i = (.-~.i) =<< toInterior p
-instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
-         , HilbertSpace (CℝayInterior x)
-         , HilbertSpace (FinVecArrRep Cℝay (CℝayInterior x) ℝ)
-         ) => PseudoAffine (CD¹ (Cℝay x)) where
-  p.-~.i = (.-~.i) =<< toInterior p
   
 simplyCncted_fromCℝayInterior :: (PseudoAffine x, WithField ℝ HilbertSpace (Interior x))
         => SConn'dConeVecArr x -> Cℝay x
