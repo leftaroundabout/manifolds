@@ -27,7 +27,7 @@
 {-# LANGUAGE CPP                      #-}
 
 
-module Data.Manifold.Cone  where
+module Data.Manifold.Cone where
     
 
 
@@ -92,9 +92,6 @@ class ( Semimanifold m, Semimanifold (Interior (Interior m))
   toCD¹Interior = toCℝayInterior . projCD¹ToCℝay
 
   
-class ( ConeSemimfd m, WithField ℝ HilbertSpace (Interior m) ) => SConn'dConeMfd m where
-  coneNeedle :: Tagged m ( Isomorphism (->) (ConeNeedle m) (ℝ, Needle m) )
-  
 
 
 
@@ -108,7 +105,7 @@ instance (ConeSemimfd m) => Semimanifold (Cℝay m) where
          ctp = Tagged ctp'
           where Tagged ctp' = translateP
                   :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
-
+  
 instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
   type Needle (CD¹ m) = ConeNeedle m
   type Interior (CD¹ m) = ConeVecArr m
@@ -134,6 +131,9 @@ instance ConeSemimfd ℝ where
                               . HMat.cmap bijectℝplustoℝ $ HMat.fromList [h'+x, h'-x]
    where h' = bijectIntvtoℝplus h
 
+instance PseudoAffine (Cℝay ℝ) where p.-~.i = (.-~.i) =<< toInterior p
+instance PseudoAffine (CD¹ ℝ) where p.-~.i = (.-~.i) =<< toInterior p
+
 instance ConeSemimfd S⁰ where
   type CℝayInterior S⁰ = ℝ
   fromCℝayInterior xa | x>0        = Cℝay x PositiveHalfSphere
@@ -150,6 +150,9 @@ instance ConeSemimfd S⁰ where
   toCD¹Interior (CD¹ x NegativeHalfSphere)
         = return . FinVecArrRep . HMat.scalar $ -bijectℝtoIntv x
 
+instance PseudoAffine (Cℝay S⁰) where p.-~.i = (.-~.i) =<< toInterior p
+instance PseudoAffine (CD¹ S⁰) where p.-~.i = (.-~.i) =<< toInterior p
+
 instance ConeSemimfd S¹ where
   type CℝayInterior S¹ = ℝ²
   fromCℝayInterior (FinVecArrRep xy) = Cℝay r (S¹ $ atan2 y x)
@@ -165,6 +168,12 @@ instance ConeSemimfd S¹ where
                     . HMat.scale r' $ HMat.fromList [cos φ, sin φ]
    where r' = bijectIntvtoℝ r
 
+instance PseudoAffine (Cℝay S¹) where p.-~.i = (.-~.i) =<< toInterior p
+instance PseudoAffine (CD¹ S¹) where
+  p.-~.i = (.-~.i) =<< toInterior p
+  CD¹ 1 φ |-~. i = return $ stiefel φ
+                                      
+
 
 -- | Products of simply connected spaces.
 instance ( PseudoAffine x, PseudoAffine y
@@ -175,6 +184,17 @@ instance ( PseudoAffine x, PseudoAffine y
   fromCℝayInterior = simplyCncted_fromCℝayInterior
   toCℝayInterior = simplyCncted_toCℝayInterior
 
+instance ( PseudoAffine x, PseudoAffine y
+         , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y)
+         , LinearManifold (FinVecArrRep Cℝay (ℝ, (Interior x, Interior y)) ℝ)
+         ) => PseudoAffine (Cℝay(x,y)) where
+  p.-~.i = (.-~.i) =<< toInterior p
+instance ( PseudoAffine x, PseudoAffine y
+         , WithField ℝ HilbertSpace (Interior x), WithField ℝ HilbertSpace (Interior y)
+         , LinearManifold (FinVecArrRep Cℝay (ℝ, (Interior x, Interior y)) ℝ)
+         ) => PseudoAffine (CD¹(x,y)) where
+  p.-~.i = (.-~.i) =<< toInterior p
+
   
 instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
          , HilbertSpace (CℝayInterior x)
@@ -184,6 +204,16 @@ instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
   fromCℝayInterior = simplyCncted_fromCℝayInterior
   toCℝayInterior = simplyCncted_toCℝayInterior
   
+instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
+         , HilbertSpace (CℝayInterior x)
+         , HilbertSpace (FinVecArrRep Cℝay (CℝayInterior x) ℝ)
+         ) => PseudoAffine (Cℝay (Cℝay x)) where
+  p.-~.i = (.-~.i) =<< toInterior p
+instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
+         , HilbertSpace (CℝayInterior x)
+         , HilbertSpace (FinVecArrRep Cℝay (CℝayInterior x) ℝ)
+         ) => PseudoAffine (CD¹ (Cℝay x)) where
+  p.-~.i = (.-~.i) =<< toInterior p
   
 simplyCncted_fromCℝayInterior :: (PseudoAffine x, WithField ℝ HilbertSpace (Interior x))
         => SConn'dConeVecArr x -> Cℝay x
@@ -253,6 +283,36 @@ projCD¹ToCℝay (CD¹ h m) = Cℝay (bijectIntvtoℝplus h) m
 --      | q>0        = fmap (, log $ exp d - 1) im
 --      | otherwise  = Hask.empty
 --    where im = toInterior m
+
+stiefel1Project :: LinearManifold v =>
+             DualSpace v       -- ^ Must be nonzero.
+                 -> Stiefel1 v
+stiefel1Project = Stiefel1
+
+stiefel1Embed :: HilbertSpace v => Stiefel1 v -> v
+stiefel1Embed (Stiefel1 n) = normalized n
+  
+
+class (PseudoAffine v, InnerSpace v, NaturallyEmbedded (UnitSphere v) (DualSpace v))
+          => HasUnitSphere v where
+  type UnitSphere v :: *
+  stiefel :: UnitSphere v -> Stiefel1 v
+  stiefel = Stiefel1 . embed
+  unstiefel :: Stiefel1 v -> UnitSphere v
+  unstiefel = coEmbed . getStiefel1N
+
+instance HasUnitSphere ℝ  where type UnitSphere ℝ  = S⁰
+instance HasUnitSphere (FinVecArrRep t ℝ ℝ) where type UnitSphere (FinVecArrRep t ℝ ℝ)   = S⁰
+
+instance HasUnitSphere ℝ² where type UnitSphere ℝ² = S¹
+instance HasUnitSphere (FinVecArrRep t ℝ² ℝ) where type UnitSphere (FinVecArrRep t ℝ² ℝ) = S¹
+
+instance HasUnitSphere ℝ³ where type UnitSphere ℝ³ = S²
+instance HasUnitSphere (FinVecArrRep t ℝ³ ℝ) where type UnitSphere (FinVecArrRep t ℝ³ ℝ) = S²
+
+-- instance (HasUnitSphere v, v ~ DualSpace v) => NaturallyEmbedded (Stiefel1 v) v where
+--   embed = embed . unstiefel
+--   coEmbed = stiefel . coEmbed
 
 
 

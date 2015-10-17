@@ -373,6 +373,17 @@ instance ( HasMetric v, HasMetric w, Scalar v ~ Scalar w
   (v,w)<.>^(v',w') = v<.>^v' + w<.>^w'
   functional f = (functional $ f . (,zeroV), functional $ f . (zeroV,))
   doubleDual = id; doubleDual'= id
+instance (HasMetric v, s~Scalar v) => HasMetric' (FinVecArrRep t v s) where
+  type DualSpace (FinVecArrRep t v s) = FinVecArrRep t (DualSpace v) s
+  FinVecArrRep v <.>^ FinVecArrRep w = HMat.dot v w
+  functional = fnal
+   where fnal :: ∀ v . HasMetric v =>
+                 (FinVecArrRep t v (Scalar v) -> Scalar v)
+                       -> FinVecArrRep t (DualSpace v) (Scalar v)
+         fnal f = FinVecArrRep . (n HMat.|>)
+                     $ (f . FinVecArrRep) <$> HMat.toRows (HMat.ident n)
+         Tagged n = dimension :: Tagged v Int
+  doubleDual = id; doubleDual'= id
 
 
 

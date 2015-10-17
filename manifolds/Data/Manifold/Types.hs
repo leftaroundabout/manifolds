@@ -72,6 +72,7 @@ import qualified Data.Vector
 
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
+import Data.Manifold.Cone
 import Data.LinearMap.HerMetric
 import Data.VectorSpace.FiniteDimensional
 
@@ -203,31 +204,6 @@ instance (WithField k LinearManifold v, Real k) => PseudoAffine (Stiefel1 v) whe
 l2norm :: MetricScalar s => HMat.Vector s -> s
 l2norm = realToFrac . HMat.norm_2
 
-
-stiefel1Project :: LinearManifold v =>
-             DualSpace v       -- ^ Must be nonzero.
-                 -> Stiefel1 v
-stiefel1Project = Stiefel1
-
-stiefel1Embed :: HilbertSpace v => Stiefel1 v -> v
-stiefel1Embed (Stiefel1 n) = normalized n
-  
-
-class (PseudoAffine v, InnerSpace v, NaturallyEmbedded (UnitSphere v) (DualSpace v))
-          => HasUnitSphere v where
-  type UnitSphere v :: *
-  stiefel :: UnitSphere v -> Stiefel1 v
-  stiefel = Stiefel1 . embed
-  unstiefel :: Stiefel1 v -> UnitSphere v
-  unstiefel = coEmbed . getStiefel1N
-
-instance HasUnitSphere ℝ  where type UnitSphere ℝ  = S⁰
-instance HasUnitSphere ℝ² where type UnitSphere ℝ² = S¹
-instance HasUnitSphere ℝ³ where type UnitSphere ℝ³ = S²
-
-instance (HasUnitSphere v, v ~ DualSpace v) => NaturallyEmbedded (Stiefel1 v) v where
-  embed = embed . unstiefel
-  coEmbed = stiefel . coEmbed
 
 
 

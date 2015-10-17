@@ -10,6 +10,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -256,4 +257,10 @@ instance (SmoothScalar s, FiniteDimensional r, Scalar r ~ s)
           where Tagged n = dimension :: Tagged r Int
   fromPackedVector = FinVecArrRep
 
+
+instance (NaturallyEmbedded m r, FiniteDimensional r, s ~ Scalar r)
+                 => NaturallyEmbedded m (FinVecArrRep t r s) where
+  embed = (concreteArrRep$<-$) . embed
+  coEmbed = coEmbed . (concreteArrRep$->$)
+                     
 
