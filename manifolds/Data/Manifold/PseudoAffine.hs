@@ -169,9 +169,6 @@ class ( AdditiveGroup (Needle x), Interior (Interior x) ~ Interior x )
   (.-~^) :: Interior x -> Needle x -> x
   p .-~^ v = p .+~^ negateV v
 
-  -- | This deals (crudely) with boundary points. See '|-~.' for explanation.
-  (.+~|) :: Interior x -> Stiefel1 (Needle x) -> Option x
-  _ .+~| _ = Hask.empty
   
 -- | This is the class underlying manifolds. ('Manifold' only precludes boundaries
 --   and adds an extra constraint that would be circular if it was in a single
@@ -208,36 +205,14 @@ class ( Semimanifold x, Semimanifold (Interior x)
   -- @
   --   
   --   should hold, at least save for floating-point precision limits etc..
-  (.-~.) :: x -> Interior x -> Option (Needle x)
-  
-  -- | '.-~.' and '.+~^' only really work in manifolds without boundary. If you consider
+  -- 
+  --   '.-~.' and '.+~^' only really work in manifolds without boundary. If you consider
   --   the path between two points, one of which lies on the boundary, it can't really
   --   be possible to scale this path any longer – it would have to reach “out of the
   --   manifold”. To adress this problem, these functions basically consider only the
   --   /interior/ of the space.
-  -- 
-  --   '|-~.' projects the special case of boundary points on the /closure/ of the
-  --   tangent space – the space of “directional infinities”, which is homeomorphic
-  --   to the first Stiefel manifold.
-  -- 
-  --   Concretely: @b |-~. p@ yields a result iff @b@ lies on the boundary.
-  -- 
-  --   The default implementation is to always yield 'Nothing',
-  --   i.e. it assumes the manifold has no boundary.
-  --   
-  --   Morally, the signature should be @(|-~.) :: Boundary x -> Interior x -> Option (Stiefel1 (Needle x))@.
-  --   Likewise, @(.+~|) :: Interior x -> Stiefel1 (Needle x) -> Boundary x@,
-  --   and @betweenBounds :: Boundary x -> Boundary x@.
-  --   We avoid a @Boundary@ type family, to simplify treatment of manifolds.
-  --   However, in the future a dedicated class @MWBound@ might be added, which would be
-  --   able to treat boundaries better.
-  (|-~.) :: x -> Interior x -> Option (Stiefel1 (Needle x))
-  _|-~._ = Option Nothing
-  
-  -- | This function simply yields one point in the interior which lies in between the points on the
-  --   boundary, so interpolation is possible even if you only have two point on opposite boundaries.
-  betweenBounds :: x -> x -> Option (Interior x)
-  betweenBounds _ _ = Option Nothing
+  (.-~.) :: x -> Interior x -> Option (Needle x)
+
   
   
   

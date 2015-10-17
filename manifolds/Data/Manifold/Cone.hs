@@ -171,7 +171,6 @@ instance ConeSemimfd S¹ where
 instance PseudoAffine (Cℝay S¹) where p.-~.i = (.-~.i) =<< toInterior p
 instance PseudoAffine (CD¹ S¹) where
   p.-~.i = (.-~.i) =<< toInterior p
-  CD¹ 1 φ |-~. i = return $ stiefel φ
                                       
 
 
