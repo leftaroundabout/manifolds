@@ -201,6 +201,18 @@ instance (WithField k LinearManifold v, Real k) => PseudoAffine (Stiefel1 v) whe
          samePoint = (d-1) HMat.|> repeat 0
          antipode = (d-1) HMat.|> (2 : repeat 0)
 
+
+instance ( WithField ℝ HilbertSpace x ) => ConeSemimfd (Stiefel1 x) where
+  type CℝayInterior (Stiefel1 x) = x
+  fromCℝayInterior (FinVecArrRep v) = case HMat.size v of
+      0 -> Cℝay 0 $ Stiefel1 zeroV
+      _ -> Cℝay (HMat.norm_2 v) $ Stiefel1 (fromPackedVector v)
+  toCℝayInterior (Cℝay 0 _) = pure zeroV
+  toCℝayInterior (Cℝay l (Stiefel1 v))
+        = pure.FinVecArrRep $ HMat.scale (l/HMat.norm_2 v') v'
+   where v' = asPackedVector v
+
+
 l2norm :: MetricScalar s => HMat.Vector s -> s
 l2norm = realToFrac . HMat.norm_2
 

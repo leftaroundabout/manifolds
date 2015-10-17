@@ -168,6 +168,16 @@ instance ConeSemimfd S¹ where
                     . HMat.scale r' $ HMat.fromList [cos φ, sin φ]
    where r' = bijectIntvtoℝ r
 
+
+instance ConeSemimfd S² where
+  type CℝayInterior S² = ℝ³
+  fromCℝayInterior (FinVecArrRep xyz) = Cℝay r (S² (acos $ z/r) (atan2 y x))
+   where r = HMat.norm_2 xyz
+         [x,y,z] = HMat.toList xyz
+  toCℝayInterior (Cℝay r (S² ϑ φ)) = return . FinVecArrRep
+                    . HMat.scale r $ HMat.fromList [w*x₀, w*y₀, z₀]
+   where x₀ = cos φ; y₀ = sin φ; z₀ = cos ϑ; w = sin ϑ
+
                                       
 
 
