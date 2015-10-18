@@ -123,6 +123,12 @@ instance (ConeSemimfd m, SmoothScalar (Scalar (Needle m))) => PseudoAffine (CD¹
   p.-~.i = (.-~.i) =<< toInterior p
 
 
+instance ConeSemimfd (ZeroDim ℝ) where
+  type CℝayInterior (ZeroDim ℝ) = ℝ
+  fromCℝayInterior (FinVecArrRep qb) | HMat.size qb == 0  = Cℝay 1 Origin
+                                     | x <- qb HMat.! 0   = Cℝay (bijectℝtoℝplus x) Origin 
+  toCℝayInterior (Cℝay 0 Origin) = Hask.empty
+  toCℝayInterior (Cℝay y Origin) = pure . FinVecArrRep $ 1 HMat.|>[bijectℝplustoℝ y]
 instance ConeSemimfd ℝ where
   type CℝayInterior ℝ = ℝ²
   fromCℝayInterior (FinVecArrRep qb) = Cℝay (q'+b') (q'-b')
@@ -187,6 +193,16 @@ instance ( PseudoAffine x, PseudoAffine y
          , LinearManifold (FinVecArrRep Cℝay (ℝ, (Interior x, Interior y)) ℝ)
          ) => ConeSemimfd (x,y) where
   type CℝayInterior (x,y) = (ℝ, (Interior x, Interior y))
+  fromCℝayInterior = simplyCncted_fromCℝayInterior
+  toCℝayInterior = simplyCncted_toCℝayInterior
+
+instance ( KnownNat n ) => ConeSemimfd (ℝ^n) where
+  type CℝayInterior (ℝ^n) = (ℝ, ℝ^n)
+  fromCℝayInterior = simplyCncted_fromCℝayInterior
+  toCℝayInterior = simplyCncted_toCℝayInterior
+
+instance ( HilbertSpace (FinVecArrRep t v ℝ) ) => ConeSemimfd (FinVecArrRep t v ℝ) where
+  type CℝayInterior (FinVecArrRep t v ℝ) = (ℝ, FinVecArrRep t v ℝ)
   fromCℝayInterior = simplyCncted_fromCℝayInterior
   toCℝayInterior = simplyCncted_toCℝayInterior
 

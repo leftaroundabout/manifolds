@@ -373,6 +373,15 @@ instance ( HasMetric v, HasMetric w, Scalar v ~ Scalar w
   (v,w)<.>^(v',w') = v<.>^v' + w<.>^w'
   functional f = (functional $ f . (,zeroV), functional $ f . (zeroV,))
   doubleDual = id; doubleDual'= id
+instance (SmoothScalar s, Ord s, KnownNat n) => HasMetric' (s^n) where
+  type DualSpace (s^n) = s^n
+  (<.>^) = (<.>)
+  functional = fnal
+   where fnal :: ∀ s n . (SmoothScalar s, KnownNat n) => (s^n -> s) -> s^n
+         fnal f =     FreeVect . Arr.generate n $
+            \i -> f . FreeVect . Arr.generate n $ \j -> if i==j then 1 else 0
+          where Tagged n = theNatN :: Tagged n Int
+  doubleDual = id; doubleDual'= id
 instance (HasMetric v, s~Scalar v) => HasMetric' (FinVecArrRep t v s) where
   type DualSpace (FinVecArrRep t v s) = FinVecArrRep t (DualSpace v) s
   FinVecArrRep v <.>^ FinVecArrRep w = HMat.dot v w
