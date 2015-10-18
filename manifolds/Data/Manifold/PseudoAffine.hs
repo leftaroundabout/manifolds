@@ -540,6 +540,9 @@ instance (MetricScalar s) => Category (Differentiable s) where
            in (z, f'*.*g', devfg)
 
 
+instance (RealDimension s) => EnhancedCat (->) (Differentiable s) where
+  arr (Differentiable f) x = let (y,_,_) = f x in y
+
 instance (MetricScalar s) => Cartesian (Differentiable s) where
   type UnitObject (Differentiable s) = ZeroDim s
   swap = Differentiable $ \(x,y) -> ((y,x), lSwap, const zeroV)
@@ -831,6 +834,11 @@ globalDiffable f = PWDiffable $ const (GlobalRegion, f)
 
 instance (RealDimension s) => EnhancedCat (PWDiffable s) (Differentiable s) where
   arr = globalDiffable
+instance (RealDimension s) => EnhancedCat (->) (PWDiffable s) where
+  arr (PWDiffable g) x = let (_,Differentiable f) = g x
+                             (y,_,_) = f x 
+                         in y
+
                 
 instance (RealDimension s) => Cartesian (PWDiffable s) where
   type UnitObject (PWDiffable s) = ZeroDim s

@@ -100,8 +100,17 @@ import GHC.Generics (Generic)
 
 
 class PseudoAffine x => Geodesic x where
-  geodesicBetween :: s ~ Scalar (Needle x)
-      => x -> x -> Option (D¹ -> x)
+  geodesicBetween ::
+          x -- ^ Starting point; the interpolation will yield this at -1.
+       -> x -- ^ End point, for +1.
+            -- 
+            --   If the two points are actually connected by a path...
+       -> Option (D¹ -> x) -- ^ ...then this is the interpolation function. Attention: 
+                           --   the type will change to 'Differentiable' in the future.
+
+interpolate :: (Geodesic x, IntervalLike i) => x -> x -> Option (i -> x)
+interpolate a b = (. toClosedInterval) <$> geodesicBetween a b
+
 
 
 
@@ -206,8 +215,30 @@ instance (c) => Geodesic (CD¹ (t)) where {                                  \
          ; toP (CD¹ h w) = ( h*^w, h ) } }
 
 geoVSpCone ((), ℝ)
-geoVSpCone ((), ZeroDim ℝ)
+geoVSpCone ((), ℝ⁰)
 geoVSpCone ((WithField ℝ HilbertSpace a, WithField ℝ HilbertSpace b, Geodesic (a,b)), (a,b))
 geoVSpCone (KnownNat n, FreeVect n ℝ)
 geoVSpCone ((Geodesic v, WithField ℝ HilbertSpace v), FinVecArrRep t v ℝ)
+
+
+
+
+-- | One-dimensional manifolds, whose closure is homeomorpic to the unit interval.
+class WithField ℝ PseudoAffine i => IntervalLike i where
+  toClosedInterval :: i -> D¹ -- Differentiable ℝ i D¹
+
+instance IntervalLike D¹ where
+  toClosedInterval = id
+instance IntervalLike (CD¹ S⁰) where
+  toClosedInterval (CD¹ h PositiveHalfSphere) = D¹ h
+  toClosedInterval (CD¹ h NegativeHalfSphere) = D¹ (-h)
+instance IntervalLike (Cℝay S⁰) where
+  toClosedInterval (Cℝay h PositiveHalfSphere) = D¹ $ tanh h
+  toClosedInterval (Cℝay h NegativeHalfSphere) = D¹ $ -tanh h
+instance IntervalLike (CD¹ ℝ⁰) where
+  toClosedInterval (CD¹ h Origin) = D¹ $ h*2 - 1
+instance IntervalLike (Cℝay ℝ⁰) where
+  toClosedInterval (Cℝay h Origin) = D¹ $ 1 - 2/(h+1)
+instance IntervalLike ℝ where
+  toClosedInterval x = D¹ $ tanh x
 
