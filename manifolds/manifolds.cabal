@@ -1,7 +1,7 @@
 Name:                manifolds
 Version:             0.1.5.0
 Category:            Math
-Synopsis:            Working with manifolds in a direct, embedding-free way.
+Synopsis:            Coordinate-free hypersurfaces
 Description:         Manifolds, a generalisation of the notion of &#x201c;smooth curves&#x201d; or surfaces,
                      are topological spaces /locally homeomorphic to a vector space/. This gives
                      rise to what is actually the most natural / mathematically elegant way of dealing
