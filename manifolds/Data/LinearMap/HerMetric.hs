@@ -267,27 +267,27 @@ isInfinite' x = x==x*2
 eigenSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
 eigenSpan (HerMetric' Nothing) = []
 eigenSpan (HerMetric' (Just m)) = map fromPackedVector eigSpan
- where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
+ where (μs,vsm) = HMat.eigSH' m -- TODO: replace with `eigSH'`, which is unchecked
                                -- (`HerMetric` is always Hermitian!)
        eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
 eigenSpan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [DualSpace v]
 eigenSpan' (HerMetric Nothing) = []
 eigenSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
- where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
+ where (μs,vsm) = HMat.eigSH' m -- TODO: replace with `eigSH'`, which is unchecked
                                -- (`HerMetric` is always Hermitian!)
        eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
 eigenCoSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [DualSpace v]
 eigenCoSpan (HerMetric' Nothing) = []
 eigenCoSpan (HerMetric' (Just m)) = map fromPackedVector eigSpan
- where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
+ where (μs,vsm) = HMat.eigSH' m -- TODO: replace with `eigSH'`, which is unchecked
                                -- (`HerMetric` is always Hermitian!)
        eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 eigenCoSpan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [v]
 eigenCoSpan' (HerMetric Nothing) = []
 eigenCoSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
- where (μs,vsm) = HMat.eigSH m -- TODO: replace with `eigSH'`, which is unchecked
+ where (μs,vsm) = HMat.eigSH' m -- TODO: replace with `eigSH'`, which is unchecked
                                -- (`HerMetric` is always Hermitian!)
        eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
