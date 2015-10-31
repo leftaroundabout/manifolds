@@ -273,6 +273,12 @@ euclideanMetric = Tagged euclideanMetric'
 type Metric x = HerMetric (Needle x)
 type Metric' x = HerMetric' (Needle x)
 
+-- | A Riemannian metric assigns each point on a manifold a scalar product on the tangent space.
+--   Note that this association is /not/ continuous, because the charts/tangent spaces in the bundle
+--   are a priori disjoint. However, for a proper Riemannian metric, all arising expressions
+--   of scalar products from needles between points on the manifold ought to be differentiable.
+type RieMetric x = x -> Metric x
+type RieMetric' x = x -> Metric' x
 
 -- | Interpolate between points, approximately linearly. For
 --   points that aren't close neighbours (i.e. lie in an almost
@@ -287,6 +293,23 @@ palerp :: ∀ x. Manifold x
 palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
   Option (Just v) -> return $ \t -> p1 .+~^ t *^ v
   _ -> Hask.empty
+
+
+
+
+
+discretisePath :: WithField ℝ Manifold x
+      => RieMetric x   -- ^ Inaccuracy allowance /ε/
+      -> (ℝ-->x)       -- ^ Path specification
+      -> [(ℝ,x)]       -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
+discretisePath m (Differentiable f)
+         = reverse (tail $ traceFwd 0 (-1)) ++ traceFwd 0 1
+ where traceFwd x₀ dir
+         | x₀ > 1e+100  = [(x₀, fx₀)]
+         | otherwise    = (x₀, fx₀) : traceFwd xn dir
+        where (fx₀, _, δx²) = f x₀
+              εx = m fx₀
+              xn = dir * metricAsLength (δx² εx)
 
 
 
