@@ -1,0 +1,2 @@
+#!/bin/sh
+(cd manifolds && cabal $*) && (cd manifold-random && cabal $*)
