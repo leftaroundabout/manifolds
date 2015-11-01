@@ -10,3 +10,5 @@ bin/
 *.kate-swp
 *.fuse_hidden*
 \#*
+*.lock
+.#*
