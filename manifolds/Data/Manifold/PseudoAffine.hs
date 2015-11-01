@@ -316,6 +316,12 @@ discretisePath nLim m (Differentiable f)
               χ = metric (δx² εx) 1
               xn = x₀ + dir * min (abs x₀+1) (recip χ)
 
+discretisePathSegs :: WithField ℝ Manifold x
+      => RieMetric x            -- ^ Inaccuracy allowance /ε/.
+      -> RWDiffable ℝ ℝ x -- ^ Path specification.
+      -> [[(ℝ,x)]]              -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
+discretisePathSegs m (RWDiffable f) = undefined
+
 
 
 #define deriveAffine(t)          \
