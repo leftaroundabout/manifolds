@@ -214,7 +214,7 @@ metrics' m vs = sqrt . sum $ metricSq' m <$> vs
 transformMetric :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
            => (w :-* v) -> HerMetric v -> HerMetric w
 transformMetric _ (HerMetric Nothing) = HerMetric Nothing
-transformMetric t (HerMetric (Just m)) = matrixMetric $ HMat.tr tmat HMat.<> m HMat.<> tmat
+transformMetric t (HerMetric (Just m)) = matrixMetric $ tmat HMat.<> m HMat.<> HMat.tr tmat
  where tmat = asPackedMatrix t
 
 transformMetric' :: ( HasMetric v, HasMetric w, Scalar v ~ Scalar w )
