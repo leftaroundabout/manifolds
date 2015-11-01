@@ -50,7 +50,6 @@ module Data.Manifold.PseudoAffine (
               Manifold
             , Semimanifold(..)
             , PseudoAffine(..)
-            , Metric, Metric', euclideanMetric
             -- * Regions within a manifold
             , Region
             -- * Hierarchy of manifold-categories
@@ -60,7 +59,11 @@ module Data.Manifold.PseudoAffine (
             , PWDiffable
             -- ** Region-wise defined diff'able funcs
             , RWDiffable
-            -- * Helper constraints
+            -- * Type definitions
+            -- ** Metrics
+            , Metric, Metric', euclideanMetric
+            , RieMetric, RieMetric'
+            -- ** Constraints
             , RealDimension, AffineManifold
             , LinearManifold
             , WithField
@@ -298,19 +301,20 @@ palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
 
 
 
--- | Doesn't work yet.
 discretisePath :: WithField ℝ Manifold x
-      => RieMetric x            -- ^ Inaccuracy allowance /ε/
-      -> (Differentiable ℝ ℝ x) -- ^ Path specification
+      => Int                    -- ^ Limit the number of steps taken in either direction. Note this will not cap the resolution but /length/ of the discretised path.
+      -> RieMetric x            -- ^ Inaccuracy allowance /ε/.
+      -> (Differentiable ℝ ℝ x) -- ^ Path specification.
       -> [(ℝ,x)]                -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
-discretisePath m (Differentiable f)
-         = reverse (tail $ traceFwd 0 (-1)) ++ traceFwd 0 1
+discretisePath nLim m (Differentiable f)
+         = reverse (tail . take nLim $ traceFwd 0 (-1)) ++ take nLim (traceFwd 0 1)
  where traceFwd x₀ dir
-         | x₀ > 1e+100  = [(x₀, fx₀)]
-         | otherwise    = (x₀, fx₀) : traceFwd xn dir
+         | abs x₀ > 1e+100  = [(x₀, fx₀)]
+         | otherwise        = (x₀, fx₀) : traceFwd xn dir
         where (fx₀, _, δx²) = f x₀
               εx = m fx₀
-              xn = dir * metricAsLength (δx² εx)
+              χ = metric (δx² εx) 1
+              xn = x₀ + dir * min (abs x₀+1) (recip χ)
 
 
 
