@@ -68,6 +68,7 @@ module Data.Manifold.PseudoAffine (
             , EuclidSpace
             -- * Misc
             , palerp
+            , discretisePath
             ) where
     
 
@@ -221,9 +222,8 @@ class ( Semimanifold x, Semimanifold (Interior x)
 class (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold m
 instance (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold m
 
-type LocallyScalable s x = ( PseudoAffine x, (Needle x) ~ Needle x
+type LocallyScalable s x = ( PseudoAffine x
                            , HasMetric (Needle x)
-                           , DualSpace (Needle x) ~ DualSpace (Needle x)
                            , s ~ Scalar (Needle x) )
 
 -- | Basically just an &#x201c;updated&#x201d; version of the 'VectorSpace' class.
@@ -298,10 +298,11 @@ palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
 
 
 
+-- | Doesn't work yet.
 discretisePath :: WithField ℝ Manifold x
-      => RieMetric x   -- ^ Inaccuracy allowance /ε/
-      -> (ℝ-->x)       -- ^ Path specification
-      -> [(ℝ,x)]       -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
+      => RieMetric x            -- ^ Inaccuracy allowance /ε/
+      -> (Differentiable ℝ ℝ x) -- ^ Path specification
+      -> [(ℝ,x)]                -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
 discretisePath m (Differentiable f)
          = reverse (tail $ traceFwd 0 (-1)) ++ traceFwd 0 1
  where traceFwd x₀ dir
