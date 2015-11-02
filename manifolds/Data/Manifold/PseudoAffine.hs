@@ -72,6 +72,7 @@ module Data.Manifold.PseudoAffine (
             -- * Misc
             , palerp
             , discretisePathIn
+            , discretisePathSegs
             ) where
     
 
@@ -330,8 +331,8 @@ discretisePathSegs :: WithField ℝ Manifold x
 discretisePathSegs nLim m (RWDiffable f) = jumpsFwd nLim 0 1 -- left direction not implemented yet
  where jumpsFwd nLim' x₀ dir
          | abs x₀ > hugeℝVal                = []
-         | xr < -hugeℝVal || xr < hugeℝVal  = [pseg]
          | Option Nothing <- fq₀            = error "`discretisePathSegs` not yet implemented for partial functions outside of a null set."
+         | xr < -hugeℝVal || xr < hugeℝVal  = [pseg]
          | otherwise                        = pseg : jumpsFwd (nLim'-1) xn dir
         where (r₀, fq₀) = f x₀
               Option (Just lf) = fq₀
