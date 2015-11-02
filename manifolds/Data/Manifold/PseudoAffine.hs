@@ -328,20 +328,24 @@ discretisePathSegs :: WithField ℝ Manifold x
       -> RieMetric x      -- ^ Inaccuracy allowance /ε/.
       -> RWDiffable ℝ ℝ x -- ^ Path specification.
       -> [[(ℝ,x)]]        -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
-discretisePathSegs nLim m (RWDiffable f) = jumpsFwd nLim 0 1 -- left direction not implemented yet
- where jumpsFwd nLim' x₀ dir
-         | abs x₀ > hugeℝVal                = []
-         | Option Nothing <- fq₀            = error "`discretisePathSegs` not yet implemented for partial functions outside of a null set."
-         | xr < -hugeℝVal || xr < hugeℝVal  = [pseg]
-         | otherwise                        = pseg : jumpsFwd (nLim'-1) xn dir
+discretisePathSegs nLim m (RWDiffable f) = jumpsFwd nLim 0 (True,True)
+ where jumpsFwd nLim' x₀ (goL,goR)
+         | abs x₀ > hugeℝVal      = []
+         | Option Nothing <- fq₀  = error "`discretisePathSegs` not yet implemented for partial functions outside of a null set."
+         | xr < -hugeℝVal
+          || xr < hugeℝVal        = [pseg]
+         | not goL                = pseg : jumpR
+         | not goR                = pseg : jumpL
+         | otherwise              = pseg : (zip jumpL jumpR >>= \(l,r)->[l,r])
         where (r₀, fq₀) = f x₀
               Option (Just lf) = fq₀
               pseg = first (subtract x₀) <$>
                   discretisePathIn nLim' (Region x₀ r₀) m (lf . actuallyAffine x₀ idL)
               ((xl,_):(xpl,_):_) = pseg
               ((xr,_):(xpr,_):_) = reverse pseg
-              xn | dir>(0::ℝ)  = xr*2 - xpr
-                 | otherwise   = xl*2 - xpl
+              jumpR = jumpsFwd (nLim'-1) (xr*2-xpr) (False,goR)
+              jumpL = jumpsFwd (nLim'-1) (xl*2-xpl) (goL,False)
+              
              
               
 
