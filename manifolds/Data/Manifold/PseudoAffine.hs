@@ -303,35 +303,45 @@ palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
 
 discretisePathIn :: WithField ℝ Manifold x
       => Int                    -- ^ Limit the number of steps taken in either direction. Note this will not cap the resolution but /length/ of the discretised path.
-      -> Region ℝ               -- ^ Parameter interval of interest
+      -> Region ℝ ℝ             -- ^ Parameter interval of interest
       -> RieMetric x            -- ^ Inaccuracy allowance /ε/.
       -> (Differentiable ℝ ℝ x) -- ^ Path specification.
       -> [(ℝ,x)]                -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
-discretisePathIn nLim (Region m rLim) m (Differentiable f)
-         = reverse (tail . take nLim $ traceFwd m (-1)) ++ take nLim (traceFwd m 1)
+discretisePathIn nLim (Region xm rLim) m (Differentiable f)
+         = reverse (tail . take nLim $ traceFwd xm (-1)) ++ take nLim (traceFwd xm 1)
  where traceFwd x₀ dir
-         | x₀<l || x₀>r  = []
-         | otherwise     = (x₀, fx₀) : traceFwd xn dir
+         | rnfn x₀ < 0        = []
+         | abs x₀ > hugeℝVal  = [(x₀, fx₀)] 
+         | otherwise          = (x₀, fx₀) : traceFwd xn dir
         where (fx₀, _, δx²) = f x₀
               εx = m fx₀
               χ = metric (δx² εx) 1
               xn = x₀ + dir * min (abs x₀+1) (recip χ)
-       m = (l+r)/2
+       rnfn = case rLim of
+                GlobalRegion -> const 1
+                PreRegion (Differentiable pmbf) -> pmbf >>> \(q,_,_)->q
+                      
 
 discretisePathSegs :: WithField ℝ Manifold x
       => Int              -- ^ Maximum number of path segments and/or points per segment.
       -> RieMetric x      -- ^ Inaccuracy allowance /ε/.
       -> RWDiffable ℝ ℝ x -- ^ Path specification.
       -> [[(ℝ,x)]]        -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
-discretisePathSegs nLim m (RWDiffable f) = jumpsFwd nLim 0
- where jumpsFwd nLim' x₀
+discretisePathSegs nLim m (RWDiffable f) = jumpsFwd nLim 0 1 -- left direction not implemented yet
+ where jumpsFwd nLim' x₀ dir
          | abs x₀ > hugeℝVal                = []
-         | xr > hugeℝVal || xl < -hugeℝVal  = [pseg]
-         | Option (Just lf) <- fq₀          = pseg : jumpOn
+         | xr < -hugeℝVal || xr < hugeℝVal  = [pseg]
+         | Option Nothing <- fq₀            = error "`discretisePathSegs` not yet implemented for partial functions outside of a null set."
+         | otherwise                        = pseg : jumpsFwd (nLim'-1) xn dir
         where (r₀, fq₀) = f x₀
+              Option (Just lf) = fq₀
               pseg = first (subtract x₀) <$>
-                        discretisePath nLim' (xl,xr) m (lf . actuallyAffine x₀ idL)
-              
+                  discretisePathIn nLim' (Region x₀ r₀) m (lf . actuallyAffine x₀ idL)
+              ((xl,_):(xpl,_):_) = pseg
+              ((xr,_):(xpr,_):_) = reverse pseg
+              xn | dir>(0::ℝ)  = xr*2 - xpr
+                 | otherwise   = xl*2 - xpl
+             
               
 
 
