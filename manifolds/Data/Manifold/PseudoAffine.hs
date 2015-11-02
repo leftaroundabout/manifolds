@@ -71,7 +71,7 @@ module Data.Manifold.PseudoAffine (
             , EuclidSpace
             -- * Misc
             , palerp
-            , discretisePath
+            , discretisePathIn
             ) where
     
 
@@ -301,28 +301,42 @@ palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
 
 
 
-discretisePath :: WithField ℝ Manifold x
+discretisePathIn :: WithField ℝ Manifold x
       => Int                    -- ^ Limit the number of steps taken in either direction. Note this will not cap the resolution but /length/ of the discretised path.
+      -> Region ℝ               -- ^ Parameter interval of interest
       -> RieMetric x            -- ^ Inaccuracy allowance /ε/.
       -> (Differentiable ℝ ℝ x) -- ^ Path specification.
       -> [(ℝ,x)]                -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
-discretisePath nLim m (Differentiable f)
-         = reverse (tail . take nLim $ traceFwd 0 (-1)) ++ take nLim (traceFwd 0 1)
+discretisePathIn nLim (Region m rLim) m (Differentiable f)
+         = reverse (tail . take nLim $ traceFwd m (-1)) ++ take nLim (traceFwd m 1)
  where traceFwd x₀ dir
-         | abs x₀ > 1e+100  = [(x₀, fx₀)]
-         | otherwise        = (x₀, fx₀) : traceFwd xn dir
+         | x₀<l || x₀>r  = []
+         | otherwise     = (x₀, fx₀) : traceFwd xn dir
         where (fx₀, _, δx²) = f x₀
               εx = m fx₀
               χ = metric (δx² εx) 1
               xn = x₀ + dir * min (abs x₀+1) (recip χ)
+       m = (l+r)/2
 
 discretisePathSegs :: WithField ℝ Manifold x
-      => RieMetric x            -- ^ Inaccuracy allowance /ε/.
+      => Int              -- ^ Maximum number of path segments and/or points per segment.
+      -> RieMetric x      -- ^ Inaccuracy allowance /ε/.
       -> RWDiffable ℝ ℝ x -- ^ Path specification.
-      -> [[(ℝ,x)]]              -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
-discretisePathSegs m (RWDiffable f) = undefined
+      -> [[(ℝ,x)]]        -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
+discretisePathSegs nLim m (RWDiffable f) = jumpsFwd nLim 0
+ where jumpsFwd nLim' x₀
+         | abs x₀ > hugeℝVal                = []
+         | xr > hugeℝVal || xl < -hugeℝVal  = [pseg]
+         | Option (Just lf) <- fq₀          = pseg : jumpOn
+        where (r₀, fq₀) = f x₀
+              pseg = first (subtract x₀) <$>
+                        discretisePath nLim' (xl,xr) m (lf . actuallyAffine x₀ idL)
+              
+              
 
 
+hugeℝVal :: ℝ
+hugeℝVal = 1e+100
 
 #define deriveAffine(t)          \
 instance Semimanifold (t) where { \
