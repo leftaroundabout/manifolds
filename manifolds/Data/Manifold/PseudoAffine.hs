@@ -347,6 +347,27 @@ discretisePathSegs nLim m (RWDiffable f) = jumpsFwd nLim 0 (True,True)
               jumpL = jumpsFwd (nLim'-1) (xl*2-xpl) (goL,False)
               
              
+continuousIntervals :: RWDiffable ℝ ℝ x -> (ℝ,ℝ) -> [(ℝ,ℝ)]
+continuousIntervals (RWDiffable f) (xl,xr) = enter xl
+ where enter x₀ = case f x₀ of 
+                    (GlobalRegion, _) -> [(xl,xr)]
+                    (PreRegion r₀, _) -> exit r₀ x₀
+        where exit :: Differentiable ℝ ℝ ℝ -> ℝ -> [(ℝ,ℝ)]
+              exit (Differentiable r) x
+               | x > xr           = [(x₀,xr)]
+               | y' > 0          = exit (Differentiable r)
+                                        (x + metricAsLength (δ (metricFromLength y)))
+               | -y/y' < 1e-10   = (x₀,x) : enter (x+1e-10)
+               | otherwise       = exit (Differentiable r) xn
+               where (y, y'm, δ) = r x
+                     xn = bisBack $ x - y/y'
+                      where bisBack xq
+                              | ybm > 0    = xbm
+                              | otherwise  = bisBack xbm
+                             where (ybm, _, _) = r xbm
+                                   xbm = (xq*9 + x)/10
+                     y' = lapply y'm 1
+              
               
 
 

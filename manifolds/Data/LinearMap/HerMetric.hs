@@ -28,7 +28,7 @@ module Data.LinearMap.HerMetric (
   -- * One-dimensional axes and product spaces
   , factoriseMetric, factoriseMetric'
   , productMetric, productMetric'
-  , metricAsLength, metric'AsLength
+  , metricAsLength, metricFromLength, metric'AsLength
   -- * Utility for metrics
   , transformMetric, transformMetric'
   , dualiseMetric, dualiseMetric'
@@ -515,8 +515,11 @@ productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
 metricAsLength :: HerMetric ℝ -> ℝ
 metricAsLength = recip . (`metric`1)
 
+metricFromLength :: ℝ -> HerMetric ℝ
+metricFromLength = projector . recip
+
 metric'AsLength :: HerMetric' ℝ -> ℝ
-metric'AsLength = recip . (`metric'`1)
+metric'AsLength = recip . (`metric'`1)  -- do we really want `recip` here?
 
 
 spanHilbertSubspace :: ∀ s v w
