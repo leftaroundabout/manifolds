@@ -52,6 +52,7 @@ module Data.Manifold.PseudoAffine (
             , PseudoAffine(..)
             -- * Regions within a manifold
             , Region
+            , smoothIndicator
             -- * Hierarchy of manifold-categories
             -- ** Everywhere differentiable functions
             , Differentiable
@@ -73,6 +74,8 @@ module Data.Manifold.PseudoAffine (
             , palerp
             , discretisePathIn
             , discretisePathSegs
+            , continuousIntervals
+            , regionOfContinuityAround
             ) where
     
 
@@ -368,6 +371,15 @@ continuousIntervals (RWDiffable f) (xl,xr) = enter xl
                                    xbm = (xq*9 + x)/10
                      y' = lapply y'm 1
               
+
+-- | Represent a 'Region' by a smooth function which is positive within the region,
+--   and crosses zero at the boundary.
+smoothIndicator :: LocallyScalable ℝ q => Region ℝ q -> Differentiable ℝ q ℝ
+smoothIndicator (Region _ GlobalRegion) = const 1
+smoothIndicator (Region _ (PreRegion r)) = r
+
+regionOfContinuityAround :: RWDiffable ℝ q x -> q -> Region ℝ q
+regionOfContinuityAround (RWDiffable f) q = Region q . fst . f $ q
               
 
 
