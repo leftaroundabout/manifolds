@@ -76,7 +76,7 @@ module Data.Manifold.PseudoAffine (
             , discretisePathSegs
             , continuousIntervals
             , regionOfContinuityAround
-            , analyseDiffability
+            , analyseLocalBehaviour
             ) where
     
 
@@ -372,15 +372,22 @@ continuousIntervals (RWDiffable f) (xl,xr) = enter xl
                                    xbm = (xq*9 + x)/10
                      y' = lapply y'm 1
               
-analyseDiffability ::
+analyseLocalBehaviour ::
     RWDiffable ℝ ℝ ℝ
- -> ℝ                     -- /x/₀ value.
- -> Option ((ℝ,ℝ), ℝ->ℝ)  -- /f/ /x/₀, derivative (i.e. Taylor-1-coefficient), and reverse propagation of /O/ (/δ/²) bound.
-analyseDiffability (RWDiffable f) x₀ = case f x₀ of
+ -> ℝ                      -- ^ /x/₀ value.
+ -> Option ( (ℝ,ℝ)
+           , ℝ->Option ℝ ) -- ^ /f/ /x/₀, derivative (i.e. Taylor-1-coefficient),
+                           --   and reverse propagation of /O/ (/δ/²) bound.
+analyseLocalBehaviour (RWDiffable f) x₀ = case f x₀ of
        (_, Option Nothing) -> Hask.empty
        (_, Option (Just (Differentiable fd))) -> return $
-              let (fx, j, δ) = fd x₀
-              in ((fx, lapply j 1), metricAsLength . δ . metricFromLength)
+              let (fx, j, δf) = fd x₀
+                  epsprop ε
+                    | ε>0  = case metric (δf $ metricFromLength ε) 1 of
+                               0  -> Hask.empty
+                               δ' -> return $ recip δ'
+                    | otherwise  = pure 0
+              in ((fx, lapply j 1), epsprop)
 
 -- | Represent a 'Region' by a smooth function which is positive within the region,
 --   and crosses zero at the boundary.
