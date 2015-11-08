@@ -600,7 +600,7 @@ type LinDevPropag d c = Metric c -> Metric d
 
 dev_ε_δ :: RealDimension a
                 => (a -> a) -> LinDevPropag a a
-dev_ε_δ f d = let ε = 1 / metric d 1 in projector $ 1 / sqrt (f ε)
+dev_ε_δ f d = let ε = 1 / metric d 1 in projector $ 1 / f ε
 
 -- | The category of differentiable functions between manifolds over scalar @s@.
 --   
