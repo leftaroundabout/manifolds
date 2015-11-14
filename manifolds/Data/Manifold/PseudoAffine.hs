@@ -253,7 +253,7 @@ type WithField s c x = ( c x, s ~ Scalar (Needle x) )
 -- | The 'RealFloat' class plus manifold constraints.
 type RealDimension r = ( PseudoAffine r, Interior r ~ r, Needle r ~ r
                        , HasMetric r, DualSpace r ~ r, Scalar r ~ r
-                       , RealFloat r )
+                       , RealFloat r, r ~ ℝ)
 
 -- | The 'AffineSpace' class plus manifold constraints.
 type AffineManifold m = ( PseudoAffine m, Interior m ~ m, AffineSpace m
@@ -600,7 +600,7 @@ type LinDevPropag d c = Metric c -> Metric d
 
 dev_ε_δ :: RealDimension a
                 => (a -> a) -> LinDevPropag a a
-dev_ε_δ f d = let ε = 1 / metric d 1 in projector $ 1 / f ε
+dev_ε_δ f d = let ε = metricAsLength d in projector $ 1 / f ε
 
 -- | The category of differentiable functions between manifolds over scalar @s@.
 --   

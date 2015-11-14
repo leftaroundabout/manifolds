@@ -513,7 +513,10 @@ productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
  where (Tagged dw) = dimension :: Tagged w Int
 
 metricAsLength :: HerMetric ℝ -> ℝ
-metricAsLength = recip . (`metric`1)
+metricAsLength m = case metricSq m 1 of
+   o | o > 0    -> recip o
+     | o < 0    -> error "Metric fails to be positive definite!"
+     | o == 0   -> error "Trying to use zero metric as length."
 
 metricFromLength :: ℝ -> HerMetric ℝ
 metricFromLength = projector . recip
