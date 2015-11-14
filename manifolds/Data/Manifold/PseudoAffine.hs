@@ -600,7 +600,10 @@ type LinDevPropag d c = Metric c -> Metric d
 
 dev_ε_δ :: RealDimension a
                 => (a -> a) -> LinDevPropag a a
-dev_ε_δ f d = let ε = metricAsLength d in projector $ 1 / f ε
+dev_ε_δ f d = let ε = metricAsLength d in
+                  δ = f ε
+              in if δ > 0 then projector $ 1 / f ε
+                          else error "ε-δ propagator function gives negative results."
 
 -- | The category of differentiable functions between manifolds over scalar @s@.
 --   
