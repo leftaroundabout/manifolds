@@ -1362,8 +1362,9 @@ instance (RealDimension n, LocallyScalable n a)
           where sx = sin x; cx = cos x
                 δ ε = let δ₀ = sqrt $ 2 * ε / (abs sx + abs cx/3)
                       in if δ₀ < 1 -- TODO: confirm selection of δ-definition range.
+                                   -- (Empirically seems to be ok)
                           then δ₀
-                          else max 1 $ (ε - abs sx - 1) / cx
+                          else max 1 $ (ε - abs sx - 1) / abs cx
                  -- When sin x ≥ 0, cos x ≥ 0, δ ∈ [0,1[
                  -- ε = sin x + δ · cos x − sin(x+δ)
                  --   = sin x + δ · cos x − sin x · cos δ − cos x · sin δ
