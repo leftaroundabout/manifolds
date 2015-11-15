@@ -1363,7 +1363,7 @@ instance (RealDimension n, LocallyScalable n a)
                 δ ε = let δ₀ = sqrt $ 2 * ε / (abs sx + abs cx/3)
                       in if δ₀ < 1 -- TODO: confirm selection of δ-definition range.
                           then δ₀
-                          else max 1 $ (ε - abs sx - 1) / cos x
+                          else max 1 $ (ε - abs sx - 1) / cx
                  -- When sin x ≥ 0, cos x ≥ 0, δ ∈ [0,1[
                  -- ε = sin x + δ · cos x − sin(x+δ)
                  --   = sin x + δ · cos x − sin x · cos δ − cos x · sin δ
@@ -1386,7 +1386,15 @@ instance (RealDimension n, LocallyScalable n a)
                  --                  = ½·e⁻ˣ · ( e²ˣ − 1 + δ · (e²ˣ + 1) − e²ˣ·e^δ + e^-δ )
                  --   = ½ · ( eˣ − e⁻ˣ + δ · (eˣ + e⁻ˣ) − exp(x+δ) + exp(-x−δ) )
   cosh x = (exp x + exp (-x))/2
-  tanh x = (exp x - exp (-x)) / (exp x + exp (-x))
+  
+  tanh = grwDfblFnValsFunc tanhDfb
+   where tanhDfb x = ( tnhx, idL ^/ (cosh x^2), dev_ε_δ δ )
+          where tnhx = tanh x
+                c = (tnhx*2/pi)^2
+                p = 1 + abs x/(2*pi)
+                δ ε = p * (sqrt ε + ε * c)
+                  -- copied from 'atan' definition. Empirically works safely, in fact
+                  -- with quite a big margin. TODO: find a tighter definition.
 
   atan = grwDfblFnValsFunc atanDfb
    where atanDfb x = ( atnx, idL ^/ (1+x^2), dev_ε_δ δ )
