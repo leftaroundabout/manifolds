@@ -732,9 +732,9 @@ actuallyLinear :: ( WithField s LinearManifold x, WithField s LinearManifold y )
             => (x:-*y) -> Differentiable s x y
 actuallyLinear f = Differentiable $ \x -> (lapply f x, f, const zeroV)
 
-actuallyAffine :: ( WithField s LinearManifold x, WithField s LinearManifold y )
-            => y -> (x:-*y) -> Differentiable s x y
-actuallyAffine y₀ f = Differentiable $ \x -> (y₀ ^+^ lapply f x, f, const zeroV)
+actuallyAffine :: ( WithField s LinearManifold x, WithField s AffineManifold y )
+            => y -> (x:-*Diff y) -> Differentiable s x y
+actuallyAffine y₀ f = Differentiable $ \x -> (y₀ .+^ lapply f x, f, const zeroV)
 
 
 dfblFnValsFunc :: ( LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
@@ -1203,18 +1203,31 @@ instance (RealDimension s) => WellPointed (RWDiffable s) where
   const x = RWDiffable $ \_ -> (GlobalRegion, pure (const x))
 
 
-type RWDfblFuncValue s = GenericAgent (RWDiffable s)
+data RWDfblFuncValue s d c where
+  AffineRWDFV :: (AffineManifold c, LinearManifold d)
+                  => c -> (d:-*Diff c) -> RWDfblFuncValue s d c
+  GenericRWDFV :: RWDiffable s d c -> RWDfblFuncValue s d c
+
+genericiseRWDFV :: (LocallyScalable s c, LocallyScalable s d)
+                    => RWDfblFuncValue s d c -> RWDfblFuncValue s d c
+genericiseRWDFV (AffineRWDFV c j) = GenericRWDFV . globalDiffable' $ actuallyAffine c j
+genericiseRWDFV v = v
 
 instance RealDimension s => HasAgent (RWDiffable s) where
-  alg = genericAlg
-  ($~) = genericAgentMap
+  type AgentVal (RWDiffable s) d c = RWDfblFuncValue s d c
+  alg fq = case fq (GenericRWDFV id) of
+    GenericRWDFV f -> f
+  ($~) = postEndoRW
 instance RealDimension s => CartesianAgent (RWDiffable s) where
-  alg1to2 = genericAlg1to2
-  alg2to1 = genericAlg2to1
-  alg2to2 = genericAlg2to2
+  alg1to2 fgq = case fgq (GenericRWDFV id) of
+    (GenericRWDFV f, GenericRWDFV g) -> f &&& g
+  alg2to1 fq = case fq (GenericRWDFV fst) (GenericRWDFV snd) of
+    GenericRWDFV f -> f
+  alg2to2 fgq = case fgq (GenericRWDFV fst) (GenericRWDFV snd) of
+    (GenericRWDFV f, GenericRWDFV g) -> f &&& g
 instance (RealDimension s)
       => PointAgent (RWDfblFuncValue s) (RWDiffable s) a x where
-  point = genericPoint
+  point = GenericRWDFV . globalDiffable' . const
 
 grwDfblFnValsFunc
      :: ( RealDimension s
@@ -1231,9 +1244,9 @@ grwDfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s.
          , ε ~ HerMetric v  , ε' ~ HerMetric v'  , ε'' ~ HerMetric v'', ε~ε', ε~ε''  )
        => (  c' -> c'' -> (c, (v',v''):-*v, ε -> (ε',ε''))  )
          -> RWDfblFuncValue s d c' -> RWDfblFuncValue s d c'' -> RWDfblFuncValue s d c
-grwDfblFnValsCombine cmb (GenericAgent (RWDiffable fpcs))
-                         (GenericAgent (RWDiffable gpcs)) 
-    = GenericAgent . RWDiffable $
+grwDfblFnValsCombine cmb (GenericRWDFV (RWDiffable fpcs))
+                         (GenericRWDFV (RWDiffable gpcs)) 
+    = GenericRWDFV . RWDiffable $
         \d₀ -> let (rc', fmay) = fpcs d₀
                    (rc'',gmay) = gpcs d₀
                in (unsafePreRegionIntersect rc' rc'',) $
@@ -1257,6 +1270,12 @@ grwDfblFnValsCombine cmb (GenericAgent (RWDiffable fpcs))
  where lcofst = linear(,zeroV)
        lcosnd = linear(zeroV,) 
 
+
+postEndoRW :: ( RealDimension s
+              , LocallyScalable s a, LocallyScalable s b, LocallyScalable s c)
+              => RWDiffable s b c -> RWDfblFuncValue s a b -> RWDfblFuncValue s a c
+postEndoRW f (GenericRWDFV g) = GenericRWDFV $ f . g
+postEndoRW f afff = postEndoRW f $ genericiseRWDFV afff
 
 
 instance (WithField s LinearManifold v, LocallyScalable s a, RealDimension s)
@@ -1293,7 +1312,7 @@ instance (RealDimension n, LocallyScalable n a)
 instance (RealDimension n, LocallyScalable n a)
             => Fractional (RWDfblFuncValue n a n) where
   fromRational i = point $ fromRational i
-  recip = postEndo . RWDiffable $ \a₀ -> if a₀<0
+  recip = postEndoRW . RWDiffable $ \a₀ -> if a₀<0
                                     then (negativePreRegion, pure (Differentiable negp))
                                     else (positivePreRegion, pure (Differentiable posp))
    where negp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
@@ -1335,7 +1354,7 @@ instance (RealDimension n, LocallyScalable n a)
                  --   = eˣ · 2·(cosh(δ) − 1)
                  -- cosh(δ) ≥ ε/(2·eˣ) + 1
                  -- δ ≥ acosh(ε/(2·eˣ) + 1)
-  log = postEndo . RWDiffable $ \x -> if x>0
+  log = postEndoRW . RWDiffable $ \x -> if x>0
                                   then (positivePreRegion, pure (Differentiable lnPosR))
                                   else (negativePreRegion, notDefinedHere)
    where lnPosR x = ( log x, recip x *^ idL, dev_ε_δ $ \ε -> x * sqrt(1 - exp(-ε)) )
@@ -1349,7 +1368,7 @@ instance (RealDimension n, LocallyScalable n a)
                  -- γ ≥ sqrt(1 − exp(-ε)) 
                  -- δ ≥ x · sqrt(1 − exp(-ε)) 
                     
-  sqrt = postEndo . RWDiffable $ \x -> if x>0
+  sqrt = postEndoRW . RWDiffable $ \x -> if x>0
                                    then (positivePreRegion, pure (Differentiable sqrtPosR))
                                    else (negativePreRegion, notDefinedHere)
    where sqrtPosR x = ( sx, idL ^/ (2*sx), dev_ε_δ $
@@ -1410,7 +1429,7 @@ instance (RealDimension n, LocallyScalable n a)
                  -- away from the only place where the function is not virtually constant
                  -- (around 0).
    
-  asin = postEndo . RWDiffable $ \x -> if
+  asin = postEndoRW . RWDiffable $ \x -> if
                   | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
                   | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable asinDefdR))
@@ -1420,7 +1439,7 @@ instance (RealDimension n, LocallyScalable n a)
                 δ ε = sqrt ε * c
                  -- Empirical, with epsEst upper bound.
 
-  acos = postEndo . RWDiffable $ \x -> if
+  acos = postEndoRW . RWDiffable $ \x -> if
                   | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
                   | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable acosDefdR))
@@ -1436,7 +1455,7 @@ instance (RealDimension n, LocallyScalable n a)
                  -- Empirical, modified from log function (the area hyperbolic sine
                  -- resembles two logarithmic lobes), with epsEst-checked lower bound.
   
-  acosh = postEndo . RWDiffable $ \x -> if x>0
+  acosh = postEndoRW . RWDiffable $ \x -> if x>0
                                    then (positivePreRegion, pure (Differentiable acoshDfb))
                                    else (negativePreRegion, notDefinedHere)
    where acoshDfb x = ( acosh x, idL ^/ sqrt(x^2 - 2), dev_ε_δ δ )
@@ -1446,7 +1465,7 @@ instance (RealDimension n, LocallyScalable n a)
                  -- Empirical, modified from sqrt function – the area hyperbolic cosine
                  -- strongly resembles \x -> sqrt(2 · (x-1)).
                     
-  atanh = postEndo . RWDiffable $ \x -> if
+  atanh = postEndoRW . RWDiffable $ \x -> if
                   | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
                   | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable atnhDefdR))
