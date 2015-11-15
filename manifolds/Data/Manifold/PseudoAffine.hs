@@ -1204,13 +1204,12 @@ instance (RealDimension s) => WellPointed (RWDiffable s) where
 
 
 data RWDfblFuncValue s d c where
-  AffineRWDFV :: (AffineManifold c, LinearManifold d)
-                  => c -> (d:-*Diff c) -> RWDfblFuncValue s d c
+  ConstRWDFV :: c -> RWDfblFuncValue s d c
   GenericRWDFV :: RWDiffable s d c -> RWDfblFuncValue s d c
 
-genericiseRWDFV :: (LocallyScalable s c, LocallyScalable s d)
+genericiseRWDFV :: (RealDimension s, LocallyScalable s c, LocallyScalable s d)
                     => RWDfblFuncValue s d c -> RWDfblFuncValue s d c
-genericiseRWDFV (AffineRWDFV c j) = GenericRWDFV . globalDiffable' $ actuallyAffine c j
+genericiseRWDFV (ConstRWDFV c) = GenericRWDFV $ const c
 genericiseRWDFV v = v
 
 instance RealDimension s => HasAgent (RWDiffable s) where
@@ -1225,9 +1224,9 @@ instance RealDimension s => CartesianAgent (RWDiffable s) where
     GenericRWDFV f -> f
   alg2to2 fgq = case fgq (GenericRWDFV fst) (GenericRWDFV snd) of
     (GenericRWDFV f, GenericRWDFV g) -> f &&& g
-instance (RealDimension s, LinearManifold a, AffineManifold x)
+instance (RealDimension s)
       => PointAgent (RWDfblFuncValue s) (RWDiffable s) a x where
-  point p = AffineRWDFV p zeroV
+  point = ConstRWDFV
 
 grwDfblFnValsFunc
      :: ( RealDimension s
@@ -1276,37 +1275,35 @@ grwDfblFnValsCombine cmb fv gv
 postCompRW :: ( RealDimension s
               , LocallyScalable s a, LocallyScalable s b, LocallyScalable s c )
               => RWDiffable s b c -> RWDfblFuncValue s a b -> RWDfblFuncValue s a c
+postCompRW (RWDiffable f) (ConstRWDFV x) = case f x of
+     (_, Option (Just fd)) -> ConstRWDFV $ fd $ x
 postCompRW f (GenericRWDFV g) = GenericRWDFV $ f . g
-postCompRW f afff = postCompRW f $ genericiseRWDFV afff
 
 
-instance ( WithField s EuclidSpace v, AdditiveGroup v
-         , WithField s LinearManifold a, RealDimension s)
+instance ( WithField s EuclidSpace v, AdditiveGroup v, v ~ Needle (Interior (Needle v))
+         , LocallyScalable s a, RealDimension s)
     => AdditiveGroup (RWDfblFuncValue s a v) where
   zeroV = point zeroV
-  AffineRWDFV c₁ j₁ ^+^ AffineRWDFV c₂ j₂ = AffineRWDFV (c₁^+^c₂) (j₁^+^j₂)
+  ConstRWDFV c₁ ^+^ ConstRWDFV c₂ = ConstRWDFV (c₁^+^c₂)
+  ConstRWDFV c₁ ^+^ GenericRWDFV g = GenericRWDFV $
+                               globalDiffable' (actuallyAffine c₁ zeroV) . g
+  GenericRWDFV f ^+^ ConstRWDFV c₂ = GenericRWDFV $
+                                  globalDiffable' (actuallyAffine c₂ zeroV) . f
   v^+^w = grwDfblFnValsCombine (\a b -> (a^+^b, lPlus, const zeroV)) v w
       where lPlus = linear $ uncurry (^+^)
-  negateV (AffineRWDFV c j) = AffineRWDFV (negateV c) (negateV j)
+  negateV (ConstRWDFV c) = ConstRWDFV (negateV c)
   negateV v = grwDfblFnValsFunc (\a -> (negateV a, lNegate, const zeroV)) v
       where lNegate = linear negateV
 
-instance (RealDimension n, WithField n LinearManifold a)
+instance (RealDimension n, LocallyScalable n a)
             => Num (RWDfblFuncValue n a n) where
   fromInteger i = point $ fromInteger i
-  AffineRWDFV c₁ j₁ + AffineRWDFV c₂ j₂ = AffineRWDFV (c₁+c₂) (j₁^+^j₂)
-  v+w = grwDfblFnValsCombine (\a b -> (a+b, lPlus, const zeroV)) v w
-      where lPlus = linear $ uncurry (+)
-  AffineRWDFV c₁ j₁ * w
-    | isZeroMap j₁  = case w of
-                        AffineRWDFV c₂ j₂ -> AffineRWDFV (c₁*c₂) (c₁*^j₂)
-                        GenericRWDFV g -> GenericRWDFV $
-                                  globalDiffable' (actuallyAffine 0 $ linear (c₁*)) . g
-  v * AffineRWDFV c₂ j₂
-    | isZeroMap j₂  = case v of
-                        AffineRWDFV c₁ j₁ -> AffineRWDFV (c₁*c₂) (j₁^*c₂)
-                        GenericRWDFV f -> GenericRWDFV $
-                                  globalDiffable' (actuallyAffine 0 $ linear (*c₂)) . f
+  (+) = (^+^)
+  ConstRWDFV c₁ * ConstRWDFV c₂ = ConstRWDFV (c₁*c₂)
+  ConstRWDFV c₁ * GenericRWDFV g = GenericRWDFV $
+                               globalDiffable' (actuallyLinear $ linear (c₁*)) . g
+  GenericRWDFV f * ConstRWDFV c₂ = GenericRWDFV $
+                                  globalDiffable' (actuallyLinear $ linear (*c₂)) . f
   v*w = grwDfblFnValsCombine (
           \a b -> ( a*b
                   , linear $ \(da,db) -> a*db + b*da
@@ -1325,7 +1322,7 @@ instance (RealDimension n, WithField n LinearManifold a)
           | a₀<0       = (negativePreRegion, pure (const 1))
           | otherwise  = (positivePreRegion, pure (const $ -1))
 
-instance (RealDimension n, WithField n LinearManifold a)
+instance (RealDimension n, LocallyScalable n a)
             => Fractional (RWDfblFuncValue n a n) where
   fromRational i = point $ fromRational i
   recip = postCompRW . RWDiffable $ \a₀ -> if a₀<0
@@ -1357,7 +1354,7 @@ instance (RealDimension n, WithField n LinearManifold a)
 -- Golfed version:
 -- epsEst(f,d)s φ(ViewXCenter ξ)(ViewHeight h)=let ζ=φ ξ in tracePlot$[(ξ-δ,f ξ-δ*d ξ+s*abs ε)|ε<-[-h,-0.998*h..h],let δ=ζ(abs ε)*signum ε]
 
-instance (RealDimension n, WithField n LinearManifold a)
+instance (RealDimension n, LocallyScalable n a)
             => Floating (RWDfblFuncValue n a n) where
   pi = point pi
   
