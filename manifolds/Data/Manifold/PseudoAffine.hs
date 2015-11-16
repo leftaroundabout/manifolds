@@ -1360,7 +1360,9 @@ instance (RealDimension n, LocallyScalable n a)
   
   exp = grwDfblFnValsFunc
     $ \x -> let ex = exp x
-            in ( ex, ex *^ idL, dev_ε_δ $ \ε -> acosh(ε/(2*ex) + 1) )
+            in if ex==0  -- numeric underflow
+                then ( 0, zeroV, dev_ε_δ $ \ε -> log ε - x )
+                else ( ex, ex *^ idL, dev_ε_δ $ \ε -> acosh(ε/(2*ex) + 1) )
                  -- ε = e^(x+δ) − eˣ − eˣ·δ 
                  --   = eˣ·(e^δ − 1 − δ) 
                  --   ≤ eˣ · (e^δ − 1 + e^(-δ) − 1)
