@@ -1286,9 +1286,9 @@ instance ( WithField s EuclidSpace v, AdditiveGroup v, v ~ Needle (Interior (Nee
   zeroV = point zeroV
   ConstRWDFV c₁ ^+^ ConstRWDFV c₂ = ConstRWDFV (c₁^+^c₂)
   ConstRWDFV c₁ ^+^ GenericRWDFV g = GenericRWDFV $
-                               globalDiffable' (actuallyAffine c₁ zeroV) . g
+                               globalDiffable' (actuallyAffine c₁ idL) . g
   GenericRWDFV f ^+^ ConstRWDFV c₂ = GenericRWDFV $
-                                  globalDiffable' (actuallyAffine c₂ zeroV) . f
+                                  globalDiffable' (actuallyAffine c₂ idL) . f
   v^+^w = grwDfblFnValsCombine (\a b -> (a^+^b, lPlus, const zeroV)) v w
       where lPlus = linear $ uncurry (^+^)
   negateV (ConstRWDFV c) = ConstRWDFV (negateV c)
