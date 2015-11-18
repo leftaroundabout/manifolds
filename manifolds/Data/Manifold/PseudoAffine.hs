@@ -315,16 +315,23 @@ discretisePathIn :: WithField ℝ Manifold x
 discretisePathIn nLim (Region xm rLim) m (Differentiable f)
          = reverse (tail . take nLim $ traceFwd xm (-1)) ++ take nLim (traceFwd xm 1)
  where traceFwd x₀ dir
-         | rnfn x₀ < 0        = []
+         | lvB < 0            = []
          | abs x₀ > hugeℝVal  = [(x₀, fx₀)] 
-         | otherwise          = (x₀, fx₀) : traceFwd xn dir
+         | staysInDom         = (x₀, fx₀) : traceFwd xn dir
+         | otherwise          = undefined
         where (fx₀, _, δx²) = f x₀
               εx = m fx₀
               χ = metric (δx² εx) 1
-              xn = x₀ + dir * min (abs x₀+1) (recip χ)
+              xn = x₀ + xstep
+              xstep = dir * min (abs x₀+1) (recip χ)
+              staysInDom | wn <- lvB + lapply j_lvB xstep
+                         , wn > 0
+                            = as_devεδ δε_lvB wn > xstep
+                         | otherwise  = False
+              (lvB, j_lvB, δε_lvB) = rnfn x₀
        rnfn = case rLim of
-                GlobalRegion -> const 1
-                PreRegion (Differentiable pmbf) -> pmbf >>> \(q,_,_)->q
+                GlobalRegion -> const (1, zeroV, const zeroV)
+                PreRegion (Differentiable pmbf) -> pmbf
                       
 
 discretisePathSegs :: WithField ℝ Manifold x
@@ -608,6 +615,13 @@ dev_ε_δ f d = let ε'² = metricSq d 1
                            else error "ε-δ propagator function gives negative results."
                   else zeroV
 
+as_devεδ :: RealDimension a => LinDevPropag a a -> a -> a
+as_devεδ ldp ε | ε>0
+               , δ'² <- metricSq (ldp . projector $ recip ε) 1
+               , δ'² > 0
+                    = sqrt $ recip δ'²
+               | otherwise  = 0
+
 -- | The category of differentiable functions between manifolds over scalar @s@.
 --   
 --   As you might guess, these offer /automatic differentiation/ of sorts (basically,
@@ -643,7 +657,13 @@ dev_ε_δ f d = let ε'² = metricSq d 1
 --   overlap from exceeding one; this makes the concept actually work on general manifolds.)
 newtype Differentiable s d c
    = Differentiable { runDifferentiable ::
-                        d -> ( c, Needle d :-* Needle c, LinDevPropag d c ) }
+                        d -> ( c   -- function value
+                             , Needle d :-* Needle c -- Jacobian
+                             , LinDevPropag d c -- Metric showing how far you can go
+                                                -- from x₀ without deviating from the
+                                                -- Taylor-1 approximation by more than
+                                                -- some error margin
+                             ) }
 type (-->) = Differentiable ℝ
 
 
