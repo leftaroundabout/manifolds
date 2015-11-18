@@ -315,10 +315,9 @@ discretisePathIn :: WithField ℝ Manifold x
 discretisePathIn nLim (Region xm rLim) m (Differentiable f)
          = reverse (tail . take nLim $ traceFwd xm (-1)) ++ take nLim (traceFwd xm 1)
  where traceFwd x₀ dir
-         | lvB < 0            = []
-         | abs x₀ > hugeℝVal  = [(x₀, fx₀)] 
-         | staysInDom         = (x₀, fx₀) : traceFwd xn dir
-         | otherwise          = undefined
+         | lvB < 0                        = []
+         | abs x₀<hugeℝVal && staysInDom  = (x₀, fx₀) : traceFwd xn dir
+         | otherwise                      = [(x₀, fx₀)]
         where (fx₀, _, δx²) = f x₀
               εx = m fx₀
               χ = metric (δx² εx) 1
