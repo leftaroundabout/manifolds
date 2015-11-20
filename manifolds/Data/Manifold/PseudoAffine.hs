@@ -315,18 +315,21 @@ discretisePathIn :: WithField ℝ Manifold x
 discretisePathIn nLim (Region xm rLim) m (Differentiable f)
          = reverse (tail . take nLim $ traceFwd xm (-1)) ++ take nLim (traceFwd xm 1)
  where traceFwd x₀ dir
-         | lvB < 0                        = []
-         | abs x₀<hugeℝVal && staysInDom  = (x₀, fx₀) : traceFwd xn dir
-         | otherwise                      = [(x₀, fx₀)]
+         | lvB < 0                 = []
+         | abs x₀<hugeℝVal
+         , Option(Just xΔ)<-xstep  = (x₀, fx₀) : traceFwd (x₀+xΔ) dir
+         | otherwise               = [(x₀, fx₀)]
         where (fx₀, _, δx²) = f x₀
               εx = m fx₀
               χ = metric (δx² εx) 1
-              xn = x₀ + xstep
-              xstep = dir * min (abs x₀+1) (recip χ)
-              staysInDom | wn <- lvB + lapply j_lvB xstep
-                         , wn > 0
-                            = as_devεδ δε_lvB wn > xstep
-                         | otherwise  = False
+              xstep = refineStep $ dir * min (abs x₀+1) (recip χ)
+              refineStep spro
+                  | wn > 0
+                  , as_devεδ δε_lvB wn > spro     = pure spro
+                  | wn < 0
+                  , as_devεδ δε_lvB (-wn) > spro  = empty
+                  | otherwise                     = refineStep $ spro/2
+               where wn = lvB + lapply j_lvB spro
               (lvB, j_lvB, δε_lvB) = rnfn x₀
        rnfn = case rLim of
                 GlobalRegion -> const (1, zeroV, const zeroV)
@@ -1514,5 +1517,8 @@ isZeroMap :: ∀ v a . (FiniteDimensional v, AdditiveGroup a, Eq a) => (v:-*a) -
 isZeroMap m = all ((==zeroV) . atBasis m) b
  where (Tagged b) = completeBasis :: Tagged v [Basis v]
 
+
+empty :: Hask.Alternative m => m a
+empty = Hask.empty
 
 
