@@ -300,7 +300,7 @@ palerp :: ∀ x. Manifold x
     => Interior x -> Interior x -> Option (Scalar (Needle x) -> x)
 palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
   Option (Just v) -> return $ \t -> p1 .+~^ t *^ v
-  _ -> Hask.empty
+  _ -> empty
 
 
 
@@ -388,12 +388,12 @@ analyseLocalBehaviour ::
            , ℝ->Option ℝ ) -- ^ /f/ /x/₀, derivative (i.e. Taylor-1-coefficient),
                            --   and reverse propagation of /O/ (/δ/²) bound.
 analyseLocalBehaviour (RWDiffable f) x₀ = case f x₀ of
-       (_, Option Nothing) -> Hask.empty
+       (_, Option Nothing) -> empty
        (_, Option (Just (Differentiable fd))) -> return $
               let (fx, j, δf) = fd x₀
                   epsprop ε
                     | ε>0  = case metric (δf $ metricFromLength ε) 1 of
-                               0  -> Hask.empty
+                               0  -> empty
                                δ' -> return $ recip δ'
                     | otherwise  = pure 0
               in ((fx, lapply j 1), epsprop)
@@ -526,14 +526,14 @@ instance Semimanifold D¹ where
   type Interior D¹ = ℝ
   fromInterior = D¹ . tanh
   toInterior (D¹ x) | abs x < 1  = return $ atanh x
-                    | otherwise  = Hask.empty
+                    | otherwise  = empty
   translateP = Tagged (+)
 instance PseudoAffine D¹ where
-  D¹ 1 .-~. _ = Hask.empty
-  D¹ (-1) .-~. _ = Hask.empty
+  D¹ 1 .-~. _ = empty
+  D¹ (-1) .-~. _ = empty
   D¹ x .-~. y
     | abs x < 1  = return $ atanh x - y
-    | otherwise  = Hask.empty
+    | otherwise  = empty
 
 instance Semimanifold S² where
   type Needle S² = ℝ²
@@ -1517,8 +1517,5 @@ isZeroMap :: ∀ v a . (FiniteDimensional v, AdditiveGroup a, Eq a) => (v:-*a) -
 isZeroMap m = all ((==zeroV) . atBasis m) b
  where (Tagged b) = completeBasis :: Tagged v [Basis v]
 
-
-empty :: Hask.Alternative m => m a
-empty = Hask.empty
 
 

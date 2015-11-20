@@ -459,7 +459,7 @@ instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Floating v)
 
 normaliseWith :: HasMetric v => HerMetric v -> v -> Option v
 normaliseWith m v = case metric m v of
-                      0 -> Hask.empty
+                      0 -> empty
                       μ -> pure (v ^/ μ)
 
 orthonormalPairsWith :: forall v . HasMetric v => HerMetric v -> [v] -> [(v, DualSpace v)]
@@ -538,7 +538,7 @@ spanHilbertSubspace :: ∀ s v w
 spanHilbertSubspace met = emb . orthonormalPairsWith met
  where emb onb'
          | n'==n      = return $ Embedding emb prj . arr identityMatrix
-         | otherwise  = Hask.empty
+         | otherwise  = empty
         where emb = DenseLinear . HMat.fromColumns $ (asPackedVector . fst) <$> onb
               prj = DenseLinear . HMat.fromRows    $ (asPackedVector . snd) <$> onb
               n' = length onb'

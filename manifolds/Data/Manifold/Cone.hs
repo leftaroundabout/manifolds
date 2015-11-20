@@ -127,13 +127,13 @@ instance ConeSemimfd (ZeroDim ℝ) where
   type CℝayInterior (ZeroDim ℝ) = ℝ
   fromCℝayInterior (FinVecArrRep qb) | HMat.size qb == 0  = Cℝay 1 Origin
                                      | x <- qb HMat.! 0   = Cℝay (bijectℝtoℝplus x) Origin 
-  toCℝayInterior (Cℝay 0 Origin) = Hask.empty
+  toCℝayInterior (Cℝay 0 Origin) = empty
   toCℝayInterior (Cℝay y Origin) = pure . FinVecArrRep $ 1 HMat.|>[bijectℝplustoℝ y]
 instance ConeSemimfd ℝ where
   type CℝayInterior ℝ = ℝ²
   fromCℝayInterior (FinVecArrRep qb) = Cℝay (q'+b') (q'-b')
    where [q', b'] = HMat.toList $ HMat.cmap ((/2) . bijectℝtoℝplus) qb
-  toCℝayInterior (Cℝay 0 _) = Hask.empty
+  toCℝayInterior (Cℝay 0 _) = empty
   toCℝayInterior (Cℝay h x) = pure . FinVecArrRep 
                               . HMat.cmap bijectℝplustoℝ $ HMat.fromList [h+x, h-x]
   fromCD¹Interior (FinVecArrRep qb) = CD¹ (bijectℝplustoIntv $ q'+b') (q'-b')
@@ -152,7 +152,7 @@ instance ConeSemimfd S⁰ where
   fromCD¹Interior xa | x>0        = CD¹ (bijectℝtoIntv x) PositiveHalfSphere
                      | otherwise  = CD¹ (-bijectℝtoIntv x) NegativeHalfSphere
    where x = getFinVecArrRep xa HMat.! 0
-  toCD¹Interior (CD¹ 1 _) = Hask.empty
+  toCD¹Interior (CD¹ 1 _) = empty
   toCD¹Interior (CD¹ x PositiveHalfSphere)
         = return . FinVecArrRep . HMat.scalar $ bijectIntvtoℝ x
   toCD¹Interior (CD¹ x NegativeHalfSphere)
@@ -169,7 +169,7 @@ instance ConeSemimfd S¹ where
   fromCD¹Interior (FinVecArrRep xy) = CD¹ (bijectℝtoIntv r) (S¹ $ atan2 y x)
    where r = HMat.norm_2 xy
          [x,y] = HMat.toList xy
-  toCD¹Interior (CD¹ 1 _) = Hask.empty
+  toCD¹Interior (CD¹ 1 _) = empty
   toCD¹Interior (CD¹ r (S¹ φ)) = return . FinVecArrRep
                     . HMat.scale r' $ HMat.fromList [cos φ, sin φ]
    where r' = bijectIntvtoℝ r
@@ -215,7 +215,7 @@ instance ( WithField ℝ ConeSemimfd x, PseudoAffine (Cℝay x)
   type CℝayInterior (CD¹ x) = (ℝ, ConeVecArr x)
   fromCℝayInterior i = Cℝay h (embCℝayToCD¹ o)
    where (Cℝay h o) = simplyCncted_fromCℝayInterior i
-  toCℝayInterior (Cℝay _ (CD¹ 1 _)) = Hask.empty
+  toCℝayInterior (Cℝay _ (CD¹ 1 _)) = empty
   toCℝayInterior (Cℝay h p) = simplyCncted_toCℝayInterior $ Cℝay h (projCD¹ToCℝay p)
   
   
@@ -244,7 +244,7 @@ simplyCncted_toCℝayInterior (Cℝay h v) | h/=0, Option (Just vi) <- toInterio
          cmps = (h - Arr.sum cmps') `Arr.cons` cmps
          n = fromIntegral $ Arr.length cmps
      in return $ FinVecArrRep (bijectℝplustoℝ `Arr.map` cmps)
-simplyCncted_toCℝayInterior (Cℝay _ _) = Hask.empty
+simplyCncted_toCℝayInterior (Cℝay _ _) = empty
 
 
 -- Some essential homeomorphisms
@@ -274,28 +274,6 @@ embCℝayToCD¹ (Cℝay h m) = CD¹ (bijectℝplustoIntv h) m
 projCD¹ToCℝay :: CD¹ m -> Cℝay m
 projCD¹ToCℝay (CD¹ h m) = Cℝay (bijectIntvtoℝplus h) m
 
--- instance (WithScalar ℝ PseudoAffine m) => Semimanifold (Cℝay m) where
---   type Needle (Cℝay m) = (Needle m, ℝ)
---   type Interior (Cℝay m) = (Interior m, ℝ)
--- 
---   fromInterior (im, d)
---      | d>38       = Cℝay m d  -- from 38 on, the +1 is numerically
---                               -- insignificant against the exponential.
---      | otherwise  = cℝay m (log $ exp d + 1)
---                -- note that (for the same reason we can shortcut above 38)
---                -- such negative arguments will actually yield the value zero.
---                -- This means we're actually reaching the “infinitely far”
---                -- rim rather quickly. This might be a problem, but normally
---                -- shouldn't really matter much.
---                -- It would perhaps be better to have homeomorphism that
---                -- approaches -1/x in the negative limit, but such a
---                -- function doesn't seem as easy to come by.
---    where m = fromInterior im
---   toInterior (Cℝay m q)
---      | q>38       = fmap (,q) im
---      | q>0        = fmap (, log $ exp d - 1) im
---      | otherwise  = Hask.empty
---    where im = toInterior m
 
 stiefel1Project :: LinearManifold v =>
              DualSpace v       -- ^ Must be nonzero.
@@ -322,10 +300,6 @@ instance HasUnitSphere (FinVecArrRep t ℝ² ℝ) where type UnitSphere (FinVecA
 
 instance HasUnitSphere ℝ³ where type UnitSphere ℝ³ = S²
 instance HasUnitSphere (FinVecArrRep t ℝ³ ℝ) where type UnitSphere (FinVecArrRep t ℝ³ ℝ) = S²
-
--- instance (HasUnitSphere v, v ~ DualSpace v) => NaturallyEmbedded (Stiefel1 v) v where
---   embed = embed . unstiefel
---   coEmbed = stiefel . coEmbed
 
 
 

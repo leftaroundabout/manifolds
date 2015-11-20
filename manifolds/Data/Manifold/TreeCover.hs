@@ -75,7 +75,7 @@ import Data.Proxy
 
 import Data.SimplicialComplex
 import Data.Manifold.Types
-import Data.Manifold.Types.Primitive ((^))
+import Data.Manifold.Types.Primitive ((^), empty)
 import Data.Manifold.PseudoAffine
     
 import Data.Embedding
@@ -517,7 +517,7 @@ data TriangBuilder n x where
 --                                        | s' <- getTriangulation $ simplexFaces s ]
 --         where expandInDir j xs = case sortBy (comparing snd) $ filter ((> -1) . snd) xs_bc of
 --                             ((x, q) : _) | q<0   -> pure x
---                             _                    -> Hask.empty
+--                             _                    -> empty
 --                where xs_bc = map (\x -> (x, getBaryCoord (emb >-$ x) j)) xs
 --        (Tagged n) = theNatN :: Tagged n Int
 
@@ -541,7 +541,7 @@ optimalBottomExtension :: (KnownNat n, WithField ℝ Manifold x)
 optimalBottomExtension s xs
       = case filter ((>0).snd)
                $ zipWith ((. bottomExtendSuitability s) . (,)) [0..] xs of
-             [] -> Hask.empty
+             [] -> empty
              qs -> pure . fst . maximumBy (comparing snd) $ qs
 
 
@@ -648,7 +648,7 @@ hypotheticalSimplexScore p b = do
       return $ case q of
          Just(_,is) | s<-bottomExtendSuitability is x, s>0
                  -> pure s
-         _       -> Hask.empty
+         _       -> empty
    return . fmap sum $ Hask.sequence scores
 
 spanSemiOpenSimplex :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')

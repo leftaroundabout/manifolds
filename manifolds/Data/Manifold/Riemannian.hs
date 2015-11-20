@@ -69,7 +69,7 @@ import Data.Tagged
 import Data.Proxy
 
 import Data.Manifold.Types
-import Data.Manifold.Types.Primitive ((^), embed, coEmbed)
+import Data.Manifold.Types.Primitive ((^), empty, embed, coEmbed)
 import Data.Manifold.PseudoAffine
 import Data.VectorSpace.FiniteDimensional
     
@@ -157,7 +157,7 @@ instance (Geodesic v, WithField ℝ HilbertSpace v)
 instance Geodesic S⁰ where
   geodesicBetween PositiveHalfSphere PositiveHalfSphere = return $ const PositiveHalfSphere
   geodesicBetween NegativeHalfSphere NegativeHalfSphere = return $ const NegativeHalfSphere
-  geodesicBetween _ _ = Hask.empty
+  geodesicBetween _ _ = empty
 
 instance Geodesic S¹ where
   geodesicBetween (S¹ φ) (S¹ ϕ)

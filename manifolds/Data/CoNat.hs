@@ -28,7 +28,15 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE PolyKinds                  #-}
 
-module Data.CoNat where
+module Data.CoNat ( Nat(..), natToInt, fromNat
+                  , natTagLast, natTagPænultimate, natTagAntepænultimate
+                  , tryToMatchT, tryToMatchTT, tryToMatchTTT
+                  , ftorTryToMatch, ftorTryToMatchT, ftorTryToMatchTT
+                  , KnownNat(..)
+                  , Range(..)
+                  , FreeVect(..), (^)(), freeVector, freeCons, freeSnoc
+                  , replicVector, indices, perfectZipWith, freeRotate
+                  , ) where
 
 import Data.Tagged
 import Data.Semigroup
@@ -109,8 +117,8 @@ class KnownNat (n :: Nat) where
 instance KnownNat Z where
   theNat = Tagged Z
   theNatN = Tagged 0
-  cozero  = pure; cosucc _  = Hask.empty; fCosucc _  = Hask.empty
-  cozeroT = pure; cosuccT _ = Hask.empty; fCosuccT _ = Hask.empty
+  cozero  = pure; cosucc _  = empty; fCosucc _  = empty
+  cozeroT = pure; cosuccT _ = empty; fCosuccT _ = empty
   coNat f _ = f; coNatT f _ = f
   coInduce s _ = s
   coInduceT s _ = s
@@ -121,13 +129,13 @@ instance KnownNat Z where
                     => (∀ j . KnownNat j => b j -> b (S j)) -> b k -> Option (b Z)
          ttmZ sc nf = case k of
                         Z -> return $ unsafeCoerce nf
-                        S _ -> Hask.empty
+                        S _ -> empty
           where (Tagged k) = theNat :: Tagged k Nat
 instance (KnownNat n) => KnownNat (S n) where
   theNat = natSelfSucc
   theNatN = natSelfSuccN
-  cozero _  = Hask.empty; cosucc v  = pure v; fCosucc v  = v
-  cozeroT _ = Hask.empty; cosuccT v = pure v; fCosuccT v = v
+  cozero _  = empty; cosucc v  = pure v; fCosucc v  = v
+  cozeroT _ = empty; cosuccT v = pure v; fCosuccT v = v
   coNat _ f = f; coNatT _ f = f
   coInduce s f = f $ coInduce s f
   coInduceT s f = f $ coInduceT s f
@@ -138,7 +146,7 @@ instance (KnownNat n) => KnownNat (S n) where
                     => (∀ j . KnownNat j => b j -> b (S j)) -> b k -> Option (b (S n))
          ttmS sc nf | k == sn    = return $ unsafeCoerce nf
                     | k <= sn    = tryToMatch sc $ sc nf
-                    | otherwise  = Hask.empty
+                    | otherwise  = empty
           where (Tagged k) = theNatN :: Tagged k Int
                 (Tagged sn) = theNatN :: Tagged (S n) Int
                        
@@ -214,7 +222,7 @@ newtype Range (n::Nat) = InRange { getInRange :: Int -- ^ MUST be between 0 and 
 
 clipToRange :: forall n . KnownNat n => Int -> Option (Range n)
 clipToRange = \k -> if k < n then Hask.pure $ InRange n
-                             else Hask.empty
+                             else empty
  where (Tagged n) = theNatN :: Tagged n Int
                        
 instance KnownNat n => HasTrie (Range n) where
@@ -270,7 +278,7 @@ replicVector = FreeVect . Arr.replicate n
 freeVector :: forall l n x . (KnownNat n, Hask.Foldable l) => l x -> Option (FreeVect n x)
 freeVector c'
     | List.length c == n  = pure . FreeVect $ Arr.fromList c
-    | otherwise           = Hask.empty
+    | otherwise           = empty
  where (Tagged n) = theNatN :: Tagged n Int
        c = Hask.toList c'
 
@@ -312,3 +320,7 @@ instance (Functor f (->) (->)) => Hask.Functor (AsHaskFunctor f) where
 instance (Monoidal f (->) (->)) => Hask.Applicative (AsHaskFunctor f) where
   pure x = fmap (const x) . AsHaskFunctor $ pureUnit ()
   AsHaskFunctor fs <*> AsHaskFunctor xs = AsHaskFunctor . fmap (uncurry ($)) $ fzip (fs, xs)
+
+
+empty :: Hask.Alternative m => m a
+empty = Hask.empty

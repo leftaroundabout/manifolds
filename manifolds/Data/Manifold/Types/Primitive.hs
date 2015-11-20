@@ -50,6 +50,7 @@ module Data.Manifold.Types.Primitive (
         -- * Utility (deprecated)
         , NaturallyEmbedded(..)
         , GraphWindowSpec(..), Endomorphism, (^), (^.), EqFloating
+        , empty
    ) where
 
 
@@ -60,7 +61,7 @@ import Data.Complex hiding (magnitude)
 import Data.Void
 import Data.Monoid
 
-import Control.Applicative (Const(..))
+import Control.Applicative (Const(..), Alternative(..))
 
 import qualified Prelude
 

@@ -80,7 +80,7 @@ import Data.Tagged
 import Data.Proxy
 
 import Data.Manifold.Types
-import Data.Manifold.Types.Primitive ((^))
+import Data.Manifold.Types.Primitive ((^), empty)
 import Data.Manifold.PseudoAffine
     
 import Data.Embedding
@@ -268,7 +268,7 @@ onSkeleton :: ∀ n k x t m y . (KnownNat k, KnownNat n, HaskMonad m)
                    => TriangT t k x m y -> TriangT t n x m (Option y)
 onSkeleton q@(TriangT qf) = case tryToMatchTTT forgetVolumes q of
     Option (Just q') -> pure <$> q'
-    _ -> return Hask.empty
+    _ -> return empty
 
 
 newtype SimplexIT (t :: *) (n :: Nat) (x :: *) = SimplexIT { tgetSimplexIT' :: Int }
@@ -380,7 +380,7 @@ distinctSimplices i j = do
           [[iIVert], [jIVert]] <- forM [i,j]
               $ fmap (filter (not . (`elem` shVerts)) . Hask.toList) . lookSplxVerticesIT
           return $ pure ((iIVert, jIVert), shBound)
-     _         -> return Hask.empty
+     _         -> return empty
 
 
 triangulationBulk :: ∀ t m n k x . (HaskMonad m, KnownNat k, KnownNat n) => TriangT t n x m [Simplex k x]
@@ -400,7 +400,7 @@ lookupSimplexCone tip base = do
     baseSups :: [SimplexIT t (S k) x] <- lookSupersimplicesIT base
     return $ case intersect tipSups baseSups of
        (res:_) -> pure res
-       _ -> Hask.empty
+       _ -> empty
     
 
 
