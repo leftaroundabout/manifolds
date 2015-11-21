@@ -65,7 +65,7 @@ Library
                      Data.Manifold.TreeCover
                      Data.SimplicialComplex
                      Data.LinearMap.HerMetric
-                     -- Data.Manifold.Visualisation.R3.GLUT
+                     Data.Function.Differentiable
                      Data.Manifold.Types
                      Data.Manifold.Griddable
                      Data.Manifold.Riemannian

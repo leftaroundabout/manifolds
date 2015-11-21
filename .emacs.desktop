@@ -2,7 +2,7 @@
 ;; --------------------------------------------------------------------------
 ;; Desktop File for Emacs
 ;; --------------------------------------------------------------------------
-;; Created Sat Oct 31 14:12:49 2015
+;; Created Sat Nov 21 14:05:03 2015
 ;; Desktop file format version 206
 ;; Emacs version 24.3.1
 
@@ -16,6 +16,28 @@
 (setq file-name-history '("" "manifolds"))
 
 ;; Buffer section -- buffers listed in same order as in buffer list:
+(desktop-create-buffer 206
+  "manifolds/Data/Function/Differentiable.hs"
+  "Differentiable.hs"
+  'haskell-mode
+  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  49609
+  '(2420 nil)
+  nil
+  nil
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
+
+(desktop-create-buffer 206
+  "manifolds/Data/Manifold/PseudoAffine.hs"
+  "PseudoAffine.hs"
+  'haskell-mode
+  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  15802
+  '(13353 nil)
+  nil
+  nil
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
+
 (desktop-create-buffer 206
   "manifolds/Data/Manifold/Riemannian.hs"
   "Riemannian.hs"
@@ -125,17 +147,6 @@
   nil
   nil
   '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
-
-(desktop-create-buffer 206
-  "manifolds/Data/Manifold/PseudoAffine.hs"
-  "PseudoAffine.hs"
-  'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
-  13587
-  '(13353 nil)
-  nil
-  nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/Data/LinearMap/HerMetric.hs"
