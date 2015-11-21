@@ -105,8 +105,9 @@ discretisePathIn nLim (xl, xr) m (Differentiable f)
               (fxlim, _, _) = f xlim
        xm = (xr - xl) / 2
                       
-data ℝInterval = Allℝ | NegTo ℝ | ToPos ℝ | Intv ℝ ℝ
+data ℝInterval = Allℝ | NegTo ℝ | ToPos ℝ | Intv ℝ ℝ deriving (Show)
 
+-- ^ Doesn't work at the moment.
 continuityRanges :: WithField ℝ Manifold x
       => RieMetric ℝ       -- ^ Needed resolution of boundaries
       -> RWDiffable ℝ ℝ x
@@ -118,22 +119,24 @@ continuityRanges δbf (RWDiffable f)
  where go x₀ dir = exit dir x₀
         where (PreRegion (Differentiable r₀), fq₀) = f x₀
               exit dir' xq
-                | xq > hugeℝVal   = [ToPos x₀]
-                | xq < -hugeℝVal  = [NegTo x₀]
-                | yq'>0           = exit dir' xq'
-                | metricSq(δbf xq)stepp < 1
-                                  = Intv (min xq xq') (max xq xq') : go xq' dir
-                | otherwise       = exit (dir'/2) xq
+                | xq > hugeℝVal     = [ToPos x₀]
+                | xq < -hugeℝVal    = [NegTo x₀]
+                | yq==0             = exit dir' (xq + 1/sqrt(resoHere dir))
+                | yq'>0             = exit dir' xq'
+                | resoHere stepp<1  = Intv (min xq xq') (max xq xq') : go xq' dir
+                | otherwise         = exit (dir'/2) xq
                where (yq, jq, δyq) = r₀ xq
                      xq' = xq + stepp
                      yq' = yq + lapply jq stepp
                      stepp = dir' * as_devεδ δyq yq -- TODO: memoise in `exit` recursion
+                     resoHere = metricSq $ δbf xq
        glueMid [NegTo le] [ToPos re]         | le==re  = ([], [Allℝ])
        glueMid [NegTo le] (Intv re r:rs)     | le==re  = ([], NegTo r:rs)
        glueMid (Intv l le:ls) [ToPos re]     | le==re  = (ls, [ToPos l])
        glueMid (Intv l le:ls) (Intv re r:rs) | le==re  = (ls, Intv l r:rs)
        glueMid l r = (l,r)
 
+-- ^ Doesn't work at the moment.
 discretisePathSegs :: WithField ℝ Manifold x
       => Int              -- ^ Maximum number of path segments and/or points per segment.
       -> ( RieMetric x

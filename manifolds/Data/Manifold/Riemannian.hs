@@ -242,3 +242,12 @@ instance IntervalLike (Cℝay ℝ⁰) where
 instance IntervalLike ℝ where
   toClosedInterval x = D¹ $ tanh x
 
+
+
+
+
+class Geodesic m => Riemannian m where
+  rieMetric :: RieMetric m
+
+instance Riemannian ℝ where
+  rieMetric = const m where m = projector 1
