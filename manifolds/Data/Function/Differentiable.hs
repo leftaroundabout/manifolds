@@ -507,6 +507,7 @@ positivePreRegion = PreRegion $ Differentiable prr
  where prr x = (1 - 1/xp1, (1/xp1²) *^ idL, dev_ε_δ δ )
                  -- ε = (1 − 1/(1+x)) + (-δ · 1/(x+1)²) − (1 − 1/(1+x−δ))
                  --   = 1/(1+x−δ) − 1/(1+x) − δ · 1/(x+1)²
+                 --
                  -- ε·(1+x−δ) = 1 − (1+x−δ)/(1+x) − δ·(1+x-δ)/(x+1)²
                  -- ε·(1+x) − ε·δ = 1 − 1/(1+x) − x/(1+x) + δ/(1+x)
                  --                               − δ/(x+1)² − δ⋅x/(x+1)² + δ²/(x+1)²
@@ -514,12 +515,28 @@ positivePreRegion = PreRegion $ Differentiable prr
                  --                               − δ⋅x/(x+1)² + δ²/(x+1)²
                  --               = 1 − 1 + x⋅δ/(x+1)² − δ⋅x/(x+1)² + δ²/(x+1)²
                  --               = δ²/(x+1)²
+                 --
                  -- ε·(x+1)⋅(x+1)² − ε·δ⋅(x+1)² = δ²
                  -- 0 = δ² + ε·(x+1)²·δ − ε·(x+1)³
-                 -- δ = let mph = -ε·(x+1)²/2
-                 --     in mph + sqrt(mph² + ε·(x+1)³)
-        where δ ε = let mph = -ε*xp1²/2
-                    in mph + sqrt(mph^2 + ε * xp1² * xp1)
+                 --
+                 -- δ = let μ = ε·(x+1)²/2          -- Exact form
+                 --     in -μ + √(μ² + ε·(x+1)³)    -- (not overflow save)
+                 --
+                 -- Safe approximation for large x:
+                 -- ε = 1/(1+x−δ) − 1/(1+x) − δ · 1/(x+1)²
+                 --   ≤ 1/(1+x−δ) − 1/(1+x)
+                 -- 
+                 -- ε⋅(1+x−δ)⋅(1+x) ≤ 1+x − (1+x−δ) = δ
+                 -- 
+                 -- δ ≥ ε + ε⋅x − ε⋅δ + ε⋅x + ε⋅x² − ε⋅δ⋅x
+                 --
+                 -- δ⋅(1 + ε + ε⋅x) ≥ ε + ε⋅x + ε⋅x + ε⋅x² ≥ ε⋅x²
+                 --
+                 -- δ ≥ ε⋅x²/(1 + ε + ε⋅x)
+                 --   = ε⋅x/(1/x + ε/x + ε)
+        where δ ε | x<100      = let μ = ε*xp1²/2
+                                 in sqrt(μ^2 + ε * xp1² * xp1) - μ
+                  | otherwise  = ε * x / ((1+ε)/x + ε)
               xp1 = (x+1)
               xp1² = xp1 ^ 2
 negativePreRegion = PreRegion $ ppr . ngt
