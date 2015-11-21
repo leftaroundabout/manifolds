@@ -308,56 +308,59 @@ palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
 
 discretisePathIn :: WithField ℝ Manifold x
       => Int                    -- ^ Limit the number of steps taken in either direction. Note this will not cap the resolution but /length/ of the discretised path.
-      -> Region ℝ ℝ             -- ^ Parameter interval of interest
+      -> (ℝ, ℝ)                 -- ^ Parameter interval of interest.
       -> RieMetric x            -- ^ Inaccuracy allowance /ε/.
       -> (Differentiable ℝ ℝ x) -- ^ Path specification.
       -> [(ℝ,x)]                -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
-discretisePathIn nLim (Region xm rLim) m (Differentiable f)
-         = reverse (tail . take nLim $ traceFwd xm (-1)) ++ take nLim (traceFwd xm 1)
- where traceFwd x₀ dir
-         | lvB < 0                 = []
-         | abs x₀<hugeℝVal
-         , Option(Just xΔ)<-xstep  = (x₀, fx₀) : traceFwd (x₀+xΔ) dir
-         | otherwise               = [(x₀, fx₀)]
+discretisePathIn nLim (xl, xr) m (Differentiable f)
+         = reverse (tail . take nLim $ traceFwd xl xm (-1))
+          ++ take nLim (traceFwd xr xm 1)
+ where traceFwd xlim x₀ dir
+         | signum (x₀-xlim) == signum dir = [(xlim, fxlim)]
+         | otherwise                      = (x₀, fx₀) : traceFwd xlim (x₀+xstep) dir
         where (fx₀, _, δx²) = f x₀
               εx = m fx₀
               χ = metric (δx² εx) 1
-              xstep = refineStep $ dir * min (abs x₀+1) (recip χ)
-              refineStep spro
-                  | wn > 0
-                  , as_devεδ δε_lvB wn > spro     = pure spro
-                  | wn < 0
-                  , as_devεδ δε_lvB (-wn) > spro  = empty
-                  | otherwise                     = refineStep $ spro/2
-               where wn = lvB + lapply j_lvB spro
-              (lvB, j_lvB, δε_lvB) = rnfn x₀
-       rnfn = case rLim of
-                GlobalRegion -> const (1, zeroV, const zeroV)
-                PreRegion (Differentiable pmbf) -> pmbf
+              xstep = dir * min (abs x₀+1) (recip χ)
+              (fxlim, _, _) = f xlim
+       xm = (xr - xl) / 2
                       
+data ℝInterval = Allℝ | NegTo ℝ | ToPos ℝ | Intv ℝ ℝ
+
+continuityRanges :: WithField ℝ Manifold x
+      => RieMetric ℝ       -- ^ Needed resolution of boundaries
+      -> RWDiffable ℝ ℝ x
+      -> ([ℝInterval], [ℝInterval])
+continuityRanges δbf (RWDiffable f)
+  | (GlobalRegion, _) <- f 0
+                 = ([], [Allℝ])
+  | otherwise    = glueMid (go 0 (-1)) (go 0 1)
+ where go x₀ dir = exit dir x₀
+        where (PreRegion (Differentiable r₀), fq₀) = f x₀
+              exit dir' xq
+                | xq > hugeℝVal   = [ToPos x₀]
+                | xq < -hugeℝVal  = [NegTo x₀]
+                | yq'>0           = exit dir' xq'
+                | metricSq(δbf xq)stepp < 1
+                                  = Intv (min xq xq') (max xq xq') : go xq' dir
+                | otherwise       = exit (dir'/2) xq
+               where (yq, jq, δyq) = r₀ xq
+                     xq' = xq + stepp
+                     yq' = yq + lapply jq stepp
+                     stepp = dir' * as_devεδ δyq yq -- TODO: memoise in `exit` recursion
+       glueMid [NegTo le] [ToPos re]         | le==re  = ([], [Allℝ])
+       glueMid [NegTo le] (Intv re r:rs)     | le==re  = ([], NegTo r:rs)
+       glueMid (Intv l le:ls) [ToPos re]     | le==re  = (ls, [ToPos l])
+       glueMid (Intv l le:ls) (Intv re r:rs) | le==re  = (ls, Intv l r:rs)
+       glueMid l r = (l,r)
 
 discretisePathSegs :: WithField ℝ Manifold x
       => Int              -- ^ Maximum number of path segments and/or points per segment.
-      -> RieMetric x      -- ^ Inaccuracy allowance /ε/.
+      -> ( RieMetric x
+         , RieMetric ℝ )  -- ^ Inaccuracy allowance /ε/ for results in the target space, and /δ/ for arguments (only relevant for resolution of discontinuity boundaries).
       -> RWDiffable ℝ ℝ x -- ^ Path specification.
-      -> [[(ℝ,x)]]        -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
-discretisePathSegs nLim m (RWDiffable f) = jumpsFwd nLim 0 (True,True)
- where jumpsFwd nLim' x₀ (goL,goR)
-         | abs x₀ > hugeℝVal      = []
-         | Option Nothing <- fq₀  = error "`discretisePathSegs` not yet implemented for partial functions outside of a null set."
-         | xr < -hugeℝVal
-          || xr < hugeℝVal        = [pseg]
-         | not goL                = pseg : jumpR
-         | not goR                = pseg : jumpL
-         | otherwise              = pseg : (zip jumpL jumpR >>= \(l,r)->[l,r])
-        where (r₀, fq₀) = f x₀
-              Option (Just lf) = fq₀
-              pseg = first (subtract x₀) <$>
-                  discretisePathIn nLim' (Region x₀ r₀) m (lf . actuallyAffine x₀ idL)
-              ((xl,_):(xpl,_):_) = pseg
-              ((xr,_):(xpr,_):_) = reverse pseg
-              jumpR = jumpsFwd (nLim'-1) (xr*2-xpr) (False,goR)
-              jumpL = jumpsFwd (nLim'-1) (xl*2-xpl) (goL,False)
+      -> ([[(ℝ,x)]], [[(ℝ,x)]]) -- ^ Discretised paths; continuous segments in either direction
+discretisePathSegs = undefined
               
              
 continuousIntervals :: RWDiffable ℝ ℝ x -> (ℝ,ℝ) -> [(ℝ,ℝ)]
