@@ -86,12 +86,12 @@ import Data.Foldable.Constrained
 
 
 
-discretisePathIn :: WithField ℝ Manifold x
+discretisePathIn :: WithField ℝ Manifold y
       => Int                    -- ^ Limit the number of steps taken in either direction. Note this will not cap the resolution but /length/ of the discretised path.
       -> (ℝ, ℝ)                 -- ^ Parameter interval of interest.
-      -> RieMetric x            -- ^ Inaccuracy allowance /ε/.
-      -> (Differentiable ℝ ℝ x) -- ^ Path specification.
-      -> [(ℝ,x)]                -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
+      -> RieMetric y            -- ^ Inaccuracy allowance /ε/.
+      -> (Differentiable ℝ ℝ y) -- ^ Path specification.
+      -> [(ℝ,y)]                -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
 discretisePathIn nLim (xl, xr) m (Differentiable f)
          = reverse (tail . take nLim $ traceFwd xl xm (-1))
           ++ take nLim (traceFwd xr xm 1)
@@ -107,10 +107,10 @@ discretisePathIn nLim (xl, xr) m (Differentiable f)
                       
 type ℝInterval = (ℝ,ℝ)
 
-continuityRanges :: WithField ℝ Manifold x
+continuityRanges :: WithField ℝ Manifold y
       => Int               -- ^ Max number of exploration steps per region
       -> RieMetric ℝ       -- ^ Needed resolution of boundaries
-      -> RWDiffable ℝ ℝ x
+      -> RWDiffable ℝ ℝ y
       -> ([ℝInterval], [ℝInterval])
 continuityRanges nLim δbf (RWDiffable f)
   | (GlobalRegion, _) <- f 0
@@ -142,16 +142,20 @@ continuityRanges nLim δbf (RWDiffable f)
        huge = exp $ fromIntegral nLim
 
 -- ^ Doesn't work at the moment.
-discretisePathSegs :: WithField ℝ Manifold x
+discretisePathSegs :: WithField ℝ Manifold y
       => Int              -- ^ Maximum number of path segments and/or points per segment.
-      -> ( RieMetric x
+      -> ( RieMetric y
          , RieMetric ℝ )  -- ^ Inaccuracy allowance /ε/ for results in the target space, and /δ/ for arguments (only relevant for resolution of discontinuity boundaries).
-      -> RWDiffable ℝ ℝ x -- ^ Path specification.
-      -> ([[(ℝ,x)]], [[(ℝ,x)]]) -- ^ Discretised paths; continuous segments in either direction
-discretisePathSegs = undefined
+      -> RWDiffable ℝ ℝ y -- ^ Path specification.
+      -> ([[(ℝ,y)]], [[(ℝ,y)]]) -- ^ Discretised paths; continuous segments in either direction
+discretisePathSegs nLim (my,mx) f@(RWDiffable ff)
+                             = (map discretise ivsL, map discretise ivsR)
+ where (ivsL, ivsR) = continuityRanges nLim mx f
+       discretise rng@(l,r) = discretisePathIn nLim rng my fr
+        where (_, Option (Just fr)) = ff $ (l+r)/2
               
              
-continuousIntervals :: RWDiffable ℝ ℝ x -> (ℝ,ℝ) -> [(ℝ,ℝ)]
+continuousIntervals :: RWDiffable ℝ ℝ y -> (ℝ,ℝ) -> [(ℝ,ℝ)]
 continuousIntervals (RWDiffable f) (xl,xr) = enter xl
  where enter x₀ = case f x₀ of 
                     (GlobalRegion, _) -> [(xl,xr)]
