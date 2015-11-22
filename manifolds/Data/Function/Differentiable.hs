@@ -105,28 +105,30 @@ discretisePathIn nLim (xl, xr) m (Differentiable f)
               (fxlim, _, _) = f xlim
        xm = (xr - xl) / 2
                       
-data ℝInterval = Allℝ | NegTo ℝ | ToPos ℝ | Intv ℝ ℝ deriving (Show)
+type ℝInterval = (ℝ,ℝ)
 
--- ^ Doesn't work at the moment.
 continuityRanges :: WithField ℝ Manifold x
-      => RieMetric ℝ       -- ^ Needed resolution of boundaries
+      => Int               -- ^ Max number of exploration steps per region
+      -> RieMetric ℝ       -- ^ Needed resolution of boundaries
       -> RWDiffable ℝ ℝ x
       -> ([ℝInterval], [ℝInterval])
-continuityRanges δbf (RWDiffable f)
+continuityRanges nLim δbf (RWDiffable f)
   | (GlobalRegion, _) <- f 0
-                 = ([], [Allℝ])
+                 = ([], [(-huge,huge)])
   | otherwise    = glueMid (go 0 (-1)) (go 0 1)
- where go x₀ dir = exit dir x₀
+ where go x₀ dir = exit nLim dir x₀
         where (PreRegion (Differentiable r₀), fq₀) = f x₀
-              exit dir' xq
-                | xq > hugeℝVal     = if definedHere then [ToPos x₀] else []
-                | xq < -hugeℝVal    = if definedHere then [NegTo x₀] else []
+              exit 0 _ xq
+                | not definedHere  = []
+                | xq < 0           = [(xq,x₀)]
+                | otherwise        = [(x₀,xq)]
+              exit nLim' dir' xq
                 | yq==0             = go (xq + dir/sqrt(resoHere 1)) dir
-                | yq'>0             = exit dir' xq'
+                | yq'>0             = exit (nLim'-1) dir' xq'
                 | resoHere stepp<1  = (if definedHere
-                                        then (Intv (min x₀ xq) (max x₀ xq):)
+                                        then ((min x₀ xq, max x₀ xq):)
                                         else id) $ go xq' dir
-                | otherwise         = exit (dir'/2) xq
+                | otherwise         = exit (nLim'-1) (dir'/2) xq
                where (yq, jq, δyq) = r₀ xq
                      xq' = xq + stepp
                      yq' = yq + lapply jq stepp
@@ -135,11 +137,9 @@ continuityRanges δbf (RWDiffable f)
               definedHere = case fq₀ of
                               Option (Just _) -> True
                               Option Nothing  -> False
-       glueMid [NegTo le] [ToPos re]         | le==re  = ([], [Allℝ])
-       glueMid [NegTo le] (Intv re r:rs)     | le==re  = ([], NegTo r:rs)
-       glueMid (Intv l le:ls) [ToPos re]     | le==re  = (ls, [ToPos l])
-       glueMid (Intv l le:ls) (Intv re r:rs) | le==re  = (ls, Intv l r:rs)
+       glueMid ((l,le):ls) ((re,r):rs) | le==re  = (ls, (l,r):rs)
        glueMid l r = (l,r)
+       huge = exp $ fromIntegral nLim
 
 -- ^ Doesn't work at the moment.
 discretisePathSegs :: WithField ℝ Manifold x
