@@ -451,16 +451,20 @@ minDblfuncs :: (LocallyScalable s m, RealDimension s)
      => Differentiable s m s -> Differentiable s m s -> Differentiable s m s
 minDblfuncs (Differentiable f) (Differentiable g) = Differentiable h
  where h x
-         | fx==gx   = ( fx, (f'^+^g')^/2
+         | fx < gx   = ( fx, jf
+                       , \d -> devf d ^+^ devg d
+                               ^+^ transformMetric δj
+                                      (projector . recip $ recip(metric d 1) + gx - fx) )
+         | fx > gx   = ( gx, jg
+                       , \d -> devf d ^+^ devg d
+                               ^+^ transformMetric δj
+                                      (projector . recip $ recip(metric d 1) + fx - gx) )
+         | otherwise = ( fx, (jf^+^jg)^/2
                       , \d -> devf d ^+^ devg d
-                               ^+^ transformMetric (f'^-^g')
-                                                   (projector $ metric d 1) )
-         | fx < gx   = ( fx, f'
-                       , \d -> devf d
-                               ^+^ transformMetric (f'^-^g')
-                                                   (projector $ metric d 1 + gx - fx) )
-        where (fx, f', devf) = f x
-              (gx, g', devg) = g x
+                               ^+^ transformMetric δj d )
+        where (fx, jf, devf) = f x
+              (gx, jg, devg) = g x
+              δj = jf ^-^ jg
 
 
 postEndo :: ∀ c a b . (HasAgent c, Object c a, Object c b)
@@ -785,7 +789,7 @@ instance (RealDimension s) => Category (RWDiffable s) where
                          (GlobalRegion, Option (Just fr))
                                -> (GlobalRegion, pure (fr . gr))
                          (PreRegion ry, Option Nothing)
-                               -> ( PreRegion $ ry . gr, Option Nothing )
+                               -> ( PreRegion $ ry . gr, notDefinedHere )
                          (PreRegion ry, Option (Just fr))
                                -> ( PreRegion $ ry . gr, pure (fr . gr) )
                  (PreRegion rx, Option Nothing)
@@ -803,7 +807,6 @@ instance (RealDimension s) => Category (RWDiffable s) where
                          (PreRegion ry, Option (Just fr))
                                -> ( PreRegion $ minDblfuncs (ry . gr) rx
                                   , pure (fr . gr) )
-          where (rx, gr) = g x₀
 
 
 globalDiffable' :: Differentiable s a b -> RWDiffable s a b
