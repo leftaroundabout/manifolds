@@ -41,7 +41,7 @@ module Data.Function.Differentiable (
             -- * Misc
             , discretisePathIn
             , discretisePathSegs
-            , continuousIntervals
+            , continuityRanges
             , regionOfContinuityAround
             , analyseLocalBehaviour
             ) where
@@ -103,24 +103,25 @@ discretisePathIn nLim (xl, xr) m (Differentiable f)
               χ = metric (δx² εx) 1
               xstep = dir * min (abs x₀+1) (recip χ)
               (fxlim, _, _) = f xlim
-       xm = (xr - xl) / 2
+       xm = (xr + xl) / 2
                       
 type ℝInterval = (ℝ,ℝ)
 
 continuityRanges :: WithField ℝ Manifold y
       => Int               -- ^ Max number of exploration steps per region
       -> RieMetric ℝ       -- ^ Needed resolution of boundaries
-      -> RWDiffable ℝ ℝ y
+      -> ℝ                 -- ^ Starting value of exploration (center)
+      -> RWDiffable ℝ ℝ y  -- ^ Function to investigate
       -> ([ℝInterval], [ℝInterval])
-continuityRanges nLim δbf (RWDiffable f)
-  | (GlobalRegion, _) <- f 0
+continuityRanges nLim δbf xc (RWDiffable f)
+  | (GlobalRegion, _) <- f xc
                  = ([], [(-huge,huge)])
-  | otherwise    = glueMid (go 0 (-1)) (go 0 1)
+  | otherwise    = glueMid (go xc (-1)) (go xc 1)
  where go x₀ dir = exit nLim dir x₀
         where (PreRegion (Differentiable r₀), fq₀) = f x₀
               exit 0 _ xq
                 | not definedHere  = []
-                | xq < 0           = [(xq,x₀)]
+                | xq < xc          = [(xq,x₀)]
                 | otherwise        = [(x₀,xq)]
               exit nLim' dir' xq
                 | yq==0             = go (xq + dir/sqrt(resoHere 1)) dir
@@ -148,44 +149,26 @@ continuityRanges nLim δbf (RWDiffable f)
        glueMid l r = (l,r)
        huge = exp $ fromIntegral nLim
 
--- ^ Doesn't work at the moment.
 discretisePathSegs :: WithField ℝ Manifold y
       => Int              -- ^ Maximum number of path segments and/or points per segment.
+      -> ( RieMetric ℝ
+         , RieMetric y )  -- ^ Inaccuracy allowance /δ/ for arguments
+                          --   (only relevant for resolution of discontinuity boundaries),
+                          --   and /ε/ for results in the target space.
       -> ℝInterval        -- ^ Interval of interest. You can make this “infinitely large”.
-      -> ( RieMetric y
-         , RieMetric ℝ )  -- ^ Inaccuracy allowance /ε/ for results in the target space, and /δ/ for arguments (only relevant for resolution of discontinuity boundaries).
       -> RWDiffable ℝ ℝ y -- ^ Path specification.
-      -> ([[(ℝ,y)]], [[(ℝ,y)]]) -- ^ Discretised paths; continuous segments in either direction
-discretisePathSegs nLim (limL,limR) (my,mx) f@(RWDiffable ff)
-                             = ( map discretise $ trimToRange ivsL
-                               , map discretise $ trimToRange ivsR )
- where (ivsL, ivsR) = continuityRanges nLim mx f
+      -> ([[(ℝ,y)]], [[(ℝ,y)]]) -- ^ Discretised paths: continuous segments in either direction
+discretisePathSegs nLim (mx,my) (limL,limR) f@(RWDiffable ff)
+                            = ( map discretise $ trimToRange ivsL
+                              , map discretise $ trimToRange ivsR )
+ where (ivsL, ivsR) = continuityRanges nLim mx xc f
        trimToRange = map ( \(l,r) -> (max limL l, min limR r) )
-                          . Data.List.filter ( \(l,r) -> l<limR && r>limL )
+                                . Data.List.filter ( \(l,r) -> l<limR && r>limL )
        discretise rng@(l,r) = discretisePathIn nLim rng my fr
         where (_, Option (Just fr)) = ff $ (l+r)/2
+       xc | limL*2 /= limL, limR*2 /= limR  = (limR+limL)/2
+          | otherwise  = max limL . min limR $ 0
 
-
-continuousIntervals :: RWDiffable ℝ ℝ y -> (ℝ,ℝ) -> [(ℝ,ℝ)]
-continuousIntervals (RWDiffable f) (xl,xr) = enter xl
- where enter x₀ = case f x₀ of 
-                    (GlobalRegion, _) -> [(xl,xr)]
-                    (PreRegion r₀, _) -> exit r₀ x₀
-        where exit :: Differentiable ℝ ℝ ℝ -> ℝ -> [(ℝ,ℝ)]
-              exit (Differentiable r) x
-               | x > xr           = [(x₀,xr)]
-               | y' > 0          = exit (Differentiable r)
-                                        (x + metricAsLength (δ (metricFromLength y)))
-               | -y/y' < 1e-10   = (x₀,x) : enter (x + min 1e-100 (abs x * 1e-8))
-               | otherwise       = exit (Differentiable r) xn
-               where (y, y'm, δ) = r x
-                     xn = bisBack $ x - y/y'
-                      where bisBack xq
-                              | ybm > 0    = xbm
-                              | otherwise  = bisBack xbm
-                             where (ybm, _, _) = r xbm
-                                   xbm = (xq*9 + x)/10
-                     y' = lapply y'm 1
               
 analyseLocalBehaviour ::
     RWDiffable ℝ ℝ ℝ
