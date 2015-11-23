@@ -88,7 +88,7 @@ import Data.Foldable.Constrained
 
 discretisePathIn :: WithField ℝ Manifold y
       => Int                    -- ^ Limit the number of steps taken in either direction. Note this will not cap the resolution but /length/ of the discretised path.
-      -> (ℝ, ℝ)                 -- ^ Parameter interval of interest.
+      -> ℝInterval              -- ^ Parameter interval of interest.
       -> RieMetric y            -- ^ Inaccuracy allowance /ε/.
       -> (Differentiable ℝ ℝ y) -- ^ Path specification.
       -> [(ℝ,y)]                -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
@@ -124,15 +124,22 @@ continuityRanges nLim δbf (RWDiffable f)
                 | otherwise        = [(x₀,xq)]
               exit nLim' dir' xq
                 | yq==0             = go (xq + dir/sqrt(resoHere 1)) dir
-                | yq'>0             = exit (nLim'-1) dir' xq'
-                | resoHere stepp<1  = (if definedHere
-                                        then ((min x₀ xq, max x₀ xq):)
-                                        else id) $ go xq' dir
-                | otherwise         = exit (nLim'-1) (dir'/2) xq
+                | yq'<0 || as_devεδ δyq yq'<abs stepp
+                                    = exit (nLim'-1) (dir'/2) xq
+                | yq''<0
+                , as_devεδ δyq (-yq'')>=abs stepp
+                , resoHere stepp<1  = (if definedHere
+                                        then ((min x₀ xq', max x₀ xq'):)
+                                        else id) $ go xq'' dir
+                | otherwise         = exit (nLim'-1) dir xq'
                where (yq, jq, δyq) = r₀ xq
                      xq' = xq + stepp
-                     yq' = yq + lapply jq stepp
-                     stepp = dir' * as_devεδ δyq yq -- TODO: memoise in `exit` recursion
+                     xq'' = xq' + stepp
+                     yq' = yq + f'x*stepp
+                     yq'' = yq' + f'x*stepp
+                     f'x = lapply jq 1
+                     stepp | f'x*dir < 0  = -0.9 * abs dir' * yq/f'x
+                           | otherwise    = dir' * as_devεδ δyq yq -- TODO: memoise in `exit` recursion
                      resoHere = metricSq $ δbf xq
               definedHere = case fq₀ of
                               Option (Just _) -> True
@@ -144,17 +151,21 @@ continuityRanges nLim δbf (RWDiffable f)
 -- ^ Doesn't work at the moment.
 discretisePathSegs :: WithField ℝ Manifold y
       => Int              -- ^ Maximum number of path segments and/or points per segment.
+      -> ℝInterval        -- ^ Interval of interest. You can make this “infinitely large”.
       -> ( RieMetric y
          , RieMetric ℝ )  -- ^ Inaccuracy allowance /ε/ for results in the target space, and /δ/ for arguments (only relevant for resolution of discontinuity boundaries).
       -> RWDiffable ℝ ℝ y -- ^ Path specification.
       -> ([[(ℝ,y)]], [[(ℝ,y)]]) -- ^ Discretised paths; continuous segments in either direction
-discretisePathSegs nLim (my,mx) f@(RWDiffable ff)
-                             = (map discretise ivsL, map discretise ivsR)
+discretisePathSegs nLim (limL,limR) (my,mx) f@(RWDiffable ff)
+                             = ( map discretise $ trimToRange ivsL
+                               , map discretise $ trimToRange ivsR )
  where (ivsL, ivsR) = continuityRanges nLim mx f
+       trimToRange = map ( \(l,r) -> (max limL l, min limR r) )
+                          . Data.List.filter ( \(l,r) -> l<limR && r>limL )
        discretise rng@(l,r) = discretisePathIn nLim rng my fr
         where (_, Option (Just fr)) = ff $ (l+r)/2
-              
-             
+
+
 continuousIntervals :: RWDiffable ℝ ℝ y -> (ℝ,ℝ) -> [(ℝ,ℝ)]
 continuousIntervals (RWDiffable f) (xl,xr) = enter xl
  where enter x₀ = case f x₀ of 
