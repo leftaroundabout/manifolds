@@ -124,24 +124,25 @@ continuityRanges nLim δbf xc (RWDiffable f)
                 | xq < xc          = [(xq,x₀)]
                 | otherwise        = [(x₀,xq)]
               exit nLim' dir' xq
-                | yq==0             = go (xq + dir/sqrt(resoHere 1)) dir
-                | yq'<0 || as_devεδ δyq yq'<abs stepp
-                                    = exit (nLim'-1) (dir'/2) xq
-                | yq''<0
-                , as_devεδ δyq (-yq'')>=abs stepp
-                , resoHere stepp<1  = (if definedHere
-                                        then ((min x₀ xq', max x₀ xq'):)
-                                        else id) $ go xq'' dir
-                | otherwise         = exit (nLim'-1) dir xq'
+                | yq <= f'x*resoStep  = go (xq + resoStep/2) dir
+                | yq₁<0 || as_devεδ δyq yq₁<abs stepp
+                                      = exit (nLim'-1) (dir'/2) xq
+                | yq₂<0
+                , as_devεδ δyq (-yq₂)>=abs stepp
+                , resoHere stepp<1    = (if definedHere
+                                          then ((min x₀ xq₁, max x₀ xq₁):)
+                                          else id) $ go xq₂ dir
+                | otherwise           = exit (nLim'-1) dir xq₁
                where (yq, jq, δyq) = r₀ xq
-                     xq' = xq + stepp
-                     xq'' = xq' + stepp
-                     yq' = yq + f'x*stepp
-                     yq'' = yq' + f'x*stepp
+                     xq₁ = xq + stepp
+                     xq₂ = xq₁ + stepp
+                     yq₁ = yq + f'x*stepp
+                     yq₂ = yq₁ + f'x*stepp
                      f'x = lapply jq 1
                      stepp | f'x*dir < 0  = -0.9 * abs dir' * yq/f'x
                            | otherwise    = dir' * as_devεδ δyq yq -- TODO: memoise in `exit` recursion
                      resoHere = metricSq $ δbf xq
+                     resoStep = dir/sqrt(resoHere 1)
               definedHere = case fq₀ of
                               Option (Just _) -> True
                               Option Nothing  -> False
@@ -153,7 +154,8 @@ discretisePathSegs :: WithField ℝ Manifold y
       => Int              -- ^ Maximum number of path segments and/or points per segment.
       -> ( RieMetric ℝ
          , RieMetric y )  -- ^ Inaccuracy allowance /δ/ for arguments
-                          --   (only relevant for resolution of discontinuity boundaries),
+                          --   (only relevant for resolution of discontinuity boundaries –
+                          --   consider it a “safety margin from singularities”),
                           --   and /ε/ for results in the target space.
       -> ℝInterval        -- ^ Interval of interest. You can make this “infinitely large”.
       -> RWDiffable ℝ ℝ y -- ^ Path specification.
