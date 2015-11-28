@@ -267,28 +267,24 @@ isInfinite' x = x==x*2
 eigenSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
 eigenSpan (HerMetric' Nothing) = []
 eigenSpan (HerMetric' (Just m)) = map fromPackedVector eigSpan
- where (μs,vsm) = HMat.eigSH' m -- TODO: replace with `eigSH'`, which is unchecked
-                               -- (`HerMetric` is always Hermitian!)
+ where (μs,vsm) = HMat.eigSH' m
        eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
 eigenSpan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [DualSpace v]
 eigenSpan' (HerMetric Nothing) = []
 eigenSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
- where (μs,vsm) = HMat.eigSH' m -- TODO: replace with `eigSH'`, which is unchecked
-                               -- (`HerMetric` is always Hermitian!)
+ where (μs,vsm) = HMat.eigSH' m
        eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
 eigenCoSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [DualSpace v]
 eigenCoSpan (HerMetric' Nothing) = []
 eigenCoSpan (HerMetric' (Just m)) = map fromPackedVector eigSpan
- where (μs,vsm) = HMat.eigSH' m -- TODO: replace with `eigSH'`, which is unchecked
-                               -- (`HerMetric` is always Hermitian!)
+ where (μs,vsm) = HMat.eigSH' m
        eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 eigenCoSpan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [v]
 eigenCoSpan' (HerMetric Nothing) = []
 eigenCoSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
- where (μs,vsm) = HMat.eigSH' m -- TODO: replace with `eigSH'`, which is unchecked
-                               -- (`HerMetric` is always Hermitian!)
+ where (μs,vsm) = HMat.eigSH' m
        eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
 
@@ -563,3 +559,25 @@ spanSubHilbertSpace = spanHilbertSubspace euclideanMetric'
 --   therefore we define this space not as normalised vectors, but rather as all
 --   vectors modulo scaling by positive factors.
 newtype Stiefel1 v = Stiefel1 { getStiefel1N :: DualSpace v }
+
+
+
+
+
+
+
+instance (HasMetric v, Scalar v ~ Double, Show (DualSpace v)) => Show (HerMetric v) where
+  showsPrec p m
+    | null eigSp  = showString "zeroV"
+    | otherwise   = showParen (p>5)
+                      . foldr1 ((.) . (.(" ^+^ "++)))
+                      $ ((("projector "++).).showsPrec 6)<$>eigSp
+   where eigSp = eigenSpan' m
+
+instance (HasMetric v, Scalar v ~ Double, Show v) => Show (HerMetric' v) where
+  showsPrec p m
+    | null eigSp  = showString "zeroV"
+    | otherwise   = showParen (p>5)
+                      . foldr1 ((.) . (.(" ^+^ "++)))
+                      $ ((("projector' "++).).showsPrec 6)<$>eigSp
+   where eigSp = eigenSpan m
