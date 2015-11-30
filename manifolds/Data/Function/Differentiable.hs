@@ -117,14 +117,18 @@ continuityRanges nLim δbf xc (RWDiffable f)
   | (GlobalRegion, _) <- f xc
                  = ([], [(-huge,huge)])
   | otherwise    = glueMid (go xc (-1)) (go xc 1)
- where go x₀ dir = exit nLim dir x₀
+ where go x₀ dir
+         | yq₀ <= abs (lapply jq₀ 1 * step₀)
+                      = go (x₀ + step₀/2) dir
+         | otherwise  = exit nLim dir x₀
         where (PreRegion (Differentiable r₀), fq₀) = f x₀
+              (yq₀, jq₀, δyq₀) = r₀ x₀
+              step₀ = dir/metric (δbf x₀) 1
               exit 0 _ xq
                 | not definedHere  = []
                 | xq < xc          = [(xq,x₀)]
                 | otherwise        = [(x₀,xq)]
               exit nLim' dir' xq
-                | yq <= f'x*resoStep  = go (xq + resoStep/2) dir
                 | yq₁<0 || as_devεδ δyq yq₁<abs stepp
                                       = exit (nLim'-1) (dir'/2) xq
                 | yq₂<0
