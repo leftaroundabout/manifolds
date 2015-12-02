@@ -214,15 +214,28 @@ hugeℝVal = 1e+100
 
 type LinDevPropag d c = Metric c -> Metric d
 
-dev_ε_δ :: RealDimension a
-                => (a -> a) -> LinDevPropag a a
-dev_ε_δ f d = let ε'² = metricSq d 1
+unsafe_dev_ε_δ :: RealDimension a
+                => String -> (a -> a) -> LinDevPropag a a
+unsafe_dev_ε_δ errHint f d
+            = let ε'² = metricSq d 1
               in if ε'²>0
                   then let δ = f . sqrt $ recip ε'²
                        in if δ > 0
                            then projector $ recip δ
-                           else error "ε-δ propagator function gives negative results."
+                           else error $ "ε-δ propagator function for "
+                                    ++errHint++", with ε="
+                                    ++show(sqrt $ recip ε'²)
+                                    ++ " gives non-positive δ="++show δ++"."
                   else zeroV
+dev_ε_δ :: RealDimension a
+         => (a -> a) -> Metric a -> Option (Metric a)
+dev_ε_δ f d = let ε'² = metricSq d 1
+              in if ε'²>0
+                  then let δ = f . sqrt $ recip ε'²
+                       in if δ > 0
+                           then pure . projector $ recip δ
+                           else empty
+                  else pure zeroV
 
 as_devεδ :: RealDimension a => LinDevPropag a a -> a -> a
 as_devεδ ldp ε | ε>0
@@ -427,13 +440,13 @@ instance (RealDimension n, LocallyScalable n a)
       where lNegate = linear negate
   abs = dfblFnValsFunc dfblAbs
    where dfblAbs a
-          | a>0        = (a, idL, dev_ε_δ $ \ε -> a + ε/2) 
-          | a<0        = (-a, negateV idL, dev_ε_δ $ \ε -> ε/2 - a)
+          | a>0        = (a, idL, unsafe_dev_ε_δ("abs "++show a) $ \ε -> a + ε/2) 
+          | a<0        = (-a, negateV idL, unsafe_dev_ε_δ("abs "++show a) $ \ε -> ε/2 - a)
           | otherwise  = (0, zeroV, (^/ sqrt 2))
   signum = dfblFnValsFunc dfblSgn
    where dfblSgn a
-          | a>0        = (1, zeroV, dev_ε_δ $ const a)
-          | a<0        = (-1, zeroV, dev_ε_δ $ \_ -> -a)
+          | a>0        = (1, zeroV, unsafe_dev_ε_δ("signum "++show a) $ const a)
+          | a<0        = (-1, zeroV, unsafe_dev_ε_δ("signum "++show a) $ \_ -> -a)
           | otherwise  = (0, zeroV, const $ projector 1)
 
 
@@ -517,7 +530,9 @@ preRegionProd (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs (ra.fst) (
 
 positivePreRegion, negativePreRegion :: (RealDimension s) => PreRegion s s
 positivePreRegion = PreRegion $ Differentiable prr
- where prr x = (1 - 1/xp1, (1/xp1²) *^ idL, dev_ε_δ δ )
+ where prr x = ( 1 - 1/xp1
+               , (1/xp1²) *^ idL
+               , unsafe_dev_ε_δ("positivePreRegion@"++show x) δ )
                  -- ε = (1 − 1/(1+x)) + (-δ · 1/(x+1)²) − (1 − 1/(1+x−δ))
                  --   = 1/(1+x−δ) − 1/(1+x) − δ · 1/(x+1)²
                  --
@@ -569,7 +584,7 @@ intervalPreRegion (lb,rb) = PreRegion $ Differentiable prr
  where m = lb + radius; radius = (rb - lb)/2
        prr x = ( 1 - ((x-m)/radius)^2
                , (2*(m-x)/radius^2) *^ idL
-               , dev_ε_δ $ (*radius) . sqrt )
+               , unsafe_dev_ε_δ("intervalPreRegion@"++show x) $ (*radius) . sqrt )
 
 
 
@@ -731,7 +746,7 @@ instance (RealDimension n, LocallyScalable n a)
   recip = postEndo . PWDiffable $ \a₀ -> if a₀<0
                                           then (negativePreRegion, Differentiable negp)
                                           else (positivePreRegion, Differentiable posp)
-   where negp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+   where negp x = (x'¹, (- x'¹^2) *^ idL, unsafe_dev_ε_δ("1/"++show x) δ)
                  -- ε = 1/x − δ/x² − 1/(x+δ)
                  -- ε·x + ε·δ = 1 + δ/x − δ/x − δ²/x² − 1
                  --           = -δ²/x²
@@ -739,7 +754,7 @@ instance (RealDimension n, LocallyScalable n a)
                  -- δ = let mph = -ε·x²/2 in mph + sqrt (mph² − ε·x³)
           where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 - ε*x^3)
                 x'¹ = recip x
-         posp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+         posp x = (x'¹, (- x'¹^2) *^ idL, unsafe_dev_ε_δ("1/"++show x) δ)
           where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 + ε*x^3)
                 x'¹ = recip x
 
@@ -981,7 +996,7 @@ instance (RealDimension n, LocallyScalable n a)
   recip = postCompRW . RWDiffable $ \a₀ -> if a₀<0
                                     then (negativePreRegion, pure (Differentiable negp))
                                     else (positivePreRegion, pure (Differentiable posp))
-   where negp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+   where negp x = (x'¹, (- x'¹^2) *^ idL, unsafe_dev_ε_δ("1/"++show x) δ)
                  -- ε = 1/x − δ/x² − 1/(x+δ)
                  -- ε·x + ε·δ = 1 + δ/x − δ/x − δ²/x² − 1
                  --           = -δ²/x²
@@ -989,7 +1004,7 @@ instance (RealDimension n, LocallyScalable n a)
                  -- δ = let mph = -ε·x²/2 in mph + sqrt (mph² − ε·x³)
           where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 - ε*x^3)
                 x'¹ = recip x
-         posp x = (x'¹, (- x'¹^2) *^ idL, dev_ε_δ δ)
+         posp x = (x'¹, (- x'¹^2) *^ idL, unsafe_dev_ε_δ("1/"++show x) δ)
           where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 + ε*x^3)
                 x'¹ = recip x
 
@@ -1014,8 +1029,8 @@ instance (RealDimension n, LocallyScalable n a)
   exp = grwDfblFnValsFunc
     $ \x -> let ex = exp x
             in if ex==0  -- numeric underflow
-                then ( 0, zeroV, dev_ε_δ $ \ε -> log ε - x )
-                else ( ex, ex *^ idL, dev_ε_δ $ \ε -> acosh(ε/(2*ex) + 1) )
+                then ( 0, zeroV, unsafe_dev_ε_δ("exp "++show x) $ \ε -> log ε - x )
+                else ( ex, ex *^ idL, unsafe_dev_ε_δ("exp "++show x) $ \ε -> acosh(ε/(2*ex) + 1) )
                  -- ε = e^(x+δ) − eˣ − eˣ·δ 
                  --   = eˣ·(e^δ − 1 − δ) 
                  --   ≤ eˣ · (e^δ − 1 + e^(-δ) − 1)
@@ -1025,7 +1040,7 @@ instance (RealDimension n, LocallyScalable n a)
   log = postCompRW . RWDiffable $ \x -> if x>0
                                   then (positivePreRegion, pure (Differentiable lnPosR))
                                   else (negativePreRegion, notDefinedHere)
-   where lnPosR x = ( log x, recip x *^ idL, dev_ε_δ $ \ε -> x * sqrt(1 - exp(-ε)) )
+   where lnPosR x = ( log x, recip x *^ idL, unsafe_dev_ε_δ("log "++show x) $ \ε -> x * sqrt(1 - exp(-ε)) )
                  -- ε = ln x + (-δ)/x − ln(x−δ)
                  --   = ln (x / ((x−δ) · exp(δ/x)))
                  -- x/e^ε = (x−δ) · exp(δ/x)
@@ -1039,13 +1054,13 @@ instance (RealDimension n, LocallyScalable n a)
   sqrt = postCompRW . RWDiffable $ \x -> if x>0
                                    then (positivePreRegion, pure (Differentiable sqrtPosR))
                                    else (negativePreRegion, notDefinedHere)
-   where sqrtPosR x = ( sx, idL ^/ (2*sx), dev_ε_δ $
+   where sqrtPosR x = ( sx, idL ^/ (2*sx), unsafe_dev_ε_δ("sqrt "++show x) $
                           \ε -> 2 * (s2 * sqrt sx^3 * sqrt ε + signum (ε*2-sx) * sx * ε) )
           where sx = sqrt x; s2 = sqrt 2
                  -- Exact inverse of O(δ²) remainder.
   
   sin = grwDfblFnValsFunc sinDfb
-   where sinDfb x = ( sx, cx *^ idL, dev_ε_δ δ )
+   where sinDfb x = ( sx, cx *^ idL, unsafe_dev_ε_δ("sin "++show x) δ )
           where sx = sin x; cx = cos x
                 δ ε = let δ₀ = sqrt $ 2 * ε / (abs sx + abs cx/3)
                       in if δ₀ < 1 -- TODO: confirm selection of δ-definition range.
@@ -1066,7 +1081,7 @@ instance (RealDimension n, LocallyScalable n a)
   
   sinh x = (exp x - exp (-x))/2
     {- = grwDfblFnValsFunc sinhDfb
-   where sinhDfb x = ( sx, cx *^ idL, dev_ε_δ δ )
+   where sinhDfb x = ( sx, cx *^ idL, unsafe_dev_ε_δ δ )
           where sx = sinh x; cx = cosh x
                 δ ε = undefined -}
                  -- ε = sinh x + δ · cosh x − sinh(x+δ)
@@ -1076,7 +1091,7 @@ instance (RealDimension n, LocallyScalable n a)
   cosh x = (exp x + exp (-x))/2
   
   tanh = grwDfblFnValsFunc tanhDfb
-   where tanhDfb x = ( tnhx, idL ^/ (cosh x^2), dev_ε_δ δ )
+   where tanhDfb x = ( tnhx, idL ^/ (cosh x^2), unsafe_dev_ε_δ("tan "++show x) δ )
           where tnhx = tanh x
                 c = (tnhx*2/pi)^2
                 p = 1 + abs x/(2*pi)
@@ -1085,7 +1100,7 @@ instance (RealDimension n, LocallyScalable n a)
                   -- with quite a big margin. TODO: find a tighter definition.
 
   atan = grwDfblFnValsFunc atanDfb
-   where atanDfb x = ( atnx, idL ^/ (1+x^2), dev_ε_δ δ )
+   where atanDfb x = ( atnx, idL ^/ (1+x^2), unsafe_dev_ε_δ("atan "++show x) δ )
           where atnx = atan x
                 c = (atnx*2/pi)^2
                 p = 1 + abs x/(2*pi)
@@ -1101,7 +1116,7 @@ instance (RealDimension n, LocallyScalable n a)
                   | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
                   | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable asinDefdR))
-   where asinDefdR x = ( asinx, asin'x *^ idL, dev_ε_δ δ )
+   where asinDefdR x = ( asinx, asin'x *^ idL, unsafe_dev_ε_δ("asin "++show x) δ )
           where asinx = asin x; asin'x = recip (sqrt $ 1 - x^2)
                 c = 1 - x^2 
                 δ ε = sqrt ε * c
@@ -1111,13 +1126,13 @@ instance (RealDimension n, LocallyScalable n a)
                   | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
                   | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable acosDefdR))
-   where acosDefdR x = ( acosx, acos'x *^ idL, dev_ε_δ δ )
+   where acosDefdR x = ( acosx, acos'x *^ idL, unsafe_dev_ε_δ("acos "++show x) δ )
           where acosx = acos x; acos'x = - recip (sqrt $ 1 - x^2)
                 c = 1 - x^2
                 δ ε = sqrt ε * c -- Like for asin – it's just a translation/reflection.
 
   asinh = grwDfblFnValsFunc asinhDfb
-   where asinhDfb x = ( asinhx, idL ^/ sqrt(1+x^2), dev_ε_δ δ )
+   where asinhDfb x = ( asinhx, idL ^/ sqrt(1+x^2), unsafe_dev_ε_δ("asinh "++show x) δ )
           where asinhx = asinh x
                 δ ε = abs x * sqrt((1 - exp(-ε))*0.8 + ε^2/(3*abs x)) + sqrt(ε/(abs x+0.5))
                  -- Empirical, modified from log function (the area hyperbolic sine
@@ -1126,7 +1141,7 @@ instance (RealDimension n, LocallyScalable n a)
   acosh = postCompRW . RWDiffable $ \x -> if x>0
                                    then (positivePreRegion, pure (Differentiable acoshDfb))
                                    else (negativePreRegion, notDefinedHere)
-   where acoshDfb x = ( acosh x, idL ^/ sqrt(x^2 - 2), dev_ε_δ δ )
+   where acoshDfb x = ( acosh x, idL ^/ sqrt(x^2 - 2), unsafe_dev_ε_δ("acosh "++show x) δ )
           where δ ε = (2 - 1/sqrt x) * (s2 * sqrt sx^3 * sqrt(ε/s2) + signum (ε*s2-sx) * sx * ε/s2) 
                 sx = sqrt(x-1)
                 s2 = sqrt 2
@@ -1137,7 +1152,7 @@ instance (RealDimension n, LocallyScalable n a)
                   | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
                   | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable atnhDefdR))
-   where atnhDefdR x = ( atanh x, recip(1-x^2) *^ idL, dev_ε_δ $ \ε -> sqrt(tanh ε)*(1-abs x) )
+   where atnhDefdR x = ( atanh x, recip(1-x^2) *^ idL, unsafe_dev_ε_δ("atanh "++show x) $ \ε -> sqrt(tanh ε)*(1-abs x) )
                  -- Empirical, with epsEst upper bound.
   
   
