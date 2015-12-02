@@ -183,8 +183,8 @@ analyseLocalBehaviour ::
            , ℝ->Option ℝ ) -- ^ /f/ /x/₀, derivative (i.e. Taylor-1-coefficient),
                            --   and reverse propagation of /O/ (/δ/²) bound.
 analyseLocalBehaviour (RWDiffable f) x₀ = case f x₀ of
-       (_, Option Nothing) -> empty
-       (_, Option (Just (Differentiable fd))) -> return $
+       (r, Option (Just (Differentiable fd)))
+           | inRegion r x₀ -> return $
               let (fx, j, δf) = fd x₀
                   epsprop ε
                     | ε>0  = case metric (δf $ metricFromLength ε) 1 of
@@ -192,6 +192,10 @@ analyseLocalBehaviour (RWDiffable f) x₀ = case f x₀ of
                                δ' -> return $ recip δ'
                     | otherwise  = pure 0
               in ((fx, lapply j 1), epsprop)
+       _ -> empty
+ where inRegion GlobalRegion _ = True
+       inRegion (PreRegion (Differentiable rf)) x
+         | (yr,_,_) <- rf x   = yr>0
 
 -- | Represent a 'Region' by a smooth function which is positive within the region,
 --   and crosses zero at the boundary.
