@@ -87,19 +87,19 @@ import Data.Foldable.Constrained
 
 
 discretisePathIn :: WithField ℝ Manifold y
-      => Int                    -- ^ Limit the number of steps taken in either direction. Note this will not cap the resolution but /length/ of the discretised path.
-      -> ℝInterval              -- ^ Parameter interval of interest.
-      -> RieMetric y            -- ^ Inaccuracy allowance /ε/.
-      -> (Differentiable ℝ ℝ y) -- ^ Path specification.
-      -> [(ℝ,y)]                -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
-discretisePathIn nLim (xl, xr) m (Differentiable f)
+      => Int                        -- ^ Limit the number of steps taken in either direction. Note this will not cap the resolution but /length/ of the discretised path.
+      -> ℝInterval                  -- ^ Parameter interval of interest.
+      -> (RieMetric ℝ, RieMetric y) -- ^ Inaccuracy allowance /ε/.
+      -> (Differentiable ℝ ℝ y)     -- ^ Path specification.
+      -> [(ℝ,y)]                    -- ^ Trail of points along the path, such that a linear interpolation deviates nowhere by more as /ε/.
+discretisePathIn nLim (xl, xr) (mx,my) (Differentiable f)
          = reverse (tail . take nLim $ traceFwd xl xm (-1))
           ++ take nLim (traceFwd xr xm 1)
  where traceFwd xlim x₀ dir
          | signum (x₀-xlim) == signum dir = [(xlim, fxlim)]
          | otherwise                      = (x₀, fx₀) : traceFwd xlim (x₀+xstep) dir
-        where (fx₀, _, δx²) = f x₀
-              εx = m fx₀
+        where (fx₀, jf, δx²) = f x₀
+              εx = my fx₀ `extendMetric` lapply jf (metricAsLength $ mx x₀)
               χ = metric (δx² εx) 1
               xstep = dir * min (abs x₀+1) (recip χ)
               (fxlim, _, _) = f xlim
@@ -158,7 +158,7 @@ discretisePathSegs :: WithField ℝ Manifold y
       => Int              -- ^ Maximum number of path segments and/or points per segment.
       -> ( RieMetric ℝ
          , RieMetric y )  -- ^ Inaccuracy allowance /δ/ for arguments
-                          --   (only relevant for resolution of discontinuity boundaries –
+                          --   (mostly relevant for resolution of discontinuity boundaries –
                           --   consider it a “safety margin from singularities”),
                           --   and /ε/ for results in the target space.
       -> ℝInterval        -- ^ Interval of interest. You can make this “infinitely large”.
@@ -170,7 +170,7 @@ discretisePathSegs nLim (mx,my) (limL,limR) f@(RWDiffable ff)
  where (ivsL, ivsR) = continuityRanges nLim mx xc f
        trimToRange = map ( \(l,r) -> (max limL l, min limR r) )
                                 . Data.List.filter ( \(l,r) -> l<limR && r>limL )
-       discretise rng@(l,r) = discretisePathIn nLim rng my fr
+       discretise rng@(l,r) = discretisePathIn nLim rng (mx,my) fr
         where (_, Option (Just fr)) = ff $ (l+r)/2
        xc | limL*2 /= limL, limR*2 /= limR  = (limR+limL)/2
           | otherwise  = max limL . min limR $ 0

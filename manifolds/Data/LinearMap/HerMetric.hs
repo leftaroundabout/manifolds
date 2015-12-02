@@ -37,6 +37,7 @@ module Data.LinearMap.HerMetric (
   , eigenCoSpan, eigenCoSpan'
   , metriScale', metriScale
   , adjoint
+  , extendMetric
   -- * The dual-space class
   , HasMetric
   , HasMetric'(..)
@@ -120,6 +121,19 @@ instance HasMetric v => VectorSpace (HerMetric v) where
 newtype HerMetric' v = HerMetric' {
           metricMatrix' :: Maybe (HMat.Matrix (Scalar v))
                       }
+
+extendMetric :: (HasMetric v, Scalar v~ℝ) => HerMetric v -> v -> HerMetric v
+extendMetric (HerMetric Nothing) _ = HerMetric Nothing
+extendMetric (HerMetric (Just m)) v
+      | isInfinite' detm  = HerMetric $ Just m
+      | isInfinite' detmninv  = singularMetric
+      | otherwise         = HerMetric $ Just mn
+ where -- this could probably be done much more efficiently, with only
+       -- multiplications, no inverses.
+       (minv, (detm, _)) = HMat.invlndet m
+       (mn, (detmninv, _)) = HMat.invlndet (minv + HMat.outer vv vv)
+       vv = asPackedVector v
+                              
 
 matrixMetric' :: HasMetric v => HMat.Matrix (Scalar v) -> HerMetric' v
 matrixMetric' = HerMetric' . Just
