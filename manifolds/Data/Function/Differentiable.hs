@@ -1069,20 +1069,34 @@ instance (RealDimension n, LocallyScalable n a)
   sin = grwDfblFnValsFunc sinDfb
    where sinDfb x = ( sx, cx *^ idL, unsafe_dev_ε_δ("sin "++show x) δ )
           where sx = sin x; cx = cos x
-                δ ε = let δ₀ = sqrt $ 2 * ε / (abs sx + abs cx/3)
-                      in if δ₀ < 1 -- TODO: confirm selection of δ-definition range.
-                                   -- (Empirically seems to be ok)
-                          then δ₀
-                          else max 1 $ (ε - abs sx - 1) / abs cx
-                 -- When sin x ≥ 0, cos x ≥ 0, δ ∈ [0,1[
+                sx² = sx^2; cx² = cx^2
+                sx' = abs sx; cx' = abs cx
+                δ ε = let d₀ = sx²/4
+                          d₁ = (sx'*sx² - 3*cx²)/4
+                          c = cubeRoot((d₁ + sqrt(d₁^2 - 4*d₀^3))/2)
+                          δ₄ = -2 * (sx' + c + d₀/c) / cx
+                          δ₁ = (ε - sx' - 1) / cx'
+                      in {-max δ₁-} δ₄
+                 -- When sin x ≥ 0, cos x ≥ 0
                  -- ε = sin x + δ · cos x − sin(x+δ)
                  --   = sin x + δ · cos x − sin x · cos δ − cos x · sin δ
                  --   ≤ sin x + δ · cos x − sin x · (1−δ²/2) − cos x · (δ − δ³/6)
                  --   = sin x · δ²/2 + cos x · δ³/6
-                 --   ≤ δ² · (sin x / 2 + cos x / 6)
-                 -- δ ≥ sqrt(2 · ε / (sin x + cos x / 3))
-                 -- For general δ≥0,
-                 -- ε ≤ δ · cos x + sin x + 1
+                 --  =: a·δ³ + b·δ²
+                 -- This is monotonically increasing, therefore if we consider the “=” case
+                 -- it has a single solution that can be obtained with Cardano.
+                 -- d₀ = b² = sin x²/4
+                 -- d₁ = 2⋅b³ − 27⋅a²⋅ε
+                 --    = 2⋅sin x³/8 − 27⋅cos x²/36
+                 --    = (sin x³ − 3⋅cos x²)/4
+                 -- c = ³√((d₁ + √(d₁² - 4⋅d₀³))/2)
+                 --   = ³√((d₁ + √(d₁² - sin x⁶))/2)
+                 -- δ ≥ -1/(3⋅a) ⋅ (b + c + d₀/c)
+                 --   = -2/cos x ⋅ (b + c + d₀/c)
+                 -- 
+                 -- Also seek another lower bound that avoids the explosion of polynomials:
+                 -- ε = sin x + δ · cos x − sin(x+δ)
+                 --   ≤ δ · cos x + sin x + 1
                  -- δ ≥ (ε − sin x − 1) / cos x
   cos = sin . (globalDiffable' (actuallyAffine (pi/2) idL) $~)
   
@@ -1170,5 +1184,9 @@ isZeroMap :: ∀ v a . (FiniteDimensional v, AdditiveGroup a, Eq a) => (v:-*a) -
 isZeroMap m = all ((==zeroV) . atBasis m) b
  where (Tagged b) = completeBasis :: Tagged v [Basis v]
 
+
+cubeRoot :: ℝ -> ℝ
+cubeRoot x | x>0        = x**(1/3)
+           | otherwise  = - (-x)**(1/3)
 
 
