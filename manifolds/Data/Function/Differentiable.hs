@@ -108,12 +108,12 @@ discretisePathIn nLim (xl, xr) (mx,my) (Differentiable f)
 type ℝInterval = (ℝ,ℝ)
 
 continuityRanges :: WithField ℝ Manifold y
-      => Int               -- ^ Max number of exploration steps per region
-      -> RieMetric ℝ       -- ^ Needed resolution of boundaries
-      -> ℝ                 -- ^ Starting value of exploration (center)
-      -> RWDiffable ℝ ℝ y  -- ^ Function to investigate
-      -> ([ℝInterval], [ℝInterval])
-continuityRanges nLim δbf xc (RWDiffable f)
+      => Int                        -- ^ Max number of exploration steps per region
+      -> RieMetric ℝ                -- ^ Needed resolution of boundaries
+      -> ℝInterval                  -- ^ Interval to explore
+      -> RWDiffable ℝ ℝ y           -- ^ Function to investigate
+      -> ([ℝInterval], [ℝInterval]) -- ^ Subintervals on which the function is guaranteed continuous.
+continuityRanges nLim δbf (limL,limR) (RWDiffable f)
   | (GlobalRegion, _) <- f xc
                  = ([], [(-huge,huge)])
   | otherwise    = glueMid (go xc (-1)) (go xc 1)
@@ -124,6 +124,9 @@ continuityRanges nLim δbf xc (RWDiffable f)
         where (PreRegion (Differentiable r₀), fq₀) = f x₀
               (yq₀, jq₀, δyq₀) = r₀ x₀
               step₀ = dir/metric (δbf x₀) 1
+              exit _ d xq
+                | xq < limL  = exit 0 d limL
+                | xq > limR  = exit 0 d limR
               exit 0 _ xq
                 | not definedHere  = []
                 | xq < xc          = [(xq,x₀)]
@@ -153,6 +156,8 @@ continuityRanges nLim δbf xc (RWDiffable f)
        glueMid ((l,le):ls) ((re,r):rs) | le==re  = (ls, (l,r):rs)
        glueMid l r = (l,r)
        huge = exp $ fromIntegral nLim
+       xc | limL*2 /= limL, limR*2 /= limR  = (limR+limL)/2
+          | otherwise  = max limL . min limR $ 0
 
 discretisePathSegs :: WithField ℝ Manifold y
       => Int              -- ^ Maximum number of path segments and/or points per segment.
@@ -164,16 +169,14 @@ discretisePathSegs :: WithField ℝ Manifold y
       -> ℝInterval        -- ^ Interval of interest. You can make this “infinitely large”.
       -> RWDiffable ℝ ℝ y -- ^ Path specification.
       -> ([[(ℝ,y)]], [[(ℝ,y)]]) -- ^ Discretised paths: continuous segments in either direction
-discretisePathSegs nLim (mx,my) (limL,limR) f@(RWDiffable ff)
+discretisePathSegs nLim (mx,my) rng@(limL,limR) f@(RWDiffable ff)
                             = ( map discretise $ trimToRange ivsL
                               , map discretise $ trimToRange ivsR )
- where (ivsL, ivsR) = continuityRanges nLim mx xc f
+ where (ivsL, ivsR) = continuityRanges nLim mx rng f
        trimToRange = map ( \(l,r) -> (max limL l, min limR r) )
                                 . Data.List.filter ( \(l,r) -> l<limR && r>limL )
        discretise rng@(l,r) = discretisePathIn nLim rng (mx,my) fr
         where (_, Option (Just fr)) = ff $ (l+r)/2
-       xc | limL*2 /= limL, limR*2 /= limR  = (limR+limL)/2
-          | otherwise  = max limL . min limR $ 0
 
               
 analyseLocalBehaviour ::
