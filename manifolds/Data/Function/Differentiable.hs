@@ -1161,22 +1161,64 @@ instance (RealDimension n, LocallyScalable n a)
                  -- Empirical, with epsEst upper bound.
   
   
-infixl 3 ?:
-
--- | Try the LHS, if it is undefined use the RHS. This works analogously to
+infixl 4 ?->
+-- | Require the LHS to be defined before considering the RHS as result.
+--   This works analogously to the standard `Control.Applicative.Applicative` method
 -- 
 --   @
---   (?:) :: Maybe a -> Maybe a -> Maybe a
---   Just x ?: _ = Just x
---   _ ?: a = a
+--   (*>) :: Maybe a -> Maybe b -> Maybe b
+--   Just _ <|> a = a
+--   _      <|> a = Nothing
 --   @
-(?:) :: (RealDimension n, LocallyScalable n a, LocallyScalable n b)
-           => RWDfblFuncValue n a b -> RWDfblFuncValue n a b -> RWDfblFuncValue n a b
-ConstRWDFV c ?: _ = ConstRWDFV c
-GenericRWDFV (RWDiffable f) ?: ConstRWDFV c = GenericRWDFV (RWDiffable f')
- where f' x₀ = case f x₀ of
-                 (rd, Option (Just q)) -> (rd, Option (Just q))
-                 (rd, Option Nothing) -> (rd, Option . Just $ const c)
+(?->) :: (RealDimension n, LocallyScalable n a, LocallyScalable n b, LocallyScalable n c)
+      => RWDfblFuncValue n c a -> RWDfblFuncValue n c b -> RWDfblFuncValue n c b
+ConstRWDFV _ ?-> f = f
+GenericRWDFV (RWDiffable r) ?-> ConstRWDFV c = GenericRWDFV (RWDiffable s)
+ where s x₀ = case r x₀ of
+                (rd, Option (Just q)) -> (rd, return $ const c)
+                (rd, Option Nothing) -> (rd, empty)
+GenericRWDFV (RWDiffable f) ?-> GenericRWDFV (RWDiffable g) = GenericRWDFV (RWDiffable h)
+ where h x₀ = case f x₀ of
+                (rf, Option (Just _)) | (rg, q) <- g x₀
+                        -> (unsafePreRegionIntersect rf rg, q)
+                (rf, Option Nothing) -> (rf, empty)
+
+infixl 3 ?|:
+-- | Try the LHS, if it is undefined use the RHS. This works analogously to
+--   the standard `Control.Applicative.Alternative` method
+-- 
+--   @
+--   (<|>) :: Maybe a -> Maybe a -> Maybe a
+--   Just x <|> _ = Just x
+--   _      <|> a = a
+--   @
+-- 
+--  Basically a weaker and agent-ised version of 'backupRegions'.
+(?|:) :: (RealDimension n, LocallyScalable n a, LocallyScalable n b)
+      => RWDfblFuncValue n a b -> RWDfblFuncValue n a b -> RWDfblFuncValue n a b
+ConstRWDFV c ?|: _ = ConstRWDFV c
+GenericRWDFV (RWDiffable f) ?|: ConstRWDFV c = GenericRWDFV (RWDiffable h)
+ where h x₀ = case f x₀ of
+                (rd, Option (Just q)) -> (rd, Option (Just q))
+                (rd, Option Nothing) -> (rd, Option . Just $ const c)
+GenericRWDFV (RWDiffable f) ?|: GenericRWDFV (RWDiffable g) = GenericRWDFV (RWDiffable h)
+ where h x₀ = case f x₀ of
+                (rf, Option (Just q)) -> (rf, pure q)
+                (rf, Option Nothing) | (rg, q) <- g x₀
+                        -> (unsafePreRegionIntersect rf rg, q)
+
+-- | Replace the regions in which the first function is undefined with values
+--   from the second function.
+backupRegions :: (RealDimension n, LocallyScalable n a, LocallyScalable n b)
+      => RWDiffable n a b -> PWDiffable n a b -> PWDiffable n a b
+backupRegions (RWDiffable f) (PWDiffable g) = PWDiffable h
+ where h x₀ = case f x₀ of
+                (rf, Option (Just q)) -> (rf, q)
+                (rf, Option Nothing) | (rg, q) <- g x₀
+                        -> (unsafePreRegionIntersect rf rg, q)
+
+
+
 
 isZeroMap :: ∀ v a . (FiniteDimensional v, AdditiveGroup a, Eq a) => (v:-*a) -> Bool
 isZeroMap m = all ((==zeroV) . atBasis m) b
