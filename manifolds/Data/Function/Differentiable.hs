@@ -1073,8 +1073,8 @@ instance (RealDimension n, LocallyScalable n a)
                 sx' = abs sx; cx' = abs cx
                 sx''³ = cubeRoot sx'
                 p = -3 * sx² / cx²
-                δ ε = cubeRoot (ε + sx') - sx''³ + sqrt (ε*(1 + ε/(cx' + 2/ε)))
-                      in {-max δ₁-} δ₄
+                δ ε = (cubeRoot (ε + sx') - sx''³)/(ε+1)
+                        + sqrt (ε*(1 + ε/(cx' + 2/ε)))
                  -- When sin x ≥ 0, cos x ≥ 0
                  -- ε = sin x + δ · cos x − sin(x+δ)
                  --   = sin x + δ · cos x − sin x · cos δ − cos x · sin δ
