@@ -1161,8 +1161,22 @@ instance (RealDimension n, LocallyScalable n a)
                  -- Empirical, with epsEst upper bound.
   
   
+infixl 3 ?:
 
-
+-- | Try the LHS, if it is undefined use the RHS. This works analogously to
+-- 
+--   @
+--   (?:) :: Maybe a -> Maybe a -> Maybe a
+--   Just x ?: _ = Just x
+--   _ ?: a = a
+--   @
+(?:) :: (RealDimension n, LocallyScalable n a, LocallyScalable n b)
+           => RWDfblFuncValue n a b -> RWDfblFuncValue n a b -> RWDfblFuncValue n a b
+ConstRWDFV c ?: _ = ConstRWDFV c
+GenericRWDFV (RWDiffable f) ?: ConstRWDFV c = GenericRWDFV (RWDiffable f')
+ where f' x₀ = case f x₀ of
+                 (rd, Option (Just q)) -> (rd, Option (Just q))
+                 (rd, Option Nothing) -> (rd, Option . Just $ const c)
 
 isZeroMap :: ∀ v a . (FiniteDimensional v, AdditiveGroup a, Eq a) => (v:-*a) -> Bool
 isZeroMap m = all ((==zeroV) . atBasis m) b
