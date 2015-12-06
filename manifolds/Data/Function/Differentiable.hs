@@ -1071,10 +1071,10 @@ instance (RealDimension n, LocallyScalable n a)
           where sx = sin x; cx = cos x
                 sx² = sx^2; cx² = cx^2
                 sx' = abs sx; cx' = abs cx
-                δ ε = let d₀ = sx²/4
-                          d₁ = (sx'*sx² - 3*cx²)/4
-                          c = cubeRoot((d₁ + sqrt(d₁^2 - 4*d₀^3))/2)
-                          δ₄ = -2 * (sx' + c + d₀/c) / cx
+                p = -3 * sx² / cx²
+                δ ε = let q = 6*(sx'*sx² - cx²*ε)/(cx'*cx²)
+                          u = cubeRoot(-q/2 - sqrt(q^2/4 + p^3/27))
+                          δ₄ = u - p/(3*u)
                           δ₁ = (ε - sx' - 1) / cx'
                       in {-max δ₁-} δ₄
                  -- When sin x ≥ 0, cos x ≥ 0
@@ -1082,9 +1082,26 @@ instance (RealDimension n, LocallyScalable n a)
                  --   = sin x + δ · cos x − sin x · cos δ − cos x · sin δ
                  --   ≤ sin x + δ · cos x − sin x · (1−δ²/2) − cos x · (δ − δ³/6)
                  --   = sin x · δ²/2 + cos x · δ³/6
-                 --  =: a·δ³ + b·δ²
-                 -- This is monotonically increasing, therefore if we consider the “=” case
+                 -- This is monotonically increasing in δ, therefore if we consider the “=” case
                  -- it has a single solution that can be obtained with Cardano.
+                 -- 0 = cos x/6 ⋅ δ³ + sin x/2 ⋅ δ² − ε
+                 -- Write it with Tschirnhaus transformation
+                 -- t³ + p⋅t + q = 0
+                 -- with
+                 -- p = -(sin x/2)²/(3⋅(cos x/6)²)
+                 --   = - 3 ⋅ sin x² / cos x²
+                 -- q = (2⋅(sin x/2)³ − 27⋅(cos x/6)²⋅ε)/(27⋅(cos x/6)³)
+                 --   = (1/4⋅sin x³ − 1/4⋅cos x²⋅ε)/(1/(4⋅6)⋅cos x³)
+                 --   = 6⋅(sin x³ − cos x²⋅ε)/cos x³
+                 -- u = ³√(-q/2 − √(q²/4 + p³/27))
+                 -- δ = u − p/(3⋅u)
+                 -- 
+                 -- -- ε = sin x ⋅ η⁻² / 2 + cos x · η⁻³/6
+                 -- -- 0 = η³ − η ⋅ sin x/(2⋅ε) − cos x/(6⋅ε)
+                 -- --   =: η³ + p⋅η + q
+                 -- -- u = ³√(-q/2 − √(q²/4 + p³/27))
+                 -- -- η = u − p/(3⋅u)
+                 -- -- 
                  -- d₀ = b² = sin x²/4
                  -- d₁ = 2⋅b³ − 27⋅a²⋅ε
                  --    = 2⋅sin x³/8 − 27⋅cos x²/36
@@ -1186,7 +1203,7 @@ isZeroMap m = all ((==zeroV) . atBasis m) b
 
 
 cubeRoot :: ℝ -> ℝ
-cubeRoot x | x>0        = x**(1/3)
+cubeRoot x | x>=0       = x**(1/3)
            | otherwise  = - (-x)**(1/3)
 
 
