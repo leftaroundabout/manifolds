@@ -1071,48 +1071,17 @@ instance (RealDimension n, LocallyScalable n a)
           where sx = sin x; cx = cos x
                 sx² = sx^2; cx² = cx^2
                 sx' = abs sx; cx' = abs cx
-                sx''³ = cubeRoot sx'
-                p = -3 * sx² / cx²
-                δ ε = (cubeRoot (ε + sx') - sx''³)/(ε+1)
-                        + sqrt (ε*(1 + ε/(cx' + 2/ε)))
-                 -- When sin x ≥ 0, cos x ≥ 0
-                 -- ε = sin x + δ · cos x − sin(x+δ)
-                 --   = sin x + δ · cos x − sin x · cos δ − cos x · sin δ
-                 --   ≤ sin x + δ · cos x − sin x · (1−δ²/2) − cos x · (δ − δ³/6)
-                 --   = sin x · δ²/2 + cos x · δ³/6
-                 -- This is monotonically increasing in δ, therefore if we consider the “=” case
-                 -- it has a single solution that can be obtained with Cardano.
-                 -- 0 = cos x/6 ⋅ δ³ + sin x/2 ⋅ δ² − ε
-                 -- Write it with Tschirnhaus transformation
-                 -- t³ + p⋅t + q = 0
-                 -- with
-                 -- p = -(sin x/2)²/(3⋅(cos x/6)²)
-                 --   = - 3 ⋅ sin x² / cos x²
-                 -- q = (2⋅(sin x/2)³ − 27⋅(cos x/6)²⋅ε)/(27⋅(cos x/6)³)
-                 --   = (1/4⋅sin x³ − 1/4⋅cos x²⋅ε)/(1/(4⋅6)⋅cos x³)
-                 --   = 6⋅(sin x³ − cos x²⋅ε)/cos x³
-                 -- u = ³√(-q/2 − √(q²/4 + p³/27))
-                 -- δ = u − p/(3⋅u)
-                 -- 
-                 -- -- ε = sin x ⋅ η⁻² / 2 + cos x · η⁻³/6
-                 -- -- 0 = η³ − η ⋅ sin x/(2⋅ε) − cos x/(6⋅ε)
-                 -- --   =: η³ + p⋅η + q
-                 -- -- u = ³√(-q/2 − √(q²/4 + p³/27))
-                 -- -- η = u − p/(3⋅u)
-                 -- -- 
-                 -- d₀ = b² = sin x²/4
-                 -- d₁ = 2⋅b³ − 27⋅a²⋅ε
-                 --    = 2⋅sin x³/8 − 27⋅cos x²/36
-                 --    = (sin x³ − 3⋅cos x²)/4
-                 -- c = ³√((d₁ + √(d₁² - 4⋅d₀³))/2)
-                 --   = ³√((d₁ + √(d₁² - sin x⁶))/2)
-                 -- δ ≥ -1/(3⋅a) ⋅ (b + c + d₀/c)
-                 --   = -2/cos x ⋅ (b + c + d₀/c)
-                 -- 
-                 -- Also seek another lower bound that avoids the explosion of polynomials:
-                 -- ε = sin x + δ · cos x − sin(x+δ)
-                 --   ≤ δ · cos x + sin x + 1
-                 -- δ ≥ (ε − sin x − 1) / cos x
+                sx'³ = sx'*sx²; cx⁴ = cx²*cx²
+                δ ε = (ε*(1.8 + ε^2/(cx' + (2+40*cx⁴)/ε)) + σ₃³*sx'³)**(1/3) - σ₃*sx'
+                        + σ₂*sqrt ε/(σ₂+cx²)
+                    -- Carefully fine-tuned to give everywhere a good and safe bound.
+                    -- The third root makes it pretty slow too, but since tight
+                    -- deviation bounds can dramatically reduce the number of evaluations
+                    -- needed in the first place, this is probably worthwhile.
+                σ₂ = 1.4; σ₃ = 1.75; σ₃³ = σ₃^3
+                    -- Safety margins for overlap between quadratic and cubic model
+                    -- (these aren't naturally compatible to be used both together)
+                      
   cos = sin . (globalDiffable' (actuallyAffine (pi/2) idL) $~)
   
   sinh x = (exp x - exp (-x))/2
@@ -1199,9 +1168,5 @@ isZeroMap :: ∀ v a . (FiniteDimensional v, AdditiveGroup a, Eq a) => (v:-*a) -
 isZeroMap m = all ((==zeroV) . atBasis m) b
  where (Tagged b) = completeBasis :: Tagged v [Basis v]
 
-
-cubeRoot :: ℝ -> ℝ
-cubeRoot x | x>=0       = x**(1/3)
-           | otherwise  = - (-x)**(1/3)
 
 
