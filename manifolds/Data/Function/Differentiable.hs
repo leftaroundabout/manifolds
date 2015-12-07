@@ -28,17 +28,18 @@
 
 
 module Data.Function.Differentiable (
-            -- * Regions within a manifold
-              Region
-            , smoothIndicator
-            -- * Hierarchy of manifold-categories
-            -- ** Everywhere differentiable functions
-            , Differentiable
-            -- ** Almost everywhere diff'able funcs
+            -- * Everywhere differentiable functions
+              Differentiable
+            -- * Almost-everywhere diff'able functions
             , PWDiffable
-            -- ** Region-wise defined diff'able funcs
+            -- * Region-wise defined diff'able functions
             , RWDiffable
-            -- * Misc
+            -- ** Operators for piecewise definition
+            , (?->), (?>), (?<), (?|:), backupRegions
+            -- * Regions within a manifold
+            , Region
+            , smoothIndicator
+            -- * Evaluation of differentiable functions
             , discretisePathIn
             , discretisePathSegs
             , continuityRanges
@@ -1166,9 +1167,9 @@ infixl 4 ?->
 --   This works analogously to the standard `Control.Applicative.Applicative` method
 -- 
 --   @
---   (*>) :: Maybe a -> Maybe b -> Maybe b
---   Just _ <|> a = a
---   _      <|> a = Nothing
+--   ('Control.Applicative.*>') :: Maybe a -> Maybe b -> Maybe b
+--   Just _ 'Control.Applicative.*>' a = a
+--   _      'Control.Applicative.*>' a = Nothing
 --   @
 (?->) :: (RealDimension n, LocallyScalable n a, LocallyScalable n b, LocallyScalable n c)
       => RWDfblFuncValue n c a -> RWDfblFuncValue n c b -> RWDfblFuncValue n c b
@@ -1183,14 +1184,34 @@ GenericRWDFV (RWDiffable f) ?-> GenericRWDFV (RWDiffable g) = GenericRWDFV (RWDi
                         -> (unsafePreRegionIntersect rf rg, q)
                 (rf, Option Nothing) -> (rf, empty)
 
+positiveRegionalId :: RealDimension n => RWDiffable n n n
+positiveRegionalId = RWDiffable $ \x₀ ->
+       if x₀ > 0 then (positivePreRegion, pure id)
+                 else (negativePreRegion, notDefinedHere)
+
+infixl 5 ?> , ?<
+-- | Return the RHS, if it is less than the LHS.
+--   (Really the purpose is just to compare the values, but returning one of them
+--   allows chaining of comparison operators like in Python.)
+--   Note that less-than comparison is <http://www.paultaylor.eu/ASD/ equivalent>
+--   to less-or-equal comparison, because there is no such thing as equality.
+(?>) :: (RealDimension n, LocallyScalable n a)
+           => RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n
+a ?> b = (positiveRegionalId $~ a-b) ?-> b
+
+-- | Return the RHS, if it is greater than the LHS.
+(?<) :: (RealDimension n, LocallyScalable n a)
+           => RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n
+a ?< b = (positiveRegionalId $~ b-a) ?-> b
+
 infixl 3 ?|:
 -- | Try the LHS, if it is undefined use the RHS. This works analogously to
 --   the standard `Control.Applicative.Alternative` method
 -- 
 --   @
---   (<|>) :: Maybe a -> Maybe a -> Maybe a
---   Just x <|> _ = Just x
---   _      <|> a = a
+--   ('Control.Applicative.<|>') :: Maybe a -> Maybe a -> Maybe a
+--   Just x 'Control.Applicative.<|>' _ = Just x
+--   _      'Control.Applicative.<|>' a = a
 --   @
 -- 
 --  Basically a weaker and agent-ised version of 'backupRegions'.
