@@ -745,8 +745,8 @@ instance (RealDimension n, LocallyScalable n a)
          asc = actuallyLinear idL
   signum = (PWDiffable sgnPW $~)
    where sgnPW a₀
-          | a₀<0       = (negativePreRegion, const 1)
-          | otherwise  = (positivePreRegion, const $ -1)
+          | a₀<0       = (negativePreRegion, const $ -1)
+          | otherwise  = (positivePreRegion, const 1)
 
 instance (RealDimension n, LocallyScalable n a)
             => Fractional (PWDfblFuncValue n a n) where
@@ -995,8 +995,8 @@ instance (RealDimension n, LocallyScalable n a)
          asc = actuallyLinear idL
   signum = (RWDiffable sgnPW $~)
    where sgnPW a₀
-          | a₀<0       = (negativePreRegion, pure (const 1))
-          | otherwise  = (positivePreRegion, pure (const $ -1))
+          | a₀<0       = (negativePreRegion, pure (const $ -1))
+          | otherwise  = (positivePreRegion, pure (const 1))
 
 instance (RealDimension n, LocallyScalable n a)
             => Fractional (RWDfblFuncValue n a n) where
