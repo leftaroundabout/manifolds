@@ -755,15 +755,15 @@ instance (RealDimension n, LocallyScalable n a)
                                           then (negativePreRegion, Differentiable negp)
                                           else (positivePreRegion, Differentiable posp)
    where negp x = (x'¹, (- x'¹^2) *^ idL, unsafe_dev_ε_δ("1/"++show x) δ)
-                 -- ε = 1/x − δ/x² − 1/(x+δ)
-                 -- ε·x + ε·δ = 1 + δ/x − δ/x − δ²/x² − 1
-                 --           = -δ²/x²
-                 -- 0 = δ² + ε·x²·δ + ε·x³
-                 -- δ = let mph = -ε·x²/2 in mph + sqrt (mph² − ε·x³)
-          where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 - ε*x^3)
+          where δ ε = let mph = -ε*x^2/2
+                          δ₀ = mph + sqrt (mph^2 - ε*x^3)
+                 -- See `Fractional RWDfblFuncValue` instance for explanation.
+                      in if δ₀>0 then δ₀ else -x
                 x'¹ = recip x
          posp x = (x'¹, (- x'¹^2) *^ idL, unsafe_dev_ε_δ("1/"++show x) δ)
-          where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 + ε*x^3)
+          where δ ε = let mph = -ε*x^2/2
+                          δ₀ = sqrt (mph^2 + ε*x^3) - mph
+                      in if δ₀>0 then δ₀ else x
                 x'¹ = recip x
 
 
@@ -1010,25 +1010,22 @@ instance (RealDimension n, LocallyScalable n a)
                  --           = -δ²/x²
                  -- 0 = δ² + ε·x²·δ + ε·x³
                  -- δ = let mph = -ε·x²/2 in mph + sqrt (mph² − ε·x³)
-          where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 - ε*x^3)
+          where δ ε = let mph = -ε*x^2/2
+                          δ₀ = mph + sqrt (mph^2 - ε*x^3)
+                      in if δ₀ > 0
+                           then δ₀
+                           else - x -- numerical underflow of εx³ vs mph
+                                    --  ≡ ε*x^3 / (2*mph) (Taylor-expansion of the root)
                 x'¹ = recip x
          posp x = (x'¹, (- x'¹^2) *^ idL, unsafe_dev_ε_δ("1/"++show x) δ)
-          where δ ε = let mph = -ε*x^2/2 in mph + sqrt (mph^2 + ε*x^3)
+          where δ ε = let mph = ε*x^2/2
+                          δ₀ = sqrt (mph^2 + ε*x^3) - mph
+                      in if δ₀>0 then δ₀ else x
                 x'¹ = recip x
 
 
 
 
-
--- Helper for checking ε-estimations in GHCi with dynamic-plot:
--- epsEst (f,f') εsgn δf (ViewXCenter xc) (ViewHeight h)
---    = let δfxc = δf xc
---      in tracePlot $ reverse [ (xc - δ, f xc - δ * f' xc + εsgn*ε) |
---                               ε <- [0, h/500 .. h], let δ = δfxc ε]
---                          ++ [ (xc + δ, f xc + δ * f' xc + εsgn*ε) |
---                               ε <- [0, h/500 .. h], let δ = δfxc ε] 
--- Golfed version:
--- epsEst(f,d)s φ(ViewXCenter ξ)(ViewHeight h)=let ζ=φ ξ in tracePlot$[(ξ-δ,f ξ-δ*d ξ+s*abs ε)|ε<-[-h,-0.998*h..h],let δ=ζ(abs ε)*signum ε]
 
 instance (RealDimension n, LocallyScalable n a)
             => Floating (RWDfblFuncValue n a n) where
