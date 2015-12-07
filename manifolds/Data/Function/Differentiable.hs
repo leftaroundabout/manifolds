@@ -35,6 +35,7 @@ module Data.Function.Differentiable (
             -- * Region-wise defined diff'able functions
             , RWDiffable
             -- ** Operators for piecewise definition
+            -- $definitionRegionOps
             , (?->), (?>), (?<), (?|:), backupRegions
             -- * Regions within a manifold
             , Region
@@ -1158,6 +1159,31 @@ instance (RealDimension n, LocallyScalable n a)
    where atnhDefdR x = ( atanh x, recip(1-x^2) *^ idL, unsafe_dev_ε_δ("atanh "++show x) $ \ε -> sqrt(tanh ε)*(1-abs x) )
                  -- Empirical, with epsEst upper bound.
   
+
+
+
+-- $definitionRegionOps
+-- Because the agents of 'RWDiffable' aren't really values in /Hask/, you can't use
+-- the standard comparison operators on them, nor the built-in syntax of guards
+-- or if-statements.
+-- 
+-- However, because this category allows functions to be undefined in some region,
+-- such decisions can be faked quite well: '?->' restricts a function to
+-- some region, by simply marking it undefined outside¹, and '?|:' replaces these
+-- regions with values from another function.
+-- 
+-- Example: define a function that is compactly supported on the interval ]-1,1[,
+-- i.e. exactly zero everywhere outside.
+--
+-- @
+-- Graphics.Dynamic.Plot.R2> plotWindow [diffableFnPlot (\\x -> -1 '?<' x '?<' 1 '?->' exp(1/(x^2 - 1)) '?|:' 0)]
+-- @
+-- 
+-- <<images/examples/Friedrichs-mollifier.png>>
+-- 
+-- ¹ Note that it may not be necessary to restrict explicitly: for instance if a
+-- square root appears somewhere in an expression, then the expression is automatically
+-- restricted so that the root has a positive argument!
   
 infixl 4 ?->
 -- | Require the LHS to be defined before considering the RHS as result.
