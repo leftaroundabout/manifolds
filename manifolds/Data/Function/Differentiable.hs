@@ -112,22 +112,27 @@ type ℝInterval = (ℝ,ℝ)
 continuityRanges :: WithField ℝ Manifold y
       => Int                        -- ^ Max number of exploration steps per region
       -> RieMetric ℝ                -- ^ Needed resolution of boundaries
-      -> ℝ                          -- ^ Starting value of exploration (center)
       -> RWDiffable ℝ ℝ y           -- ^ Function to investigate
       -> ([ℝInterval], [ℝInterval]) -- ^ Subintervals on which the function is guaranteed continuous.
-continuityRanges nLim δbf xc (RWDiffable f)
+continuityRanges nLim δbf (RWDiffable f)
   | (GlobalRegion, _) <- f xc
                  = ([], [(-huge,huge)])
   | otherwise    = glueMid (go xc (-1)) (go xc 1)
  where go x₀ dir
          | yq₀ <= abs (lapply jq₀ 1 * step₀)
                       = go (x₀ + step₀/2) dir
-         | RealSubray PositiveHalfSphere xl' <- rangeHere, dir > 0
-                      = if definedHere then [(x₀, hugeℝVal)]
-                                       else []
-         | RealSubray NegativeHalfSphere xl' <- rangeHere, dir < 0
-                      = if definedHere then [(-hugeℝVal, x₀)]
-                                       else []
+         | RealSubray PositiveHalfSphere xl' <- rangeHere
+                      = if dir>0
+                         then if definedHere then [(x₀, hugeℝVal)]
+                                             else []
+                         else if definedHere then (x₀, xl') : exit nLim dir xl'
+                                             else exit nLim dir xl'
+         | RealSubray NegativeHalfSphere xr' <- rangeHere, dir < 0
+                      = if dir<0
+                         then if definedHere then [(-hugeℝVal, x₀)]
+                                             else []
+                         else if definedHere then (xr', x₀) : exit nLim dir xr'
+                                             else exit nLim dir xr'
          | otherwise  = exit nLim dir x₀
         where (rangeHere, fq₀) = f x₀
               (PreRegion (Differentiable r₀)) = genericisePreRegion rangeHere
@@ -162,6 +167,7 @@ continuityRanges nLim δbf xc (RWDiffable f)
        glueMid ((l,le):ls) ((re,r):rs) | le==re  = (ls, (l,r):rs)
        glueMid l r = (l,r)
        huge = exp $ fromIntegral nLim
+       xc = 0
 
 discretisePathSegs :: WithField ℝ Manifold y
       => Int              -- ^ Maximum number of path segments and/or points per segment.
@@ -170,7 +176,6 @@ discretisePathSegs :: WithField ℝ Manifold y
                           --   (mostly relevant for resolution of discontinuity boundaries –
                           --   consider it a “safety margin from singularities”),
                           --   and /ε/ for results in the target space.
-      -> ℝ                -- ^ Starting value of exploration (center)
       -> RWDiffable ℝ ℝ y -- ^ Path specification. It is recommended that this
                           --   function be limited to a compact interval (e.g. with
                           --   '?>', '?<' and '?->'). For many functions the discretisation
@@ -178,9 +183,9 @@ discretisePathSegs :: WithField ℝ Manifold y
                           --   is exponentially decreased towards the infinities. But
                           --   this is still pretty bad for performance.
       -> ([[(ℝ,y)]], [[(ℝ,y)]]) -- ^ Discretised paths: continuous segments in either direction
-discretisePathSegs nLim (mx,my) x₀ f@(RWDiffable ff)
+discretisePathSegs nLim (mx,my) f@(RWDiffable ff)
                             = ( map discretise ivsL, map discretise ivsR )
- where (ivsL, ivsR) = continuityRanges nLim mx x₀ f
+ where (ivsL, ivsR) = continuityRanges nLim mx f
        discretise rng@(l,r) = discretisePathIn nLim rng (mx,my) fr
         where (_, Option (Just fr)) = ff $ (l+r)/2
 
