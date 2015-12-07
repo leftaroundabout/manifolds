@@ -112,23 +112,27 @@ type ℝInterval = (ℝ,ℝ)
 continuityRanges :: WithField ℝ Manifold y
       => Int                        -- ^ Max number of exploration steps per region
       -> RieMetric ℝ                -- ^ Needed resolution of boundaries
-      -> ℝInterval                  -- ^ Interval to explore
+      -> ℝ                          -- ^ Starting value of exploration (center)
       -> RWDiffable ℝ ℝ y           -- ^ Function to investigate
       -> ([ℝInterval], [ℝInterval]) -- ^ Subintervals on which the function is guaranteed continuous.
-continuityRanges nLim δbf (limL,limR) (RWDiffable f)
+continuityRanges nLim δbf xc (RWDiffable f)
   | (GlobalRegion, _) <- f xc
                  = ([], [(-huge,huge)])
   | otherwise    = glueMid (go xc (-1)) (go xc 1)
  where go x₀ dir
          | yq₀ <= abs (lapply jq₀ 1 * step₀)
                       = go (x₀ + step₀/2) dir
+         | RealSubray PositiveHalfSphere xl' <- rangeHere, dir > 0
+                      = if definedHere then [(x₀, hugeℝVal)]
+                                       else []
+         | RealSubray NegativeHalfSphere xl' <- rangeHere, dir < 0
+                      = if definedHere then [(-hugeℝVal, x₀)]
+                                       else []
          | otherwise  = exit nLim dir x₀
-        where (PreRegion (Differentiable r₀), fq₀) = f x₀
+        where (rangeHere, fq₀) = f x₀
+              (PreRegion (Differentiable r₀)) = genericisePreRegion rangeHere
               (yq₀, jq₀, δyq₀) = r₀ x₀
               step₀ = dir/metric (δbf x₀) 1
-              exit _ d xq
-                | xq < limL  = exit 0 d limL
-                | xq > limR  = exit 0 d limR
               exit 0 _ xq
                 | not definedHere  = []
                 | xq < xc          = [(xq,x₀)]
@@ -158,8 +162,6 @@ continuityRanges nLim δbf (limL,limR) (RWDiffable f)
        glueMid ((l,le):ls) ((re,r):rs) | le==re  = (ls, (l,r):rs)
        glueMid l r = (l,r)
        huge = exp $ fromIntegral nLim
-       xc | limL*2 /= limL, limR*2 /= limR  = (limR+limL)/2
-          | otherwise  = max limL . min limR $ 0
 
 discretisePathSegs :: WithField ℝ Manifold y
       => Int              -- ^ Maximum number of path segments and/or points per segment.
@@ -168,15 +170,17 @@ discretisePathSegs :: WithField ℝ Manifold y
                           --   (mostly relevant for resolution of discontinuity boundaries –
                           --   consider it a “safety margin from singularities”),
                           --   and /ε/ for results in the target space.
-      -> ℝInterval        -- ^ Interval of interest. You can make this “infinitely large”.
-      -> RWDiffable ℝ ℝ y -- ^ Path specification.
+      -> ℝ                -- ^ Starting value of exploration (center)
+      -> RWDiffable ℝ ℝ y -- ^ Path specification. It is recommended that this
+                          --   function be limited to a compact interval (e.g. with
+                          --   '?>', '?<' and '?->'). For many functions the discretisation
+                          --   will even work on an infinite interval: the point density
+                          --   is exponentially decreased towards the infinities. But
+                          --   this is still pretty bad for performance.
       -> ([[(ℝ,y)]], [[(ℝ,y)]]) -- ^ Discretised paths: continuous segments in either direction
-discretisePathSegs nLim (mx,my) rng@(limL,limR) f@(RWDiffable ff)
-                            = ( map discretise $ trimToRange ivsL
-                              , map discretise $ trimToRange ivsR )
- where (ivsL, ivsR) = continuityRanges nLim mx rng f
-       trimToRange = map ( \(l,r) -> (max limL l, min limR r) )
-                                . Data.List.filter ( \(l,r) -> l<limR && r>limL )
+discretisePathSegs nLim (mx,my) x₀ f@(RWDiffable ff)
+                            = ( map discretise ivsL, map discretise ivsR )
+ where (ivsL, ivsR) = continuityRanges nLim mx x₀ f
        discretise rng@(l,r) = discretisePathIn nLim rng (mx,my) fr
         where (_, Option (Just fr)) = ff $ (l+r)/2
 
@@ -205,8 +209,8 @@ analyseLocalBehaviour (RWDiffable f) x₀ = case f x₀ of
 -- | Represent a 'Region' by a smooth function which is positive within the region,
 --   and crosses zero at the boundary.
 smoothIndicator :: LocallyScalable ℝ q => Region ℝ q -> Differentiable ℝ q ℝ
-smoothIndicator (Region _ GlobalRegion) = const 1
-smoothIndicator (Region _ (PreRegion r)) = r
+smoothIndicator (Region _ r₀) = let (PreRegion r) = genericisePreRegion r₀
+                                in  r
 
 regionOfContinuityAround :: RWDiffable ℝ q x -> q -> Region ℝ q
 regionOfContinuityAround (RWDiffable f) q = Region q . fst . f $ q
@@ -506,12 +510,20 @@ data Region s m = Region { regionRefPoint :: m
 --   includes that point) to define a connected subset of a manifold.
 data PreRegion s m where
   GlobalRegion :: PreRegion s m
+  RealSubray :: RealDimension s => S⁰ -> s -> PreRegion s s
   PreRegion :: (Differentiable s m s) -- A function that is positive at reference point /p/,
                                       -- decreases and crosses zero at the region's
                                       -- boundaries. (If it goes positive again somewhere
                                       -- else, these areas shall /not/ be considered
                                       -- belonging to the (by definition connected) region.)
          -> PreRegion s m
+
+genericisePreRegion :: (RealDimension s, LocallyScalable s m)
+                          => PreRegion s m -> PreRegion s m
+genericisePreRegion GlobalRegion = PreRegion $ const 1
+genericisePreRegion (RealSubray PositiveHalfSphere xl) = preRegionToInfFrom' xl
+genericisePreRegion (RealSubray NegativeHalfSphere xr) = preRegionFromMinInfTo' xr
+genericisePreRegion r = r
 
 -- | Set-intersection of regions would not be guaranteed to yield a connected result
 --   or even have the reference point of one region contained in the other. This
@@ -521,7 +533,13 @@ unsafePreRegionIntersect :: (RealDimension s, LocallyScalable s a)
                   => PreRegion s a -> PreRegion s a -> PreRegion s a
 unsafePreRegionIntersect GlobalRegion r = r
 unsafePreRegionIntersect r GlobalRegion = r
+unsafePreRegionIntersect (RealSubray PositiveHalfSphere xl) (RealSubray PositiveHalfSphere xl')
+                 = RealSubray PositiveHalfSphere $ max xl xl'
+unsafePreRegionIntersect (RealSubray NegativeHalfSphere xr) (RealSubray NegativeHalfSphere xr')
+                 = RealSubray PositiveHalfSphere $ min xr xr'
 unsafePreRegionIntersect (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs ra rb
+unsafePreRegionIntersect ra rb
+   = unsafePreRegionIntersect (genericisePreRegion ra) (genericisePreRegion rb)
 
 -- | Cartesian product of two regions.
 regionProd :: (RealDimension s, LocallyScalable s a, LocallyScalable s b)
@@ -535,10 +553,16 @@ preRegionProd GlobalRegion GlobalRegion = GlobalRegion
 preRegionProd GlobalRegion (PreRegion rb) = PreRegion $ rb . snd
 preRegionProd (PreRegion ra) GlobalRegion = PreRegion $ ra . fst
 preRegionProd (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs (ra.fst) (rb.snd)
+preRegionProd ra rb = preRegionProd (genericisePreRegion ra) (genericisePreRegion rb)
 
 
 positivePreRegion, negativePreRegion :: (RealDimension s) => PreRegion s s
-positivePreRegion = PreRegion $ Differentiable prr
+positivePreRegion = RealSubray PositiveHalfSphere 0
+negativePreRegion = RealSubray NegativeHalfSphere 0
+
+
+positivePreRegion', negativePreRegion' :: (RealDimension s) => PreRegion s s
+positivePreRegion' = PreRegion $ Differentiable prr
  where prr x = ( 1 - 1/xp1
                , (1/xp1²) *^ idL
                , unsafe_dev_ε_δ("positivePreRegion@"++show x) δ )
@@ -576,16 +600,20 @@ positivePreRegion = PreRegion $ Differentiable prr
                   | otherwise  = ε * x / ((1+ε)/x + ε)
               xp1 = (x+1)
               xp1² = xp1 ^ 2
-negativePreRegion = PreRegion $ ppr . ngt
- where PreRegion ppr = positivePreRegion
+negativePreRegion' = PreRegion $ ppr . ngt
+ where PreRegion ppr = positivePreRegion'
        ngt = actuallyLinear $ linear negate
 
 preRegionToInfFrom, preRegionFromMinInfTo :: RealDimension s => s -> PreRegion s s
-preRegionToInfFrom xs = PreRegion $ ppr . trl
- where PreRegion ppr = positivePreRegion
+preRegionToInfFrom = RealSubray PositiveHalfSphere
+preRegionFromMinInfTo = RealSubray NegativeHalfSphere
+
+preRegionToInfFrom', preRegionFromMinInfTo' :: RealDimension s => s -> PreRegion s s
+preRegionToInfFrom' xs = PreRegion $ ppr . trl
+ where PreRegion ppr = positivePreRegion'
        trl = actuallyAffine (-xs) idL
-preRegionFromMinInfTo xe = PreRegion $ ppr . flp
- where PreRegion ppr = positivePreRegion
+preRegionFromMinInfTo' xe = PreRegion $ ppr . flp
+ where PreRegion ppr = positivePreRegion'
        flp = actuallyAffine (-xe) (linear negate)
 
 intervalPreRegion :: RealDimension s => (s,s) -> PreRegion s s
@@ -807,8 +835,6 @@ instance (RealDimension s) => Category (RWDiffable s) where
   id = RWDiffable $ \x -> (GlobalRegion, pure id)
   RWDiffable f . RWDiffable g = RWDiffable h
    where h x₀ = case g x₀ of
-                 (GlobalRegion, Option Nothing)
-                  -> (GlobalRegion, notDefinedHere)
                  (GlobalRegion, Option (Just gr))
                   -> let (y₀,_,_) = runDifferentiable gr x₀
                      in case f y₀ of
@@ -816,12 +842,27 @@ instance (RealDimension s) => Category (RWDiffable s) where
                                -> (GlobalRegion, notDefinedHere)
                          (GlobalRegion, Option (Just fr))
                                -> (GlobalRegion, pure (fr . gr))
-                         (PreRegion ry, Option Nothing)
+                         (r, Option Nothing) | PreRegion ry <- genericisePreRegion r
                                -> ( PreRegion $ ry . gr, notDefinedHere )
-                         (PreRegion ry, Option (Just fr))
+                         (r, Option (Just fr)) | PreRegion ry <- genericisePreRegion r
                                -> ( PreRegion $ ry . gr, pure (fr . gr) )
-                 (PreRegion rx, Option Nothing)
-                  -> (PreRegion rx, notDefinedHere)
+                 (rg@(RealSubray dir xl), Option (Just gr))
+                  -> let (y₀,_,_) = runDifferentiable gr x₀
+                     in case f y₀ of
+                         (GlobalRegion, Option Nothing)
+                               -> (rg, notDefinedHere)
+                         (GlobalRegion, Option (Just fr))
+                               -> (rg, pure (fr . gr))
+                         (rf, Option Nothing)
+                           | PreRegion rx <- genericisePreRegion rg
+                           , PreRegion ry <- genericisePreRegion rf
+                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
+                                  , notDefinedHere )
+                         (rf, Option (Just fr))
+                           | PreRegion rx <- genericisePreRegion rg
+                           , PreRegion ry <- genericisePreRegion rf
+                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
+                                  , pure (fr . gr) )
                  (PreRegion rx, Option (Just gr))
                   -> let (y₀,_,_) = runDifferentiable gr x₀
                      in case f y₀ of
@@ -829,12 +870,14 @@ instance (RealDimension s) => Category (RWDiffable s) where
                                -> (PreRegion rx, notDefinedHere)
                          (GlobalRegion, Option (Just fr))
                                -> (PreRegion rx, pure (fr . gr))
-                         (PreRegion ry, Option Nothing)
+                         (r, Option Nothing) | PreRegion ry <- genericisePreRegion r
                                -> ( PreRegion $ minDblfuncs (ry . gr) rx
                                   , notDefinedHere )
-                         (PreRegion ry, Option (Just fr))
+                         (r, Option (Just fr)) | PreRegion ry <- genericisePreRegion r
                                -> ( PreRegion $ minDblfuncs (ry . gr) rx
                                   , pure (fr . gr) )
+                 (r, Option Nothing)
+                  -> (r, notDefinedHere)
 
 
 globalDiffable' :: Differentiable s a b -> RWDiffable s a b
