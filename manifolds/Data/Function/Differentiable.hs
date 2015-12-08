@@ -46,6 +46,7 @@ module Data.Function.Differentiable (
             , continuityRanges
             , regionOfContinuityAround
             , analyseLocalBehaviour
+            , intervalImages
             ) where
     
 
@@ -83,7 +84,7 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
-
+import Debug.Trace
 
 
 
@@ -220,6 +221,38 @@ smoothIndicator (Region _ r₀) = let (PreRegion r) = genericisePreRegion r₀
 regionOfContinuityAround :: RWDiffable ℝ q x -> q -> Region ℝ q
 regionOfContinuityAround (RWDiffable f) q = Region q . fst . f $ q
               
+
+intervalImages ::
+         Int                         -- ^ Max number of exploration steps per region
+      -> (RieMetric ℝ, RieMetric ℝ)  -- ^ Needed resolution in (x,y) direction
+      -> RWDiffable ℝ ℝ ℝ            -- ^ Function to investigate
+      -> ( [(ℝInterval,ℝInterval)]
+         , [(ℝInterval,ℝInterval)] ) -- ^ (XInterval, YInterval) rectangles in which
+                                     --   the function graph lies.
+intervalImages nLim (mx,my) f@(RWDiffable fd)
+                  = (map (id&&&ivimg) domsL, map (id&&&ivimg) domsR)
+ where (domsL, domsR) = continuityRanges nLim mx f
+       ivimg (xl,xr) = go xl 1 i₀ ∪ go xr (-1) i₀
+        where (_, Option (Just fdd@(Differentiable fddd))) = fd xc
+              xc = (xl+xr)/2
+              i₀ = minimum&&&maximum $ [fdd$xl, fdd$xc, fdd$xr]
+              go x dir (a,b)
+                 | dir>0 && x>xc   = (a,b)
+                 | dir<0 && x<xc   = (a,b)
+                 | y < a+resoHere  = go (x + dir*as_devεδ δε resoHere) dir (y,b)
+                 | y > b-resoHere  = go (x + dir*as_devεδ δε resoHere) dir (a,y)
+                 | otherwise       = go (x + safeStep stepOut₀) dir (a,b)
+               where (y, j, δε) = fddd x
+                     y' = lapply j 1
+                     resoHere = metricAsLength $ my y
+                     safeStep s₀
+                         | as_devεδ δε (safetyMarg s₀) > abs s₀  = s₀
+                         | otherwise                             = safeStep (s₀*0.5)
+                     stepOut₀ | y'*dir>0   = 0.5 * (b-y)/y'
+                              | otherwise  = -0.5 * (y-a)/y'
+                     safetyMarg stp = minimum [y-a, y+stp*y'-a, b-y, b-y-stp*y']
+       infixl 3 ∪
+       (a,b) ∪ (c,d) = (min a c, max b d)
 
 
 hugeℝVal :: ℝ
