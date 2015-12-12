@@ -78,21 +78,20 @@ instance (MetricScalar s) => Category (Affine s) where
   Affine cof aof slf . Affine cog aog slg
       = Affine cog (aof .+~^ lapply slf (aog.-.cof)) (slf*.*slg)
 
+linearAffine :: ( AdditiveGroup d, AdditiveGroup c
+                , HasBasis (Needle d), HasTrie (Basis (Needle d)) )
+       => (Needle d -> Needle c) -> Affine s d c
+linearAffine = Affine zeroV zeroV . linear
+
+instance (MetricScalar s) => Cartesian (Affine s) where
+  type UnitObject (Affine s) = ZeroDim s
+  swap = linearAffine swap
+  attachUnit = linearAffine (, Origin)
+  detachUnit = linearAffine fst
+  regroup = linearAffine regroup
+  regroup' = linearAffine regroup'
 
 {-
-
-instance (MetricScalar s) => Cartesian (Differentiable s) where
-  type UnitObject (Differentiable s) = ZeroDim s
-  swap = Differentiable $ \(x,y) -> ((y,x), lSwap, const zeroV)
-   where lSwap = linear swap
-  attachUnit = Differentiable $ \x -> ((x, Origin), lAttachUnit, const zeroV)
-   where lAttachUnit = linear $ \x ->  (x, Origin)
-  detachUnit = Differentiable $ \(x, Origin) -> (x, lDetachUnit, const zeroV)
-   where lDetachUnit = linear $ \(x, Origin) ->  x
-  regroup = Differentiable $ \(x,(y,z)) -> (((x,y),z), lRegroup, const zeroV)
-   where lRegroup = linear regroup
-  regroup' = Differentiable $ \((x,y),z) -> ((x,(y,z)), lRegroup, const zeroV)
-   where lRegroup = linear regroup'
 
 
 instance (MetricScalar s) => Morphism (Differentiable s) where
