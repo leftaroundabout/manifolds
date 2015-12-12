@@ -93,6 +93,10 @@ data ZeroDim k = Origin deriving(Eq, Show)
 instance Monoid (ZeroDim k) where
   mempty = Origin
   mappend Origin Origin = Origin
+instance AffineSpace (ZeroDim k) where
+  type Diff (ZeroDim k) = ZeroDim k
+  Origin .+^ Origin = Origin
+  Origin .-. Origin = Origin
 instance AdditiveGroup (ZeroDim k) where
   zeroV = Origin
   Origin ^+^ Origin = Origin
