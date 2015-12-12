@@ -84,7 +84,6 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
-import Debug.Trace
 
 
 
@@ -124,13 +123,13 @@ continuityRanges nLim δbf (RWDiffable f)
                       = go (x₀ + step₀/2) dir
          | RealSubray PositiveHalfSphere xl' <- rangeHere
                       = if dir>0
-                         then if definedHere then [(x₀, hugeℝVal)]
+                         then if definedHere then [(x₀, huge)]
                                              else []
                          else if definedHere then (x₀, xl') : exit nLim dir xl'
                                              else exit nLim dir xl'
-         | RealSubray NegativeHalfSphere xr' <- rangeHere, dir < 0
+         | RealSubray NegativeHalfSphere xr' <- rangeHere
                       = if dir<0
-                         then if definedHere then [(-hugeℝVal, x₀)]
+                         then if definedHere then [(-huge, x₀)]
                                              else []
                          else if definedHere then (xr', x₀) : exit nLim dir xr'
                                              else exit nLim dir xr'
@@ -966,20 +965,22 @@ instance (RealDimension s) => WellPointed (RWDiffable s) where
 
 data RWDfblFuncValue s d c where
   ConstRWDFV :: c -> RWDfblFuncValue s d c
+  RWDFV_IdVar :: RWDfblFuncValue s c c
   GenericRWDFV :: RWDiffable s d c -> RWDfblFuncValue s d c
 
 genericiseRWDFV :: (RealDimension s, LocallyScalable s c, LocallyScalable s d)
                     => RWDfblFuncValue s d c -> RWDfblFuncValue s d c
 genericiseRWDFV (ConstRWDFV c) = GenericRWDFV $ const c
+genericiseRWDFV RWDFV_IdVar = GenericRWDFV id
 genericiseRWDFV v = v
 
 instance RealDimension s => HasAgent (RWDiffable s) where
   type AgentVal (RWDiffable s) d c = RWDfblFuncValue s d c
-  alg fq = case fq (GenericRWDFV id) of
+  alg fq = case fq RWDFV_IdVar of
     GenericRWDFV f -> f
   ($~) = postCompRW
 instance RealDimension s => CartesianAgent (RWDiffable s) where
-  alg1to2 fgq = case fgq (GenericRWDFV id) of
+  alg1to2 fgq = case fgq RWDFV_IdVar of
     (GenericRWDFV f, GenericRWDFV g) -> f &&& g
   alg2to1 fq = case fq (GenericRWDFV fst) (GenericRWDFV snd) of
     GenericRWDFV f -> f
@@ -1038,6 +1039,7 @@ postCompRW :: ( RealDimension s
               => RWDiffable s b c -> RWDfblFuncValue s a b -> RWDfblFuncValue s a c
 postCompRW (RWDiffable f) (ConstRWDFV x) = case f x of
      (_, Option (Just fd)) -> ConstRWDFV $ fd $ x
+postCompRW f RWDFV_IdVar = GenericRWDFV f
 postCompRW f (GenericRWDFV g) = GenericRWDFV $ f . g
 
 
@@ -1281,6 +1283,7 @@ infixl 4 ?->
 (?->) :: (RealDimension n, LocallyScalable n a, LocallyScalable n b, LocallyScalable n c)
       => RWDfblFuncValue n c a -> RWDfblFuncValue n c b -> RWDfblFuncValue n c b
 ConstRWDFV _ ?-> f = f
+RWDFV_IdVar ?-> f = f
 GenericRWDFV (RWDiffable r) ?-> ConstRWDFV c = GenericRWDFV (RWDiffable s)
  where s x₀ = case r x₀ of
                 (rd, Option (Just q)) -> (rd, return $ const c)
@@ -1290,6 +1293,7 @@ GenericRWDFV (RWDiffable f) ?-> GenericRWDFV (RWDiffable g) = GenericRWDFV (RWDi
                 (rf, Option (Just _)) | (rg, q) <- g x₀
                         -> (unsafePreRegionIntersect rf rg, q)
                 (rf, Option Nothing) -> (rf, empty)
+c ?-> f = c ?-> genericiseRWDFV f
 
 positiveRegionalId :: RealDimension n => RWDiffable n n n
 positiveRegionalId = RWDiffable $ \x₀ ->
@@ -1325,6 +1329,7 @@ infixl 3 ?|:
 (?|:) :: (RealDimension n, LocallyScalable n a, LocallyScalable n b)
       => RWDfblFuncValue n a b -> RWDfblFuncValue n a b -> RWDfblFuncValue n a b
 ConstRWDFV c ?|: _ = ConstRWDFV c
+RWDFV_IdVar ?|: _ = RWDFV_IdVar
 GenericRWDFV (RWDiffable f) ?|: ConstRWDFV c = GenericRWDFV (RWDiffable h)
  where h x₀ = case f x₀ of
                 (rd, Option (Just q)) -> (rd, Option (Just q))
@@ -1334,6 +1339,7 @@ GenericRWDFV (RWDiffable f) ?|: GenericRWDFV (RWDiffable g) = GenericRWDFV (RWDi
                 (rf, Option (Just q)) -> (rf, pure q)
                 (rf, Option Nothing) | (rg, q) <- g x₀
                         -> (unsafePreRegionIntersect rf rg, q)
+c ?|: f = c ?|: genericiseRWDFV f
 
 -- | Replace the regions in which the first function is undefined with values
 --   from the second function.
