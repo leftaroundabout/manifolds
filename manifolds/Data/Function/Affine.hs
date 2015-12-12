@@ -91,59 +91,37 @@ instance (MetricScalar s) => Cartesian (Affine s) where
   regroup = linearAffine regroup
   regroup' = linearAffine regroup'
 
-{-
+instance (MetricScalar s) => Morphism (Affine s) where
+  Affine cof aof slf *** Affine cog aog slg
+      = Affine (cof,cog) (aof,aog) (linear $ lapply slf *** lapply slg)
 
+instance (MetricScalar s) => PreArrow (Affine s) where
+  terminal = linearAffine $ const Origin
+  fst = linearAffine fst
+  snd = linearAffine snd
+  Affine cof aof slf &&& Affine cog aog slg
+      = Affine zeroV (aof.-^lapply slf cof, aog.-^lapply slg cog)
+                 (linear $ lapply slf &&& lapply slg)
 
-instance (MetricScalar s) => Morphism (Differentiable s) where
-  Differentiable f *** Differentiable g = Differentiable h
-   where h (x,y) = ((fx, gy), lPar, devfg)
-          where (fx, f', devf) = f x
-                (gy, g', devg) = g y
-                devfg δs = transformMetric lfst δx 
-                           ^+^ transformMetric lsnd δy
-                  where δx = devf $ transformMetric lcofst δs
-                        δy = devg $ transformMetric lcosnd δs
-                lPar = linear $ lapply f'***lapply g'
-         lfst = linear fst; lsnd = linear snd
-         lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
-
-
-instance (MetricScalar s) => PreArrow (Differentiable s) where
-  terminal = Differentiable $ \_ -> (Origin, zeroV, const zeroV)
-  fst = Differentiable $ \(x,_) -> (x, lfst, const zeroV)
-   where lfst = linear fst
-  snd = Differentiable $ \(_,y) -> (y, lsnd, const zeroV)
-   where lsnd = linear snd
-  Differentiable f &&& Differentiable g = Differentiable h
-   where h x = ((fx, gx), lFanout, devfg)
-          where (fx, f', devf) = f x
-                (gx, g', devg) = g x
-                devfg δs = (devf $ transformMetric lcofst δs)
-                           ^+^ (devg $ transformMetric lcosnd δs)
-                lFanout = linear $ lapply f'&&&lapply g'
-         lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
-
-
-instance (MetricScalar s) => WellPointed (Differentiable s) where
+instance (MetricScalar s) => WellPointed (Affine s) where
   unit = Tagged Origin
-  globalElement x = Differentiable $ \Origin -> (x, zeroV, const zeroV)
-  const x = Differentiable $ \_ -> (x, zeroV, const zeroV)
+  globalElement x = Affine zeroV x zeroV
+  const x = Affine zeroV x zeroV
 
 
 
-type DfblFuncValue s = GenericAgent (Differentiable s)
+type AffinFuncValue s = GenericAgent (Affine s)
 
-instance (MetricScalar s) => HasAgent (Differentiable s) where
+instance (MetricScalar s) => HasAgent (Affine s) where
   alg = genericAlg
   ($~) = genericAgentMap
-instance (MetricScalar s) => CartesianAgent (Differentiable s) where
+instance (MetricScalar s) => CartesianAgent (Affine s) where
   alg1to2 = genericAlg1to2
   alg2to1 = genericAlg2to1
   alg2to2 = genericAlg2to2
 instance (MetricScalar s)
-      => PointAgent (DfblFuncValue s) (Differentiable s) a x where
+      => PointAgent (AffinFuncValue s) (Affine s) a x where
   point = genericPoint
--}
 
 
 
