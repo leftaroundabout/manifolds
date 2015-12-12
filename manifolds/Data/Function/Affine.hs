@@ -68,17 +68,18 @@ data Affine s d c
             , affineSlope :: Needle d :-* Needle c
             }
 
+instance (RealDimension s) => EnhancedCat (->) (Affine s) where
+  arr (Affine co ao sl) x = ao .+~^ lapply sl (x.-.co)
+
 
 instance (MetricScalar s) => Category (Affine s) where
-  type Object (Affine s) o = WithField s AffineManifold o
+  type Object (Affine s) o = WithField s LinearManifold o
   id = Affine zeroV zeroV idL
   Affine cof aof slf . Affine cog aog slg
-      = Affine cog (aof .+^ lapply slf (aog.-.cof)) (slf*.*slg)
+      = Affine cog (aof .+~^ lapply slf (aog.-.cof)) (slf*.*slg)
+
 
 {-
-
-instance (RealDimension s) => EnhancedCat (->) (Differentiable s) where
-  arr (Differentiable f) x = let (y,_,_) = f x in y
 
 instance (MetricScalar s) => Cartesian (Differentiable s) where
   type UnitObject (Differentiable s) = ZeroDim s

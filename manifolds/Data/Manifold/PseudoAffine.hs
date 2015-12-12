@@ -225,7 +225,10 @@ type LocallyScalable s x = ( PseudoAffine x
 --   
 --   (Actually, 'LinearManifold' is stronger than 'VectorSpace' at the moment, since
 --   'HasMetric' requires 'FiniteDimensional'. This might be lifted in the future.)
-type LinearManifold x = ( PseudoAffine x, Interior x ~ x, Needle x ~ x, HasMetric x )
+type LinearManifold x = ( AffineManifold x, Needle x ~ x, HasMetric x )
+
+type LinearManifold' x = ( PseudoAffine x, AffineSpace x, Diff x ~ x
+                         , Interior x ~ x, Needle x ~ x, HasMetric x )
 
 -- | Require some constraint on a manifold, and also fix the type of the manifold's
 --   underlying field. For example, @WithField &#x211d; 'HilbertSpace' v@ constrains
@@ -243,7 +246,7 @@ type RealDimension r = ( PseudoAffine r, Interior r ~ r, Needle r ~ r
 
 -- | The 'AffineSpace' class plus manifold constraints.
 type AffineManifold m = ( PseudoAffine m, Interior m ~ m, AffineSpace m
-                        , Needle m ~ Diff m, LinearManifold (Diff m) )
+                        , Needle m ~ Diff m, LinearManifold' (Diff m) )
 
 -- | A Hilbert space is a /complete/ inner product space. Being a vector space, it is
 --   also a manifold.
