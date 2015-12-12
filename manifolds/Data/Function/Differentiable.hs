@@ -239,12 +239,15 @@ intervalImages nLim (mx,my) f@(RWDiffable fd)
               go x dir (a,b)
                  | dir>0 && x>xc   = (a,b)
                  | dir<0 && x<xc   = (a,b)
-                 | y < a+resoHere  = go (x + dir*as_devεδ δε resoHere) dir (y,b)
-                 | y > b-resoHere  = go (x + dir*as_devεδ δε resoHere) dir (a,y)
+                 | χ == 0          = (y + (x-xl)*y', y + (x-xr)*y')
+                 | y < a+resoHere  = go (x + dir/χ) dir (y,b)
+                 | y > b-resoHere  = go (x + dir/χ) dir (a,y)
                  | otherwise       = go (x + safeStep stepOut₀) dir (a,b)
                where (y, j, δε) = fddd x
                      y' = lapply j 1
-                     resoHere = metricAsLength $ my y
+                     εx = my y
+                     resoHere = metricAsLength εx
+                     χ = metric (δε εx) 1
                      safeStep s₀
                          | as_devεδ δε (safetyMarg s₀) > abs s₀  = s₀
                          | otherwise                             = safeStep (s₀*0.5)
