@@ -2,7 +2,7 @@
 ;; --------------------------------------------------------------------------
 ;; Desktop File for Emacs
 ;; --------------------------------------------------------------------------
-;; Created Sat Nov 21 14:05:03 2015
+;; Created Sat Dec 12 20:40:46 2015
 ;; Desktop file format version 206
 ;; Emacs version 24.3.1
 
@@ -17,12 +17,23 @@
 
 ;; Buffer section -- buffers listed in same order as in buffer list:
 (desktop-create-buffer 206
-  "manifolds/Data/Function/Differentiable.hs"
-  "Differentiable.hs"
+  "manifolds/Data/Manifold/Types.hs"
+  "Types.hs"
   'haskell-mode
   '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
-  49609
-  '(2420 nil)
+  1
+  '(nil nil)
+  nil
+  nil
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+
+(desktop-create-buffer 206
+  "manifolds/Data/Function/Affine.hs"
+  "Affine.hs"
+  'haskell-mode
+  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  2213
+  '(2615 nil)
   nil
   nil
   '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
@@ -32,8 +43,41 @@
   "PseudoAffine.hs"
   'haskell-mode
   '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
-  15802
-  '(13353 nil)
+  9695
+  '(9528 nil)
+  nil
+  nil
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
+
+(desktop-create-buffer 206
+  "manifolds/Data/Manifold/TreeCover.hs"
+  "TreeCover.hs"
+  'haskell-mode
+  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  31290
+  '(nil nil)
+  nil
+  nil
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+
+(desktop-create-buffer 206
+  "manifolds/manifolds.cabal"
+  "manifolds.cabal"
+  'haskell-cabal-mode
+  '(vim-local-mode linum-mode)
+  3888
+  '(3456 nil)
+  nil
+  nil
+  '((indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
+
+(desktop-create-buffer 206
+  "manifolds/Data/Function/Differentiable.hs"
+  "Differentiable.hs"
+  'haskell-mode
+  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  49609
+  '(2420 nil)
   nil
   nil
   '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
@@ -138,17 +182,6 @@
   '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
 
 (desktop-create-buffer 206
-  "manifolds/Data/Manifold/TreeCover.hs"
-  "TreeCover.hs"
-  'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
-  1
-  '(nil nil)
-  nil
-  nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
-
-(desktop-create-buffer 206
   "manifolds/Data/LinearMap/HerMetric.hs"
   "HerMetric.hs"
   'haskell-mode
@@ -158,15 +191,4 @@
   nil
   nil
   '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
-
-(desktop-create-buffer 206
-  "manifolds/manifolds.cabal"
-  "manifolds.cabal"
-  'haskell-cabal-mode
-  '(vim-local-mode linum-mode)
-  1
-  '(nil nil)
-  nil
-  nil
-  '((indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
 
