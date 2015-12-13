@@ -125,5 +125,13 @@ instance (MetricScalar s)
 
 
 
+instance (WithField s LinearManifold v, WithField s LinearManifold a)
+    => AdditiveGroup (AffinFuncValue s a v) where
+  zeroV = GenericAgent $ Affine zeroV zeroV zeroV
+  GenericAgent (Affine cof aof slf) ^+^ GenericAgent (Affine cog aog slg)
+       = GenericAgent $ Affine (cof^+^cog) (aof^+^aog) (slf^+^slg)
+  negateV (GenericAgent (Affine co ao sl))
+      = GenericAgent $ Affine (negateV co) (negateV ao) (negateV sl)
+
 
 

@@ -40,7 +40,7 @@ module Data.Manifold.Types.Primitive (
         , ZeroDim(..), isoAttachZeroDim
         , ℝ⁰, ℝ, ℝ², ℝ³
         -- * Hyperspheres
-        , S⁰(..), S¹(..), S²(..)
+        , S⁰(..), otherHalfSphere, S¹(..), S²(..)
         -- * Projective spaces
         , ℝP¹,  ℝP²(..)
         -- * Intervals\/disks\/cones
@@ -121,6 +121,11 @@ isoAttachZeroDim = second (Isomorphism (const Origin) terminal) . attachUnit
 --   therefore change to @ℝ⁰ 'Control.Category.Constrained.+' ℝ⁰@: the disjoint sum of two
 --   single-point spaces.
 data S⁰ = PositiveHalfSphere | NegativeHalfSphere deriving(Eq, Show)
+
+otherHalfSphere :: S⁰ -> S⁰
+otherHalfSphere PositiveHalfSphere = NegativeHalfSphere
+otherHalfSphere NegativeHalfSphere = PositiveHalfSphere
+
 -- | The unit circle.
 newtype S¹ = S¹ { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
                 } deriving (Show)

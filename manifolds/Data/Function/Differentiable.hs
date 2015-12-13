@@ -64,6 +64,7 @@ import Data.LinearMap
 import Data.LinearMap.HerMetric
 import Data.MemoTrie (HasTrie(..))
 import Data.AffineSpace
+import Data.Function.Affine
 import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
@@ -330,16 +331,26 @@ as_devεδ ldp ε | ε>0
 --   &#xb9;(The implementation does not deal with /&#x3b5;/ and /&#x3b4;/ as difference-bounding
 --   reals, but rather as metric tensors that define a boundary by prohibiting the
 --   overlap from exceeding one; this makes the concept actually work on general manifolds.)
-newtype Differentiable s d c
-   = Differentiable { runDifferentiable ::
-                        d -> ( c   -- function value
-                             , Needle d :-* Needle c -- Jacobian
-                             , LinDevPropag d c -- Metric showing how far you can go
-                                                -- from x₀ without deviating from the
-                                                -- Taylor-1 approximation by more than
-                                                -- some error margin
-                             ) }
-type (-->) = Differentiable ℝ
+data Differentiable s d c where
+   Differentiable :: ( d -> ( c   -- function value
+                            , Needle d :-* Needle c -- Jacobian
+                            , LinDevPropag d c -- Metric showing how far you can go
+                                               -- from x₀ without deviating from the
+                                               -- Taylor-1 approximation by more than
+                                               -- some error margin
+                              ) )
+                  -> Differentiable s d c
+   AffinDiffable :: LinearManifold d
+               => Affine s d d -> Differentiable s d d
+                      -- This should ideally map between two general affine spaces,
+                      -- but since the special case of affine functions is mostly relevant
+                      -- to optimise the propagation of real intervals, we don't do that.
+
+genericiseDifferentiable :: (LocallyScalable s d, LocallyScalable s c)
+                    => Differentiable s d c -> Differentiable s d c
+genericiseDifferentiable (AffinDiffable (Affine x₀ y₀ f))
+     = Differentiable $ \x -> (y₀ .+^ lapply f (x.-.x₀), f, const zeroV)
+genericiseDifferentiable f = f
 
 
 instance (MetricScalar s) => Category (Differentiable s) where
@@ -352,10 +363,16 @@ instance (MetricScalar s) => Category (Differentiable s) where
                               εy = devf δz
                           in transformMetric g' εy ^+^ devg δy ^+^ devg εy
            in (z, f'*.*g', devfg)
+  AffinDiffable f . AffinDiffable g = AffinDiffable $ f . g
+  f . g = genericiseDifferentiable f . genericiseDifferentiable g
 
 
+-- instance (RealDimension s) => EnhancedCat (Differentiable s) (Affine s) where
+--   arr (Affine co ao sl) = actuallyAffine (ao .-^ lapply sl co) sl
+  
 instance (RealDimension s) => EnhancedCat (->) (Differentiable s) where
   arr (Differentiable f) x = let (y,_,_) = f x in y
+  arr (AffinDiffable f) x = f $ x
 
 instance (MetricScalar s) => Cartesian (Differentiable s) where
   type UnitObject (Differentiable s) = ZeroDim s
@@ -383,6 +400,8 @@ instance (MetricScalar s) => Morphism (Differentiable s) where
                 lPar = linear $ lapply f'***lapply g'
          lfst = linear fst; lsnd = linear snd
          lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
+  AffinDiffable f *** AffinDiffable g = AffinDiffable $ f *** g
+  f *** g = genericiseDifferentiable f *** genericiseDifferentiable g
 
 
 instance (MetricScalar s) => PreArrow (Differentiable s) where
@@ -399,6 +418,7 @@ instance (MetricScalar s) => PreArrow (Differentiable s) where
                            ^+^ (devg $ transformMetric lcosnd δs)
                 lFanout = linear $ lapply f'&&&lapply g'
          lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
+  f &&& g = genericiseDifferentiable f &&& genericiseDifferentiable g
 
 
 instance (MetricScalar s) => WellPointed (Differentiable s) where
@@ -423,13 +443,21 @@ instance (MetricScalar s)
 
 
 
-actuallyLinear :: ( WithField s LinearManifold x, WithField s LinearManifold y )
+actuallyLinear :: ( WithField s LinearManifold x, WithField s LinearManifold y, x~y )
             => (x:-*y) -> Differentiable s x y
-actuallyLinear f = Differentiable $ \x -> (lapply f x, f, const zeroV)
+actuallyLinear f = actuallyAffine zeroV f
 
-actuallyAffine :: ( WithField s LinearManifold x, WithField s AffineManifold y )
+actuallyAffine :: ( WithField s LinearManifold x
+                  , WithField s LinearManifold y -- Really, this should only need `AffineManifold`.
+                  , x~y
+                  )
             => y -> (x:-*Diff y) -> Differentiable s x y
-actuallyAffine y₀ f = Differentiable $ \x -> (y₀ .+^ lapply f x, f, const zeroV)
+actuallyAffine y₀ f = AffinDiffable $ Affine zeroV y₀ f
+
+
+-- affinPoint :: (WithField s LinearManifold c, WithField s LinearManifold d)
+--                   => c -> DfblFuncValue s d c
+-- affinPoint p = GenericAgent (AffinDiffable (const p))
 
 
 dfblFnValsFunc :: ( LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
@@ -463,6 +491,9 @@ dfblFnValsCombine cmb (GenericAgent (Differentiable f))
                  )
  where lcofst = linear(,zeroV)
        lcosnd = linear(zeroV,) 
+dfblFnValsCombine cmb (GenericAgent fa) (GenericAgent ga) 
+         = dfblFnValsCombine cmb (GenericAgent $ genericiseDifferentiable fa)
+                                 (GenericAgent $ genericiseDifferentiable ga)
 
 
 
@@ -471,16 +502,21 @@ dfblFnValsCombine cmb (GenericAgent (Differentiable f))
 instance (WithField s LinearManifold v, LocallyScalable s a, Floating s)
     => AdditiveGroup (DfblFuncValue s a v) where
   zeroV = point zeroV
-  (^+^) = dfblFnValsCombine $ \a b -> (a^+^b, lPlus, const zeroV)
+  GenericAgent (AffinDiffable f) ^+^ GenericAgent (AffinDiffable g)
+       = let (GenericAgent h) = GenericAgent f ^+^ GenericAgent g
+         in GenericAgent $ AffinDiffable h
+  α^+^β = dfblFnValsCombine (\a b -> (a^+^b, lPlus, const zeroV)) α β
       where lPlus = linear $ uncurry (^+^)
-  negateV = dfblFnValsFunc $ \a -> (negateV a, lNegate, const zeroV)
+  negateV (GenericAgent (AffinDiffable f))
+       = let (GenericAgent h) = negateV $ GenericAgent f
+         in GenericAgent $ AffinDiffable h
+  negateV α = dfblFnValsFunc (\a -> (negateV a, lNegate, const zeroV)) α
       where lNegate = linear negateV
   
 instance (RealDimension n, LocallyScalable n a)
             => Num (DfblFuncValue n a n) where
   fromInteger i = point $ fromInteger i
-  (+) = dfblFnValsCombine $ \a b -> (a+b, lPlus, const zeroV)
-      where lPlus = linear $ uncurry (+)
+  (+) = (^+^)
   (*) = dfblFnValsCombine $
           \a b -> ( a*b
                   , linear $ \(da,db) -> a*db + b*da
@@ -489,8 +525,7 @@ instance (RealDimension n, LocallyScalable n a)
                            --         = δa·δb
                            --   so choose δa = δb = √ε
                   )
-  negate = dfblFnValsFunc $ \a -> (negate a, lNegate, const zeroV)
-      where lNegate = linear negate
+  negate = negateV
   abs = dfblFnValsFunc dfblAbs
    where dfblAbs a
           | a>0        = (a, idL, unsafe_dev_ε_δ("abs "++show a) $ \ε -> a + ε/2) 
@@ -576,7 +611,7 @@ unsafePreRegionIntersect r GlobalRegion = r
 unsafePreRegionIntersect (RealSubray PositiveHalfSphere xl) (RealSubray PositiveHalfSphere xl')
                  = RealSubray PositiveHalfSphere $ max xl xl'
 unsafePreRegionIntersect (RealSubray NegativeHalfSphere xr) (RealSubray NegativeHalfSphere xr')
-                 = RealSubray PositiveHalfSphere $ min xr xr'
+                 = RealSubray NegativeHalfSphere $ min xr xr'
 unsafePreRegionIntersect (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs ra rb
 unsafePreRegionIntersect ra rb
    = unsafePreRegionIntersect (genericisePreRegion ra) (genericisePreRegion rb)
@@ -679,14 +714,14 @@ instance (RealDimension s) => Category (PWDiffable s) where
   id = PWDiffable $ \x -> (GlobalRegion, id)
   PWDiffable f . PWDiffable g = PWDiffable h
    where h x₀ = case g x₀ of
-                 (GlobalRegion, gr)
-                  -> let (y₀,_,_) = runDifferentiable gr x₀
+                 (GlobalRegion, gr@(Differentiable grd))
+                  -> let (y₀,_,_) = grd x₀
                      in case f y₀ of
                          (GlobalRegion, fr) -> (GlobalRegion, fr . gr)
                          (PreRegion ry, fr)
                                -> ( PreRegion $ ry . gr, fr . gr )
-                 (PreRegion rx, gr)
-                  -> let (y₀,_,_) = runDifferentiable gr x₀
+                 (PreRegion rx, gr@(Differentiable grd))
+                  -> let (y₀,_,_) = grd x₀
                      in case f y₀ of
                          (GlobalRegion, fr) -> (PreRegion rx, fr . gr)
                          (PreRegion ry, fr)
@@ -873,51 +908,74 @@ notDefinedHere = Option Nothing
 instance (RealDimension s) => Category (RWDiffable s) where
   type Object (RWDiffable s) o = LocallyScalable s o
   id = RWDiffable $ \x -> (GlobalRegion, pure id)
-  RWDiffable f . RWDiffable g = RWDiffable h
-   where h x₀ = case g x₀ of
-                 (GlobalRegion, Option (Just gr))
-                  -> let (y₀,_,_) = runDifferentiable gr x₀
-                     in case f y₀ of
-                         (GlobalRegion, Option Nothing)
-                               -> (GlobalRegion, notDefinedHere)
-                         (GlobalRegion, Option (Just fr))
-                               -> (GlobalRegion, pure (fr . gr))
-                         (r, Option Nothing) | PreRegion ry <- genericisePreRegion r
-                               -> ( PreRegion $ ry . gr, notDefinedHere )
-                         (r, Option (Just fr)) | PreRegion ry <- genericisePreRegion r
-                               -> ( PreRegion $ ry . gr, pure (fr . gr) )
-                 (rg@(RealSubray dir xl), Option (Just gr))
-                  -> let (y₀,_,_) = runDifferentiable gr x₀
-                     in case f y₀ of
-                         (GlobalRegion, Option Nothing)
-                               -> (rg, notDefinedHere)
-                         (GlobalRegion, Option (Just fr))
-                               -> (rg, pure (fr . gr))
-                         (rf, Option Nothing)
-                           | PreRegion rx <- genericisePreRegion rg
-                           , PreRegion ry <- genericisePreRegion rf
-                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
-                                  , notDefinedHere )
-                         (rf, Option (Just fr))
-                           | PreRegion rx <- genericisePreRegion rg
-                           , PreRegion ry <- genericisePreRegion rf
-                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
-                                  , pure (fr . gr) )
-                 (PreRegion rx, Option (Just gr))
-                  -> let (y₀,_,_) = runDifferentiable gr x₀
-                     in case f y₀ of
-                         (GlobalRegion, Option Nothing)
-                               -> (PreRegion rx, notDefinedHere)
-                         (GlobalRegion, Option (Just fr))
-                               -> (PreRegion rx, pure (fr . gr))
-                         (r, Option Nothing) | PreRegion ry <- genericisePreRegion r
-                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
-                                  , notDefinedHere )
-                         (r, Option (Just fr)) | PreRegion ry <- genericisePreRegion r
-                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
-                                  , pure (fr . gr) )
-                 (r, Option Nothing)
-                  -> (r, notDefinedHere)
+  RWDiffable f . RWDiffable g = RWDiffable h where
+   h x₀ = case g x₀ of
+           ( rg, Option (Just gr'@(AffinDiffable gr@(Affine cog aog slg))) )
+            -> let y₀ = gr $ x₀
+               in case f y₀ of
+                   (GlobalRegion, Option (Just (AffinDiffable fr)))
+                         -> (rg, Option (Just (AffinDiffable (fr.gr))))
+                   (GlobalRegion, fhr)
+                         -> (rg, fmap (. gr') fhr)
+                   (RealSubray diry yl, fhr)
+                      -> let hhr = fmap (. gr') fhr
+                         in case lapply slg 1 of
+                              y' | y'>0 -> ( unsafePreRegionIntersect rg
+                                                  $ RealSubray diry (cog + (yl-aog)/y')
+                                   -- aog + y' * (xl − cog) = yl
+                                   -- xl = cog + (yl − aog)/y'
+                                           , hhr )
+                                 | y'<0 -> ( unsafePreRegionIntersect rg
+                                                  $ RealSubray (otherHalfSphere diry)
+                                                               (cog + (yl-aog)/y')
+                                           , hhr )
+                                 | otherwise -> (rg, hhr)
+                   (PreRegion ry, fhr)
+                         -> ( PreRegion $ ry . gr', fmap (. gr') fhr )
+           (GlobalRegion, Option (Just gr@(Differentiable grd)))
+            -> let (y₀,_,_) = grd x₀
+               in case f y₀ of
+                   (GlobalRegion, Option Nothing)
+                         -> (GlobalRegion, notDefinedHere)
+                   (GlobalRegion, Option (Just fr))
+                         -> (GlobalRegion, pure (fr . gr))
+                   (r, Option Nothing) | PreRegion ry <- genericisePreRegion r
+                         -> ( PreRegion $ ry . gr, notDefinedHere )
+                   (r, Option (Just fr)) | PreRegion ry <- genericisePreRegion r
+                         -> ( PreRegion $ ry . gr, pure (fr . gr) )
+           (rg@(RealSubray _ _), Option (Just gr@(Differentiable grd)))
+            -> let (y₀,_,_) = grd x₀
+               in case f y₀ of
+                   (GlobalRegion, Option Nothing)
+                         -> (rg, notDefinedHere)
+                   (GlobalRegion, Option (Just fr))
+                         -> (rg, pure (fr . gr))
+                   (rf, Option Nothing)
+                     | PreRegion rx <- genericisePreRegion rg
+                     , PreRegion ry <- genericisePreRegion rf
+                         -> ( PreRegion $ minDblfuncs (ry . gr) rx
+                            , notDefinedHere )
+                   (rf, Option (Just fr))
+                     | PreRegion rx <- genericisePreRegion rg
+                     , PreRegion ry <- genericisePreRegion rf
+                         -> ( PreRegion $ minDblfuncs (ry . gr) rx
+                            , pure (fr . gr) )
+           (PreRegion rx, Option (Just gr@(Differentiable grd)))
+            -> let (y₀,_,_) = grd x₀
+               in case f y₀ of
+                   (GlobalRegion, Option Nothing)
+                         -> (PreRegion rx, notDefinedHere)
+                   (GlobalRegion, Option (Just fr))
+                         -> (PreRegion rx, pure (fr . gr))
+                   (r, Option Nothing) | PreRegion ry <- genericisePreRegion r
+                         -> ( PreRegion $ minDblfuncs (ry . gr) rx
+                            , notDefinedHere )
+                   (r, Option (Just fr)) | PreRegion ry <- genericisePreRegion r
+                         -> ( PreRegion $ minDblfuncs (ry . gr) rx
+                            , pure (fr . gr) )
+           (r, Option Nothing)
+            -> (r, notDefinedHere)
+          
 
 
 globalDiffable' :: Differentiable s a b -> RWDiffable s a b
