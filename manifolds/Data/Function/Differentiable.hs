@@ -123,17 +123,21 @@ continuityRanges nLim δbf (RWDiffable f)
          | yq₀ <= abs (lapply jq₀ 1 * step₀)
                       = go (x₀ + step₀/2) dir
          | RealSubray PositiveHalfSphere xl' <- rangeHere
-                      = if dir>0
-                         then if definedHere then [(x₀, huge)]
-                                             else []
-                         else if definedHere then (x₀, xl') : exit nLim dir xl'
-                                             else exit nLim dir xl'
+                      = let stepl' = dir/metric (δbf xl') 2
+                        in if dir>0
+                            then if definedHere then [(max (xl'+stepl') x₀, huge)]
+                                                else []
+                            else if definedHere && x₀ > xl'+stepl'
+                                  then (xl'+stepl',x₀) : go (xl'-stepl') dir
+                                  else go (xl'-stepl') dir
          | RealSubray NegativeHalfSphere xr' <- rangeHere
-                      = if dir<0
-                         then if definedHere then [(-huge, x₀)]
-                                             else []
-                         else if definedHere then (xr', x₀) : exit nLim dir xr'
-                                             else exit nLim dir xr'
+                      = let stepr' = dir/metric (δbf xr') 2
+                        in if dir<0
+                            then if definedHere then [(-huge, min (xr'-stepr') x₀)]
+                                                else []
+                            else if definedHere && x₀ < xr'-stepr'
+                                  then (x₀,xr'-stepr') : go (xr'+stepr') dir
+                                  else go (xr'+stepr') dir
          | otherwise  = exit nLim dir x₀
         where (rangeHere, fq₀) = f x₀
               (PreRegion (Differentiable r₀)) = genericisePreRegion rangeHere
@@ -689,7 +693,7 @@ preRegionToInfFrom' xs = PreRegion $ ppr . trl
        trl = actuallyAffine (-xs) idL
 preRegionFromMinInfTo' xe = PreRegion $ ppr . flp
  where PreRegion ppr = positivePreRegion'
-       flp = actuallyAffine (-xe) (linear negate)
+       flp = actuallyAffine xe (linear negate)
 
 intervalPreRegion :: RealDimension s => (s,s) -> PreRegion s s
 intervalPreRegion (lb,rb) = PreRegion $ Differentiable prr
