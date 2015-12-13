@@ -1036,6 +1036,8 @@ instance RealDimension s => HasAgent (RWDiffable s) where
   type AgentVal (RWDiffable s) d c = RWDfblFuncValue s d c
   alg fq = case fq RWDFV_IdVar of
     GenericRWDFV f -> f
+    ConstRWDFV c -> const c
+    RWDFV_IdVar -> id
   ($~) = postCompRW
 instance RealDimension s => CartesianAgent (RWDiffable s) where
   alg1to2 fgq = case fgq RWDFV_IdVar of
@@ -1106,6 +1108,10 @@ instance ( WithField s EuclidSpace v, AdditiveGroup v, v ~ Needle (Interior (Nee
     => AdditiveGroup (RWDfblFuncValue s a v) where
   zeroV = point zeroV
   ConstRWDFV c₁ ^+^ ConstRWDFV c₂ = ConstRWDFV (c₁^+^c₂)
+  ConstRWDFV c₁ ^+^ RWDFV_IdVar = GenericRWDFV $
+                               globalDiffable' (actuallyAffine c₁ idL)
+  RWDFV_IdVar ^+^ ConstRWDFV c₂ = GenericRWDFV $
+                               globalDiffable' (actuallyAffine c₂ idL)
   ConstRWDFV c₁ ^+^ GenericRWDFV g = GenericRWDFV $
                                globalDiffable' (actuallyAffine c₁ idL) . g
   GenericRWDFV f ^+^ ConstRWDFV c₂ = GenericRWDFV $
@@ -1113,6 +1119,7 @@ instance ( WithField s EuclidSpace v, AdditiveGroup v, v ~ Needle (Interior (Nee
   v^+^w = grwDfblFnValsCombine (\a b -> (a^+^b, lPlus, const zeroV)) v w
       where lPlus = linear $ uncurry (^+^)
   negateV (ConstRWDFV c) = ConstRWDFV (negateV c)
+  negateV RWDFV_IdVar = GenericRWDFV $ globalDiffable' (actuallyLinear $ linear negateV)
   negateV v = grwDfblFnValsFunc (\a -> (negateV a, lNegate, const zeroV)) v
       where lNegate = linear negateV
 
@@ -1121,6 +1128,10 @@ instance (RealDimension n, LocallyScalable n a)
   fromInteger i = point $ fromInteger i
   (+) = (^+^)
   ConstRWDFV c₁ * ConstRWDFV c₂ = ConstRWDFV (c₁*c₂)
+  ConstRWDFV c₁ * RWDFV_IdVar = GenericRWDFV $
+                               globalDiffable' (actuallyLinear $ linear (c₁*))
+  RWDFV_IdVar * ConstRWDFV c₂ = GenericRWDFV $
+                               globalDiffable' (actuallyLinear $ linear (*c₂))
   ConstRWDFV c₁ * GenericRWDFV g = GenericRWDFV $
                                globalDiffable' (actuallyLinear $ linear (c₁*)) . g
   GenericRWDFV f * ConstRWDFV c₂ = GenericRWDFV $
