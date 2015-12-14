@@ -1097,6 +1097,47 @@ grwDfblFnValsCombine cmb (GenericRWDFV (RWDiffable fpcs))
 grwDfblFnValsCombine cmb fv gv
         = grwDfblFnValsCombine cmb (genericiseRWDFV fv) (genericiseRWDFV gv)
 
+          
+rwDfbl_plus :: ∀ s a v .
+        ( WithField s EuclidSpace v, AdditiveGroup v, v ~ Needle (Interior (Needle v))
+        , LocallyScalable s a, RealDimension s )
+      => RWDiffable s a v -> RWDiffable s a v -> RWDiffable s a v
+rwDfbl_plus (RWDiffable f) (RWDiffable g) = RWDiffable h
+   where h x₀ = (rh, liftA2 fgplus ff gf)
+          where (rf, ff) = f x₀
+                (rg, gf) = g x₀
+                rh = unsafePreRegionIntersect rf rg
+                fgplus :: Differentiable s a v -> Differentiable s a v -> Differentiable s a v
+                fgplus (Differentiable fd) (Differentiable gd) = Differentiable hd
+                 where hd x = (fx^+^gx, jf^+^jg, \ε -> δf(ε^*4) ^+^ δg(ε^*4))
+                        where (fx, jf, δf) = fd x
+                              (gx, jg, δg) = gd x
+                fgplus (Differentiable fd) (AffinDiffable ga@(Affine cog aog slg))
+                                 = Differentiable hd
+                 where hd x = (fx^+^gx, jf^+^slg, δf)
+                        where (fx, jf, δf) = fd x
+                              gx = ga $ x
+                fgplus (AffinDiffable fa@(Affine cof aof slf)) (Differentiable gd)
+                                 = Differentiable hd
+                 where hd x = (fx^+^gx, slf^+^jg, δg)
+                        where (gx, jg, δg) = gd x
+                              fx = fa $ x
+                fgplus (AffinDiffable fa) (AffinDiffable ga) = AffinDiffable ha
+                 where (GenericAgent ha) = GenericAgent fa ^+^ GenericAgent ga
+
+rwDfbl_negateV :: ∀ s a v .
+        ( WithField s EuclidSpace v, AdditiveGroup v, v ~ Needle (Interior (Needle v))
+        , LocallyScalable s a, RealDimension s )
+      => RWDiffable s a v -> RWDiffable s a v
+rwDfbl_negateV (RWDiffable f) = RWDiffable h
+   where h x₀ = (rf, fmap fneg ff)
+          where (rf, ff) = f x₀
+                fneg :: Differentiable s a v -> Differentiable s a v
+                fneg (Differentiable fd) = Differentiable hd
+                 where hd x = (negateV fx, negateV jf, δf)
+                        where (fx, jf, δf) = fd x
+                fneg (AffinDiffable (Affine cof aof slf))
+                        = AffinDiffable $ Affine (negateV cof) (negateV aof) (negateV slf)
 
 postCompRW :: ( RealDimension s
               , LocallyScalable s a, LocallyScalable s b, LocallyScalable s c )
@@ -1120,12 +1161,10 @@ instance ( WithField s EuclidSpace v, AdditiveGroup v, v ~ Needle (Interior (Nee
                                globalDiffable' (actuallyAffine c₁ idL) . g
   GenericRWDFV f ^+^ ConstRWDFV c₂ = GenericRWDFV $
                                   globalDiffable' (actuallyAffine c₂ idL) . f
-  v^+^w = grwDfblFnValsCombine (\a b -> (a^+^b, lPlus, const zeroV)) v w
-      where lPlus = linear $ uncurry (^+^)
+  GenericRWDFV f ^+^ GenericRWDFV g = GenericRWDFV $ rwDfbl_plus f g
   negateV (ConstRWDFV c) = ConstRWDFV (negateV c)
   negateV RWDFV_IdVar = GenericRWDFV $ globalDiffable' (actuallyLinear $ linear negateV)
-  negateV v = grwDfblFnValsFunc (\a -> (negateV a, lNegate, const zeroV)) v
-      where lNegate = linear negateV
+  negateV (GenericRWDFV f) = GenericRWDFV $ rwDfbl_negateV f
 
 instance (RealDimension n, LocallyScalable n a)
             => Num (RWDfblFuncValue n a n) where
@@ -1344,7 +1383,7 @@ instance (RealDimension n, LocallyScalable n a)
 -- square root appears somewhere in an expression, then the expression is automatically
 -- restricted so that the root has a positive argument!
   
-infixl 4 ?->
+infixr 4 ?->
 -- | Require the LHS to be defined before considering the RHS as result.
 --   This works analogously to the standard `Control.Applicative.Applicative` method
 -- 
@@ -1370,7 +1409,7 @@ c ?-> f = c ?-> genericiseRWDFV f
 
 positiveRegionalId :: RealDimension n => RWDiffable n n n
 positiveRegionalId = RWDiffable $ \x₀ ->
-       if x₀ > 0 then (positivePreRegion, pure id)
+       if x₀ > 0 then (positivePreRegion, pure . AffinDiffable $ id)
                  else (negativePreRegion, notDefinedHere)
 
 infixl 5 ?> , ?<
@@ -1386,6 +1425,12 @@ a ?> b = (positiveRegionalId $~ a-b) ?-> b
 -- | Return the RHS, if it is greater than the LHS.
 (?<) :: (RealDimension n, LocallyScalable n a)
            => RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n
+ConstRWDFV a ?< RWDFV_IdVar = GenericRWDFV . RWDiffable $
+       \x₀ -> if a < x₀ then (preRegionToInfFrom a, pure . AffinDiffable $ id)
+                        else (preRegionFromMinInfTo a, notDefinedHere)
+RWDFV_IdVar ?< ConstRWDFV a = GenericRWDFV . RWDiffable $
+       \x₀ -> if x₀ < a then (preRegionFromMinInfTo a, pure . AffinDiffable $ const a)
+                        else (preRegionToInfFrom a, notDefinedHere)
 a ?< b = (positiveRegionalId $~ b-a) ?-> b
 
 infixl 3 ?|:
