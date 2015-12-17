@@ -1075,7 +1075,7 @@ grwDfblFnValsCombine cmb (GenericRWDFV (RWDiffable fpcs))
         \d₀ -> let (rc', fmay) = fpcs d₀
                    (rc'',gmay) = gpcs d₀
                in (unsafePreRegionIntersect rc' rc'',) $
-                    case (fmay,gmay) of
+                    case (genericiseDifferentiable<$>fmay, genericiseDifferentiable<$>gmay) of
                       (Option(Just(Differentiable f)), Option(Just(Differentiable g))) ->
                         pure . Differentiable $ \d
                          -> let (c', f', devf) = f d
