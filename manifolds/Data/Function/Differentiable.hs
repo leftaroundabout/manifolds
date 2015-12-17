@@ -1179,12 +1179,42 @@ instance (RealDimension n, LocallyScalable n a)
                                globalDiffable' (actuallyLinear $ linear (c₁*)) . g
   GenericRWDFV f * ConstRWDFV c₂ = GenericRWDFV $
                                   globalDiffable' (actuallyLinear $ linear (*c₂)) . f
-  v*w = grwDfblFnValsCombine (
-          \a b -> ( a*b
-                  , linear $ \(da,db) -> a*db + b*da
-                  , \d -> let d¹₂ = sqrt d in (d¹₂,d¹₂)
-                  )
-         ) v w
+  f*g = f⋅g
+   where (⋅) :: ∀ n a . (RealDimension n, LocallyScalable n a)
+           => RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n 
+         GenericRWDFV (RWDiffable fpcs) ⋅ GenericRWDFV (RWDiffable gpcs)
+           = GenericRWDFV . RWDiffable $
+               \d₀ -> let (rc₁, fmay) = fpcs d₀
+                          (rc₂,gmay) = gpcs d₀
+                      in (unsafePreRegionIntersect rc₁ rc₂, mulDi <$> fmay <*> gmay)
+          where mulDi :: Differentiable n a n -> Differentiable n a n -> Differentiable n a n
+                mulDi (AffinDiffable f@(Affine _ _ slf)) (AffinDiffable g@(Affine _ _ slg))
+                   = let f' = lapply slf 1; g' = lapply slg 1
+                     in case f'*g' of
+                          0 -> AffinDiffable undefined
+                          f'g' -> Differentiable $
+                           \d -> let c₁ = f $ d; c₂ = g $ d
+                                 in ( c₁*c₂
+                                    , linear.(*)$ c₁*g' + c₂*f'
+                                    , unsafe_dev_ε_δ "*" $ sqrt . (/f'g') )
+                mulDi (Differentiable f) (Differentiable g)
+                       = Differentiable $
+                           \d -> let (c₁, slf, devf) = f d
+                                     (c₂, slg, devg) = g d
+                                     c = c₁*c₂
+                                     h' = c₁*^slg ^+^ c₂*^slf
+--                                      f' = lapply slf 1; g' = lapply slg 1
+--                                      quadratic = case f'*g' of
+--                                         0 -> const zeroV
+--                                         f'g' -> unsafe_dev_ε_δ "*" $ sqrt . (/(f'*g'))
+                                     in ( c
+                                        , h'
+                                        , \εc -> {- quadratic (εc^*4)
+                                                 ^+^ -} devf (εc^*(16*c₂^2))
+                                                 ^+^ devg (εc^*(16*c₁^2))
+                                        )
+                mulDi f g = mulDi (genericiseDifferentiable f) (genericiseDifferentiable g)
+                
   negate = negateV
   abs = (RWDiffable absPW $~)
    where absPW a₀
