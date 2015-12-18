@@ -30,7 +30,7 @@ module Data.LinearMap.HerMetric (
   , productMetric, productMetric'
   , metricAsLength, metricFromLength, metric'AsLength
   -- * Utility for metrics
-  , transformMetric, transformMetric'
+  , transformMetric, transformMetric', transform2Metric
   , dualiseMetric, dualiseMetric'
   , recipMetric, recipMetric'
   , eigenSpan, eigenSpan'
@@ -237,6 +237,16 @@ transformMetric' _ (HerMetric' Nothing) = HerMetric' Nothing
 transformMetric' t (HerMetric' (Just m))
                       = matrixMetric' $ HMat.tr tmat HMat.<> m HMat.<> tmat
  where tmat = asPackedMatrix t
+
+transform2Metric :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
+           => (w :-* v) -> (w :-* v) -> HerMetric v -> HerMetric w
+transform2Metric _ _ (HerMetric Nothing) = HerMetric Nothing
+transform2Metric s t (HerMetric (Just m)) = matrixMetric
+        $ smat HMat.<> m HMat.<> HMat.tr tmat
+          + tmat HMat.<> m HMat.<> HMat.tr smat
+ where tmat = asPackedMatrix t
+       smat = asPackedMatrix s
+
 
 -- | This doesn't really do anything at all, since @'HerMetric' v@ is essentially a
 --   synonym for @'HerMetric' ('DualSpace' v)@.

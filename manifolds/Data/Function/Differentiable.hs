@@ -1179,7 +1179,7 @@ instance (RealDimension n, LocallyScalable n a)
                                globalDiffable' (actuallyLinear $ linear (c₁*)) . g
   GenericRWDFV f * ConstRWDFV c₂ = GenericRWDFV $
                                   globalDiffable' (actuallyLinear $ linear (*c₂)) . f
-  f*g = f⋅g
+  f*g = genericiseRWDFV f ⋅ genericiseRWDFV g
    where (⋅) :: ∀ n a . (RealDimension n, LocallyScalable n a)
            => RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n 
          GenericRWDFV (RWDiffable fpcs) ⋅ GenericRWDFV (RWDiffable gpcs)
@@ -1203,15 +1203,12 @@ instance (RealDimension n, LocallyScalable n a)
                                      (c₂, slg, devg) = g d
                                      c = c₁*c₂
                                      h' = c₁*^slg ^+^ c₂*^slf
---                                      f' = lapply slf 1; g' = lapply slg 1
---                                      quadratic = case f'*g' of
---                                         0 -> const zeroV
---                                         f'g' -> unsafe_dev_ε_δ "*" $ sqrt . (/(f'*g'))
                                      in ( c
                                         , h'
-                                        , \εc -> {- quadratic (εc^*4)
-                                                 ^+^ -} devf (εc^*(16*c₂^2))
-                                                 ^+^ devg (εc^*(16*c₁^2))
+                                        , \εc -> let εc¹₂ = projector . sqrt $ metric εc 1
+                                                 in transform2Metric slf slg εc¹₂
+                                                    ^+^ devf (εc^*(4*c₂^2))
+                                                    ^+^ devg (εc^*(4*c₁^2))
                                         )
                 mulDi f g = mulDi (genericiseDifferentiable f) (genericiseDifferentiable g)
                 
