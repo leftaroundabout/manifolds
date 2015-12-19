@@ -1205,10 +1205,14 @@ instance (RealDimension n, LocallyScalable n a)
                                      h' = c₁*^slg ^+^ c₂*^slf
                                      in ( c
                                         , h'
-                                        , \εc -> let εc¹₂ = projector . sqrt $ metric εc 1
+                                        , \εc -> let rε = sqrt $ metric εc 1
+                                                     εc¹₂ = projector rε
+                                                     c₁worst² = c₁^2 + recip(1 + (c₂*rε)^2)
+                                                     c₂worst² = c₂^2 + recip(1 + (c₁*rε)^2)
                                                  in transform2Metric slf slg εc¹₂
-                                                    ^+^ devf (εc^*(4*c₂^2))
-                                                    ^+^ devg (εc^*(4*c₁^2))
+                                                    ^+^ devf (εc^*(4*c₂worst²))
+                                                    ^+^ devg (εc^*(4*c₁worst²))
+                    -- TODO: add formal proof for this (or, if necessary, the correct form)
                                         )
                 mulDi f g = mulDi (genericiseDifferentiable f) (genericiseDifferentiable g)
                 
