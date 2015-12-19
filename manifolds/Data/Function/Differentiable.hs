@@ -212,9 +212,13 @@ analyseLocalBehaviour (RWDiffable f) x₀ = case f x₀ of
                     | otherwise  = pure 0
               in ((fx, lapply j 1), epsprop)
        _ -> empty
- where inRegion GlobalRegion _ = True
+ where                                    -- This check shouldn't really be necessary,
+                                          -- because the initial value lies by definition
+       inRegion GlobalRegion _ = True     -- in its domain.
        inRegion (PreRegion (Differentiable rf)) x
          | (yr,_,_) <- rf x   = yr>0
+       inRegion (RealSubray PositiveHalfSphere xl) x = x>xl
+       inRegion (RealSubray NegativeHalfSphere xr) x = x<xr
 
 -- | Represent a 'Region' by a smooth function which is positive within the region,
 --   and crosses zero at the boundary.
