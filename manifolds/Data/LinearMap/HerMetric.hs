@@ -30,7 +30,7 @@ module Data.LinearMap.HerMetric (
   , productMetric, productMetric'
   , metricAsLength, metricFromLength, metric'AsLength
   -- * Utility for metrics
-  , transformMetric, transformMetric', transform2Metric
+  , transformMetric, transformMetric', dualCoCoProduct
   , dualiseMetric, dualiseMetric'
   , recipMetric, recipMetric'
   , eigenSpan, eigenSpan'
@@ -238,14 +238,20 @@ transformMetric' t (HerMetric' (Just m))
                       = matrixMetric' $ HMat.tr tmat HMat.<> m HMat.<> tmat
  where tmat = asPackedMatrix t
 
-transform2Metric :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
-           => (w :-* v) -> (w :-* v) -> HerMetric v -> HerMetric w
-transform2Metric _ _ (HerMetric Nothing) = HerMetric Nothing
-transform2Metric s t (HerMetric (Just m)) = matrixMetric
-        $ smat HMat.<> m HMat.<> HMat.tr tmat
-          + tmat HMat.<> m HMat.<> HMat.tr smat
+-- | This does something vaguely like  @\\s t -> (s⋅t)²@,
+--   but without actually requiring an inner product on the covectors.
+--   Used for calculating the superaffine term of multiplications in
+--   'Differentiable' categories.
+dualCoCoProduct :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
+           => (w :-* v) -> (w :-* v) -> HerMetric w
+dualCoCoProduct s t = ( (sArr `HMat.dot` (t²PLUSs² HMat.<\> sArr))
+                       * (tArr `HMat.dot` (t²PLUSs² HMat.<\> tArr)) )
+                    *^ matrixMetric t²PLUSs²
  where tmat = asPackedMatrix t
+       tArr = HMat.flatten tmat
        smat = asPackedMatrix s
+       sArr = HMat.flatten smat
+       t²PLUSs² = tmat HMat.<> HMat.tr tmat + smat HMat.<> HMat.tr smat
 
 
 -- | This doesn't really do anything at all, since @'HerMetric' v@ is essentially a

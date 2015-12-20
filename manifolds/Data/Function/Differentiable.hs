@@ -1202,20 +1202,19 @@ instance (RealDimension n, LocallyScalable n a)
                                     , linear.(*)$ c₁*g' + c₂*f'
                                     , unsafe_dev_ε_δ "*" $ sqrt . (/f'g') )
                 mulDi (Differentiable f) (Differentiable g)
-                       = Differentiable $
-                           \d -> let (c₁, slf, devf) = f d
-                                     (c₂, slg, devg) = g d
-                                     c = c₁*c₂
-                                     h' = c₁*^slg ^+^ c₂*^slf
-                                     in ( c
-                                        , h'
-                                        , \εc -> let rε = sqrt $ metric εc 1
-                                                     εc¹₂ = projector rε
-                                                     c₁worst² = c₁^2 + recip(1 + (c₂*rε)^2)
-                                                     c₂worst² = c₂^2 + recip(1 + (c₁*rε)^2)
-                                                 in transform2Metric slf slg εc¹₂
-                                                    ^+^ devf (εc^*(4*c₂worst²))
-                                                    ^+^ devg (εc^*(4*c₁worst²))
+                   = Differentiable $
+                       \d -> let (c₁, slf, devf) = f d
+                                 (c₂, slg, devg) = g d
+                                 c = c₁*c₂; c₁² = c₁^2; c₂² = c₂^2
+                                 h' = c₁*^slg ^+^ c₂*^slf
+                                 in ( c
+                                    , h'
+                                    , \εc -> let rε² = metric εc 1
+                                                 c₁worst² = c₁² + recip(1 + c₂²*rε²)
+                                                 c₂worst² = c₂² + recip(1 + c₁²*rε²)
+                                             in (4*rε²) *^ dualCoCoProduct slf slg
+                                                ^+^ devf (εc^*(4*c₂worst²))
+                                                ^+^ devg (εc^*(4*c₁worst²))
                     -- TODO: add formal proof for this (or, if necessary, the correct form)
                                         )
                 mulDi f g = mulDi (genericiseDifferentiable f) (genericiseDifferentiable g)
