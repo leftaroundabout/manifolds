@@ -1259,16 +1259,19 @@ instance (RealDimension n, LocallyScalable n a)
 
 
 
-
 instance (RealDimension n, LocallyScalable n a)
             => Floating (RWDfblFuncValue n a n) where
   pi = point pi
   
   exp = grwDfblFnValsFunc
     $ \x -> let ex = exp x
-            in if ex==0  -- numeric underflow
-                then ( 0, zeroV, unsafe_dev_ε_δ("exp "++show x) $ \ε -> log ε - x )
-                else ( ex, ex *^ idL, unsafe_dev_ε_δ("exp "++show x) $ \ε -> acosh(ε/(2*ex) + 1) )
+            in if ex*2 == ex  -- numerical trouble...
+                then if x<0 then ( 0, zeroV, unsafe_dev_ε_δ("exp "++show x) $ \ε -> log ε - x )
+                            else ( ex, ex*^idL, unsafe_dev_ε_δ("exp "++show x) $ \_ -> 1e-300 )
+                else ( ex, ex *^ idL, unsafe_dev_ε_δ("exp "++show x)
+                          $ \ε -> case acosh(ε/(2*ex) + 1) of
+                                    δ | δ==δ      -> δ
+                                      | otherwise -> log ε - x )
                  -- ε = e^(x+δ) − eˣ − eˣ·δ 
                  --   = eˣ·(e^δ − 1 − δ) 
                  --   ≤ eˣ · (e^δ − 1 + e^(-δ) − 1)
@@ -1370,14 +1373,14 @@ instance (RealDimension n, LocallyScalable n a)
   asinh = grwDfblFnValsFunc asinhDfb
    where asinhDfb x = ( asinhx, idL ^/ sqrt(1+x^2), unsafe_dev_ε_δ("asinh "++show x) δ )
           where asinhx = asinh x
-                δ ε = abs x * sqrt((1 - exp(-ε))*0.8 + ε^2/(3*abs x)) + sqrt(ε/(abs x+0.5))
+                δ ε = abs x * sqrt((1 - exp(-ε))*0.8 + ε^2/(3*abs x + 1)) + sqrt(ε/(abs x+0.5))
                  -- Empirical, modified from log function (the area hyperbolic sine
                  -- resembles two logarithmic lobes), with epsEst-checked lower bound.
   
-  acosh = postCompRW . RWDiffable $ \x -> if x>0
-                                   then (positivePreRegion, pure (Differentiable acoshDfb))
-                                   else (negativePreRegion, notDefinedHere)
-   where acoshDfb x = ( acosh x, idL ^/ sqrt(x^2 - 2), unsafe_dev_ε_δ("acosh "++show x) δ )
+  acosh = postCompRW . RWDiffable $ \x -> if x>1
+                                   then (preRegionToInfFrom 1, pure (Differentiable acoshDfb))
+                                   else (preRegionFromMinInfTo 1, notDefinedHere)
+   where acoshDfb x = ( acosh x, idL ^/ sqrt(x^2 - 1), unsafe_dev_ε_δ("acosh "++show x) δ )
           where δ ε = (2 - 1/sqrt x) * (s2 * sqrt sx^3 * sqrt(ε/s2) + signum (ε*s2-sx) * sx * ε/s2) 
                 sx = sqrt(x-1)
                 s2 = sqrt 2
