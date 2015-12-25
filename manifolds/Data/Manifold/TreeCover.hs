@@ -107,7 +107,7 @@ import GHC.Generics (Generic)
 -- | Possibly / Partially / asymPtotically singular metric.
 data PSM x = PSM {
        psmExpanse :: !(Metric' x)
-     , relevantEigenspan :: ![DualSpace (Needle x)]
+     , relevantEigenspan :: ![Needle' x]
      }
        
 
@@ -161,7 +161,7 @@ fullShade' :: WithField ℝ Manifold x => x -> Metric x -> Shade' x
 fullShade' ctr expa = Shade' ctr expa
 
 subshadeId' :: WithField ℝ Manifold x
-                   => x -> NonEmpty (DualSpace (Needle x)) -> x -> (Int, HourglassBulb)
+                   => x -> NonEmpty (Needle' x) -> x -> (Int, HourglassBulb)
 subshadeId' c expvs x = case x .-~. c of
     Option (Just v) -> let (iu,vl) = maximumBy (comparing $ abs . snd)
                                       $ zip [0..] (map (v <.>^) $ NE.toList expvs)
@@ -291,7 +291,7 @@ data ShadeTree x = PlainLeaves [x]
                  | OverlappingBranches !Int !(Shade x) (NonEmpty (DBranch x))
   deriving (Generic)
            
-data DBranch' x c = DBranch { boughDirection :: !(DualSpace (Needle x))
+data DBranch' x c = DBranch { boughDirection :: !(Needle' x)
                             , boughContents :: !(Hourglass c) }
   deriving (Generic, Hask.Functor, Hask.Foldable)
 type DBranch x = DBranch' x (ShadeTree x)
@@ -306,11 +306,11 @@ instance (Semigroup c) => Semigroup (DBranches' x c) where
   
 
 
-instance (NFData x, NFData (DualSpace (Needle x))) => NFData (ShadeTree x) where
+instance (NFData x, NFData (Needle' x)) => NFData (ShadeTree x) where
   rnf (PlainLeaves xs) = rnf xs
   rnf (DisjointBranches n bs) = n `seq` rnf (NE.toList bs)
   rnf (OverlappingBranches n sh bs) = n `seq` sh `seq` rnf (NE.toList bs)
-instance (NFData x, NFData (DualSpace (Needle x))) => NFData (DBranch x)
+instance (NFData x, NFData (Needle' x)) => NFData (DBranch x)
   
 -- | Experimental. There might be a more powerful instance possible.
 instance (AffineManifold x) => Semimanifold (ShadeTree x) where
@@ -361,12 +361,28 @@ instance WithField ℝ Manifold x => Monoid (ShadeTree x) where
 -- @
 -- 
 -- <<images/examples/simple-2d-ShadeTree.png>>
-fromLeafPoints :: forall x. WithField ℝ Manifold x => [x] -> ShadeTree x
-fromLeafPoints = go zeroV
+fromLeafPoints :: ∀ x. WithField ℝ Manifold x => [x] -> ShadeTree x
+fromLeafPoints = fromLeafPoints' sShIdPartition
+
+
+
+fromFnGraphPoints :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
+                     => [(x,y)] -> ShadeTree (x,y)
+fromFnGraphPoints = fromLeafPoints' fg_sShIdPart
+ where fg_sShIdPart :: Shade (x,y) -> [(x,y)] -> NonEmpty (DBranch' (x,y) [(x,y)])
+       fg_sShIdPart (Shade c expa) xs
+        | b:bs <- [DBranch (v, zeroV) mempty
+                    | v <- eigenCoSpan
+                           (transformMetric' (linear fst) expa :: Metric' x) ]
+                      = sShIdPartition' c xs $ b:|bs
+
+fromLeafPoints' :: ∀ x. WithField ℝ Manifold x =>
+    (Shade x -> [x] -> NonEmpty (DBranch' x [x])) -> [x] -> ShadeTree x
+fromLeafPoints' sShIdPart = go zeroV
  where go :: Metric' x -> [x] -> ShadeTree x
        go preShExpa = \xs -> case pointsShades' (preShExpa^/10) xs of
                      [] -> mempty
-                     [(_,rShade)] -> let trials = sShIdPartition rShade xs
+                     [(_,rShade)] -> let trials = sShIdPart rShade xs
                                      in case reduce rShade trials of
                                          Just redBrchs
                                            -> OverlappingBranches

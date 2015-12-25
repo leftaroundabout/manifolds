@@ -48,7 +48,7 @@
 module Data.Manifold.PseudoAffine (
             -- * Manifold class
               Manifold
-            , Semimanifold(..)
+            , Semimanifold(..), Needle'
             , PseudoAffine(..)
             -- * Type definitions
             -- ** Metrics
@@ -264,6 +264,12 @@ type EuclidSpace x = ( AffineManifold x, InnerSpace (Diff x)
 
 euclideanMetric :: EuclidSpace x => Tagged x (Metric x)
 euclideanMetric = Tagged euclideanMetric'
+
+
+-- | A co-needle can be understood as a “paper stack”, with which you can measure
+--   the length that a needle reaches in a given direction by counting the number
+--   of holes punched through them.
+type Needle' x = DualSpace (Needle x)
 
 
 -- | The word &#x201c;metric&#x201d; is used in the sense as in general relativity. Cf. 'HerMetric'.
