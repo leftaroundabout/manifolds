@@ -77,6 +77,7 @@ import Data.SimplicialComplex
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty)
 import Data.Manifold.PseudoAffine
+import Data.Function.Differentiable
     
 import Data.Embedding
 import Data.CoNat
@@ -459,7 +460,12 @@ sortByKey :: Ord a => [(a,b)] -> [b]
 sortByKey = map snd . sortBy (comparing fst)
 
 
+type DifferentialEqn x y = Differentiable ℝ (x,y) (Needle x :-* Needle y)
 
+
+filterDEqnSolution_loc :: (WithField ℝ Manifold x, WithField ℝ Manifold y)
+           => DifferentialEqn x y -> Shade (x,y) -> [Shade (x,y)]
+filterDEqnSolution_loc = undefined
 
 
     
