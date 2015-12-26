@@ -465,7 +465,7 @@ type DifferentialEqn x y = Differentiable ℝ (x,y) (Needle x :-* Needle y)
 
 filterDEqnSolution_loc :: (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y -> Shade (x,y) -> [Shade (x,y)]
-filterDEqnSolution_loc = undefined
+filterDEqnSolution_loc f (Shade c expa) = case analyseLocalBehaviour f c of
 
 
     

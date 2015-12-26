@@ -27,7 +27,7 @@
 module Data.VectorSpace.FiniteDimensional (
     FiniteDimensional(..)
   , SmoothScalar 
-  , FinVecArrRep(..), concreteArrRep, (⊗), splitArrRep
+  , FinVecArrRep(..), concreteArrRep, (⊕), splitArrRep
   ) where
     
 
@@ -121,11 +121,11 @@ instance FiniteDimensional ℝ where
 instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
             => FiniteDimensional (a,b) where
   dimension = tupDim
-   where tupDim :: forall a b.(FiniteDimensional a,FiniteDimensional b)=>Tagged(a,b)Int
+   where tupDim :: ∀ a b.(FiniteDimensional a,FiniteDimensional b)=>Tagged(a,b)Int
          tupDim = Tagged $ da+db
           where (Tagged da)=dimension::Tagged a Int; (Tagged db)=dimension::Tagged b Int
   basisIndex = basId
-   where basId :: forall a b . (FiniteDimensional a, FiniteDimensional b)
+   where basId :: ∀ a b . (FiniteDimensional a, FiniteDimensional b)
                      => Tagged (a,b) (Either (Basis a) (Basis b) -> Int)
          basId = Tagged basId'
           where basId' (Left ba) = basIda ba
@@ -134,7 +134,7 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
                 (Tagged basIda) = basisIndex :: Tagged a (Basis a->Int)
                 (Tagged basIdb) = basisIndex :: Tagged b (Basis b->Int)
   indexBasis = basId
-   where basId :: forall a b . (FiniteDimensional a, FiniteDimensional b)
+   where basId :: ∀ a b . (FiniteDimensional a, FiniteDimensional b)
                      => Tagged (a,b) (Int -> Either (Basis a) (Basis b))
          basId = Tagged basId'
           where basId' i | i < da     = Left $ basIda i
@@ -143,14 +143,14 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
                 (Tagged basIda) = indexBasis :: Tagged a (Int->Basis a)
                 (Tagged basIdb) = indexBasis :: Tagged b (Int->Basis b)
   completeBasis = cb
-   where cb :: forall a b . (FiniteDimensional a, FiniteDimensional b)
+   where cb :: ∀ a b . (FiniteDimensional a, FiniteDimensional b)
                      => Tagged (a,b) [Either (Basis a) (Basis b)]
          cb = Tagged $ map Left cba ++ map Right cbb
           where (Tagged cba) = completeBasis :: Tagged a [Basis a]
                 (Tagged cbb) = completeBasis :: Tagged b [Basis b]
   asPackedVector (a,b) = HMat.vjoin [asPackedVector a, asPackedVector b]
   fromPackedVector = fPV
-   where fPV :: forall a b . (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
+   where fPV :: ∀ a b . (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
                      => HMat.Vector (Scalar a) -> (a,b)
          fPV v = (fromPackedVector l, fromPackedVector r)
           where (Tagged da) = dimension :: Tagged a Int
@@ -158,6 +158,49 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
                 l = HMat.subVector 0 da v
                 r = HMat.subVector da db v
               
+instance (FiniteDimensional y, FiniteDimensional x) => AdditiveGroup (x⊗y) where
+  zeroV = DensTensProd $ (0 HMat.>< 0) []
+  negateV (DensTensProd v) = DensTensProd $ negate v
+  DensTensProd v ^+^ DensTensProd w
+   | HMat.size v == (0,0)  = DensTensProd w
+   | HMat.size w == (0,0)  = DensTensProd v
+   | otherwise             = DensTensProd $ v + w
+
+instance (FiniteDimensional y, FiniteDimensional x) => VectorSpace (x⊗y) where
+  type Scalar (x⊗y) = Scalar y
+  μ *^ DensTensProd v = DensTensProd $ HMat.scale μ v
+
+instance (FiniteDimensional y, FiniteDimensional x) => InnerSpace (x⊗y) where
+  DensTensProd v <.> DensTensProd w
+   | HMat.size v == (0,0)  = 0
+   | HMat.size w == (0,0)  = 0
+   | otherwise             = HMat.flatten v `HMat.dot` HMat.flatten w
+
+instance (FiniteDimensional y, FiniteDimensional x) => HasBasis (x⊗y) where
+  type Basis (x⊗y) = (Basis x, Basis y)
+  basisValue = bvt
+   where bvt :: ∀ x y . (FiniteDimensional x, FiniteDimensional y)
+                       => (Basis x, Basis y) -> x ⊗ y
+         bvt (bx,by) = DensTensProd $ HMat.assoc (nx,ny) 0 [((i,j),1)]
+          where Tagged nx = dimension :: Tagged x Int
+                Tagged ny = dimension :: Tagged y Int
+                Tagged i = ($bx) <$> basisIndex :: Tagged x Int
+                Tagged j = ($by) <$> basisIndex :: Tagged y Int
+  decompose = dct
+   where dct :: ∀ x y . (FiniteDimensional x, FiniteDimensional y)
+                       => x ⊗ y -> [((Basis x, Basis y), Scalar y)]
+         dct (DensTensProd m) = zip [(i,j) | i <- cbx, j <- cby]
+                                (HMat.toList $ HMat.flatten m)
+          where Tagged cbx = completeBasis :: Tagged x [Basis x]
+                Tagged cby = completeBasis :: Tagged y [Basis y]
+  decompose' = dct
+   where dct :: ∀ x y . (FiniteDimensional x, FiniteDimensional y)
+                       => x ⊗ y -> (Basis x, Basis y) -> Scalar y
+         dct (DensTensProd m) (bi, bj) = m `HMat.atIndex` (bxi bi, byj bj)
+          where Tagged bxi = basisIndex :: Tagged x (Basis x -> Int)
+                Tagged byj = basisIndex :: Tagged y (Basis y -> Int)
+               
+  
   
 instance (SmoothScalar x, KnownNat n) => FiniteDimensional (FreeVect n x) where
   dimension = natTagPænultimate
@@ -187,7 +230,7 @@ instance (SmoothScalar s) => AdditiveGroup (FinVecArrRep t b s) where
   negateV (FinVecArrRep v) = FinVecArrRep $ negate v
   FinVecArrRep v ^+^ FinVecArrRep w
    | HMat.size v == 0  = FinVecArrRep w
-   | HMat.size w == 0  = FinVecArrRep w
+   | HMat.size w == 0  = FinVecArrRep v
    | otherwise         = FinVecArrRep $ v + w
 
 instance (SmoothScalar s) => VectorSpace (FinVecArrRep t b s) where
@@ -205,10 +248,10 @@ concreteArrRep :: (SmoothScalar s, FiniteDimensional r, Scalar r ~ s)
 concreteArrRep = Isomorphism (FinVecArrRep     . asPackedVector)
                              (fromPackedVector . getFinVecArrRep)
 
-(⊗) :: ∀ t s v w . ( SmoothScalar s, FiniteDimensional v, FiniteDimensional w
+(⊕) :: ∀ t s v w . ( SmoothScalar s, FiniteDimensional v, FiniteDimensional w
                    , Scalar v ~ s, Scalar w ~ s )
           => FinVecArrRep t v s -> FinVecArrRep t w s -> FinVecArrRep t (v,w) s
-FinVecArrRep v ⊗ FinVecArrRep w
+FinVecArrRep v ⊕ FinVecArrRep w
   | HMat.size v + HMat.size w == 0  = FinVecArrRep v
   | HMat.size v == 0                = FinVecArrRep $ HMat.vjoin [HMat.konst 0 nv, w]
   | HMat.size w == 0                = FinVecArrRep $ HMat.vjoin [v, HMat.konst 0 nw]

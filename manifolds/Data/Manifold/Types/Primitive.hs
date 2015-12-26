@@ -47,6 +47,8 @@ module Data.Manifold.Types.Primitive (
         , D¹(..), D²(..)
         , ℝay
         , CD¹(..), Cℝay(..)
+        -- * Tensor products
+        , (⊗)(..)
         -- * Utility (deprecated)
         , NaturallyEmbedded(..)
         , GraphWindowSpec(..), Endomorphism, (^), (^.), EqFloating
@@ -60,6 +62,8 @@ import Data.Basis
 import Data.Complex hiding (magnitude)
 import Data.Void
 import Data.Monoid
+
+import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import Control.Applicative (Const(..), Alternative(..))
 
@@ -177,6 +181,14 @@ data CD¹ x = CD¹ { hParamCD¹ :: !Double -- ^ Range @[0, 1]@
 data Cℝay x = Cℝay { hParamCℝay :: !Double -- ^ Range @[0, &#x221e;[@
                    , pParamCℝay :: !x      -- ^ Irrelevant at @h = 0@.
                    }
+
+
+
+
+-- | Dense tensor product of two vector spaces.
+newtype x⊗y = DensTensProd { getDensTensProd :: HMat.Matrix (Scalar y) }
+
+
 
 class NaturallyEmbedded m v where
   embed :: m -> v
