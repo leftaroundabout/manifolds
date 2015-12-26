@@ -75,6 +75,7 @@ Library
                    Data.CoNat
                    Data.Embedding
                    Data.LinearMap.Category
+                   Data.Function.Differentiable.Data
                    Data.Function.Affine
                    Data.VectorSpace.FiniteDimensional
                    Util.Associate

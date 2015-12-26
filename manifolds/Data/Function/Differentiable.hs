@@ -30,8 +30,6 @@
 module Data.Function.Differentiable (
             -- * Everywhere differentiable functions
               Differentiable
-            -- * Almost-everywhere diff'able functions
-            , PWDiffable
             -- * Region-wise defined diff'able functions
             , RWDiffable
             -- ** Operators for piecewise definition
@@ -64,6 +62,7 @@ import Data.LinearMap
 import Data.LinearMap.HerMetric
 import Data.MemoTrie (HasTrie(..))
 import Data.AffineSpace
+import Data.Function.Differentiable.Data
 import Data.Function.Affine
 import Data.Basis
 import Data.Complex hiding (magnitude)
@@ -274,8 +273,6 @@ hugeℝVal = 1e+100
 
 
 
-type LinDevPropag d c = Metric c -> Metric d
-
 unsafe_dev_ε_δ :: RealDimension a
                 => String -> (a -> a) -> LinDevPropag a a
 unsafe_dev_ε_δ errHint f d
@@ -306,53 +303,6 @@ as_devεδ ldp ε | ε>0
                     = sqrt $ recip δ'²
                | otherwise  = 0
 
--- | The category of differentiable functions between manifolds over scalar @s@.
---   
---   As you might guess, these offer /automatic differentiation/ of sorts (basically,
---   simple forward AD), but that's in itself is not really the killer feature here.
---   More interestingly, we actually have the (à la Curry-Howard) /proof/
---   built in: the function /f/ has at /x/&#x2080; derivative /f'&#x2093;/&#x2080;,
---   if, for&#xb9; /&#x3b5;/>0, there exists /&#x3b4;/ such that
---   |/f/ /x/ &#x2212; (/f/ /x/&#x2080; + /x/&#x22c5;/f'&#x2093;/&#x2080;)| < /&#x3b5;/
---   for all |/x/ &#x2212; /x/&#x2080;| < /&#x3b4;/.
--- 
---   Observe that, though this looks quite similar to the standard definition
---   of differentiability, it is not equivalent thereto &#x2013; in fact it does
---   not prove any analytic properties at all. To make it equivalent, we need
---   a lower bound on /&#x3b4;/: simply /&#x3b4;/ gives us continuity, and for
---   continuous differentiability, /&#x3b4;/ must grow at least like &#x221a;/&#x3b5;/
---   for small /&#x3b5;/. Neither of these conditions are enforced by the type system,
---   but we do require them for any allowed values because these proofs are obviously
---   tremendously useful &#x2013; for instance, you can have a root-finding algorithm
---   and actually be sure you get /all/ solutions correctly, not just /some/ that are
---   (hopefully) the closest to some reference point you'd need to laborously define!
--- 
---   Unfortunately however, this also prevents doing any serious algebra etc. with the
---   category, because even something as simple as division necessary introduces singularities
---   where the derivatives must diverge.
---   Not to speak of many trigonometric e.g. trigonometric functions that
---   are undefined on whole regions. The 'PWDiffable' and 'RWDiffable' categories have explicit
---   handling for those issues built in; you may simply use these categories even when
---   you know the result will be smooth in your relevant domain (or must be, for e.g.
---   physics reasons).
---   
---   &#xb9;(The implementation does not deal with /&#x3b5;/ and /&#x3b4;/ as difference-bounding
---   reals, but rather as metric tensors that define a boundary by prohibiting the
---   overlap from exceeding one; this makes the concept actually work on general manifolds.)
-data Differentiable s d c where
-   Differentiable :: ( d -> ( c   -- function value
-                            , Needle d :-* Needle c -- Jacobian
-                            , LinDevPropag d c -- Metric showing how far you can go
-                                               -- from x₀ without deviating from the
-                                               -- Taylor-1 approximation by more than
-                                               -- some error margin
-                              ) )
-                  -> Differentiable s d c
-   AffinDiffable :: LinearManifold d
-               => Affine s d d -> Differentiable s d d
-                      -- This should ideally map between two general affine spaces,
-                      -- but since the special case of affine functions is mostly relevant
-                      -- to optimise the propagation of real intervals, we don't do that.
 
 genericiseDifferentiable :: (LocallyScalable s d, LocallyScalable s c)
                     => Differentiable s d c -> Differentiable s d c
@@ -585,21 +535,6 @@ postEndo :: ∀ c a b . (HasAgent c, Object c a, Object c b)
 postEndo = genericAgentMap
 
 
--- | A pathwise connected subset of a manifold @m@, whose tangent space has scalar @s@.
-data Region s m = Region { regionRefPoint :: m
-                         , regionRDef :: PreRegion s m }
-
--- | A 'PreRegion' needs to be associated with a certain reference point ('Region'
---   includes that point) to define a connected subset of a manifold.
-data PreRegion s m where
-  GlobalRegion :: PreRegion s m
-  RealSubray :: RealDimension s => S⁰ -> s -> PreRegion s s
-  PreRegion :: (Differentiable s m s) -- A function that is positive at reference point /p/,
-                                      -- decreases and crosses zero at the region's
-                                      -- boundaries. (If it goes positive again somewhere
-                                      -- else, these areas shall /not/ be considered
-                                      -- belonging to the (by definition connected) region.)
-         -> PreRegion s m
 
 genericisePreRegion :: (RealDimension s, LocallyScalable s m)
                           => PreRegion s m -> PreRegion s m
@@ -709,207 +644,10 @@ intervalPreRegion (lb,rb) = PreRegion $ Differentiable prr
 
 
 
--- | Category of functions that almost everywhere have an open region in
---   which they are continuously differentiable, i.e. /PieceWiseDiff'able/.
-newtype PWDiffable s d c
-   = PWDiffable {
-        getDfblDomain :: d -> (PreRegion s d, Differentiable s d c) }
-
-
-
-instance (RealDimension s) => Category (PWDiffable s) where
-  type Object (PWDiffable s) o = LocallyScalable s o
-  id = PWDiffable $ \x -> (GlobalRegion, id)
-  PWDiffable f . PWDiffable g = PWDiffable h
-   where h x₀ = case g x₀ of
-                 (GlobalRegion, gr@(Differentiable grd))
-                  -> let (y₀,_,_) = grd x₀
-                     in case f y₀ of
-                         (GlobalRegion, fr) -> (GlobalRegion, fr . gr)
-                         (PreRegion ry, fr)
-                               -> ( PreRegion $ ry . gr, fr . gr )
-                 (PreRegion rx, gr@(Differentiable grd))
-                  -> let (y₀,_,_) = grd x₀
-                     in case f y₀ of
-                         (GlobalRegion, fr) -> (PreRegion rx, fr . gr)
-                         (PreRegion ry, fr)
-                               -> ( PreRegion $ minDblfuncs (ry . gr) rx
-                                  , fr . gr )
-          where (rx, gr) = g x₀
-
-globalDiffable :: Differentiable s a b -> PWDiffable s a b
-globalDiffable f = PWDiffable $ const (GlobalRegion, f)
-
-instance (RealDimension s) => EnhancedCat (PWDiffable s) (Differentiable s) where
-  arr = globalDiffable
-instance (RealDimension s) => EnhancedCat (->) (PWDiffable s) where
-  arr (PWDiffable g) x = let (_,Differentiable f) = g x
-                             (y,_,_) = f x 
-                         in y
-
-                
-instance (RealDimension s) => Cartesian (PWDiffable s) where
-  type UnitObject (PWDiffable s) = ZeroDim s
-  swap = globalDiffable swap
-  attachUnit = globalDiffable attachUnit
-  detachUnit = globalDiffable detachUnit
-  regroup = globalDiffable regroup
-  regroup' = globalDiffable regroup'
-  
-instance (RealDimension s) => Morphism (PWDiffable s) where
-  PWDiffable f *** PWDiffable g = PWDiffable h
-   where h (x,y) = (preRegionProd rfx rgy, dff *** dfg)
-          where (rfx, dff) = f x
-                (rgy, dfg) = g y
-
-instance (RealDimension s) => PreArrow (PWDiffable s) where
-  PWDiffable f &&& PWDiffable g = PWDiffable h
-   where h x = (unsafePreRegionIntersect rfx rgx, dff &&& dfg)
-          where (rfx, dff) = f x
-                (rgx, dfg) = g x
-  terminal = globalDiffable terminal
-  fst = globalDiffable fst
-  snd = globalDiffable snd
-
-
-instance (RealDimension s) => WellPointed (PWDiffable s) where
-  unit = Tagged Origin
-  globalElement x = PWDiffable $ \Origin -> (GlobalRegion, globalElement x)
-  const x = PWDiffable $ \_ -> (GlobalRegion, const x)
-
-
-type PWDfblFuncValue s = GenericAgent (PWDiffable s)
-
-instance RealDimension s => HasAgent (PWDiffable s) where
-  alg = genericAlg
-  ($~) = genericAgentMap
-instance RealDimension s => CartesianAgent (PWDiffable s) where
-  alg1to2 = genericAlg1to2
-  alg2to1 = genericAlg2to1
-  alg2to2 = genericAlg2to2
-instance (RealDimension s)
-      => PointAgent (PWDfblFuncValue s) (PWDiffable s) a x where
-  point = genericPoint
-
-gpwDfblFnValsFunc
-     :: ( RealDimension s
-        , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
-        , v ~ Needle c, v' ~ Needle c'
-        , ε ~ HerMetric v, ε ~ HerMetric v' )
-             => (c' -> (c, v':-*v, ε->ε)) -> PWDfblFuncValue s d c' -> PWDfblFuncValue s d c
-gpwDfblFnValsFunc f = (PWDiffable (\_ -> (GlobalRegion, Differentiable f)) $~)
-
-gpwDfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
-         ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
-         , LocallyScalable s d, RealDimension s
-         , v ~ Needle c, v' ~ Needle c', v'' ~ Needle c''
-         , ε ~ HerMetric v  , ε' ~ HerMetric v'  , ε'' ~ HerMetric v'', ε~ε', ε~ε''  )
-       => (  c' -> c'' -> (c, (v',v''):-*v, ε -> (ε',ε''))  )
-         -> PWDfblFuncValue s d c' -> PWDfblFuncValue s d c'' -> PWDfblFuncValue s d c
-gpwDfblFnValsCombine cmb (GenericAgent (PWDiffable fpcs))
-                         (GenericAgent (PWDiffable gpcs)) 
-    = GenericAgent . PWDiffable $
-        \d₀ -> let (rc', Differentiable f) = fpcs d₀
-                   (rc'',Differentiable g) = gpcs d₀
-               in (unsafePreRegionIntersect rc' rc'',) . Differentiable $
-                    \d -> let (c', f', devf) = f d
-                              (c'',g', devg) = g d
-                              (c, h', devh) = cmb c' c''
-                              h'l = h' *.* lcofst; h'r = h' *.* lcosnd
-                          in ( c
-                             , h' *.* linear (lapply f' &&& lapply g')
-                             , \εc -> let εc' = transformMetric h'l εc
-                                          εc'' = transformMetric h'r εc
-                                          (δc',δc'') = devh εc 
-                                      in devf εc' ^+^ devg εc''
-                                           ^+^ transformMetric f' δc'
-                                           ^+^ transformMetric g' δc''
-                             )
- where lcofst = linear(,zeroV)
-       lcosnd = linear(zeroV,) 
-
-
-instance (WithField s LinearManifold v, LocallyScalable s a, RealDimension s)
-    => AdditiveGroup (PWDfblFuncValue s a v) where
-  zeroV = point zeroV
-  (^+^) = gpwDfblFnValsCombine $ \a b -> (a^+^b, lPlus, const zeroV)
-      where lPlus = linear $ uncurry (^+^)
-  negateV = gpwDfblFnValsFunc $ \a -> (negateV a, lNegate, const zeroV)
-      where lNegate = linear negateV
-
-instance (RealDimension n, LocallyScalable n a)
-            => Num (PWDfblFuncValue n a n) where
-  fromInteger i = point $ fromInteger i
-  (+) = gpwDfblFnValsCombine $ \a b -> (a+b, lPlus, const zeroV)
-      where lPlus = linear $ uncurry (+)
-  (*) = gpwDfblFnValsCombine $
-          \a b -> ( a*b
-                  , linear $ \(da,db) -> a*db + b*da
-                  , \d -> let d¹₂ = sqrt d in (d¹₂,d¹₂)
-                  )
-  negate = gpwDfblFnValsFunc $ \a -> (negate a, lNegate, const zeroV)
-      where lNegate = linear negate
-  abs = (PWDiffable absPW $~)
-   where absPW a₀
-          | a₀<0       = (negativePreRegion, desc)
-          | otherwise  = (positivePreRegion, asc)
-         desc = actuallyLinear $ linear negate
-         asc = actuallyLinear idL
-  signum = (PWDiffable sgnPW $~)
-   where sgnPW a₀
-          | a₀<0       = (negativePreRegion, const $ -1)
-          | otherwise  = (positivePreRegion, const 1)
-
-instance (RealDimension n, LocallyScalable n a)
-            => Fractional (PWDfblFuncValue n a n) where
-  fromRational i = point $ fromRational i
-  recip = postEndo . PWDiffable $ \a₀ -> if a₀<0
-                                          then (negativePreRegion, Differentiable negp)
-                                          else (positivePreRegion, Differentiable posp)
-   where negp x = (x'¹, (- x'¹^2) *^ idL, unsafe_dev_ε_δ("1/"++show x) δ)
-          where δ ε = let mph = -ε*x^2/2
-                          δ₀ = mph + sqrt (mph^2 - ε*x^3)
-                 -- See `Fractional RWDfblFuncValue` instance for explanation.
-                      in if δ₀>0 then δ₀ else -x
-                x'¹ = recip x
-         posp x = (x'¹, (- x'¹^2) *^ idL, unsafe_dev_ε_δ("1/"++show x) δ)
-          where δ ε = let mph = -ε*x^2/2
-                          δ₀ = sqrt (mph^2 + ε*x^3) - mph
-                      in if δ₀>0 then δ₀ else x
-                x'¹ = recip x
 
 
 
 
-
-
--- | Category of functions that, where defined, have an open region in
---   which they are continuously differentiable. Hence /RegionWiseDiff'able/.
---   Basically these are the partial version of `PWDiffable`.
--- 
---   Though the possibility of undefined regions is of course not too nice
---   (we don't need Java to demonstrate this with its everywhere-looming @null@ values...),
---   this category will propably be the &#x201c;workhorse&#x201d; for most serious
---   calculus applications, because it contains all the usual trig etc. functions
---   and of course everything algebraic you can do in the reals.
--- 
---   The easiest way to define ordinary functions in this category is hence
---   with its 'AgentVal'ues, which have instances of the standard classes 'Num'
---   through 'Floating'. For instance, the following defines the /binary entropy/
---   as a differentiable function on the interval @]0,1[@: (it will
---   actually /know/ where it's defined and where not! &#x2013; and I don't mean you
---   need to exhaustively 'isNaN'-check all results...)
--- 
--- @
--- hb :: RWDiffable &#x211d; &#x211d; &#x211d;
--- hb = alg (\\p -> - p * logBase 2 p - (1-p) * logBase 2 (1-p) )
--- @
-newtype RWDiffable s d c
-   = RWDiffable {
-        tryDfblDomain :: d -> (PreRegion s d, Option (Differentiable s d c)) }
-
-notDefinedHere :: Option (Differentiable s d c)
-notDefinedHere = Option Nothing
 
 
 
@@ -989,15 +727,10 @@ instance (RealDimension s) => Category (RWDiffable s) where
 globalDiffable' :: Differentiable s a b -> RWDiffable s a b
 globalDiffable' f = RWDiffable $ const (GlobalRegion, pure f)
 
-pwDiffable :: PWDiffable s a b -> RWDiffable s a b
-pwDiffable (PWDiffable q) = RWDiffable $ \x₀ -> let (r₀,f₀) = q x₀ in (r₀, pure f₀)
-
 
 
 instance (RealDimension s) => EnhancedCat (RWDiffable s) (Differentiable s) where
   arr = globalDiffable'
-instance (RealDimension s) => EnhancedCat (RWDiffable s) (PWDiffable s) where
-  arr = pwDiffable
                 
 instance (RealDimension s) => Cartesian (RWDiffable s) where
   type UnitObject (RWDiffable s) = ZeroDim s
@@ -1499,10 +1232,10 @@ c ?|: f = c ?|: genericiseRWDFV f
 -- | Replace the regions in which the first function is undefined with values
 --   from the second function.
 backupRegions :: (RealDimension n, LocallyScalable n a, LocallyScalable n b)
-      => RWDiffable n a b -> PWDiffable n a b -> PWDiffable n a b
-backupRegions (RWDiffable f) (PWDiffable g) = PWDiffable h
+      => RWDiffable n a b -> RWDiffable n a b -> RWDiffable n a b
+backupRegions (RWDiffable f) (RWDiffable g) = RWDiffable h
  where h x₀ = case f x₀ of
-                (rf, Option (Just q)) -> (rf, q)
+                (rf, q@(Option (Just _))) -> (rf, q)
                 (rf, Option Nothing) | (rg, q) <- g x₀
                         -> (unsafePreRegionIntersect rf rg, q)
 
