@@ -383,6 +383,15 @@ instance (MetricScalar a, KnownNat n) => Semimanifold (FreeVect n a) where
 instance (MetricScalar a, KnownNat n) => PseudoAffine (FreeVect n a) where
   a.-~.b = pure (a.-.b)
 
+instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => Semimanifold (a⊗b) where
+  type Needle (a⊗b) = a ⊗ b
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
+  (.+~^) = (^+^)
+instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => PseudoAffine (a⊗b) where
+  a.-~.b = pure (a^-^b)
+
 instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => Semimanifold (a:-*b) where
   type Needle (a:-*b) = DualSpace a ⊗ b
   fromInterior = id
