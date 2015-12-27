@@ -78,6 +78,7 @@ import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty)
 import Data.Manifold.PseudoAffine
 import Data.Function.Differentiable
+import Data.Function.Differentiable.Data
     
 import Data.Embedding
 import Data.CoNat
@@ -460,12 +461,19 @@ sortByKey :: Ord a => [(a,b)] -> [b]
 sortByKey = map snd . sortBy (comparing fst)
 
 
-type DifferentialEqn x y = Differentiable ℝ (x,y) (Needle x :-* Needle y)
+type DifferentialEqn x y = RWDiffable ℝ (x,y) (Needle x :-* Needle y)
 
 
-filterDEqnSolution_loc :: (WithField ℝ Manifold x, WithField ℝ Manifold y)
+filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y -> Shade (x,y) -> [Shade (x,y)]
-filterDEqnSolution_loc f (Shade c expa) = case analyseLocalBehaviour f c of
+filterDEqnSolution_loc (RWDiffable f) (Shade c expa) = case f c of
+          (_, Option Nothing) -> []
+          (r, Option (Just (Differentiable fl)))
+                | (fc, fc', δ) <- fl c -> [undefined]
+ where expax :: HerMetric' (Needle x)
+       expax = transformMetric' (linear fst) expa
+       expay :: HerMetric' (Needle y)
+       expay = transformMetric' (linear snd) expa
 
 
     
