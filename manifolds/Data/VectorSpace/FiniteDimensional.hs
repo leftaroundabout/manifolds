@@ -200,6 +200,41 @@ instance (FiniteDimensional y, FiniteDimensional x) => HasBasis (x⊗y) where
           where Tagged bxi = basisIndex :: Tagged x (Basis x -> Int)
                 Tagged byj = basisIndex :: Tagged y (Basis y -> Int)
                
+instance (FiniteDimensional a, FiniteDimensional b, Scalar a ~ Scalar b)
+                                     => FiniteDimensional (a⊗b) where
+  dimension = tensDim
+   where tensDim :: ∀ a b.(FiniteDimensional a,FiniteDimensional b)=>Tagged(a⊗b)Int
+         tensDim = Tagged $ da*db
+          where (Tagged da)=dimension::Tagged a Int; (Tagged db)=dimension::Tagged b Int
+  basisIndex = basId
+   where basId :: ∀ a b . (FiniteDimensional a, FiniteDimensional b)
+                     => Tagged (a⊗b) ((Basis a, Basis b) -> Int)
+         basId = Tagged basId'
+          where basId' (ba,bb) = db*basIda ba + basIdb bb
+                (Tagged db) = dimension :: Tagged b Int
+                (Tagged basIda) = basisIndex :: Tagged a (Basis a->Int)
+                (Tagged basIdb) = basisIndex :: Tagged b (Basis b->Int)
+  indexBasis = basId
+   where basId :: ∀ a b . (FiniteDimensional a, FiniteDimensional b)
+                     => Tagged (a⊗b) (Int -> (Basis a, Basis b))
+         basId = Tagged basId'
+          where basId' i = let (ia,ib) = i`divMod`db
+                           in (basIda ia, basIdb ib)
+                (Tagged db) = dimension :: Tagged b Int
+                (Tagged basIda) = indexBasis :: Tagged a (Int->Basis a)
+                (Tagged basIdb) = indexBasis :: Tagged b (Int->Basis b)
+  completeBasis = cb
+   where cb :: ∀ a b . (FiniteDimensional a, FiniteDimensional b)
+                     => Tagged (a⊗b) [(Basis a, Basis b)]
+         cb = Tagged $ [(ba,bb) | ba<-cba, bb<-cbb]
+          where (Tagged cba) = completeBasis :: Tagged a [Basis a]
+                (Tagged cbb) = completeBasis :: Tagged b [Basis b]
+  asPackedVector (DensTensProd m) = HMat.flatten m
+  fromPackedVector = fPV
+   where fPV :: ∀ a b . (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
+                     => HMat.Vector (Scalar a) -> (a⊗b)
+         fPV v = DensTensProd $ HMat.reshape db v
+          where (Tagged db) = dimension :: Tagged b Int
   
   
 instance (SmoothScalar x, KnownNat n) => FiniteDimensional (FreeVect n x) where
