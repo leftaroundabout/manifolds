@@ -48,6 +48,7 @@ module Data.LinearMap.HerMetric (
   , FiniteDimensional(..)
   -- * Misc
   , Stiefel1(..)
+  , linMapAsTensProd, linMapFromTensProd
   ) where
     
 
@@ -611,3 +612,20 @@ instance (HasMetric v, Scalar v ~ Double, Show v) => Show (HerMetric' v) where
                       . foldr1 ((.) . (.(" ^+^ "++)))
                       $ ((("projector' "++).).showsPrec 6)<$>eigSp
    where eigSp = eigenSpan m
+
+
+
+
+
+
+
+
+
+linMapAsTensProd :: (FiniteDimensional v, FiniteDimensional w, Scalar v~Scalar w)
+                    => v:-*w -> DualSpace v ⊗ w
+linMapAsTensProd f = DensTensProd $ asPackedMatrix f
+
+linMapFromTensProd :: (FiniteDimensional v, FiniteDimensional w, Scalar v~Scalar w)
+                    => DualSpace v ⊗ w -> v:-*w
+linMapFromTensProd (DensTensProd m) = linear $
+                         asPackedVector >>> HMat.app m >>> fromPackedVector

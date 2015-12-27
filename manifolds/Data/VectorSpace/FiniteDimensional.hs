@@ -236,6 +236,8 @@ instance (FiniteDimensional a, FiniteDimensional b, Scalar a ~ Scalar b)
          fPV v = DensTensProd $ HMat.reshape db v
           where (Tagged db) = dimension :: Tagged b Int
   
+
+
   
 instance (SmoothScalar x, KnownNat n) => FiniteDimensional (FreeVect n x) where
   dimension = natTagPænultimate

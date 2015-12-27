@@ -383,14 +383,14 @@ instance (MetricScalar a, KnownNat n) => Semimanifold (FreeVect n a) where
 instance (MetricScalar a, KnownNat n) => PseudoAffine (FreeVect n a) where
   a.-~.b = pure (a.-.b)
 
-instance (FiniteDimensional a, VectorSpace b) => Semimanifold (a:-*b) where
-  type Needle (a:-*b) = a:-*b
+instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => Semimanifold (a:-*b) where
+  type Needle (a:-*b) = DualSpace a ⊗ b
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  (.+~^) = (^+^)
-instance (FiniteDimensional a, VectorSpace b) => PseudoAffine (a:-*b) where
-  a.-~.b = pure (a^-^b)
+  p.+~^n = p ^+^ linMapFromTensProd n
+instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => PseudoAffine (a:-*b) where
+  a.-~.b = pure . linMapAsTensProd $ a^-^b
 
 instance Semimanifold S⁰ where
   type Needle S⁰ = ℝ⁰
