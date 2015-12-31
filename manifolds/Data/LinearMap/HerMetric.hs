@@ -539,6 +539,16 @@ productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
         = HerMetric' . Just $ HMat.diagBlock [mv, HMat.konst 0 (dw,dw)]
  where (Tagged dw) = dimension :: Tagged w Int
 
+
+
+covariance :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
+          => HerMetric (v,w) -> v:-*w
+covariance (HerMetric Nothing) = zeroV
+covariance (HerMetric (Just m)) = fromPackedMatrix $ wmat HMat.<> m HMat.<> vmat
+ where wmat = asPackedMatrix (linear snd :: (v,w):-*w)
+       vmat = asPackedMatrix (linear (id&&&const zeroV) :: v:-*(v,w))
+
+
 metricAsLength :: HerMetric ℝ -> ℝ
 metricAsLength m = case metricSq m 1 of
    o | o > 0    -> recip o

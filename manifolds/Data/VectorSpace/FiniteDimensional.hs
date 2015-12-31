@@ -103,6 +103,14 @@ class (HasBasis v, HasTrie (Basis v), SmoothScalar (Scalar v)) => FiniteDimensio
    where result = recompose $ zip cb (HMat.toList v)
          cb = witness completeBasis result
 
+  fromPackedMatrix :: (FiniteDimensional w, Scalar w ~ Scalar v)
+                       => HMat.Matrix (Scalar v) -> (v :-* w)
+  fromPackedMatrix = defaultFromPackedMatrix
+   where defaultFromPackedMatrix :: forall v w s .
+               (FiniteDimensional v, FiniteDimensional w, s~Scalar v, s~Scalar w)
+                         => HMat.Matrix s -> (v :-* w)
+         defaultFromPackedMatrix m = linear $ fromPackedVector . HMat.app m . asPackedVector
+  
 instance (SmoothScalar k) => FiniteDimensional (ZeroDim k) where
   dimension = Tagged 0
   basisIndex = Tagged absurd
