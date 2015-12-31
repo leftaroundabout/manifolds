@@ -283,6 +283,7 @@ recipMetric (HerMetric' (Just m))
 
 
 isInfinite' :: (Eq a, Num a) => a -> Bool
+isInfinite' 0 = False
 isInfinite' x = x==x*2
 
 
@@ -542,11 +543,15 @@ productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
 
 
 covariance :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
-          => HerMetric (v,w) -> v:-*w
-covariance (HerMetric Nothing) = zeroV
-covariance (HerMetric (Just m)) = fromPackedMatrix $ wmat HMat.<> m HMat.<> vmat
+          => HerMetric (v,w) -> Option (v:-*w)
+covariance (HerMetric Nothing) = empty
+covariance (HerMetric (Just m))
+    | isInfinite' detvnm  = empty
+    | otherwise           = pure . fromPackedMatrix $
+                               wmat HMat.<> m HMat.<> vmat HMat.<> vnorml
  where wmat = asPackedMatrix (linear snd :: (v,w):-*w)
        vmat = asPackedMatrix (linear (id&&&const zeroV) :: v:-*(v,w))
+       (vnorml, (detvnm, _)) = HMat.invlndet (HMat.tr vmat HMat.<> m HMat.<> vmat)
 
 
 metricAsLength :: HerMetric ℝ -> ℝ
