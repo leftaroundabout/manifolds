@@ -95,7 +95,7 @@ class (HasBasis v, HasTrie (Basis v), SmoothScalar (Scalar v)) => FiniteDimensio
    where defaultAsPackedMatrix :: forall v w s .
                (FiniteDimensional v, FiniteDimensional w, s~Scalar v, s~Scalar w)
                          => (v :-* w) -> HMat.Matrix s
-         defaultAsPackedMatrix m = HMat.fromRows $ asPackedVector . atBasis m <$> cb
+         defaultAsPackedMatrix m = HMat.fromColumns $ asPackedVector . atBasis m <$> cb
           where (Tagged cb) = completeBasis :: Tagged v [Basis v]
   
   fromPackedVector :: HMat.Vector (Scalar v) -> v
@@ -124,7 +124,7 @@ instance FiniteDimensional ℝ where
   indexBasis = Tagged $ \0 -> ()
   completeBasis = Tagged [()]
   asPackedVector x = HMat.fromList [x]
-  asPackedMatrix f = HMat.asRow . asPackedVector $ atBasis f ()
+  asPackedMatrix f = HMat.asColumn . asPackedVector $ atBasis f ()
   fromPackedVector v = v HMat.! 0
 instance (FiniteDimensional a, FiniteDimensional b, Scalar a~Scalar b)
             => FiniteDimensional (a,b) where
