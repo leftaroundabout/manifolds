@@ -465,13 +465,26 @@ type DifferentialEqn x y = RWDiffable ℝ (x,y) (Needle x :-* Needle y)
 
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
-           => DifferentialEqn x y -> Shade (x,y) -> [Shade (x,y)]
-filterDEqnSolution_loc (RWDiffable f) (Shade c expa) = case f c of
+           => DifferentialEqn x y -> (Shade (x,y), [Shade (x,y)]) -> [Shade (x,y)]
+filterDEqnSolution_loc (RWDiffable f) (Shade (x,y) expa, neighbours) = case f (x,y) of
           (_, Option Nothing) -> []
           (r, Option (Just (Differentiable fl)))
-                | (fc, fc', δ) <- fl c -> [undefined]
+                | (fc, fc', δ) <- fl (x,y)
+                   -> let flatSoltn :: HerMetric' (Needle (x,y))
+                          flatSoltn = transformMetric' (linear $ id &&& lapply fc) expax
+                          -- fcs = lapply fc' <$> xSpan
+                          -- flinRange = δ $ projectors fcs
+                          yc = y .+~^
+                                sumV [ undefined -- expaxn
+                                     | Shade (xn,yn) expan <- neighbours
+                                     , let (Option (Just (δx,δy))) = (x,y).-~.(xn,yn)
+                                           -- δxπ = δx 
+                                     ]
+                                  ^/ fromIntegral (length neighbours)
+                      in [Shade (x,yc) flatSoltn]
  where expax :: HerMetric' (Needle x)
        expax = transformMetric' (linear fst) expa
+       xSpan = eigenCoSpan expax
        expay :: HerMetric' (Needle y)
        expay = transformMetric' (linear snd) expa
 
