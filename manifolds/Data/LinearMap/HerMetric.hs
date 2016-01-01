@@ -543,9 +543,9 @@ productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
 
 
 covariance :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
-          => HerMetric (v,w) -> Option (v:-*w)
-covariance (HerMetric Nothing) = empty
-covariance (HerMetric (Just m))
+          => HerMetric' (v,w) -> Option (v:-*w)
+covariance (HerMetric' Nothing) = pure zeroV
+covariance (HerMetric' (Just m))
     | isInfinite' detvnm  = empty
     | otherwise           = pure . fromPackedMatrix $
                                wmat HMat.<> m HMat.<> vmat HMat.<> vnorml
