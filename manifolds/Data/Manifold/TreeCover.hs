@@ -461,32 +461,56 @@ sortByKey :: Ord a => [(a,b)] -> [b]
 sortByKey = map snd . sortBy (comparing fst)
 
 
+
+
+intersectShade's :: WithField ℝ Manifold y => [Shade' y] -> Shade' y
+intersectShade's [] = error "Global `Shade'` not implemented, so can't do intersection of zero co-shades."
+intersectShade's shs = (`foldr1`shs) $ \(Shade' c e) (Shade' c' e')
+                    -> undefined
+
+
+
+
 type DifferentialEqn x y = RWDiffable ℝ (x,y) (Needle x :-* Needle y)
 
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
-           => DifferentialEqn x y -> (Shade (x,y), [Shade (x,y)]) -> [Shade (x,y)]
-filterDEqnSolution_loc (RWDiffable f) (Shade (x,y) expa, neighbours) = case f (x,y) of
+           => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)]) -> [Shade' (x,y)]
+filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours) = case f (x,y) of
           (_, Option Nothing) -> []
           (r, Option (Just (Differentiable fl)))
                 | (fc, fc', δ) <- fl (x,y)
-                   -> let flatSoltn :: HerMetric' (Needle (x,y))
-                          flatSoltn = transformMetric' (linear $ id &&& lapply fc) expax
+                   -> let flatMet :: HerMetric (Needle (x,y))
+                          flatMet = recipMetric -- this won't work, metric is singular.
+                               . transformMetric' (linear $ id &&& lapply fc) 
+                               $ recipMetric' expax
                           -- fcs = lapply fc' <$> xSpan
                           -- flinRange = δ $ projectors fcs
-                          yc = y .+~^
-                                sumV [ undefined -- expaxn
-                                     | Shade (xn,yn) expan <- neighbours
-                                     , let (Option (Just (δx,δy))) = (x,y).-~.(xn,yn)
-                                           -- δxπ = δx 
+                          marginδs :: [(Needle x, (Needle y, Metric y))]
+                          marginδs = [ (δxm, (δym, expany))
+                                     | Shade' (xn, yn) expan <- neighbours
+                                     , let (Option (Just δx)) = x.-~.xn
+                                           (expanx, expany) = factoriseMetric expan
+                                           (Option (Just yc'n))
+                                                  = covariance $ recipMetric' expan
+                                           xntoMarg = metriNormalise expanx δx
+                                           (Option (Just δxm))
+                                              = (xn .+~^ xntoMarg :: x) .-~. x
+                                           (Option (Just δym))
+                                              = (yn .+~^ lapply yc'n xntoMarg :: y
+                                                  ) .-~. y
                                      ]
-                                  ^/ fromIntegral (length neighbours)
-                      in [Shade (x,yc) flatSoltn]
- where expax :: HerMetric' (Needle x)
-       expax = transformMetric' (linear fst) expa
-       xSpan = eigenCoSpan expax
-       expay :: HerMetric' (Needle y)
-       expay = transformMetric' (linear snd) expa
+                          ycQuad :: y
+                          (Shade' ycQuad _) = intersectShade's
+                                     [ Shade' ycn expany
+                                     | (δxm,(δym,expany)) <- marginδs
+                                     , let fca :: Needle x:-*Needle y
+                                           fca = fc .+~^ lapply fc' ((δxm,δym)^/2)
+                                           ycn = y .+~^ (δym ^-^ lapply fca δxm)
+                                     ] :: Shade' y
+                      in [Shade' (x,ycQuad) flatMet]
+ where (expax, expay) = factoriseMetric expa
+       xSpan = eigenCoSpan' expax
 
 
     

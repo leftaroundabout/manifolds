@@ -35,6 +35,7 @@ module Data.LinearMap.HerMetric (
   , recipMetric, recipMetric'
   , eigenSpan, eigenSpan'
   , eigenCoSpan, eigenCoSpan'
+  , metriNormalise, metriNormalise'
   , metriScale', metriScale
   , adjoint
   , extendMetric
@@ -49,6 +50,7 @@ module Data.LinearMap.HerMetric (
   -- * Misc
   , Stiefel1(..)
   , linMapAsTensProd, linMapFromTensProd
+  , covariance
   ) where
     
 
@@ -204,6 +206,15 @@ metric' m = sqrt . metricSq' m
 toDualWith :: HasMetric v => HerMetric v -> v -> DualSpace v
 toDualWith (HerMetric Nothing) = const zeroV
 toDualWith (HerMetric (Just m)) = fromPackedVector . HMat.app m . asPackedVector
+
+-- | Divide a vector by its own norm, according to metric, i.e. normalise it
+--   or &#x201c;project to the metric's boundary&#x201d;.
+metriNormalise :: (HasMetric v, Floating (Scalar v)) => HerMetric v -> v -> v
+metriNormalise m v = v ^/ metric m v
+
+metriNormalise' :: (HasMetric v, Floating (Scalar v))
+                 => HerMetric' v -> DualSpace v -> DualSpace v
+metriNormalise' m v = v ^/ metric' m v
 
 -- | &#x201c;Anti-normalise&#x201d; a vector: /multiply/ with its own norm, according to metric.
 metriScale :: (HasMetric v, Floating (Scalar v)) => HerMetric v -> v -> v
@@ -539,6 +550,7 @@ productMetric' (HerMetric' Nothing) (HerMetric' (Just mw))
 productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
         = HerMetric' . Just $ HMat.diagBlock [mv, HMat.konst 0 (dw,dw)]
  where (Tagged dw) = dimension :: Tagged w Int
+
 
 
 
