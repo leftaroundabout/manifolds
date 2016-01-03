@@ -463,10 +463,27 @@ sortByKey = map snd . sortBy (comparing fst)
 
 
 
-intersectShade's :: WithField ℝ Manifold y => [Shade' y] -> Shade' y
+intersectShade's :: ∀ y . WithField ℝ Manifold y => [Shade' y] -> Option (Shade' y)
 intersectShade's [] = error "Global `Shade'` not implemented, so can't do intersection of zero co-shades."
-intersectShade's shs = (`foldr1`shs) $ \(Shade' c e) (Shade' c' e')
-                    -> undefined
+intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
+ where inter2 :: Shade' y -> Shade' y -> Option (Shade' y)
+       inter2 (Shade' c e) (Shade' ζ η)
+           | μc > 1 && μζ > 1  = empty
+           | otherwise         = return $ Shade' (c.+~^w) (e^+^η)
+        where Option (Just c2ζ) = ζ.-~.c
+              Option (Just ζ2c) = c.-~.ζ
+              ζNearest, cNearest :: y
+              ζNearest = c .+~^ metriNormalise e c2ζ
+              cNearest = ζ .+~^ metriNormalise η ζ2c
+              Option (Just rζ) = ζNearest.-~.ζ
+              Option (Just rc) = cNearest.-~.c
+              μc = metric e rc
+              μζ = metric η rζ
+              w = c2ζ ^* (μζ/(μc + μζ))
+              -- = (c^*μc + ζ^*μζ)/(μc + μζ) − c
+              -- = (c^*μc + ζ^*μζ − c^*(μc+μζ))^/(μc + μζ)
+              -- = (ζ^*μζ − c^*μζ)^/(μc + μζ)
+              -- = (ζ−c)^*μζ/(μc + μζ)
 
 
 
@@ -501,13 +518,14 @@ filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours) = case f (
                                                   ) .-~. y
                                      ]
                           ycQuad :: y
-                          (Shade' ycQuad _) = intersectShade's
+                          (Option (Just (Shade' ycQuad _))) = intersectShade's
                                      [ Shade' ycn expany
                                      | (δxm,(δym,expany)) <- marginδs
                                      , let fca :: Needle x:-*Needle y
                                            fca = fc .+~^ lapply fc' ((δxm,δym)^/2)
                                            ycn = y .+~^ (δym ^-^ lapply fca δxm)
-                                     ] :: Shade' y
+                                     ]
+                                     :: Option (Shade' y)
                       in [Shade' (x,ycQuad) flatMet]
  where (expax, expay) = factoriseMetric expa
        xSpan = eigenCoSpan' expax
