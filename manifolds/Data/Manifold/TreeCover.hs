@@ -469,17 +469,23 @@ intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
  where inter2 :: Shade' y -> Shade' y -> Option (Shade' y)
        inter2 (Shade' c e) (Shade' ζ η)
            | μc > 1 && μζ > 1  = empty
-           | otherwise         = return $ Shade' (c.+~^w) (e^+^η)
-        where Option (Just c2ζ) = ζ.-~.c
-              Option (Just ζ2c) = c.-~.ζ
-              ζNearest, cNearest :: y
-              ζNearest = c .+~^ metriNormalise e c2ζ
-              cNearest = ζ .+~^ metriNormalise η ζ2c
-              Option (Just rζ) = ζNearest.-~.ζ
-              Option (Just rc) = cNearest.-~.c
-              μc = metric e rc
-              μζ = metric η rζ
-              w = c2ζ ^* (μζ/(μc + μζ))
+           | otherwise         = return $ Shade' (c'.+~^w) (e^+^η)
+        where [c', ζ'] = [ ctr.+~^linearCombo
+                                     [ (v, 1 / (1 + metricSq oExpa w))
+                                     | v <- (*^) <$> [-1,1] <*> span
+                                     , let p = ctr .+~^ v  :: y
+                                           Option (Just w) = p.-~.oCtr
+                                     ]
+                         | ctr                  <- [c,     ζ    ]
+                         | span <- eigenCoSpan'<$> [e,     η    ]
+                         | (oCtr,oExpa)         <- [(ζ,η), (c,e)]
+                         ]
+              Option (Just c'2ζ') = ζ'.-~.c'
+              Option (Just rc) = ζ'.-~.c
+              Option (Just rζ) = c'.-~.ζ
+              μc = metricSq e rc
+              μζ = metricSq η rζ
+              w = c'2ζ' ^* (μζ/(μc + μζ))
               -- = (c^*μc + ζ^*μζ)/(μc + μζ) − c
               -- = (c^*μc + ζ^*μζ − c^*(μc+μζ))^/(μc + μζ)
               -- = (ζ^*μζ − c^*μζ)^/(μc + μζ)
