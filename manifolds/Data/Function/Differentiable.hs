@@ -898,7 +898,8 @@ instance ( WithField s EuclidSpace v, AdditiveGroup v, v ~ Needle (Interior (Nee
                                globalDiffable' (actuallyAffine c₁ idL) . g
   GenericRWDFV f ^+^ ConstRWDFV c₂ = GenericRWDFV $
                                   globalDiffable' (actuallyAffine c₂ idL) . f
-  GenericRWDFV f ^+^ GenericRWDFV g = GenericRWDFV $ rwDfbl_plus f g
+  fa^+^ga | GenericRWDFV f <- genericiseRWDFV fa
+          , GenericRWDFV g <- genericiseRWDFV ga = GenericRWDFV $ rwDfbl_plus f g
   negateV (ConstRWDFV c) = ConstRWDFV (negateV c)
   negateV RWDFV_IdVar = GenericRWDFV $ globalDiffable' (actuallyLinear $ linear negateV)
   negateV (GenericRWDFV f) = GenericRWDFV $ rwDfbl_negateV f
