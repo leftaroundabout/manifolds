@@ -468,8 +468,8 @@ intersectShade's [] = error "Global `Shade'` not implemented, so can't do inters
 intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
  where inter2 :: Shade' y -> Shade' y -> Option (Shade' y)
        inter2 (Shade' c e) (Shade' ζ η)
-           | μc > 1 && μζ > 1  = empty
-           | otherwise         = return $ Shade' (c'.+~^w) (e^+^η)
+           | μe < 1 && μη < 1  = return $ Shade' iCtr iExpa
+           | otherwise         = empty
         where [c', ζ'] = [ ctr.+~^linearCombo
                                      [ (v, 1 / (1 + metricSq oExpa w))
                                      | v <- (*^) <$> [-1,1] <*> span
@@ -481,15 +481,18 @@ intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
                          | (oCtr,oExpa)         <- [(ζ,η), (c,e)]
                          ]
               Option (Just c'2ζ') = ζ'.-~.c'
-              Option (Just rc) = ζ'.-~.c
-              Option (Just rζ) = c'.-~.ζ
-              μc = metricSq e rc
-              μζ = metricSq η rζ
-              w = c'2ζ' ^* (μζ/(μc + μζ))
-              -- = (c^*μc + ζ^*μζ)/(μc + μζ) − c
-              -- = (c^*μc + ζ^*μζ − c^*(μc+μζ))^/(μc + μζ)
-              -- = (ζ^*μζ − c^*μζ)^/(μc + μζ)
-              -- = (ζ−c)^*μζ/(μc + μζ)
+              Option (Just c2ζ') = ζ'.-~.c
+              Option (Just ζ2c') = c'.-~.ζ
+              μc = metricSq e c2ζ'
+              μζ = metricSq η ζ2c'
+              iCtr = c' .+~^ c'2ζ' ^* (μζ/(μc + μζ)) -- weighted mean between c' and ζ'.
+              Option (Just rc) = c.-~.iCtr
+              Option (Just rζ) = ζ.-~.iCtr
+              rcⰰ = toDualWith e rc
+              rζⰰ = toDualWith η rζ
+              μe = rcⰰ<.>^rc
+              μη = rζⰰ<.>^rζ
+              iExpa = (e^+^η)^/2 ^+^ projector rcⰰ^/(1-μe) ^+^ projector rζⰰ^/(1-μη)
 
 
 
