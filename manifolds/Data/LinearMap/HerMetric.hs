@@ -17,6 +17,7 @@ module Data.LinearMap.HerMetric (
   -- * Metric operator types
     HerMetric, HerMetric'
   -- * Evaluating metrics
+  , toDualWith, fromDualWith
   , metricSq, metricSq', metric, metric', metrics, metrics'
   -- * Defining metrics
   , projector, projector'
@@ -206,6 +207,10 @@ metric' m = sqrt . metricSq' m
 toDualWith :: HasMetric v => HerMetric v -> v -> DualSpace v
 toDualWith (HerMetric Nothing) = const zeroV
 toDualWith (HerMetric (Just m)) = fromPackedVector . HMat.app m . asPackedVector
+
+fromDualWith :: HasMetric v => HerMetric' v -> DualSpace v -> v
+fromDualWith (HerMetric' Nothing) = const zeroV
+fromDualWith (HerMetric' (Just m)) = fromPackedVector . HMat.app m . asPackedVector
 
 -- | Divide a vector by its own norm, according to metric, i.e. normalise it
 --   or &#x201c;project to the metric's boundary&#x201d;.
