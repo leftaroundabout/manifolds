@@ -59,11 +59,9 @@ data Differentiable s d c where
                                                -- some error margin
                               ) )
                   -> Differentiable s d c
-   AffinDiffable :: LinearManifold d
-               => Affine s d d -> Differentiable s d d
-                      -- This should ideally map between two general affine spaces,
-                      -- but since the special case of affine functions is mostly relevant
-                      -- to optimise the propagation of real intervals, we don't do that.
+   AffinDiffable :: (LinearManifold d, AffineManifold c)
+               => Affine s d c -> Differentiable s d c
+                      -- This should ideally map between two general affine spaces.
 
 
 

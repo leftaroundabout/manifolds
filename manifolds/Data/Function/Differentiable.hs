@@ -407,7 +407,6 @@ actuallyLinear f = actuallyAffine zeroV f
 
 actuallyAffine :: ( WithField s LinearManifold x
                   , WithField s LinearManifold y -- Really, this should only need `AffineManifold`.
-                  , x~y
                   )
             => y -> (x:-*Diff y) -> Differentiable s x y
 actuallyAffine y₀ f = AffinDiffable $ Affine zeroV y₀ f
@@ -1239,6 +1238,18 @@ backupRegions (RWDiffable f) (RWDiffable g) = RWDiffable h
                 (rf, q@(Option (Just _))) -> (rf, q)
                 (rf, Option Nothing) | (rg, q) <- g x₀
                         -> (unsafePreRegionIntersect rf rg, q)
+
+
+
+
+
+-- | Like 'Data.VectorSpace.lerp', but gives a differentiable function
+--   instead of a Hask one.
+lerp_diffable :: (LinearManifold m, s~Scalar(Diff m))
+      => m -> m -> Differentiable s s m
+lerp_diffable a b = actuallyAffine a $ linear (*^(b.-.a))
+
+
 
 
 

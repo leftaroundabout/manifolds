@@ -62,19 +62,20 @@ import Data.Foldable.Constrained
 
 
 
-data Affine s d c
-   = Affine { affineCoOffset :: d
-            , affineOffset :: c
-            , affineSlope :: Needle d :-* Needle c
-            }
+data Affine s d c where
+   Affine :: { affineCoOffset :: d
+             , affineOffset :: c
+             , affineSlope :: Needle d :-* Needle c
+             } -> Affine s d c
+   AffineId :: Affine s d d
 
 instance (RealDimension s) => EnhancedCat (->) (Affine s) where
   arr (Affine co ao sl) x = ao .+~^ lapply sl (x.-.co)
 
 
 instance (MetricScalar s) => Category (Affine s) where
-  type Object (Affine s) o = WithField s LinearManifold o
-  id = Affine zeroV zeroV idL
+  type Object (Affine s) o = WithField s AffineManifold o
+  id = AffineId
   Affine cof aof slf . Affine cog aog slg
       = Affine cog (aof .+~^ lapply slf (aog.-.cof)) (slf*.*slg)
 
