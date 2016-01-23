@@ -54,7 +54,9 @@ import Data.VectorSpace.FiniteDimensional
 import qualified Prelude
 import qualified Control.Applicative as Hask
 
+import Data.Constraint.Trivial
 import Control.Category.Constrained.Prelude hiding ((^))
+import Control.Category.Constrained.Reified
 import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
@@ -67,7 +69,11 @@ data Affine s d c where
              , affineOffset :: c
              , affineSlope :: Needle d :-* Needle c
              } -> Affine s d c
-   AffineId :: Affine s d d
+   ReAffine :: ReCartesian AffineSpace
+                           Unconstrained2
+                           (ZeroDim s)
+                           c d
+                -> Affine s c d
 
 instance (RealDimension s) => EnhancedCat (->) (Affine s) where
   arr (Affine co ao sl) x = ao .+~^ lapply sl (x.-.co)
@@ -75,7 +81,7 @@ instance (RealDimension s) => EnhancedCat (->) (Affine s) where
 
 instance (MetricScalar s) => Category (Affine s) where
   type Object (Affine s) o = WithField s AffineManifold o
-  id = AffineId
+  id = ReAffine id
   Affine cof aof slf . Affine cog aog slg
       = Affine cog (aof .+~^ lapply slf (aog.-.cof)) (slf*.*slg)
 
@@ -86,11 +92,11 @@ linearAffine = Affine zeroV zeroV . linear
 
 instance (MetricScalar s) => Cartesian (Affine s) where
   type UnitObject (Affine s) = ZeroDim s
-  swap = linearAffine swap
-  attachUnit = linearAffine (, Origin)
-  detachUnit = linearAffine fst
-  regroup = linearAffine regroup
-  regroup' = linearAffine regroup'
+  swap = ReAffine swap
+  attachUnit = ReAffine attachUnit
+  detachUnit = ReAffine detachUnit
+  regroup = ReAffine regroup
+  regroup' = ReAffine regroup'
 
 instance (MetricScalar s) => Morphism (Affine s) where
   Affine cof aof slf *** Affine cog aog slg

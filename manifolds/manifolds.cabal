@@ -48,7 +48,8 @@ Library
                      , void
                      , tagged
                      , deepseq
-                     , constrained-categories >= 0.2 && < 0.3
+                     , trivial-constraint >= 0.4
+                     , constrained-categories == 0.2.1.2
   other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
