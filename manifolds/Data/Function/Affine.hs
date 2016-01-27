@@ -69,10 +69,7 @@ data Affine s d c where
              , affineOffset :: c
              , affineSlope :: Needle d :-* Needle c
              } -> Affine s d c
-   ReAffine :: ReCartesian AffineSpace
-                           Unconstrained2
-                           (ZeroDim s)
-                           c d
+   ReAffine :: ReWellPointed (Affine s) c d
                 -> Affine s c d
 
 instance (RealDimension s) => EnhancedCat (->) (Affine s) where
@@ -103,17 +100,19 @@ instance (MetricScalar s) => Morphism (Affine s) where
       = Affine (cof,cog) (aof,aog) (linear $ lapply slf *** lapply slg)
 
 instance (MetricScalar s) => PreArrow (Affine s) where
-  terminal = linearAffine $ const Origin
-  fst = linearAffine fst
-  snd = linearAffine snd
+  terminal = ReAffine terminal
+  fst = ReAffine fst
+  snd = ReAffine snd
   Affine cof aof slf &&& Affine cog aog slg
-      = Affine zeroV (aof.-^lapply slf cof, aog.-^lapply slg cog)
+      = Affine coh (aof.-^lapply slf rco, aog.+^lapply slg rco)
                  (linear $ lapply slf &&& lapply slg)
+   where rco = (cog.-.cof)^/2
+         coh = cof .+^ rco
 
 instance (MetricScalar s) => WellPointed (Affine s) where
   unit = Tagged Origin
   globalElement x = Affine zeroV x zeroV
-  const x = Affine zeroV x zeroV
+  const = ReAffine . const
 
 
 
