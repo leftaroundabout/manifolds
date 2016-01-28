@@ -655,7 +655,7 @@ instance (RealDimension s) => Category (RWDiffable s) where
   id = RWDiffable $ \x -> (GlobalRegion, pure id)
   RWDiffable f . RWDiffable g = RWDiffable h where
    h x₀ = case g x₀ of
-           ( rg, Option (Just gr'@(AffinDiffable gr@(Affine cog aog slg))) )
+           ( rg, Option (Just gr'@(AffinDiffableEndo gr@(Affine cog aog slg))) )
             -> let y₀ = gr $ x₀
                in case f y₀ of
                    (GlobalRegion, Option (Just (AffinDiffable fr)))
@@ -925,10 +925,11 @@ instance (RealDimension n, LocallyScalable n a)
                           (rc₂,gmay) = gpcs d₀
                       in (unsafePreRegionIntersect rc₁ rc₂, mulDi <$> fmay <*> gmay)
           where mulDi :: Differentiable n a n -> Differentiable n a n -> Differentiable n a n
-                mulDi (AffinDiffable f@(Affine _ _ slf)) (AffinDiffable g@(Affine _ _ slg))
+                mulDi (AffinDiffableEndo f@(Affine _ aof slf))
+                      (AffinDiffableEndo g@(Affine _ aog slg))
                    = let f' = lapply slf 1; g' = lapply slg 1
                      in case f'*g' of
-                          0 -> AffinDiffable undefined
+                          0 -> AffinDiffableEndo $ const (aof*aog)
                           f'g' -> Differentiable $
                            \d -> let c₁ = f $ d; c₂ = g $ d
                                  in ( c₁*c₂
@@ -1245,7 +1246,7 @@ backupRegions (RWDiffable f) (RWDiffable g) = RWDiffable h
 
 -- | Like 'Data.VectorSpace.lerp', but gives a differentiable function
 --   instead of a Hask one.
-lerp_diffable :: (LinearManifold m, s~Scalar(Diff m))
+lerp_diffable :: (WithField s LinearManifold m, RealDimension s)
       => m -> m -> Differentiable s s m
 lerp_diffable a b = actuallyAffine a $ linear (*^(b.-.a))
 
