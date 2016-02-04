@@ -70,36 +70,79 @@ data Affine s d c where
    ScaleWith :: (LinearManifold α, LinearManifold β) => (α:-*β) -> Affine s α β
    ReAffine :: ReWellPointed (Affine s) α β -> Affine s α β
 
-toOffset'Slope :: (LinearManifold d, AffineManifold c)
+toOffset'Slope :: (RealDimension s, WithField s LinearManifold d, WithField s AffineManifold c)
                       => Affine s d c -> (c, d:-*Needle c)
 toOffset'Slope (SubtractFrom c) = (negateV c, idL)
 toOffset'Slope (AddTo c) = (c, idL)
 toOffset'Slope (ScaleWith q) = (zeroV, q)
+toOffset'Slope (ReAffine r) = case r of
+   ReWellPointed f               -> toOffset'Slope f
+   ReWellPointedArr' a -> case a of
+      RePreArrow f               -> toOffset'Slope $ arr f
+      RePreArrowMorph m -> case m of
+         ReMorphism f            -> toOffset'Slope $ arr f
+         ReMorphismCart c -> case c of
+            ReCartesian f        -> toOffset'Slope $ arr f
+            ReCartesianCat k -> case k of
+               Id                -> (zeroV, linear id)
+               f :>>> g -> case toOffset'Slope $ arr f of
+                  (cf,sf) -> case toOffset'Slope $ arr g . AddTo cf of -- here lurks a loop!
+                     (cg,sg)     -> (cg, sg*.*sf)
+            Swap                 -> (zeroV, linear swap)
+            AttachUnit           -> (zeroV, linear (,Origin))
+            DetachUnit           -> (zeroV, linear fst)
+            Regroup              -> (zeroV, linear regroup)
+            Regroup'             -> (zeroV, linear regroup')
+         f :*** g     -> case ( toOffset'Slope $ arr f, toOffset'Slope $ arr g ) of
+            ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf *** lapply sg)
+      Terminal                   -> (Origin, zeroV)
+      Fst                        -> (zeroV, linear fst)
+      Snd                        -> (zeroV, linear snd)
+      f :&&& g     -> case ( toOffset'Slope $ arr f, toOffset'Slope $ arr g ) of
+         ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf &&& lapply sg)
+   Const c                       -> (c, zeroV)
+            
+   
 
-instance (RealDimension s) => EnhancedCat (->) (Affine s) where
---  arr (Affine co ao sl) x = ao .+~^ lapply sl (x.-.co)
+instance (MetricScalar s) => EnhancedCat (->) (Affine s) where
+  arr (AddTo c) x = c .+^ x
 
-instance (RealDimension s, AffineManifold d, AffineManifold c)
+instance (RealDimension s) => EnhancedCat (Affine s) (ReCategory (ReCartesian (ReMorphism (RePreArrow (ReWellPointed (Affine s)))))) where
+  arr = arr . ReCartesianCat
+instance (RealDimension s) => EnhancedCat (Affine s) (ReCartesian (ReMorphism (RePreArrow (ReWellPointed (Affine s))))) where
+  arr = arr . ReMorphismCart
+instance (RealDimension s) => EnhancedCat (Affine s) (ReMorphism (RePreArrow (ReWellPointed (Affine s)))) where
+  arr = arr . RePreArrowMorph
+instance (RealDimension s) => EnhancedCat (Affine s) (RePreArrow (ReWellPointed (Affine s))) where
+  arr = arr . ReWellPointedArr'
+instance (RealDimension s) => EnhancedCat (Affine s) (ReWellPointed (Affine s)) where
+  arr = ReAffine
+
+instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifold c)
                   => AffineSpace (Affine s d c) where
   type Diff (Affine s d c) = Affine s d (Diff c)
+  AddTo c .-. AddTo c' = AddTo $ c.-.c'
 --   Affine cof aof slf .-. Affine cog aog slg = Affine cog ((aof.-.aog)^+^aoΔ) (slf^-^slg)
 --    where aoΔ = lapply slf (cof.-.cog)
+  AddTo c .+^ AddTo c' = AddTo $ c.+^c'
 --   Affine cof aof slf .+^ Affine coΔ aoΔ slΔ = Affine cof (aof.+^aoΔ') (slf^+^slΔ)
 --    where aoΔ' = aoΔ ^-^ lapply slΔ (coΔ.-.cof)
 
-instance (RealDimension s, AffineManifold d, LinearManifold c)
+instance (MetricScalar s, WithField s AffineManifold d, WithField s LinearManifold c)
                   => AdditiveGroup (Affine s d c) where
---   zeroV = const zeroV
---   Affine cof aof slf ^+^ Affine cog aog slg = Affine (cof^+^cog) (aof^+^aog) (slf^+^slg)
+  zeroV = const zeroV
+  negateV (AddTo c) = AddTo $ negateV c
+  AddTo c ^+^ AddTo c' = AddTo $ c^+^c'
+  
 
 instance (MetricScalar s) => Category (Affine s) where
   type Object (Affine s) o = WithField s AffineManifold o
   
---   id = ReAffine id
---   
+  id = ReAffine id
+  
+  ReAffine f . ReAffine g = ReAffine $ f . g
 --   Affine cof aof slf . Affine cog aog slg
 --       = Affine cog (aof .+~^ lapply slf (aog.-.cof)) (slf*.*slg)
---   ReAffine f . ReAffine g = ReAffine $ f . g
 --   fa@(Affine cof aof slf) . ReAffine fwp = case fwp of
 --      Const k -> const $ aof .+^ lapply slf (k.-.cof)
 --      ReWellPointed ga -> fa . ga
@@ -120,20 +163,23 @@ instance (MetricScalar s) => Category (Affine s) where
 
 instance (MetricScalar s) => Cartesian (Affine s) where
   type UnitObject (Affine s) = ZeroDim s
---   swap = ReAffine swap
---   attachUnit = ReAffine attachUnit
---   detachUnit = ReAffine detachUnit
---   regroup = ReAffine regroup
---   regroup' = ReAffine regroup'
+  swap = ReAffine swap
+  attachUnit = ReAffine attachUnit
+  detachUnit = ReAffine detachUnit
+  regroup = ReAffine regroup
+  regroup' = ReAffine regroup'
 
 instance (MetricScalar s) => Morphism (Affine s) where
+  AddTo c *** AddTo c' = AddTo (c,c')
 --   Affine cof aof slf *** Affine cog aog slg
 --       = Affine (cof,cog) (aof,aog) (linear $ lapply slf *** lapply slg)
 
 instance (MetricScalar s) => PreArrow (Affine s) where
---   terminal = ReAffine terminal
---   fst = ReAffine fst
---   snd = ReAffine snd
+  terminal = ReAffine terminal
+  fst = ReAffine fst
+  snd = ReAffine snd
+  ReAffine f &&& ReAffine g = ReAffine $ f &&& g
+        
 --   Affine cof aof slf &&& Affine cog aog slg
 --       = Affine coh (aof.-^lapply slf rco, aog.+^lapply slg rco)
 --                  (linear $ lapply slf &&& lapply slg)
@@ -141,9 +187,9 @@ instance (MetricScalar s) => PreArrow (Affine s) where
 --          coh = cof .+^ rco
 
 instance (MetricScalar s) => WellPointed (Affine s) where
---   unit = Tagged Origin
---   globalElement x = Affine zeroV x zeroV
---   const = ReAffine . const
+  unit = Tagged Origin
+  globalElement x = AddTo x . ScaleWith (linear undefined)
+  const = ReAffine . const
 
 
 
@@ -158,17 +204,15 @@ instance (MetricScalar s) => CartesianAgent (Affine s) where
   alg2to2 = genericAlg2to2
 instance (MetricScalar s)
       => PointAgent (AffinFuncValue s) (Affine s) a x where
---   point = genericPoint
+  point = genericPoint
 
 
 
 instance (WithField s LinearManifold v, WithField s LinearManifold a)
     => AdditiveGroup (AffinFuncValue s a v) where
---   zeroV = GenericAgent $ Affine zeroV zeroV zeroV
---   GenericAgent (Affine cof aof slf) ^+^ GenericAgent (Affine cog aog slg)
---        = GenericAgent $ Affine (cof^+^cog) (aof^+^aog) (slf^+^slg)
---   negateV (GenericAgent (Affine co ao sl))
---       = GenericAgent $ Affine (negateV co) (negateV ao) (negateV sl)
+  zeroV = GenericAgent zeroV
+  GenericAgent f ^+^ GenericAgent g = GenericAgent $ f ^+^ g
+  negateV (GenericAgent f) = GenericAgent $ negateV f
 
 
 
