@@ -72,15 +72,46 @@ data Affine s d c where
    ReAffine :: ReWellPointed (Affine s) c d
                 -> Affine s c d
 
+toOffset'Slope :: (LinearManifold d, AffineManifold c)
+                      => Affine s d c -> (c, d:-*Needle c)
+toOffset'Slope (Affine coφ aoφ slφ) = (aoφ.-^lapply slφ coφ, slφ)
+
 instance (RealDimension s) => EnhancedCat (->) (Affine s) where
   arr (Affine co ao sl) x = ao .+~^ lapply sl (x.-.co)
 
+instance (RealDimension s, AffineManifold d, AffineManifold c)
+                  => AffineSpace (Affine s d c) where
+  type Diff (Affine s d c) = Affine s d (Diff c)
+  Affine cof aof slf .-. Affine cog aog slg = Affine cog ((aof.-.aog)^+^aoΔ) (slf^-^slg)
+   where aoΔ = lapply slf (cof.-.cog)
+  Affine cof aof slf .+^ Affine coΔ aoΔ slΔ = Affine cof (aof.+^aoΔ') (slf^+^slΔ)
+   where aoΔ' = aoΔ ^-^ lapply slΔ (coΔ.-.cof)
+
+instance (RealDimension s, AffineManifold d, LinearManifold c)
+                  => AdditiveGroup (Affine s d c) where
+  zeroV = const zeroV
+  Affine cof aof slf ^+^ Affine cog aog slg = Affine (cof^+^cog) (aof^+^aog) (slf^+^slg)
 
 instance (MetricScalar s) => Category (Affine s) where
   type Object (Affine s) o = WithField s AffineManifold o
+  
   id = ReAffine id
+  
   Affine cof aof slf . Affine cog aog slg
       = Affine cog (aof .+~^ lapply slf (aog.-.cof)) (slf*.*slg)
+  ReAffine f . ReAffine g = ReAffine $ f . g
+  fa@(Affine cof aof slf) . ReAffine fwp = case fwp of
+     Const k -> const $ aof .+^ lapply slf (k.-.cof)
+     ReWellPointed ga -> fa . ga
+     ReWellPointedArr' fpa -> case fpa of
+        Terminal -> fa . const Origin
+        g :&&& h ->
+            let g' = ReAffine $ ReWellPointedArr' g
+                h' = ReAffine $ ReWellPointedArr' h
+            in case ( Affine (fst cof) aof (linear $ \a -> lapply slf (a,zeroV)) . g'
+                    , Affine (snd cof) aof (linear $ \a -> lapply slf (zeroV,a)) . h' ) of
+                 _ -> undefined
+        
 
 linearAffine :: ( AdditiveGroup d, AdditiveGroup c
                 , HasBasis (Needle d), HasTrie (Basis (Needle d)) )
