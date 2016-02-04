@@ -129,12 +129,38 @@ instance (MetricScalar s) => EnhancedCat (Affine s) (ReWellPointed (Affine s)) w
 instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifold c)
                   => AffineSpace (Affine s d c) where
   type Diff (Affine s d c) = Affine s d (Diff c)
-  AddTo c .-. AddTo c' = AddTo $ c.-.c'
---   Affine cof aof slf .-. Affine cog aog slg = Affine cog ((aof.-.aog)^+^aoΔ) (slf^-^slg)
---    where aoΔ = lapply slf (cof.-.cog)
-  AddTo c .+^ AddTo c' = AddTo $ c.+^c'
---   Affine cof aof slf .+^ Affine coΔ aoΔ slΔ = Affine cof (aof.+^aoΔ') (slf^+^slΔ)
---    where aoΔ' = aoΔ ^-^ lapply slΔ (coΔ.-.cof)
+  
+  AddTo c .-. AddTo c' = const $ c.-.c'
+  AddTo c .-. Subtract c' = const $ c^+^c'
+  Subtract c .-. AddTo c' = const . negateV $ c'^+^c
+  Subtract c .-. Subtract c' = const $ c'.-.c
+  AddTo c .-. ScaleWith q = AddTo c . ScaleWith (idL^-^q)
+  Subtract c .-. ScaleWith q = ScaleWith (idL^-^q) . Subtract c
+  ScaleWith q .-. AddTo c = AddTo (negateV c) . ScaleWith (q^-^idL)
+  ScaleWith q .-. Subtract c = AddTo c . ScaleWith (q^-^idL)
+  ScaleWith q .-. ScaleWith r = ScaleWith $ q^-^r
+  ScaleWith q .-. f = let (c, r) = toOffset'Slope f zeroV
+                      in AddTo (negateV c) . ScaleWith (q^-^r)
+  f .-. ScaleWith q = let (c, r) = toOffset'Slope f zeroV
+                      in AddTo c . ScaleWith (r^-^q)
+  AddTo c .-. ReAffine (Const c') = AddTo (c.-.c')
+  Subtract c .-. ReAffine (Const c') = AddTo c' . Subtract c
+  ReAffine (Const c) .-. ReAffine (Const c') = const (c.-.c')
+  AddTo c .-. f = let (c', q) = toOffset'Slope f zeroV
+                  in AddTo (c.-.c') . ScaleWith (idL.-.q)
+  f .-. AddTo c = let (c', q) = toOffset'Slope f zeroV
+                  in AddTo (c'.-.c) . ScaleWith (q.-.idL)
+  Subtract c .-. f = let (d, q) = toOffset'Slope f c
+                     in AddTo (negateV d) . ScaleWith (idL^-^q) . Subtract c
+      -- f x = q·x + v
+      -- s x = x − c − (q·x + v) = x − c − q·x − v
+      -- d = q·c + v
+      -- -d + (1−q)·(x−c) = − q·c − v + x − c − (q·x − q·c) 
+      --                  = -q·x − v + x − c
+  f .-. Subtract c = let (d, q) = toOffset'Slope f c
+                     in AddTo d . ScaleWith (q^-^idL) . Subtract c
+  
+  AddTo c .+^ AddTo c' = AddTo (c.+^c') . ScaleWith (linear (^*2))
 
 instance (MetricScalar s, WithField s AffineManifold d, WithField s LinearManifold c)
                   => AdditiveGroup (Affine s d c) where
