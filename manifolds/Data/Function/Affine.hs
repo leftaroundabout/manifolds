@@ -65,57 +65,65 @@ import Data.Foldable.Constrained
 
 
 data Affine s d c where
-   SubtractFrom :: α -> Affine s α (Needle α)
+   Subtract :: α -> Affine s α (Needle α)
    AddTo :: α -> Affine s (Needle α) α
    ScaleWith :: (LinearManifold α, LinearManifold β) => (α:-*β) -> Affine s α β
    ReAffine :: ReWellPointed (Affine s) α β -> Affine s α β
 
-toOffset'Slope :: (RealDimension s, WithField s LinearManifold d, WithField s AffineManifold c)
-                      => Affine s d c -> (c, d:-*Needle c)
-toOffset'Slope (SubtractFrom c) = (negateV c, idL)
-toOffset'Slope (AddTo c) = (c, idL)
-toOffset'Slope (ScaleWith q) = (zeroV, q)
-toOffset'Slope (ReAffine r) = case r of
-   ReWellPointed f               -> toOffset'Slope f
+
+-- | Basically evaluates an affine function as a generic differentiable one,
+--   yielding at a given reference point the result and Jacobian. Unlike with
+--   'Data.Function.Differentiable.Differentiable', the induced 1st-order Taylor
+--   series is equal to the function!
+toOffset'Slope :: ( MetricScalar s, WithField s AffineManifold d
+                                   , WithField s AffineManifold c )
+                      => Affine s d c -> d -> (c, Needle d :-* Needle c)
+toOffset'Slope (Subtract c) ref = (ref.-.c, idL)
+toOffset'Slope (AddTo c) ref = (c.+^ref, idL)
+toOffset'Slope (ScaleWith q) ref = (lapply q ref, q)
+toOffset'Slope (ReAffine r) ref = case r of
+   ReWellPointed f               -> toOffset'Slope f ref
    ReWellPointedArr' a -> case a of
-      RePreArrow f               -> toOffset'Slope $ arr f
+      RePreArrow f               -> toOffset'Slope (arr f) ref
       RePreArrowMorph m -> case m of
-         ReMorphism f            -> toOffset'Slope $ arr f
+         ReMorphism f            -> toOffset'Slope (arr f) ref
          ReMorphismCart c -> case c of
-            ReCartesian f        -> toOffset'Slope $ arr f
+            ReCartesian f        -> toOffset'Slope (arr f) ref
             ReCartesianCat k -> case k of
-               Id                -> (zeroV, linear id)
-               f :>>> g -> case toOffset'Slope $ arr f of
-                  (cf,sf) -> case toOffset'Slope $ arr g . AddTo cf of -- here lurks a loop!
+               Id                -> (ref, linear id)
+               f :>>> g -> case toOffset'Slope (arr f) ref of
+                  (cf,sf) -> case toOffset'Slope (arr g) cf of
                      (cg,sg)     -> (cg, sg*.*sf)
-            Swap                 -> (zeroV, linear swap)
-            AttachUnit           -> (zeroV, linear (,Origin))
-            DetachUnit           -> (zeroV, linear fst)
-            Regroup              -> (zeroV, linear regroup)
-            Regroup'             -> (zeroV, linear regroup')
-         f :*** g     -> case ( toOffset'Slope $ arr f, toOffset'Slope $ arr g ) of
+            Swap                 -> (swap ref, linear swap)
+            AttachUnit           -> ((ref,Origin), linear (,Origin))
+            DetachUnit           -> (fst ref, linear fst)
+            Regroup              -> (regroup ref, linear regroup)
+            Regroup'             -> (regroup' ref, linear regroup')
+         f :*** g     -> case ( toOffset'Slope (arr f) (fst ref)
+                              , toOffset'Slope (arr g) (snd ref) ) of
             ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf *** lapply sg)
       Terminal                   -> (Origin, zeroV)
-      Fst                        -> (zeroV, linear fst)
-      Snd                        -> (zeroV, linear snd)
-      f :&&& g     -> case ( toOffset'Slope $ arr f, toOffset'Slope $ arr g ) of
-         ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf &&& lapply sg)
+      Fst                        -> (fst ref, linear fst)
+      Snd                        -> (snd ref, linear snd)
+      f :&&& g     -> case ( toOffset'Slope (arr f) ref
+                           , toOffset'Slope (arr g) ref ) of
+            ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf &&& lapply sg)
    Const c                       -> (c, zeroV)
             
    
 
 instance (MetricScalar s) => EnhancedCat (->) (Affine s) where
-  arr (AddTo c) x = c .+^ x
+  arr f = fst . toOffset'Slope f
 
-instance (RealDimension s) => EnhancedCat (Affine s) (ReCategory (ReCartesian (ReMorphism (RePreArrow (ReWellPointed (Affine s)))))) where
+instance (MetricScalar s) => EnhancedCat (Affine s) (ReCategory (ReCartesian (ReMorphism (RePreArrow (ReWellPointed (Affine s)))))) where
   arr = arr . ReCartesianCat
-instance (RealDimension s) => EnhancedCat (Affine s) (ReCartesian (ReMorphism (RePreArrow (ReWellPointed (Affine s))))) where
+instance (MetricScalar s) => EnhancedCat (Affine s) (ReCartesian (ReMorphism (RePreArrow (ReWellPointed (Affine s))))) where
   arr = arr . ReMorphismCart
-instance (RealDimension s) => EnhancedCat (Affine s) (ReMorphism (RePreArrow (ReWellPointed (Affine s)))) where
+instance (MetricScalar s) => EnhancedCat (Affine s) (ReMorphism (RePreArrow (ReWellPointed (Affine s)))) where
   arr = arr . RePreArrowMorph
-instance (RealDimension s) => EnhancedCat (Affine s) (RePreArrow (ReWellPointed (Affine s))) where
+instance (MetricScalar s) => EnhancedCat (Affine s) (RePreArrow (ReWellPointed (Affine s))) where
   arr = arr . ReWellPointedArr'
-instance (RealDimension s) => EnhancedCat (Affine s) (ReWellPointed (Affine s)) where
+instance (MetricScalar s) => EnhancedCat (Affine s) (ReWellPointed (Affine s)) where
   arr = ReAffine
 
 instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifold c)
