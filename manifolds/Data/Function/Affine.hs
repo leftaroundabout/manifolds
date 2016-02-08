@@ -130,6 +130,7 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
                   => AffineSpace (Affine s d c) where
   type Diff (Affine s d c) = Affine s d (Diff c)
   
+  AddTo c .-. ReAffine Id' = const c
   AddTo c .-. AddTo c' = const $ c.-.c'
   AddTo c .-. Subtract c' = const $ c^+^c'
   Subtract c .-. AddTo c' = const . negateV $ c'^+^c
