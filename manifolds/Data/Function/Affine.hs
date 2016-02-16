@@ -19,6 +19,8 @@
 {-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
+{-# LANGUAGE PatternSynonyms          #-}
+{-# LANGUAGE ViewPatterns             #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE MultiWayIf               #-}
@@ -70,6 +72,27 @@ data Affine s d c where
    ScaleWith :: (LinearManifold α, LinearManifold β) => (α:-*β) -> Affine s α β
    ReAffine :: ReWellPointed (Affine s) α β -> Affine s α β
 
+reAffine :: ReWellPointed (Affine s) α β -> Affine s α β
+reAffine (ReWellPointed f) = f
+reAffine f = ReAffine f
+
+pattern Specific f = ReWellPointed f
+pattern Id = ReAffine WellPointedId
+infixr 1 :>>>, :<<<
+pattern f :>>> g <- ReAffine (WellPointedCompo (reAffine -> f) (reAffine -> g))
+pattern g :<<< f <- ReAffine (WellPointedCompo (reAffine -> f) (reAffine -> g))
+pattern Swap = ReAffine WellPointedSwap
+pattern AttachUnit = ReAffine WellPointedAttachUnit
+pattern DetachUnit = ReAffine WellPointedDetachUnit
+pattern Regroup = ReAffine WellPointedRegroup
+pattern Regroup' = ReAffine WellPointedRegroup_
+pattern Terminal = ReAffine WellPointedTerminal
+pattern Fst = ReAffine WellPointedFst
+pattern Snd = ReAffine WellPointedSnd
+infixr 3 :***, :&&&
+pattern f :*** g <- ReAffine (WellPointedPar (reAffine -> f) (reAffine -> g))
+pattern f :&&& g <- ReAffine (WellPointedFanout (reAffine -> f) (reAffine -> g))
+pattern Const c = ReAffine (WellPointedConst c)
 
 -- | Basically evaluates an affine function as a generic differentiable one,
 --   yielding at a given reference point the result and Jacobian. Unlike with
@@ -81,87 +104,86 @@ toOffset'Slope :: ( MetricScalar s, WithField s AffineManifold d
 toOffset'Slope (Subtract c) ref = (ref.-.c, idL)
 toOffset'Slope (AddTo c) ref = (c.+^ref, idL)
 toOffset'Slope (ScaleWith q) ref = (lapply q ref, q)
-toOffset'Slope (ReAffine r) ref = case r of
-   ReWellPointed f               -> toOffset'Slope f ref
-   ReWellPointedArr' a -> case a of
-      RePreArrow f               -> toOffset'Slope (arr f) ref
-      RePreArrowMorph m -> case m of
-         ReMorphism f            -> toOffset'Slope (arr f) ref
-         ReMorphismCart c -> case c of
-            ReCartesian f        -> toOffset'Slope (arr f) ref
-            ReCartesianCat k -> case k of
-               Id                -> (ref, linear id)
-               f :>>> g -> case toOffset'Slope (arr f) ref of
+toOffset'Slope Id ref = (ref, linear id)
+toOffset'Slope (f :>>> g) ref = case toOffset'Slope (arr f) ref of
                   (cf,sf) -> case toOffset'Slope (arr g) cf of
                      (cg,sg)     -> (cg, sg*.*sf)
-            Swap                 -> (swap ref, linear swap)
-            AttachUnit           -> ((ref,Origin), linear (,Origin))
-            DetachUnit           -> (fst ref, linear fst)
-            Regroup              -> (regroup ref, linear regroup)
-            Regroup'             -> (regroup' ref, linear regroup')
-         f :*** g     -> case ( toOffset'Slope (arr f) (fst ref)
-                              , toOffset'Slope (arr g) (snd ref) ) of
-            ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf *** lapply sg)
-      Terminal                   -> (Origin, zeroV)
-      Fst                        -> (fst ref, linear fst)
-      Snd                        -> (snd ref, linear snd)
-      f :&&& g     -> case ( toOffset'Slope (arr f) ref
-                           , toOffset'Slope (arr g) ref ) of
-            ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf &&& lapply sg)
-   Const c                       -> (c, zeroV)
+toOffset'Slope Swap ref = (swap ref, linear swap)
+toOffset'Slope AttachUnit ref = ((ref,Origin), linear (,Origin))
+toOffset'Slope DetachUnit ref = (fst ref, linear fst)
+toOffset'Slope Regroup ref = (regroup ref, linear regroup)
+toOffset'Slope Regroup' ref = (regroup' ref, linear regroup')
+toOffset'Slope (f:***g) ref = case ( toOffset'Slope (arr f) (fst ref)
+                                 , toOffset'Slope (arr g) (snd ref) ) of
+                  ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf *** lapply sg)
+toOffset'Slope Terminal ref = (Origin, zeroV)
+toOffset'Slope Fst ref = (fst ref, linear fst)
+toOffset'Slope Snd ref = (snd ref, linear snd)
+toOffset'Slope (f:&&&g) ref = case ( toOffset'Slope (arr f) ref
+                                  , toOffset'Slope (arr g) ref ) of
+                  ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf &&& lapply sg)
+toOffset'Slope (Const c) ref = (c, zeroV)
             
+
+
    
 
 instance (MetricScalar s) => EnhancedCat (->) (Affine s) where
   arr f = fst . toOffset'Slope f
 
-instance (MetricScalar s) => EnhancedCat (Affine s) (ReCategory (ReCartesian (ReMorphism (RePreArrow (ReWellPointed (Affine s)))))) where
-  arr = arr . ReCartesianCat
-instance (MetricScalar s) => EnhancedCat (Affine s) (ReCartesian (ReMorphism (RePreArrow (ReWellPointed (Affine s))))) where
-  arr = arr . ReMorphismCart
-instance (MetricScalar s) => EnhancedCat (Affine s) (ReMorphism (RePreArrow (ReWellPointed (Affine s)))) where
-  arr = arr . RePreArrowMorph
-instance (MetricScalar s) => EnhancedCat (Affine s) (RePreArrow (ReWellPointed (Affine s))) where
-  arr = arr . ReWellPointedArr'
 instance (MetricScalar s) => EnhancedCat (Affine s) (ReWellPointed (Affine s)) where
-  arr = ReAffine
+  arr (Specific c) = c
+  arr c = ReAffine c
 
 instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifold c)
                   => AffineSpace (Affine s d c) where
   type Diff (Affine s d c) = Affine s d (Diff c)
   
-  AddTo c .-. ReAffine Id' = const c
+  (ScaleWith q :>>> AddTo c) .-. (ScaleWith r :>>> AddTo d)
+                = ScaleWith (q^-^r) >>> AddTo (c.-.d)
+  (Subtract n :>>> f) .-. (Subtract o :>>> g)
+                = Subtract o >>> h ^+^ const ((f $ o.-.n) ^-^ (f $ zeroV))
+     -- r x = f (x−n) − g (x−o)
+     --     = f (x−o) + f (o−n) − f 0 − g (x−o)
+     --     = (f − g) (x−o) + f (o−n) − f 0
+   where h = f .-. g
+  
+  AddTo c .-. ReAffine Id = const c
   AddTo c .-. AddTo c' = const $ c.-.c'
   AddTo c .-. Subtract c' = const $ c^+^c'
   Subtract c .-. AddTo c' = const . negateV $ c'^+^c
   Subtract c .-. Subtract c' = const $ c'.-.c
-  AddTo c .-. ScaleWith q = AddTo c . ScaleWith (idL^-^q)
-  Subtract c .-. ScaleWith q = ScaleWith (idL^-^q) . Subtract c
-  ScaleWith q .-. AddTo c = AddTo (negateV c) . ScaleWith (q^-^idL)
-  ScaleWith q .-. Subtract c = AddTo c . ScaleWith (q^-^idL)
+  
+  ReAffine (f:***g) .-. ReAffine (h:***i)
+        = ReAffine f.-.ReAffine h *** ReAffine g.-.ReAffine i
+
+  AddTo c .-. ScaleWith q = ScaleWith (idL^-^q) >>> AddTo c
+  Subtract c .-. ScaleWith q = Subtract c >>> ScaleWith (idL^-^q)
+  ScaleWith q .-. AddTo c = ScaleWith (q^-^idL) >>> AddTo (negateV c)
+  ScaleWith q .-. Subtract c = ScaleWith (q^-^idL) >>> AddTo c
   ScaleWith q .-. ScaleWith r = ScaleWith $ q^-^r
   ScaleWith q .-. f = let (c, r) = toOffset'Slope f zeroV
-                      in AddTo (negateV c) . ScaleWith (q^-^r)
+                      in ScaleWith (q^-^r) >>> AddTo (negateV c)
   f .-. ScaleWith q = let (c, r) = toOffset'Slope f zeroV
-                      in AddTo c . ScaleWith (r^-^q)
+                      in ScaleWith (r^-^q) >>> AddTo c
   AddTo c .-. ReAffine (Const c') = AddTo (c.-.c')
-  Subtract c .-. ReAffine (Const c') = AddTo c' . Subtract c
+  Subtract c .-. ReAffine (Const c') = Subtract c >>> AddTo c'
   ReAffine (Const c) .-. ReAffine (Const c') = const (c.-.c')
   AddTo c .-. f = let (c', q) = toOffset'Slope f zeroV
-                  in AddTo (c.-.c') . ScaleWith (idL.-.q)
+                  in ScaleWith (idL^-^q) >>> AddTo (c.-.c')
   f .-. AddTo c = let (c', q) = toOffset'Slope f zeroV
-                  in AddTo (c'.-.c) . ScaleWith (q.-.idL)
+                  in ScaleWith (q^-^idL) >>> AddTo (c'.-.c)
   Subtract c .-. f = let (d, q) = toOffset'Slope f c
-                     in AddTo (negateV d) . ScaleWith (idL^-^q) . Subtract c
+                     in Subtract c >>> ScaleWith (idL^-^q) >>> AddTo (negateV d)
       -- f x = q·x + v
       -- s x = x − c − (q·x + v) = x − c − q·x − v
       -- d = q·c + v
       -- -d + (1−q)·(x−c) = − q·c − v + x − c − (q·x − q·c) 
       --                  = -q·x − v + x − c
   f .-. Subtract c = let (d, q) = toOffset'Slope f c
-                     in AddTo d . ScaleWith (q^-^idL) . Subtract c
+                     in Subtract c >>> ScaleWith (q^-^idL) >>> AddTo d
   
-  AddTo c .+^ AddTo c' = AddTo (c.+^c') . ScaleWith (linear (^*2))
+  AddTo c .+^ AddTo c' = ScaleWith (linear (^*2)) >>> AddTo (c.+^c')
 
 instance (MetricScalar s, WithField s AffineManifold d, WithField s LinearManifold c)
                   => AdditiveGroup (Affine s d c) where

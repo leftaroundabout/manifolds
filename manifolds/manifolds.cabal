@@ -49,7 +49,7 @@ Library
                      , tagged
                      , deepseq
                      , trivial-constraint >= 0.4
-                     , constrained-categories >= 0.2.2 && < 0.3
+                     , constrained-categories >= 0.2.3 && < 0.3
   other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
