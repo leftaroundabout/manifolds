@@ -160,8 +160,10 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
                   => AffineSpace (Affine s d c) where
   type Diff (Affine s d c) = Affine s d (Diff c)
   
-  (ScaleWith q :>>> AddTo c) .-. (ScaleWith r :>>> AddTo d)
-                = ScaleWith (q^-^r) >>> AddTo (c.-.d)
+  (ScaleWith q :>>> AddTo c) .-. g = let (d, r) = toOffsetSlope g
+                                     in ScaleWith (q^-^r) >>> AddTo (c.-.d)
+  f .-. (ScaleWith r :>>> AddTo d) = let (c, q) = toOffsetSlope f
+                                     in ScaleWith (q^-^r) >>> AddTo (c.-.d)
   (Subtract n :>>> f) .-. (Subtract o :>>> g)
                 = Subtract o >>> h ^+^ const ((f $ o.-.n) .-. (f $ zeroV))
      -- r x = f (x−n) − g (x−o)
@@ -247,8 +249,10 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
       --     = (q−r)·(x−b) + c − d
   
   
-  (ScaleWith q :>>> AddTo c) .+^ (ScaleWith r :>>> AddTo d)
-                = ScaleWith (q^+^r) >>> AddTo (c.+^d)
+  (ScaleWith q :>>> AddTo c) .+^ g = let (d, r) = toOffsetSlope g
+                                     in ScaleWith (q^+^r) >>> AddTo (c.+^d)
+  f .+^ (ScaleWith r :>>> AddTo d) = let (c, q) = toOffsetSlope f
+                                     in ScaleWith (q^+^r) >>> AddTo (c.+^d)
   (f:***g) .+^ (h:***i) = f.+^h *** g.+^i
   (f:&&&g) .+^ (h:&&&i) = f.+^h &&& g.+^i
   
@@ -257,7 +261,21 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
   Const c .+^ Const c' = const (c.+^c')
 
   Terminal .+^ _ = Terminal
-  -- _ .+^ Terminal = Terminal
+  Const c .+^ Terminal = Const c
+  Const c .+^ f = f >>> AddTo c
+  
+  Fst .+^ Fst = Fst >>> ScaleWith (linear (^*2))
+  Snd .+^ Snd = Snd >>> ScaleWith (linear (^*2))
+  
+  f .+^ Id = let (c,q) = toOffset'Slope f zeroV
+             in ScaleWith (q^+^idL) >>> AddTo c
+  f .+^ AttachUnit = let (c,q) = toOffset'Slope f zeroV
+                     in ScaleWith (q^+^linear(,Origin)) >>> AddTo c
+  f .+^ DetachUnit = let (c,q) = toOffset'Slope f zeroV
+                     in ScaleWith (q^+^linear fst) >>> AddTo c
+  f .+^ Swap = let (c,q) = toOffset'Slope f zeroV
+               in ScaleWith (q^+^linear swap) >>> AddTo c
+
 
 
 instance (MetricScalar s, WithField s AffineManifold d, WithField s LinearManifold c)
