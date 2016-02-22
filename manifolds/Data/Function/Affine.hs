@@ -67,8 +67,8 @@ import Data.Foldable.Constrained
 
 
 data Affine s d c where
-   Subtract :: α -> Affine s α (Needle α)
-   AddTo :: α -> Affine s (Needle α) α
+   Subtract :: AffineManifold α => Affine s (α,α) (Needle α)
+   AddTo :: Affine s (α, Needle α) α
    ScaleWith :: (LinearManifold α, LinearManifold β) => (α:-*β) -> Affine s α β
    ReAffine :: ReWellPointed (Affine s) α β -> Affine s α β
 
@@ -107,8 +107,8 @@ toOffsetSlope f = toOffset'Slope f zeroV
 toOffset'Slope :: ( MetricScalar s, WithField s AffineManifold d
                                    , WithField s AffineManifold c )
                       => Affine s d c -> d -> (c, Needle d :-* Needle c)
-toOffset'Slope (Subtract c) ref = (ref.-.c, idL)
-toOffset'Slope (AddTo c) ref = (c.+^ref, idL)
+toOffset'Slope Subtract (a,b) = (a.-.b, linear $ uncurry(^-^))
+toOffset'Slope AddTo (p,v) = (p.+^v, linear $ uncurry(^+^))
 toOffset'Slope (ScaleWith q) ref = (lapply q ref, q)
 toOffset'Slope Id ref = (ref, linear id)
 toOffset'Slope (f :>>> g) ref = case toOffset'Slope f ref of
@@ -133,21 +133,30 @@ toOffset'Slope (Const c) ref = (c, zeroV)
 coOffsetForm :: ( MetricScalar s, WithField s AffineManifold d
                                 , WithField s AffineManifold c )
                       => Affine s d c -> Affine s d c
-coOffsetForm (Subtract c) = Subtract c >>> Id
-coOffsetForm (AddTo c) = Subtract zeroV >>> AddTo c
-coOffsetForm (ScaleWith q) = Subtract zeroV >>> ScaleWith q
-coOffsetForm ((coOffsetForm -> Subtract cof :>>> f) :>>> g)
-                    = Subtract cof >>> (f >>> g)
-coOffsetForm ((coOffsetForm -> Subtract cof :>>> f) :*** (coOffsetForm -> Subtract cog :>>> g))
-     = Subtract (cof,cog) >>> (f***g)
-coOffsetForm ((coOffsetForm -> Subtract cof :>>> f) :&&& g)
-     = Subtract cof >>> (f &&& (AddTo cof >>> g))
-coOffsetForm (f :&&& (coOffsetForm -> Subtract cog :>>> g))
-     = Subtract cog >>> ((AddTo cog >>> f) &&& g)
+coOffsetForm (ScaleWith q) = id&&&const zeroV >>> Subtract >>> ScaleWith q
+coOffsetForm ((coOffsetForm -> Id:&&&Const cof :>>> Subtract :>>> f) :>>> g)
+                    = id&&&const cof >>> Subtract >>> (f >>> g)
+coOffsetForm ( (coOffsetForm -> Id:&&&Const cof :>>> Subtract :>>> f)
+          :*** (coOffsetForm -> Id:&&&Const cog :>>> Subtract :>>> g) )
+     = id&&&const(cof,cog) >>> Subtract >>> (f***g)
+coOffsetForm (Id:&&&Const cof :>>> Subtract)
+           = (Id&&&Const cof >>> ReAffine (ReWellPointed Subtract`WellPointedCompo`WellPointedId))
 coOffsetForm f = f
 
-pattern PreSubtract c f <- (coOffsetForm -> Subtract c :>>> f)
+pattern PreSubtract c f <- (coOffsetForm -> Id:&&&Const c :>>> Subtract :>>> f)
+
+preSubtract :: ( MetricScalar s, WithField s AffineManifold d
+                               , WithField s AffineManifold c )
+               => c -> Affine s (Diff c) d -> Affine s c d
+-- The specialised clauses may not actually be useful here.
+preSubtract _ (Const d) = const d
+preSubtract _ Terminal = Terminal
+preSubtract c (f:>>>g) = preSubtract c f >>> g
+-- preSubtract (c,d) (f:***g) = preSubtract c f *** preSubtract d g
+preSubtract c (f:&&&g) = preSubtract c f &&& preSubtract c g
+preSubtract c f = id&&&const c >>> Subtract >>> f
    
+pattern PostAdd c f <- f:&&&Const c :>>> AddTo
 
 instance (MetricScalar s) => EnhancedCat (->) (Affine s) where
   arr f = fst . toOffset'Slope f
@@ -160,16 +169,11 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
                   => AffineSpace (Affine s d c) where
   type Diff (Affine s d c) = Affine s d (Diff c)
   
-  (ScaleWith q :>>> AddTo c) .-. g = let (d, r) = toOffsetSlope g
-                                     in ScaleWith (q^-^r) >>> AddTo (c.-.d)
-  f .-. (ScaleWith r :>>> AddTo d) = let (c, q) = toOffsetSlope f
-                                     in ScaleWith (q^-^r) >>> AddTo (c.-.d)
-  (Subtract n :>>> f) .-. (Subtract o :>>> g)
-                = Subtract o >>> h ^+^ const ((f $ o.-.n) .-. (f $ zeroV))
-     -- r x = f (x−n) − g (x−o)
-     --     = f (x−o) + f (o−n) − f 0 − g (x−o)
-     --     = (f − g) (x−o) + f (o−n) − f 0
-   where h = f .-. g
+  ScaleWith q .-. ScaleWith r = ScaleWith $ q^-^r
+  (PostAdd c (ScaleWith q)) .-. g = let (d, r) = toOffsetSlope g
+                                    in ScaleWith (q^-^r) &&& const (c.-.d) >>> AddTo
+  f .-. (PostAdd d (ScaleWith r)) = let (c, q) = toOffsetSlope f
+                                    in ScaleWith (q^-^r) &&& const (c.-.d) >>> AddTo
   
   Id .-. Id = const zeroV
   Fst .-. Fst = const zeroV
@@ -179,52 +183,28 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
   DetachUnit .-. DetachUnit = const zeroV
   Terminal .-. _ = Terminal
   _ .-. Terminal = Terminal
+  Subtract .-. Subtract = const zeroV
+  AddTo .-. AddTo = const zeroV
   
   Const c .-. Const d = Const $ c.-.d
-  AddTo c .-. Id = const c
-  Id .-. AddTo c = const $ negateV c
-  AddTo c .-. AddTo c' = const $ c.-.c'
-  AddTo c .-. Subtract c' = const $ c^+^c'
-  Subtract c .-. AddTo c' = const . negateV $ c'^+^c
-  Subtract c .-. Subtract c' = const $ c'.-.c
   
   (f:***g) .-. (h:***i) = f.-.h *** g.-.i
+  (f:***g) .-. Const (c,d) = f.-.const c *** g.-.const d
+  -- Const (c,d) .-. (f:***g) = const c.-.f *** const d.-.g
   (f:&&&g) .-. (h:&&&i) = f.-.h &&& g.-.i
   (f:&&&_) .-. AttachUnit = f.-.id >>> AttachUnit
-  
-  AddTo c .-. Const c' = AddTo $ c.-.c'
-  Subtract c .-. Const c' = Subtract $ c.+^c'
-  Const c .-. Const c' = const (c.-.c')
+  (f:&&&g) .-. Const (c,d) = f.-.const c &&& g.-.const d
+  -- Const (c,d) .-. (f:&&&g) = const c.-.f &&& const d.-.g
 
-  AddTo c .-. ScaleWith q = ScaleWith (idL^-^q) >>> AddTo c
-  Subtract c .-. ScaleWith q = Subtract c >>> ScaleWith (idL^-^q)
-  ScaleWith q .-. AddTo c = ScaleWith (q^-^idL) >>> AddTo (negateV c)
-  ScaleWith q .-. Subtract c = ScaleWith (q^-^idL) >>> AddTo c
-  ScaleWith q .-. ScaleWith r = ScaleWith $ q^-^r
   ScaleWith q .-. f = let (c, r) = toOffset'Slope f zeroV
-                      in ScaleWith (q^-^r) >>> AddTo (negateV c)
+                      in ScaleWith (q^-^r)&&&const(negateV c) >>> AddTo
   f .-. ScaleWith q = let (c, r) = toOffset'Slope f zeroV
-                      in ScaleWith (r^-^q) >>> AddTo c
-  AddTo c .-. f = let (c', q) = toOffset'Slope f zeroV
-                  in ScaleWith (idL^-^q) >>> AddTo (c.-.c')
-  f .-. AddTo c = let (c', q) = toOffset'Slope f zeroV
-                  in ScaleWith (q^-^idL) >>> AddTo (c'.-.c)
-  
-  Subtract c .-. f = let (d, q) = toOffset'Slope f c
-                     in Subtract c >>> ScaleWith (idL^-^q) >>> AddTo (negateV d)
-      -- f x = q·x + v
-      -- s x = x − c − (q·x + v) = x − c − q·x − v
-      -- d = q·c + v
-      -- -d + (1−q)·(x−c) = -q·c − v + x − c − (q·x − q·c) 
-      --                  = -q·x − v + x − c
-  
-  f .-. Subtract c = let (d, q) = toOffset'Slope f c
-                     in Subtract c >>> ScaleWith (q^-^idL) >>> AddTo d
+                      in ScaleWith (r^-^q)&&&const c >>> AddTo
   
   PreSubtract b f .-. g = let (c, q) = toOffsetSlope f
                               (d, r) = toOffset'Slope g b
-                          in Subtract b >>> ScaleWith (q^-^r)
-      {- f x = q·x + c    -}            >>> AddTo (c.-.d)
+                          in preSubtract b $ ScaleWith (q^-^r)
+      {- f x = q·x + c    -}                 &&& const (c.-.d) >>> AddTo
       -- g x = r·x + w
       -- d = r·b + w
       -- (q−r)·(x−b) = q·x − q⋅b − r⋅x + r⋅b
@@ -237,8 +217,8 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
   -- According to GHC, this clause overlaps with the above. Hm...
   f .-. PreSubtract b g = let (c, q) = toOffset'Slope f b
                               (d, r) = toOffsetSlope g
-                          in Subtract b >>> ScaleWith (q^-^r)
-      {- f x = q·x + v    -}            >>> AddTo (c.-.d)
+                          in preSubtract b $ ScaleWith (q^-^r)
+      {- f x = q·x + v    -}                 &&& const (c.-.d) >>> AddTo
       -- g x = r·x + d
       -- c = q·b + v
       -- (q−r)·(x−b) = q·x − q⋅b − r⋅x + r⋅b
@@ -249,39 +229,38 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
       --     = (q−r)·(x−b) + c − d
   
   
-  (ScaleWith q :>>> AddTo c) .+^ g = let (d, r) = toOffsetSlope g
-                                     in ScaleWith (q^+^r) >>> AddTo (c.+^d)
-  f .+^ (ScaleWith r :>>> AddTo d) = let (c, q) = toOffsetSlope f
-                                     in ScaleWith (q^+^r) >>> AddTo (c.+^d)
+  ScaleWith q .+^ ScaleWith r = ScaleWith $ q^+^r
+  (PostAdd c (ScaleWith q)) .+^ g = let (d, r) = toOffsetSlope g
+                                    in ScaleWith (q^+^r) &&& const (c.+^d) >>> AddTo
+  f .+^ (PostAdd d (ScaleWith r)) = let (c, q) = toOffsetSlope f
+                                    in const (c.+^d)&&&ScaleWith (q^+^r) >>> AddTo
   (f:***g) .+^ (h:***i) = f.+^h *** g.+^i
   (f:&&&g) .+^ (h:&&&i) = f.+^h &&& g.+^i
   
-  AddTo c .+^ Const c' = AddTo $ c.+^c'
-  Subtract c .+^ Const c' = Subtract $ c.-^c'
   Const c .+^ Const c' = const (c.+^c')
 
   Terminal .+^ _ = Terminal
   Const c .+^ Terminal = Const c
-  Const c .+^ f = f >>> AddTo c
+  Const c .+^ f = const c&&&f >>> AddTo
   
   Fst .+^ Fst = Fst >>> ScaleWith (linear (^*2))
   Snd .+^ Snd = Snd >>> ScaleWith (linear (^*2))
   
   f .+^ Id = let (c,q) = toOffset'Slope f zeroV
-             in ScaleWith (q^+^idL) >>> AddTo c
+             in const c&&&ScaleWith (q^+^idL) >>> AddTo
   f .+^ AttachUnit = let (c,q) = toOffset'Slope f zeroV
-                     in ScaleWith (q^+^linear(,Origin)) >>> AddTo c
+                     in const c&&&ScaleWith (q^+^linear(,Origin)) >>> AddTo
   f .+^ DetachUnit = let (c,q) = toOffset'Slope f zeroV
-                     in ScaleWith (q^+^linear fst) >>> AddTo c
+                     in const c&&&ScaleWith (q^+^linear fst) >>> AddTo
   f .+^ Swap = let (c,q) = toOffset'Slope f zeroV
-               in ScaleWith (q^+^linear swap) >>> AddTo c
+               in const c&&&ScaleWith (q^+^linear swap) >>> AddTo
 
 
 
 instance (MetricScalar s, WithField s AffineManifold d, WithField s LinearManifold c)
                   => AdditiveGroup (Affine s d c) where
   zeroV = const zeroV
-  negateV (AddTo c) = AddTo $ negateV c
+  negateV (Const c) = const $ negateV c
   (^+^) = (.+^)
   (^-^) = (.-.)
   
@@ -321,7 +300,7 @@ instance (MetricScalar s) => Cartesian (Affine s) where
   regroup' = ReAffine regroup'
 
 instance (MetricScalar s) => Morphism (Affine s) where
-  AddTo c *** AddTo c' = AddTo (c,c')
+  Const c *** Const c' = const (c,c')
 --   Affine cof aof slf *** Affine cog aog slg
 --       = Affine (cof,cog) (aof,aog) (linear $ lapply slf *** lapply slg)
 
@@ -339,7 +318,6 @@ instance (MetricScalar s) => PreArrow (Affine s) where
 
 instance (MetricScalar s) => WellPointed (Affine s) where
   unit = Tagged Origin
-  globalElement x = AddTo x . ScaleWith (linear undefined)
   const = ReAffine . const
 
 
