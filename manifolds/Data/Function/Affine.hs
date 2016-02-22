@@ -152,7 +152,7 @@ preSubtract :: ( MetricScalar s, WithField s AffineManifold d
 preSubtract _ (Const d) = const d
 preSubtract _ Terminal = Terminal
 preSubtract c (f:>>>g) = preSubtract c f >>> g
--- preSubtract (c,d) (f:***g) = preSubtract c f *** preSubtract d g
+-- preSubtract t (f:***g) | (c,d)<-t = preSubtract c f *** preSubtract d g
 preSubtract c (f:&&&g) = preSubtract c f &&& preSubtract c g
 preSubtract c f = id&&&const c >>> Subtract >>> f
    
@@ -188,13 +188,15 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
   
   Const c .-. Const d = Const $ c.-.d
   
+  Fst .-. Snd = Subtract
+
   (f:***g) .-. (h:***i) = f.-.h *** g.-.i
   (f:***g) .-. Const (c,d) = f.-.const c *** g.-.const d
-  -- Const (c,d) .-. (f:***g) = const c.-.f *** const d.-.g
+  ζ .-. (f:***g) | Const (c,d) <- ζ = const c.-.f *** const d.-.g
   (f:&&&g) .-. (h:&&&i) = f.-.h &&& g.-.i
   (f:&&&_) .-. AttachUnit = f.-.id >>> AttachUnit
   (f:&&&g) .-. Const (c,d) = f.-.const c &&& g.-.const d
-  -- Const (c,d) .-. (f:&&&g) = const c.-.f &&& const d.-.g
+  ζ .-. (f:&&&g) | Const (c,d) <- ζ = const c.-.f &&& const d.-.g
 
   ScaleWith q .-. f = let (c, r) = toOffset'Slope f zeroV
                       in ScaleWith (q^-^r)&&&const(negateV c) >>> AddTo
@@ -228,6 +230,8 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
       --     = (q−r)·(x−b) + q⋅b + v − d
       --     = (q−r)·(x−b) + c − d
   
+  f .-. g = f&&&g >>> Subtract
+  
   
   ScaleWith q .+^ ScaleWith r = ScaleWith $ q^+^r
   (PostAdd c (ScaleWith q)) .+^ g = let (d, r) = toOffsetSlope g
@@ -243,8 +247,11 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
   Const c .+^ Terminal = Const c
   Const c .+^ f = const c&&&f >>> AddTo
   
+  Id .+^ Id = Id >>> ScaleWith (linear (^*2))
   Fst .+^ Fst = Fst >>> ScaleWith (linear (^*2))
   Snd .+^ Snd = Snd >>> ScaleWith (linear (^*2))
+  Fst .+^ Snd = AddTo
+  Swap .+^ Swap = Swap >>> ScaleWith (linear (^*2))
   
   f .+^ Id = let (c,q) = toOffset'Slope f zeroV
              in const c&&&ScaleWith (q^+^idL) >>> AddTo
@@ -254,13 +261,54 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
                      in const c&&&ScaleWith (q^+^linear fst) >>> AddTo
   f .+^ Swap = let (c,q) = toOffset'Slope f zeroV
                in const c&&&ScaleWith (q^+^linear swap) >>> AddTo
+  
+  PreSubtract b f .+^ g = let (c, q) = toOffsetSlope f
+                              (d, r) = toOffset'Slope g b
+                          in preSubtract b $ const (c.+^d) &&& ScaleWith (q^+^r)
+      {- f x = q·x + c    -}                  >>> AddTo
+      -- g x = r·x + w
+      -- d = r·b + w
+      -- (q+r)·(x−b) = q·x − q⋅b + r⋅x − r⋅b
+      -- s x = f (x−b) + g x
+      --     = q⋅(x−b) + c + r⋅x + w
+      --     = q⋅x − q⋅b + c + r⋅x + w
+      --     = (q+r)·(x−b) + c + r⋅b + w
+      --     = (q−r)·(x−b) + c + d
+  
+  f .+^ PreSubtract b g = let (c, q) = toOffset'Slope f b
+                              (d, r) = toOffsetSlope g
+                          in preSubtract b $ const (c.+^d) &&& ScaleWith (q^+^r)
+      {- f x = q·x + v    -}                 >>> AddTo
+      -- g x = r·x + d
+      -- c = q·b + v
+      -- (q+r)·(x−b) = q·x − q⋅b + r⋅x − r⋅b
+      -- s x = f x + g (x−b)
+      --     = q⋅x + v + r⋅(x−b) + d
+      --     = q⋅x + v + r⋅x − r⋅b + d
+      --     = (q+r)·(x−b) + q⋅b + v + d
+      --     = (q+r)·(x−b) + c + d
+  
+  f .+^ g = f&&&g >>> AddTo
 
 
 
 instance (MetricScalar s, WithField s AffineManifold d, WithField s LinearManifold c)
                   => AdditiveGroup (Affine s d c) where
   zeroV = const zeroV
+  
   negateV (Const c) = const $ negateV c
+  negateV Terminal = Terminal
+  negateV (ScaleWith ϕ) = ScaleWith $ negateV ϕ
+  negateV (f:***g) = negateV f *** negateV g
+  negateV (f:&&&g) = negateV f &&& negateV g
+  negateV (f:>>>AddTo) = negateV f >>> AddTo
+  negateV (f:>>>Subtract) = (f>>>swap) >>> Subtract
+  negateV (f:>>>ScaleWith ϕ) = negateV f >>> ScaleWith ϕ
+  negateV (f:>>>g) = f >>> negateV g
+  negateV AttachUnit = ScaleWith $ linear (negateV >>> (,Origin))
+  negateV Subtract = Swap >>> Subtract
+  negateV f = f >>> ScaleWith (linear negateV)
+  
   (^+^) = (.+^)
   (^-^) = (.-.)
   
