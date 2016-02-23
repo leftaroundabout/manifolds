@@ -502,14 +502,17 @@ type DifferentialEqn x y = RWDiffable ℝ (x,y) (Needle x :-* Needle y)
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)]) -> [Shade' (x,y)]
-filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours) = case f (x,y) of
+filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours)
+    = case f (x,y) of
           (_, Option Nothing) -> []
           (r, Option (Just (Differentiable fl)))
-                | (fc, fc', δ) <- fl (x,y)
-                   -> let flatMet :: HerMetric (Needle (x,y))
-                          flatMet = recipMetric -- this won't work, metric is singular.
-                               . transformMetric' (linear $ id &&& lapply fc) 
-                               $ recipMetric' expax
+                | (fc, jfc, δ) <- fl (x,y)
+                   -> let flatMet :: HerMetric' (Needle y) -> HerMetric (Needle (x,y))
+                          flatMet my = recipMetric -- this won't work, metric is singular.
+                               $ transformMetric' (linear $ id &&& lapply fc)
+                                                  (recipMetric' expax) ^/ 2
+                                ^+^ recipMetric' expa ^/ 2
+                                ^+^ transformMetric' (linear $ (zeroV,)) my
                           -- fcs = lapply fc' <$> xSpan
                           -- flinRange = δ $ projectors fcs
                           marginδs :: [(Needle x, (Needle y, Metric y))]
@@ -526,16 +529,24 @@ filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours) = case f (
                                               = (yn .+~^ lapply yc'n xntoMarg :: y
                                                   ) .-~. y
                                      ]
-                          ycQuad :: y
-                          (Option (Just (Shade' ycQuad _))) = intersectShade's
+                          ycLin, ycQuadr :: Option (Shade' y)
+                          ycLin = intersectShade's
+                                     [ Shade' ycn expany
+                                     | (δxm,(δym,expany)) <- marginδs
+                                     , let ycn = y .+~^ (δym ^-^ lapply fc δxm)
+                                     ]
+                          ycQuadr = intersectShade's
                                      [ Shade' ycn expany
                                      | (δxm,(δym,expany)) <- marginδs
                                      , let fca :: Needle x:-*Needle y
-                                           fca = fc .+~^ lapply fc' ((δxm,δym)^/2)
+                                           fca = fc .+~^ lapply jfc ((δxm,δym)^/2)
                                            ycn = y .+~^ (δym ^-^ lapply fca δxm)
                                      ]
-                                     :: Option (Shade' y)
-                      in [Shade' (x,ycQuad) flatMet]
+                      in case (ycLin, ycQuadr) of
+                           (Option (Just ycl), Option (Just ycq))
+                               | Option (Just (Shade' ycr ycsp))
+                                       <- intersectShade's [ycl, ycq, Shade' y expay]
+                               -> [Shade' (x,ycr) $ flatMet (recipMetric' ycsp)]
  where (expax, expay) = factoriseMetric expa
        xSpan = eigenCoSpan' expax
 
