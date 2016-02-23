@@ -30,7 +30,9 @@
 
 
 module Data.Function.Affine (
-              Affine(..)
+              Affine
+            , linearAffine
+            , toOffsetSlope, toOffset'Slope 
             ) where
     
 
@@ -397,6 +399,10 @@ instance (MetricScalar s) => WellPointed (Affine s) where
   unit = Tagged Origin
   const = ReAffine . const
 
+
+linearAffine :: (MetricScalar s, WithField s LinearManifold α, WithField s LinearManifold β)
+            => (α:-*β) -> Affine s α β
+linearAffine = ScaleWith
 
 
 type AffinFuncValue s = GenericAgent (Affine s)

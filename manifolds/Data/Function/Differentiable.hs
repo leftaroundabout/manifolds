@@ -306,8 +306,9 @@ as_devεδ ldp ε | ε>0
 
 genericiseDifferentiable :: (LocallyScalable s d, LocallyScalable s c)
                     => Differentiable s d c -> Differentiable s d c
-genericiseDifferentiable (AffinDiffable (Affine x₀ y₀ f))
-     = Differentiable $ \x -> (y₀ .+^ lapply f (x.-.x₀), f, const zeroV)
+genericiseDifferentiable (AffinDiffable af)
+     = Differentiable $ \x -> let (y₀, ϕ) = toOffset'Slope af x
+                              in (y₀, ϕ, const zeroV)
 genericiseDifferentiable f = f
 
 
@@ -401,15 +402,15 @@ instance (MetricScalar s)
 
 
 
-actuallyLinear :: ( WithField s LinearManifold x, WithField s LinearManifold y, x~y )
+actuallyLinear :: ( WithField s LinearManifold x, WithField s LinearManifold y )
             => (x:-*y) -> Differentiable s x y
-actuallyLinear f = actuallyAffine zeroV f
+actuallyLinear = AffinDiffable . linearAffine
 
 actuallyAffine :: ( WithField s LinearManifold x
-                  , WithField s LinearManifold y -- Really, this should only need `AffineManifold`.
+                  , WithField s AffineManifold y -- Really, this should only need `AffineManifold`.
                   )
             => y -> (x:-*Diff y) -> Differentiable s x y
-actuallyAffine y₀ f = AffinDiffable $ Affine zeroV y₀ f
+actuallyAffine y₀ f = AffinDiffable $ const y₀ .+^ linearAffine f zeroV
 
 
 -- affinPoint :: (WithField s LinearManifold c, WithField s LinearManifold d)
@@ -655,8 +656,8 @@ instance (RealDimension s) => Category (RWDiffable s) where
   id = RWDiffable $ \x -> (GlobalRegion, pure id)
   RWDiffable f . RWDiffable g = RWDiffable h where
    h x₀ = case g x₀ of
-           ( rg, Option (Just gr'@(AffinDiffableEndo gr@(Affine cog aog slg))) )
-            -> let y₀ = gr $ x₀
+           ( rg, Option (Just gr'@(AffinDiffableEndo gr)) )
+            -> let (y₀, ϕg) = toOffset'Slope gr x₀
                in case f y₀ of
                    (GlobalRegion, Option (Just (AffinDiffable fr)))
                          -> (rg, Option (Just (AffinDiffable (fr.gr))))
@@ -664,7 +665,7 @@ instance (RealDimension s) => Category (RWDiffable s) where
                          -> (rg, fmap (. gr') fhr)
                    (RealSubray diry yl, fhr)
                       -> let hhr = fmap (. gr') fhr
-                         in case lapply slg 1 of
+                         in case lapply ϕg 1 of
                               y' | y'>0 -> ( unsafePreRegionIntersect rg
                                                   $ RealSubray diry (cog + (yl-aog)/y')
                                    -- aog + y' * (xl − cog) = yl
