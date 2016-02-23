@@ -1,5 +1,5 @@
 Name:                manifolds
-Version:             0.1.6.3
+Version:             0.1.6.4
 Category:            Math
 Synopsis:            Coordinate-free hypersurfaces
 Description:         Manifolds, a generalisation of the notion of &#x201c;smooth curves&#x201d; or surfaces,
@@ -48,7 +48,8 @@ Library
                      , void
                      , tagged
                      , deepseq
-                     , constrained-categories >= 0.2 && < 0.3
+                     , trivial-constraint >= 0.4
+                     , constrained-categories >= 0.2.3 && < 0.3
   other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts

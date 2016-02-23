@@ -12,6 +12,8 @@ import Data.LinearMap.HerMetric
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
 
+import qualified Control.Category.Constrained as CC
+
 
 
 type LinDevPropag d c = Metric c -> Metric d
@@ -38,18 +40,19 @@ type LinDevPropag d c = Metric c -> Metric d
 --   and actually be sure you get /all/ solutions correctly, not just /some/ that are
 --   (hopefully) the closest to some reference point you'd need to laborously define!
 -- 
---   Unfortunately however, this also prevents doing any serious algebra etc. with the
---   category, because even something as simple as division necessary introduces singularities
---   where the derivatives must diverge.
---   Not to speak of many trigonometric e.g. trigonometric functions that
---   are undefined on whole regions. The 'PWDiffable' and 'RWDiffable' categories have explicit
+--   Unfortunately however, this also prevents doing any serious algebra with the
+--   category, because even something as simple as division necessary introduces
+--   singularities where the derivatives must diverge.
+--   Not to speak of many e.g. trigonometric functions that are undefined
+--   on whole regions. The 'PWDiffable' and 'RWDiffable' categories have explicit
 --   handling for those issues built in; you may simply use these categories even when
 --   you know the result will be smooth in your relevant domain (or must be, for e.g.
 --   physics reasons).
 --   
---   &#xb9;(The implementation does not deal with /&#x3b5;/ and /&#x3b4;/ as difference-bounding
---   reals, but rather as metric tensors that define a boundary by prohibiting the
---   overlap from exceeding one; this makes the concept actually work on general manifolds.)
+--   &#xb9;(The implementation does not deal with /&#x3b5;/ and /&#x3b4;/ as
+--   difference-bounding reals, but rather as metric tensors which define a
+--   boundary by prohibiting the overlap from exceeding one.
+--   This makes the category actually work on general manifolds.)
 data Differentiable s d c where
    Differentiable :: ( d -> ( c   -- function value
                             , Needle d :-* Needle c -- Jacobian
@@ -59,16 +62,26 @@ data Differentiable s d c where
                                                -- some error margin
                               ) )
                   -> Differentiable s d c
-   AffinDiffable :: LinearManifold d
-               => Affine s d d -> Differentiable s d d
-                      -- This should ideally map between two general affine spaces,
-                      -- but since the special case of affine functions is mostly relevant
-                      -- to optimise the propagation of real intervals, we don't do that.
+   AffinDiffable :: (AffineManifold d, AffineManifold c)
+               => DiffableEndoProof d c -> Affine s d c -> Differentiable s d c
 
 
 
 
+data DiffableEndoProof d c where
+  IsDiffableEndo :: DiffableEndoProof d d
+  NotDiffableEndo :: DiffableEndoProof d c
 
+instance Semigroup (DiffableEndoProof d c) where
+  IsDiffableEndo <> _ = IsDiffableEndo
+  _ <> IsDiffableEndo = IsDiffableEndo
+  _ <> _ = NotDiffableEndo
+  
+
+instance CC.Category DiffableEndoProof where
+  id = IsDiffableEndo
+  IsDiffableEndo . IsDiffableEndo = IsDiffableEndo
+  _ . _ = NotDiffableEndo
 
 
 -- | A pathwise connected subset of a manifold @m@, whose tangent space has scalar @s@.
