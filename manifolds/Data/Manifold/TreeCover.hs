@@ -306,6 +306,8 @@ instance (Semigroup c) => Semigroup (DBranches' x c) where
   DBranches b1 <> DBranches b2 = DBranches $ NE.zipWith (\(DBranch d1 c1) (DBranch _ c2)
                                                               -> DBranch d1 $ c1<>c2 ) b1 b2
   
+directionChoices :: NonEmpty (DBranch x) -> [(Needle' x, (ShadeTree x, [ShadeTree x]))]
+directionChoices = undefined
 
 
 instance (NFData x, NFData (Needle' x)) => NFData (ShadeTree x) where
@@ -461,6 +463,11 @@ sortByKey :: Ord a => [(a,b)] -> [b]
 sortByKey = map snd . sortBy (comparing fst)
 
 
+trunks :: ∀ x. WithField ℝ Manifold x => ShadeTree x -> [Shade x]
+trunks (PlainLeaves lvs) = pointsShades lvs
+trunks (DisjointBranches _ brs) = foldMap trunks brs
+trunks (OverlappingBranches _ sh _) = [sh]
+
 
 
 intersectShade's :: ∀ y . WithField ℝ Manifold y => [Shade' y] -> Option (Shade' y)
@@ -561,6 +568,34 @@ filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours)
        xSpan = eigenCoSpan' expax
 
 
+twigsWithEnvirons :: ∀ x. WithField ℝ Manifold x
+    => ShadeTree x -> [(Shade x, [Shade x])]
+twigsWithEnvirons = go []
+ where go _ (DisjointBranches _ djbs) = foldMap (go []) djbs
+       go envi (PlainLeaves lvs) = [(lvsSh, foldMap (twigProximæ cl) envi)]
+        where [lvsSh@(Shade cl _)] = pointsShades lvs
+       go envi (OverlappingBranches _ rob@(Shade robc _) brs)
+                  = dive =<< NE.toList brs
+        where dive (DBranch dbdir (Hourglass dbdc₁ dbdc₂))
+                  = [ | ]
+              envi' = approach =<< envi
+              approach (OverlappingBranches _ (Shade envc _) envbrs)
+                  = map hither envbrs
+               where δxenv = robc .-. envc
+                     hither (DBranch bdir (Hourglass bdc₁ bdc₂))
+                       | bdir<.>^δxenv > 0  = x₀ bdc₁
+                       | otherwise        = twigProximæ x₀ bdc₂
+       
+       twigProximæ :: x -> ShadeTree x -> [Shade x]
+       twigProximæ _ (PlainLeaves lvs) = pointsShades lvs
+       twigProximæ x₀ (DisjointBranches _ djbs) = foldMap (twigProximæ x₀) djbs
+                = foldMap (`twigProximæ`x₀) djbs
+       twigProximæ x₀ (OverlappingBranches _ (Shade xb qb) brs)
+                   = foldMap hither brs
+        where δxb = x₀ .-. xb
+              hither (DBranch bdir (Hourglass bdc₁ bdc₂))
+                 | bdir<.>^δxb > 0  = twigProximæ x₀ bdc₁
+                 | otherwise        = twigProximæ x₀ bdc₂
     
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
