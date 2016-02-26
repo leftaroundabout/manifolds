@@ -306,8 +306,17 @@ instance (Semigroup c) => Semigroup (DBranches' x c) where
   DBranches b1 <> DBranches b2 = DBranches $ NE.zipWith (\(DBranch d1 c1) (DBranch _ c2)
                                                               -> DBranch d1 $ c1<>c2 ) b1 b2
   
-directionChoices :: NonEmpty (DBranch x) -> [(Needle' x, (ShadeTree x, [ShadeTree x]))]
-directionChoices = undefined
+directionChoices :: WithField ℝ Manifold x
+               => [DBranch x]
+                 -> [ ( (Needle' x, ShadeTree x)
+                      ,[(Needle' x, ShadeTree x)] ) ]
+directionChoices [] = []
+directionChoices (DBranch ѧ (Hourglass t b) : hs)
+       =  ( (ѧ,t), (v,b) : map fst uds)
+          : ((v,b), (ѧ,t) : map fst uds)
+          : map (second $ ((ѧ,t):) . ((v,b):)) uds
+ where v = negateV ѧ
+       uds = directionChoices hs
 
 
 instance (NFData x, NFData (Needle' x)) => NFData (ShadeTree x) where
@@ -465,7 +474,7 @@ sortByKey = map snd . sortBy (comparing fst)
 
 trunks :: ∀ x. WithField ℝ Manifold x => ShadeTree x -> [Shade x]
 trunks (PlainLeaves lvs) = pointsShades lvs
-trunks (DisjointBranches _ brs) = foldMap trunks brs
+trunks (DisjointBranches _ brs) = Hask.foldMap trunks brs
 trunks (OverlappingBranches _ sh _) = [sh]
 
 
@@ -571,28 +580,31 @@ filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours)
 twigsWithEnvirons :: ∀ x. WithField ℝ Manifold x
     => ShadeTree x -> [(Shade x, [Shade x])]
 twigsWithEnvirons = go []
- where go _ (DisjointBranches _ djbs) = foldMap (go []) djbs
-       go envi (PlainLeaves lvs) = [(lvsSh, foldMap (twigProximæ cl) envi)]
+ where go _ (DisjointBranches _ djbs) = Hask.foldMap (go []) djbs
+       go envi (PlainLeaves lvs) = [(lvsSh, Hask.foldMap (twigProximæ cl) envi)]
         where [lvsSh@(Shade cl _)] = pointsShades lvs
-       go envi (OverlappingBranches _ rob@(Shade robc _) brs)
-                  = dive =<< NE.toList brs
-        where dive (DBranch dbdir (Hourglass dbdc₁ dbdc₂))
-                  = [ | ]
-              envi' = approach =<< envi
+       go envi (OverlappingBranches _ rob@(Shade robc _) brs) = do 
+                   ((vy, ty), alts) <- directionChoices $ NE.toList brs
+                   let envi'' = filter (trunks >>> \(Shade ce _:_)
+                                         -> let Option (Just δyenv) = ce.-~.robc
+                                            in vy<.>^δyenv > 0
+                                       ) envi'
+                              ++ map snd alts
+                   go envi'' ty
+        where envi' = approach =<< envi
               approach (OverlappingBranches _ (Shade envc _) envbrs)
-                  = map hither envbrs
-               where δxenv = robc .-. envc
+                  = map hither $ NE.toList envbrs
+               where Option (Just δxenv) = robc .-~. envc
                      hither (DBranch bdir (Hourglass bdc₁ bdc₂))
-                       | bdir<.>^δxenv > 0  = x₀ bdc₁
-                       | otherwise        = twigProximæ x₀ bdc₂
+                       | bdir<.>^δxenv > 0  = bdc₁
+                       | otherwise          = bdc₂
        
        twigProximæ :: x -> ShadeTree x -> [Shade x]
        twigProximæ _ (PlainLeaves lvs) = pointsShades lvs
-       twigProximæ x₀ (DisjointBranches _ djbs) = foldMap (twigProximæ x₀) djbs
-                = foldMap (`twigProximæ`x₀) djbs
+       twigProximæ x₀ (DisjointBranches _ djbs) = Hask.foldMap (twigProximæ x₀) djbs
        twigProximæ x₀ (OverlappingBranches _ (Shade xb qb) brs)
-                   = foldMap hither brs
-        where δxb = x₀ .-. xb
+                   = Hask.foldMap hither brs
+        where Option (Just δxb) = x₀ .-~. xb
               hither (DBranch bdir (Hourglass bdc₁ bdc₂))
                  | bdir<.>^δxb > 0  = twigProximæ x₀ bdc₁
                  | otherwise        = twigProximæ x₀ bdc₂
