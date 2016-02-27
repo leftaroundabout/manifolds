@@ -368,7 +368,7 @@ instance WithField ℝ Manifold x => Monoid (ShadeTree x) where
 -- > let testPts2 = [p .+^ v^/4 | p\<-testPts1, v \<- r2\<$\>[(0,0), (-1,1), (1,2)]]
 -- > let testPts3 = [p .+^ v^/5 | p\<-testPts2, v \<- r2\<$\>[(0,0), (-2,1), (1,2)]]
 -- > let testPts4 = [p .+^ v^/7 | p\<-testPts3, v \<- r2\<$\>[(0,1), (-1,1), (1,2)]]
--- 
+--  
 -- > plotWindow [ plot [ shapePlot $ circle 0.06 & moveTo p & opacity 0.3 | p <- testPts4 ]
 -- >            , plot . onlyNodes $ 'fromLeafPoints' testPts4 ]
 -- @
@@ -578,36 +578,51 @@ filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours)
 
 
 twigsWithEnvirons :: ∀ x. WithField ℝ Manifold x
-    => ShadeTree x -> [(Shade x, [Shade x])]
+    => ShadeTree x -> [(ShadeTree x, [ShadeTree x])]
 twigsWithEnvirons = go []
- where go _ (DisjointBranches _ djbs) = Hask.foldMap (go []) djbs
-       go envi (PlainLeaves lvs) = [(lvsSh, Hask.foldMap (twigProximæ cl) envi)]
-        where [lvsSh@(Shade cl _)] = pointsShades lvs
-       go envi (OverlappingBranches _ rob@(Shade robc _) brs) = do 
+ where go :: [ShadeTree x] -> ShadeTree x -> [(ShadeTree x, [ShadeTree x])]
+       go _ (DisjointBranches _ djbs) = Hask.foldMap (go []) djbs
+       go envi ct@(OverlappingBranches _ rob@(Shade robc _) brs) = do 
                    ((vy, ty), alts) <- directionChoices $ NE.toList brs
                    let envi'' = filter (trunks >>> \(Shade ce _:_)
                                          -> let Option (Just δyenv) = ce.-~.robc
-                                            in vy<.>^δyenv > 0
+                                                qq = vy<.>^δyenv
+                                            in qq > -1 && qq < 5
                                        ) envi'
                               ++ map snd alts
-                   go envi'' ty
+                   let result = go envi'' ty
+                   if any (\case {(PlainLeaves _,_) -> True; _ -> False}) result
+                    then [(ct, Hask.foldMap (twigProximæ robc) envi)]
+                    else result
         where envi' = approach =<< envi
-              approach (OverlappingBranches _ (Shade envc _) envbrs)
-                  = map hither $ NE.toList envbrs
+              approach apt@(OverlappingBranches _ (Shade envc _) _)
+                  = twigsaveTrim hither apt
                where Option (Just δxenv) = robc .-~. envc
                      hither (DBranch bdir (Hourglass bdc₁ bdc₂))
-                       | bdir<.>^δxenv > 0  = bdc₁
-                       | otherwise          = bdc₂
+                       | bdir<.>^δxenv > 0  = [bdc₁]
+                       | otherwise          = [bdc₂]
+              approach q = [q]
+       go envi plvs@(PlainLeaves lvs) = [(plvs, [])]
+        where [Shade cl _] = pointsShades lvs
        
-       twigProximæ :: x -> ShadeTree x -> [Shade x]
-       twigProximæ _ (PlainLeaves lvs) = pointsShades lvs
+       twigProximæ :: x -> ShadeTree x -> [ShadeTree x]
        twigProximæ x₀ (DisjointBranches _ djbs) = Hask.foldMap (twigProximæ x₀) djbs
-       twigProximæ x₀ (OverlappingBranches _ (Shade xb qb) brs)
-                   = Hask.foldMap hither brs
+       twigProximæ x₀ ct@(OverlappingBranches _ (Shade xb qb) brs)
+                   = twigsaveTrim hither ct
         where Option (Just δxb) = x₀ .-~. xb
               hither (DBranch bdir (Hourglass bdc₁ bdc₂))
                  | bdir<.>^δxb > 0  = twigProximæ x₀ bdc₁
                  | otherwise        = twigProximæ x₀ bdc₂
+       twigProximæ _ plainLeaves = [plainLeaves]
+       
+       twigsaveTrim :: (DBranch x -> [ShadeTree x])
+                       -> ShadeTree x -> [ShadeTree x]
+       twigsaveTrim f ct@(OverlappingBranches _ _ dbs)
+                 = case Hask.mapM (f >>> noLeaf) dbs of
+                      Just pqe -> Hask.fold pqe
+                      _        -> [ct]
+        where noLeaf [PlainLeaves _] = empty
+              noLeaf bqs = pure bqs
     
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
