@@ -579,10 +579,14 @@ filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours)
 
 twigsWithEnvirons :: ∀ x. WithField ℝ Manifold x
     => ShadeTree x -> [(ShadeTree x, [ShadeTree x])]
-twigsWithEnvirons = go []
+twigsWithEnvirons = map purgeRemotes . go []
  where go :: [ShadeTree x] -> ShadeTree x -> [(ShadeTree x, [ShadeTree x])]
        go _ (DisjointBranches _ djbs) = Hask.foldMap (go []) djbs
-       go envi ct@(OverlappingBranches _ rob@(Shade robc _) brs) = do 
+       go envi ct@(OverlappingBranches _ rob@(Shade robc _) brs)
+                 = if any (\case {(PlainLeaves _,_) -> True; _ -> False}) descentResult
+                    then [(ct, Hask.foldMap (twigProximæ robc) envi)]
+                    else descentResult
+        where descentResult = do 
                    ((vy, ty), alts) <- directionChoices $ NE.toList brs
                    let envi'' = filter (trunks >>> \(Shade ce _:_)
                                          -> let Option (Just δyenv) = ce.-~.robc
@@ -590,11 +594,8 @@ twigsWithEnvirons = go []
                                             in qq > -1 && qq < 5
                                        ) envi'
                               ++ map snd alts
-                   let result = go envi'' ty
-                   if any (\case {(PlainLeaves _,_) -> True; _ -> False}) result
-                    then [(ct, Hask.foldMap (twigProximæ robc) envi)]
-                    else result
-        where envi' = approach =<< envi
+                   go envi'' ty
+              envi' = approach =<< envi
               approach apt@(OverlappingBranches _ (Shade envc _) _)
                   = twigsaveTrim hither apt
                where Option (Just δxenv) = robc .-~. envc
@@ -623,6 +624,39 @@ twigsWithEnvirons = go []
                       _        -> [ct]
         where noLeaf [PlainLeaves _] = empty
               noLeaf bqs = pure bqs
+       
+       purgeRemotes :: (ShadeTree x, [ShadeTree x]) -> (ShadeTree x, [ShadeTree x])
+       purgeRemotes (ctm@(OverlappingBranches _ sm@(Shade xm _) _), candidates)
+                                       = (ctm, filter unobscured closeby)
+        where closeby = filter proximate candidates
+              proximate (OverlappingBranches _ sh@(Shade xh _) _)
+                    = minusLogOcclusion sh xm * minusLogOcclusion sm xh
+                       < 1024  -- = (2⋅4²)².  The four-radius occlusion occurs
+                               -- if two 𝑟-sized shades have just enough space
+                               -- to fit another 𝑟-shade between them; then
+                               -- we don't consider the shades neighbours
+                               -- anymore. A factor √2 for the discrepancy
+                               -- between standard deviation and max distance.
+              proximate _ = True
+              unobscured ht@(OverlappingBranches _ (Shade xh _) _)
+                     = all (don'tObscure (xh, onlyLeaves ht)) closeby
+              don'tObscure (xh,lvsh) (OverlappingBranches _ sb@(Shade xb eb) _)
+                          = vmc⋅vhc >= 0 || vm⋅vh >= 0
+               where Option (Just vm) = pbm .-~. xb
+                     Option (Just vh) = pbh .-~. xb
+                     Option (Just vmc) = xm .-~. xb
+                     Option (Just vhc) = xh .-~. xb
+                     [pbm, pbh] = [ maximumBy (comparing $ \l ->
+                                               let Option (Just w) = l.-~.xb
+                                               in v⋅w ) lvs
+                                  | lvs <- [lvsm, lvsh]
+                                  | v <- [vhc, vmc] ]
+                     (⋅) :: Needle x -> Needle x -> ℝ
+                     v⋅w = toDualWith mb v <.>^ w
+                     mb = recipMetric eb
+              don'tObscure _ _ = True
+              lvsm = onlyLeaves ctm
+       purgeRemotes xyz = xyz
     
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
