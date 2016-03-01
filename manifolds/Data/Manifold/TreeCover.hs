@@ -513,17 +513,14 @@ intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
 
 
 
-type DifferentialEqn x y = RWDiffable ℝ (x,y) (Needle x :-* Needle y)
+type DifferentialEqn x y = Shade' (x,y) -> Shade' (Needle x :-* Needle y)
 
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)]) -> [Shade' (x,y)]
-filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours)
-    = case f (x,y) of
-          (_, Option Nothing) -> []
-          (r, Option (Just (Differentiable fl)))
-                | (fc, jfc, δ) <- fl (x,y)
-                   -> let baseMet :: ℝ -> (Needle x:-*Needle y)
+filterDEqnSolution_loc (RWDiffable f) (shxy@(Shade' (x,y) expa), neighbours)
+    = let jShade@(Shade' j₀ jExpa) = f shxy
+      in              let baseMet :: ℝ -> (Needle x:-*Needle y)
                                   -> HerMetric' (Needle y) -> HerMetric (Needle (x,y))
                           baseMet q dfc my = recipMetric
                                $ transformMetric' (linear $ id &&& lapply dfc)
@@ -546,6 +543,8 @@ filterDEqnSolution_loc (RWDiffable f) (Shade' (x,y) expa, neighbours)
                                               = (yn .+~^ lapply yc'n xntoMarg :: y
                                                   ) .-~. y
                                      ]
+                          oppositeMarginδ (δx, (δym, expany))
+                               = (negateV δx, undefined)
                           -- Desired derivatives, half-way towards the region boundary.
                           fcas :: [Needle x:-*Needle y]
                           fcas = [ fc .+~^ lapply jfc ((δxm,δym)^/2)
