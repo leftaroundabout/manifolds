@@ -9,6 +9,7 @@
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE UnicodeSyntax              #-}
+{-# LANGUAGE LambdaCase                 #-}
 
 
 
@@ -349,8 +350,7 @@ type HasMetric v = (HasMetric' v, HasMetric' (DualSpace v), DualSpace (DualSpace
 --   all about dual spaces.
 class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
       , VectorSpace (DualSpace v), HasBasis (DualSpace v)
-      , MetricScalar (Scalar v), Scalar v ~ Scalar (DualSpace v)
-      , Basis v ~ Basis (DualSpace v) )
+      , MetricScalar (Scalar v), Scalar v ~ Scalar (DualSpace v) )
     => HasMetric' v where
         
   -- | @'DualSpace' v@ is isomorphic to the space of linear functionals on @v@, i.e.
@@ -379,6 +379,14 @@ class ( FiniteDimensional v, FiniteDimensional (DualSpace v)
   doubleDual :: HasMetric' (DualSpace v) => v -> DualSpace (DualSpace v)
   doubleDual' :: HasMetric' (DualSpace v) => DualSpace (DualSpace v) -> v
   
+  basisInDual :: Tagged v (Basis v -> Basis (DualSpace v))
+  basisInDual = bid
+   where bid :: ∀ v . HasMetric' v => Tagged v (Basis v -> Basis (DualSpace v))
+         bid = Tagged $ bi >>> ib'
+          where Tagged bi = basisIndex :: Tagged v (Basis v -> Int)
+                Tagged ib' = indexBasis :: Tagged (DualSpace v) (Int -> Basis (DualSpace v))
+
+  
   
 
 -- | Simple flipped version of '<.>^'.
@@ -406,17 +414,24 @@ euclideanMetric' = HerMetric . pure $ HMat.ident n
 instance (MetricScalar k) => HasMetric' (ZeroDim k) where
   Origin<.>^Origin = zeroV
   functional _ = Origin
-  doubleDual = id; doubleDual'= id
+  doubleDual = id; doubleDual'= id; basisInDual = pure id
 instance HasMetric' Double where
   (<.>^) = (<.>)
   functional f = f 1
-  doubleDual = id; doubleDual'= id
+  doubleDual = id; doubleDual'= id; basisInDual = pure id
 instance ( HasMetric v, HasMetric w, Scalar v ~ Scalar w
          ) => HasMetric' (v,w) where
   type DualSpace (v,w) = (DualSpace v, DualSpace w)
   (v,w)<.>^(v',w') = v<.>^v' + w<.>^w'
   functional f = (functional $ f . (,zeroV), functional $ f . (zeroV,))
   doubleDual = id; doubleDual'= id
+  basisInDual = bid
+   where bid :: ∀ v w . (HasMetric v, HasMetric w) => Tagged (v,w)
+                       (Basis v + Basis w -> Basis (DualSpace v) + Basis (DualSpace w))
+         bid = Tagged $ \case Left q -> Left $ bidv q
+                              Right q -> Right $ bidw q
+          where Tagged bidv = basisInDual :: Tagged v (Basis v -> Basis (DualSpace v))
+                Tagged bidw = basisInDual :: Tagged w (Basis w -> Basis (DualSpace w))
 instance (SmoothScalar s, Ord s, KnownNat n) => HasMetric' (s^n) where
   type DualSpace (s^n) = s^n
   (<.>^) = (<.>)
@@ -425,7 +440,7 @@ instance (SmoothScalar s, Ord s, KnownNat n) => HasMetric' (s^n) where
          fnal f =     FreeVect . Arr.generate n $
             \i -> f . FreeVect . Arr.generate n $ \j -> if i==j then 1 else 0
           where Tagged n = theNatN :: Tagged n Int
-  doubleDual = id; doubleDual'= id
+  doubleDual = id; doubleDual'= id; basisInDual = pure id
 instance (HasMetric v, s~Scalar v) => HasMetric' (FinVecArrRep t v s) where
   type DualSpace (FinVecArrRep t v s) = FinVecArrRep t (DualSpace v) s
   FinVecArrRep v <.>^ FinVecArrRep w = HMat.dot v w
@@ -437,6 +452,11 @@ instance (HasMetric v, s~Scalar v) => HasMetric' (FinVecArrRep t v s) where
                      $ (f . FinVecArrRep) <$> HMat.toRows (HMat.ident n)
          Tagged n = dimension :: Tagged v Int
   doubleDual = id; doubleDual'= id
+  basisInDual = bid
+   where bid :: ∀ s v t . (HasMetric v, s~Scalar v)
+                     => Tagged (FinVecArrRep t v s) (Basis v -> Basis (DualSpace v))
+         bid = Tagged bid₀
+          where Tagged bid₀ = basisInDual :: Tagged v (Basis v -> Basis (DualSpace v))
 
 
 
