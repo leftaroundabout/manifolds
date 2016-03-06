@@ -65,6 +65,11 @@ identMat :: forall v w . FiniteDimensional v => Linear (Scalar v) w v
 identMat = DenseLinear $ HMat.ident n
  where (Tagged n) = dimension :: Tagged v Int
 
+denseLinear :: ∀ v w s . (FiniteDimensional v, FiniteDimensional w, Scalar w ~ s)
+                   => (v->w) -> Linear s v w
+denseLinear f = DenseLinear . HMat.fromColumns $ (asPackedVector . f . basisValue) <$> cbv
+ where Tagged cbv = completeBasis :: Tagged v [Basis v]
+
 instance (SmoothScalar s) => Category (Linear s) where
   type Object (Linear s) v = (FiniteDimensional v, Scalar v~s)
   id = identMat

@@ -458,6 +458,18 @@ instance (HasMetric v, s~Scalar v) => HasMetric' (FinVecArrRep t v s) where
          bid = Tagged bid₀
           where Tagged bid₀ = basisInDual :: Tagged v (Basis v -> Basis (DualSpace v))
 
+instance (HasMetric v, HasMetric w, s ~ Scalar v, s ~ Scalar w)
+               => HasMetric' (Linear s v w) where
+  type DualSpace (Linear s v w) = Linear s w v
+  DenseLinear bw <.>^ DenseLinear fw
+                  = HMat.sumElements (HMat.tr bw * fw) -- trace of product
+  functional = completeBasisFunctional
+  doubleDual = id; doubleDual' = id
+
+completeBasisFunctional :: ∀ v . HasMetric' v => (v -> Scalar v) -> DualSpace v
+completeBasisFunctional f = recompose [ (bid b, f $ basisValue b) | b <- cb ]
+          where Tagged cb = completeBasis :: Tagged v [Basis v]
+                Tagged bid = basisInDual :: Tagged v (Basis v -> Basis (DualSpace v))
 
 
 
@@ -576,6 +588,12 @@ productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
         = HerMetric' . Just $ HMat.diagBlock [mv, HMat.konst 0 (dw,dw)]
  where (Tagged dw) = dimension :: Tagged w Int
 
+
+applyLinMapMetric' :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
+               => HerMetric' (Linear ℝ v w) -> v -> HerMetric' w
+applyLinMapMetric' met v = transformMetric' ap2v met
+ where ap2v :: (Linear ℝ v w):-*w
+       ap2v = linear ($v)
 
 
 
