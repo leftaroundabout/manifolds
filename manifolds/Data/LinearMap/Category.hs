@@ -59,7 +59,7 @@ import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
     
 -- | A linear mapping between finite-dimensional spaces, implemeted as a dense matrix.
-data Linear s a b = DenseLinear { getDenseMatrix :: HMat.Matrix s }
+newtype Linear s a b = DenseLinear { getDenseMatrix :: HMat.Matrix s }
 
 identMat :: forall v w . FiniteDimensional v => Linear (Scalar v) w v
 identMat = DenseLinear $ HMat.ident n
@@ -118,6 +118,100 @@ instance (SmoothScalar s) => PreArrow (Linear s) where
 instance (SmoothScalar s) => EnhancedCat (->) (Linear s) where
   arr (DenseLinear mat) = fromPackedVector . HMat.app mat . asPackedVector
 
+type DenseLinearFuncValue s = GenericAgent (Linear s)
+
+instance (SmoothScalar s) => HasAgent (Linear s) where
+  alg = genericAlg
+  ($~) = genericAgentMap
+instance (SmoothScalar s) => CartesianAgent (Linear s) where
+  alg1to2 = genericAlg1to2
+  alg2to1 = genericAlg2to1
+  alg2to2 = genericAlg2to2
+
+
+instance (FiniteDimensional v, Scalar v~s, FiniteDimensional w, Scalar w~s, SmoothScalar s)
+                     => AffineSpace (Linear s v w) where
+  type Diff (Linear s v w) = Linear s v w
+  DenseLinear m.-.DenseLinear n = DenseLinear (m-n)
+  DenseLinear m.+^DenseLinear n = DenseLinear (m+n)
+
+instance (FiniteDimensional v, Scalar v~s, FiniteDimensional w, Scalar w~s, SmoothScalar s)
+                       => AdditiveGroup (Linear s v w) where
+  zeroV = zx
+   where zx :: ∀ v w . (FiniteDimensional v, FiniteDimensional w) => Linear s v w
+         zx = DenseLinear $ HMat.konst 0 (dw,dv)
+          where Tagged dv = dimension :: Tagged v Int
+                Tagged dw = dimension :: Tagged w Int
+  negateV (DenseLinear m) = DenseLinear $ negate m
+  DenseLinear m^+^DenseLinear n = DenseLinear (m+n)
+  DenseLinear m^-^DenseLinear n = DenseLinear (m-n)
+
+instance (FiniteDimensional v, Scalar v~s, FiniteDimensional w, Scalar w~s, SmoothScalar s)
+             => VectorSpace (Linear s v w) where
+  type Scalar (Linear s v w) = s
+  μ *^ DenseLinear m = DenseLinear $ HMat.scale μ m
+
+instance (FiniteDimensional v, Scalar v~s, FiniteDimensional w, Scalar w~s, SmoothScalar s)
+             => HasBasis (Linear s v w) where
+  type Basis (Linear s v w) = (Basis v, Basis w)
+  basisValue = bx
+   where bx :: ∀ v w . (FiniteDimensional v, FiniteDimensional w)
+                          => (Basis v, Basis w)->Linear s v w
+         bx = \(bv,bw) -> DenseLinear $ HMat.assoc (dw,dv) 0 [((biw bw, biv bv),1)]
+          where Tagged dv = dimension :: Tagged v Int
+                Tagged dw = dimension :: Tagged w Int
+                Tagged biv = basisIndex :: Tagged v (Basis v->Int)
+                Tagged biw = basisIndex :: Tagged w (Basis w->Int)
+  decompose = dc
+   where dc :: ∀ s v w . ( FiniteDimensional v, Scalar v ~ s
+                         , FiniteDimensional w, Scalar w ~ s )
+                 => Linear s v w -> [((Basis v, Basis w), s)]
+         dc lm = map (id &&& decompose' lm) cb
+          where Tagged cb = completeBasis :: Tagged (Linear s v w) [(Basis v, Basis w)]
+  decompose' = dc
+   where dc :: ∀ s v w . (FiniteDimensional v, FiniteDimensional w, Scalar w ~ s)
+               => Linear s v w -> (Basis v, Basis w) -> s
+         dc (DenseLinear m) = \(bv,bw) -> m HMat.! biw bw HMat.! biv bv
+          where Tagged biv = basisIndex :: Tagged v (Basis v->Int)
+                Tagged biw = basisIndex :: Tagged w (Basis w->Int)
+
+instance (FiniteDimensional v, Scalar v ~ s, FiniteDimensional w, Scalar w ~ s)
+                => FiniteDimensional (Linear s v w) where
+  dimension = d
+   where d :: ∀ s v w . (FiniteDimensional v, FiniteDimensional w)
+               => Tagged (Linear s v w) Int
+         d = Tagged (dv*dw)
+          where Tagged dv = dimension::Tagged v Int; Tagged dw = dimension::Tagged w Int
+  basisIndex = bi
+   where bi :: ∀ s v w . (FiniteDimensional v, FiniteDimensional w)
+               => Tagged (Linear s v w) ((Basis v, Basis w) -> Int)
+         bi = Tagged $ \(bv,bw) -> dv * biv bv + biw bw where 
+          Tagged dv=dimension::Tagged v Int; Tagged biv=basisIndex::Tagged v (Basis v->Int)
+          Tagged biw = basisIndex :: Tagged w (Basis w -> Int)
+  indexBasis = ib
+   where ib :: ∀ s v w . (FiniteDimensional v, FiniteDimensional w)
+               => Tagged (Linear s v w) (Int -> (Basis v, Basis w))
+         ib = Tagged $ (`divMod`dv) >>> \(iv,iw) -> (ibv iv, ibw iw) where
+          Tagged dv=dimension::Tagged v Int; Tagged ibv=indexBasis::Tagged v (Int->Basis v)
+          Tagged ibw = indexBasis :: Tagged w (Int->Basis w)
+  completeBasis = cb
+   where cb :: ∀ s v w . (FiniteDimensional v, FiniteDimensional w)
+               => Tagged (Linear s v w) [(Basis v, Basis w)]
+         cb = Tagged $ liftA2 (,) cbv cbw where
+          Tagged cbv = completeBasis :: Tagged v [Basis v]
+          Tagged cbw = completeBasis :: Tagged w [Basis w]
+  asPackedVector = getDenseMatrix >>> HMat.flatten
+  fromPackedVector = fpv
+   where fpv :: ∀ s v w . (FiniteDimensional v, Scalar v ~ s, FiniteDimensional w, Scalar w ~ s)
+               => HMat.Vector s -> Linear s v w
+         fpv = HMat.reshape dv >>> DenseLinear
+          where Tagged dv = dimension :: Tagged v Int
+
+instance (FiniteDimensional v, Scalar v ~ s, FiniteDimensional a, Scalar a ~ s)
+    => AdditiveGroup (DenseLinearFuncValue s a v) where
+  zeroV = GenericAgent zeroV
+  GenericAgent f ^+^ GenericAgent g = GenericAgent $ f ^+^ g
+  negateV (GenericAgent f) = GenericAgent $ negateV f
 
 
 
