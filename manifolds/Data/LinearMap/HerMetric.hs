@@ -41,7 +41,7 @@ module Data.LinearMap.HerMetric (
   , metriScale', metriScale
   , adjoint
   , extendMetric
-  , applyLinMapMetric'
+  , applyLinMapMetric, applyLinMapMetric'
   -- * The dual-space class
   , HasMetric
   , HasMetric'(..)
@@ -590,10 +590,16 @@ productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
  where (Tagged dw) = dimension :: Tagged w Int
 
 
+applyLinMapMetric :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
+               => HerMetric (Linear ℝ v w) -> DualSpace v -> HerMetric w
+applyLinMapMetric met v' = transformMetric ap2v met
+ where ap2v :: w :-* Linear ℝ v w
+       ap2v = linear $ \w -> denseLinear $ \v -> w ^* (v'<.>^v)
+
 applyLinMapMetric' :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric' (Linear ℝ v w) -> v -> HerMetric' w
 applyLinMapMetric' met v = transformMetric' ap2v met
- where ap2v :: (Linear ℝ v w):-*w
+ where ap2v :: Linear ℝ v w :-* w
        ap2v = linear ($v)
 
 

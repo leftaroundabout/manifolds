@@ -513,13 +513,13 @@ intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
 
 
 
-type DifferentialEqn x y = Shade' (x,y) -> Shade (LocalLinear x y)
+type DifferentialEqn x y = Shade' (x,y) -> Shade' (LocalLinear x y)
 
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)]) -> [Shade' (x,y)]
 filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours)
-    = let jShade@(Shade j₀ jExpa) = f shxy
+    = let jShade@(Shade' j₀ jExpa) = f shxy
       in              let baseMet :: ℝ -> (Needle x:-*Needle y)
                                   -> HerMetric' (Needle y) -> HerMetric (Needle (x,y))
                           baseMet q dfc my = recipMetric
@@ -546,8 +546,10 @@ filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours)
                           back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y
                           back2Centre (δx, (δym, expany))
                                = Shade' (y.+~^δyb) . recipMetric
-                                   $ recipMetric' expany ^+^ applyLinMapMetric' jExpa δx
+                                   $ recipMetric' expany
+                                     ^+^ recipMetric' (applyLinMapMetric jExpa δx')
                            where δyb = δym ^-^ (j₀ $ δx)
+                                 δx' = toDualWith expax δx
                           yc :: Option (Shade' y)
                           yc = intersectShade's $ back2Centre <$> marginδs
                       in undefined
