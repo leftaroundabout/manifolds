@@ -513,13 +513,13 @@ intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
 
 
 
-type DifferentialEqn x y = Shade' (x,y) -> Shade' (Needle x :-* Needle y)
+type DifferentialEqn x y = Shade' (x,y) -> Shade (LocalLinear x y)
 
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)]) -> [Shade' (x,y)]
-filterDEqnSolution_loc (RWDiffable f) (shxy@(Shade' (x,y) expa), neighbours)
-    = let jShade@(Shade' j₀ jExpa) = f shxy
+filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours)
+    = let jShade@(Shade j₀ jExpa) = f shxy
       in              let baseMet :: ℝ -> (Needle x:-*Needle y)
                                   -> HerMetric' (Needle y) -> HerMetric (Needle (x,y))
                           baseMet q dfc my = recipMetric
@@ -543,35 +543,14 @@ filterDEqnSolution_loc (RWDiffable f) (shxy@(Shade' (x,y) expa), neighbours)
                                               = (yn .+~^ lapply yc'n xntoMarg :: y
                                                   ) .-~. y
                                      ]
-                          oppositeMarginδ (δx, (δym, expany))
-                               = (negateV δx, undefined)
-                          -- Desired derivatives, half-way towards the region boundary.
-                          fcas :: [Needle x:-*Needle y]
-                          fcas = [ fc .+~^ lapply jfc ((δxm,δym)^/2)
-                                 | (δxm,(δym,_)) <- marginδs ]
-                          ycLin, ycQuadr :: Option (Shade' y)
-                          ycLin = intersectShade's
-                                     [ Shade' ycn expany
-                                     | (δxm,(δym,expany)) <- marginδs
-                                     , let ycn = y .+~^ (δym ^-^ lapply fc δxm)
-                                     ]
-                          ycQuadr = intersectShade's
-                                     [ Shade' (y .+~^ (δym ^-^ lapply fca δxm)) expany
-                                     | fca <- fcas
-                                     | (δxm,(δym,expany)) <- marginδs
-                                     ]
-                      in case (ycLin, ycQuadr) of
-                           (Option (Just ycl), Option (Just ycq))
-                               | Option (Just (Shade' ycr ycsp))
-                                       <- intersectShade's [ycl, ycq, Shade' y expay]
-                               -> [Shade' (x,ycr) (baseMet 0.5 fc $ recipMetric' ycsp)]
-                           _   -> [ let xsub = x .+~^ δxm^/2
-                                        ycsub = y .+~^ (δym ^-^ lapply fca δxm)^/2
-                                    in  Shade' (xsub,ycsub)
-                                               (baseMet 0.5 fca $ recipMetric' expany)
-                                  | (δxm,(δym,expany)) <- marginδs
-                                  | fca <- fcas
-                                  ]
+                          back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y
+                          back2Centre (δx, (δym, expany))
+                               = Shade' (y.+~^δyb) . recipMetric
+                                   $ recipMetric' expany ^+^ applyLinMapMetric' jExpa δx
+                           where δyb = δym ^-^ (j₀ $ δx)
+                          yc :: Option (Shade' y)
+                          yc = intersectShade's $ back2Centre <$> marginδs
+                      in undefined
  where (expax, expay) = factoriseMetric expa
        xSpan = eigenCoSpan' expax
 

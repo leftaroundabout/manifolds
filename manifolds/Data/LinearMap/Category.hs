@@ -58,7 +58,11 @@ import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 
     
--- | A linear mapping between finite-dimensional spaces, implemeted as a dense matrix.
+-- | A linear mapping between finite-dimensional spaces, implemented as a dense matrix.
+--  
+--   Note that this is equivalent to the tensor product @'DualSpace' a ⊗ b@. One
+--   of the types should be deprecated in the future, or either implemented in
+--   terms of the other.
 newtype Linear s a b = DenseLinear { getDenseMatrix :: HMat.Matrix s }
 
 identMat :: forall v w . FiniteDimensional v => Linear (Scalar v) w v

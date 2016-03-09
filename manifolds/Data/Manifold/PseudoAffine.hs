@@ -61,6 +61,8 @@ module Data.Manifold.PseudoAffine (
             , HilbertSpace
             , EuclidSpace
             , LocallyScalable
+            -- ** Local functions
+            , LocalLinear
             -- * Misc
             , palerp
             ) where
@@ -78,6 +80,7 @@ import Data.Fixed
 import Data.VectorSpace
 import Data.LinearMap
 import Data.LinearMap.HerMetric
+import Data.LinearMap.Category
 import Data.MemoTrie (HasTrie(..))
 import Data.AffineSpace
 import Data.Basis
@@ -219,6 +222,8 @@ instance (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold
 type LocallyScalable s x = ( PseudoAffine x
                            , HasMetric (Needle x)
                            , s ~ Scalar (Needle x) )
+
+type LocalLinear x y = Linear (Scalar (Needle x)) (Needle x) (Needle y)
 
 -- | Basically just an &#x201c;updated&#x201d; version of the 'VectorSpace' class.
 --   Every vector space is a manifold, this constraint makes it explicit.
@@ -400,6 +405,17 @@ instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => Semimanifold (
   p.+~^n = p ^+^ linMapFromTensProd n
 instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => PseudoAffine (a:-*b) where
   a.-~.b = pure . linMapAsTensProd $ a^-^b
+
+instance (HasMetric a, FiniteDimensional b, Scalar a~s, Scalar b~s)
+                          => Semimanifold (Linear s a b) where
+  type Needle (Linear s a b) = Linear s a b
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+^)
+  (.+~^) = (^+^)
+instance (HasMetric a, FiniteDimensional b, Scalar a~s, Scalar b~s)
+                          => PseudoAffine (Linear s a b) where
+  a.-~.b = pure (a^-^b)
 
 instance Semimanifold S⁰ where
   type Needle S⁰ = ℝ⁰

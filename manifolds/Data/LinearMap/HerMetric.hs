@@ -41,6 +41,7 @@ module Data.LinearMap.HerMetric (
   , metriScale', metriScale
   , adjoint
   , extendMetric
+  , applyLinMapMetric'
   -- * The dual-space class
   , HasMetric
   , HasMetric'(..)
