@@ -519,41 +519,40 @@ type DifferentialEqn x y = Shade' (x,y) -> Shade' (LocalLinear x y)
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)]) -> [Shade' (x,y)]
 filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours)
-    = let jShade@(Shade' j₀ jExpa) = f shxy
-      in              let baseMet :: ℝ -> (Needle x:-*Needle y)
-                                  -> HerMetric' (Needle y) -> HerMetric (Needle (x,y))
-                          baseMet q dfc my = recipMetric
-                               $ transformMetric' (linear $ id &&& lapply dfc)
-                                                  (recipMetric' expax) ^* q
-                                ^+^ recipMetric' expa ^* q
-                                ^+^ transformMetric' (linear $ (zeroV,)) my
-                          -- fcs = lapply fc' <$> xSpan
-                          -- flinRange = δ $ projectors fcs
-                          marginδs :: [(Needle x, (Needle y, Metric y))]
-                          marginδs = [ (δxm, (δym, expany))
-                                     | Shade' (xn, yn) expan <- neighbours
-                                     , let (Option (Just δx)) = x.-~.xn
-                                           (expanx, expany) = factoriseMetric expan
-                                           (Option (Just yc'n))
-                                                  = covariance $ recipMetric' expan
-                                           xntoMarg = metriNormalise expanx δx
-                                           (Option (Just δxm))
-                                              = (xn .+~^ xntoMarg :: x) .-~. x
-                                           (Option (Just δym))
-                                              = (yn .+~^ lapply yc'n xntoMarg :: y
-                                                  ) .-~. y
-                                     ]
-                          back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y
-                          back2Centre (δx, (δym, expany))
-                               = Shade' (y.+~^δyb) . recipMetric
-                                   $ recipMetric' expany
-                                     ^+^ recipMetric' (applyLinMapMetric jExpa δx')
-                           where δyb = δym ^-^ (j₀ $ δx)
-                                 δx' = toDualWith expax δx
-                          yc :: Option (Shade' y)
-                          yc = intersectShade's $ back2Centre <$> marginδs
-                      in undefined
- where (expax, expay) = factoriseMetric expa
+    = case yc of
+        Option (Just (Shade' yres yrExpa))
+                 -> [Shade' (x,yres) (baseMet 1 j₀ yrExpa)]
+ where jShade@(Shade' j₀ jExpa) = f shxy
+       baseMet :: ℝ -> Linear ℝ (Needle x) (Needle y) -> Metric y -> Metric (x,y)
+       baseMet q dfc my = recipMetric
+            $ transformMetric' (linear $ id &&& (dfc$))
+                               (recipMetric' expax) ^* q
+             ^+^ recipMetric' expa ^* q
+             ^+^ transformMetric' (linear $ (zeroV,)) (recipMetric' my)
+       marginδs :: [(Needle x, (Needle y, Metric y))]
+       marginδs = [ (δxm, (δym, expany))
+                  | Shade' (xn, yn) expan <- neighbours
+                  , let (Option (Just δx)) = x.-~.xn
+                        (expanx, expany) = factoriseMetric expan
+                        (Option (Just yc'n))
+                               = covariance $ recipMetric' expan
+                        xntoMarg = metriNormalise expanx δx
+                        (Option (Just δxm))
+                           = (xn .+~^ xntoMarg :: x) .-~. x
+                        (Option (Just δym))
+                           = (yn .+~^ lapply yc'n xntoMarg :: y
+                               ) .-~. y
+                  ]
+       back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y
+       back2Centre (δx, (δym, expany))
+            = Shade' (y.+~^δyb) . recipMetric
+                $ recipMetric' expany
+                  ^+^ recipMetric' (applyLinMapMetric jExpa δx')
+        where δyb = δym ^-^ (j₀ $ δx)
+              δx' = toDualWith expax δx
+       yc :: Option (Shade' y)
+       yc = intersectShade's $ back2Centre <$> marginδs
+       (expax, expay) = factoriseMetric expa
        xSpan = eigenCoSpan' expax
 
 
