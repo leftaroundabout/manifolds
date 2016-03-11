@@ -318,6 +318,22 @@ directionChoices (DBranch ѧ (Hourglass t b) : hs)
  where v = negateV ѧ
        uds = directionChoices hs
 
+traverseDirections :: (WithField ℝ Manifold x, Hask.Applicative f)
+               => (     (Needle' x, ShadeTree x)
+                    -> [(Needle' x, ShadeTree x)]
+                    -> f (ShadeTree x) )
+                 -> [DBranch x]
+                 -> f [DBranch x]
+traverseDirections f = td []
+ where td _ [] = pure []
+       td ud₀ (DBranch ѧ (Hourglass t b) : hs)
+         = liftA3 (\t' b' -> (DBranch ѧ (Hourglass t' b') :))
+             (f (ѧ,t) $ (v,b) : map fst uds )
+             (f (v,b) $ (ѧ,t) : map fst uds )
+             $ td ((ѧ,t):(v,b):ud₀) hs
+        where v = negateV ѧ
+              uds = directionChoices hs -- inefficient to calculate this over and over.
+
 
 instance (NFData x, NFData (Needle' x)) => NFData (ShadeTree x) where
   rnf (PlainLeaves xs) = rnf xs
