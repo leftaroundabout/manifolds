@@ -574,6 +574,9 @@ filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours)
        xSpan = eigenCoSpan' expax
 
 
+-- Formerly, this was the signature of what has now become 'traverseTwigsWithEnvirons'.
+-- The simple list-yielding version (see rev. b4a427d59ec82889bab2fde39225b14a57b694df
+-- may well be more efficient than this version via a traversal.
 twigsWithEnvirons :: ∀ x. WithField ℝ Manifold x
     => ShadeTree x -> [(ShadeTree x, [ShadeTree x])]
 twigsWithEnvirons = execWriter . traverseTwigsWithEnvirons (writer . (fst&&&pure))
@@ -595,8 +598,8 @@ traverseTwigsWithEnvirons f = fst . go []
                                            , False )
        go envi ct@(OverlappingBranches nlvs rob@(Shade robc _) brs)
                 = ( case descentResult of
-                     OuterNothing -> f (ct, Hask.foldMap (twigProximæ robc) envi)
-                     -- TODO: purgeRemotes
+                     OuterNothing -> f
+                         $ purgeRemotes (ct, Hask.foldMap (twigProximæ robc) envi)
                      OuterJust dR -> fmap (OverlappingBranches nlvs rob . NE.fromList) dR
                   , False )
         where descentResult = traverseDirectionChoices tdc $ NE.toList brs
@@ -617,8 +620,7 @@ traverseTwigsWithEnvirons f = fst . go []
                        | bdir<.>^δxenv > 0  = [bdc₁]
                        | otherwise          = [bdc₂]
               approach q = [q]
-       go envi plvs@(PlainLeaves lvs) = (f (plvs, []), True)
-        where [Shade cl _] = pointsShades lvs
+       go envi plvs@(PlainLeaves _) = (f $ purgeRemotes (plvs, envi), True)
        
        twigProximæ :: x -> ShadeTree x -> [ShadeTree x]
        twigProximæ x₀ (DisjointBranches _ djbs) = Hask.foldMap (twigProximæ x₀) djbs
