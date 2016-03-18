@@ -45,6 +45,7 @@ module Data.Manifold.TreeCover (
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
+       , twigsWithEnvirons
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
        , AutoTriang, elementaryTriang, breakdownAutoTriang
