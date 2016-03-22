@@ -35,6 +35,7 @@ import Data.Semigroup
 
 import Data.MemoTrie
 import Data.VectorSpace
+import Data.LinearMap
 import Data.VectorSpace.FiniteDimensional
 import Data.AffineSpace
 import Data.Basis
@@ -68,6 +69,12 @@ newtype Linear s a b = DenseLinear { getDenseMatrix :: HMat.Matrix s }
 identMat :: forall v w . FiniteDimensional v => Linear (Scalar v) w v
 identMat = DenseLinear $ HMat.ident n
  where (Tagged n) = dimension :: Tagged v Int
+
+convertLinear :: ∀ v w s . ( FiniteDimensional v, FiniteDimensional w
+                           , Scalar v ~ s, Scalar w ~ s )
+                   => Isomorphism (->) (v:-*w) (Linear s v w)
+convertLinear = Isomorphism (asPackedMatrix >>> DenseLinear)
+                            (fromPackedMatrix<<<getDenseMatrix)
 
 denseLinear :: ∀ v w s . (FiniteDimensional v, FiniteDimensional w, Scalar w ~ s)
                    => (v->w) -> Linear s v w

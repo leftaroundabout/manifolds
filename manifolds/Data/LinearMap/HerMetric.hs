@@ -16,7 +16,7 @@
 
 module Data.LinearMap.HerMetric (
   -- * Metric operator types
-    HerMetric, HerMetric'
+    HerMetric(..), HerMetric'(..)
   -- * Evaluating metrics
   , toDualWith, fromDualWith
   , metricSq, metricSq', metric, metric', metrics, metrics'
@@ -102,22 +102,22 @@ infixr 7 <.>^, ^<.>
 --   Yet other possible interpretations of this type include /density matrix/ (as in
 --   quantum mechanics), /standard range of statistical fluctuations/, and /volume element/.
 newtype HerMetric v = HerMetric {
-   -- morally:  @getHerMetric :: v :-* DualSpace v@.
-          metricMatrix :: Maybe (HMat.Matrix (Scalar v)) -- @Nothing@ for zero metric.
+          metricMatrix :: Maybe (Linear (Scalar v) v (DualSpace v)) -- @Nothing@ for zero metric.
                       }
 
 matrixMetric :: HasMetric v => HMat.Matrix (Scalar v) -> HerMetric v
-matrixMetric = HerMetric . Just
+matrixMetric = HerMetric . Just . DenseLinear
 
+-- | Deprecated (this doesn't preserve positive-definiteness)
 instance (HasMetric v) => AdditiveGroup (HerMetric v) where
   zeroV = HerMetric Nothing
-  negateV (HerMetric m) = HerMetric $ negate <$> m
+  negateV (HerMetric m) = HerMetric $ negateV <$> m
   HerMetric Nothing ^+^ HerMetric n = HerMetric n
   HerMetric m ^+^ HerMetric Nothing = HerMetric m
-  HerMetric (Just m) ^+^ HerMetric (Just n) = HerMetric . Just $ m + n
+  HerMetric (Just m) ^+^ HerMetric (Just n) = HerMetric . Just $ m ^+^ n
 instance HasMetric v => VectorSpace (HerMetric v) where
   type Scalar (HerMetric v) = Scalar v
-  s *^ (HerMetric m) = HerMetric $ HMat.scale s <$> m 
+  s *^ (HerMetric m) = HerMetric $ (s*^) <$> m 
 
 -- | A metric on the dual space; equivalent to a linear mapping from the dual space
 --   to the original vector space.
@@ -125,15 +125,15 @@ instance HasMetric v => VectorSpace (HerMetric v) where
 --   Prime-versions of the functions in this module target those dual-space metrics, so
 --   we can avoid some explicit handling of double-dual spaces.
 newtype HerMetric' v = HerMetric' {
-          metricMatrix' :: Maybe (HMat.Matrix (Scalar v))
+          metricMatrix' :: Maybe (Linear (Scalar v) (DualSpace v) v)
                       }
 
 extendMetric :: (HasMetric v, Scalar v~ℝ) => HerMetric v -> v -> HerMetric v
 extendMetric (HerMetric Nothing) _ = HerMetric Nothing
-extendMetric (HerMetric (Just m)) v
-      | isInfinite' detm  = HerMetric $ Just m
+extendMetric (HerMetric (Just (DenseLinear m))) v
+      | isInfinite' detm  = HerMetric . Just $ DenseLinear m
       | isInfinite' detmninv  = singularMetric
-      | otherwise         = HerMetric $ Just mn
+      | otherwise         = HerMetric . Just $ DenseLinear mn
  where -- this could probably be done much more efficiently, with only
        -- multiplications, no inverses.
        (minv, (detm, _)) = HMat.invlndet m
@@ -142,17 +142,18 @@ extendMetric (HerMetric (Just m)) v
                               
 
 matrixMetric' :: HasMetric v => HMat.Matrix (Scalar v) -> HerMetric' v
-matrixMetric' = HerMetric' . Just
+matrixMetric' = HerMetric' . Just . DenseLinear
 
+-- | Deprecated
 instance (HasMetric v) => AdditiveGroup (HerMetric' v) where
   zeroV = HerMetric' Nothing
-  negateV (HerMetric' m) = HerMetric' $ negate <$> m
+  negateV (HerMetric' m) = HerMetric' $ negateV <$> m
   HerMetric' Nothing ^+^ HerMetric' n = HerMetric' n
   HerMetric' m ^+^ HerMetric' Nothing = HerMetric' m
-  HerMetric' (Just m) ^+^ HerMetric' (Just n) = matrixMetric' $ m + n
+  HerMetric' (Just m) ^+^ HerMetric' (Just n) = HerMetric' . Just $ m ^+^ n
 instance HasMetric v => VectorSpace (HerMetric' v) where
   type Scalar (HerMetric' v) = Scalar v
-  s *^ (HerMetric' m) = HerMetric' $ HMat.scale s <$> m 
+  s *^ (HerMetric' m) = HerMetric' $ (s*^) <$> m 
     
 
 -- | A metric on @v@ that simply yields the squared overlap of a vector with the
@@ -186,13 +187,13 @@ singularMetric' = matrixMetric' $ HMat.scale (1/0) (HMat.ident dim)
 --   this will be simply 'magnitudeSq'.
 metricSq :: HasMetric v => HerMetric v -> v -> Scalar v
 metricSq (HerMetric Nothing) _ = 0
-metricSq (HerMetric (Just m)) v = vDecomp `HMat.dot` HMat.app m vDecomp
+metricSq (HerMetric (Just (DenseLinear m))) v = vDecomp `HMat.dot` HMat.app m vDecomp
  where vDecomp = asPackedVector v
 
 
 metricSq' :: HasMetric v => HerMetric' v -> DualSpace v -> Scalar v
 metricSq' (HerMetric' Nothing) _ = 0
-metricSq' (HerMetric' (Just m)) u = uDecomp `HMat.dot` HMat.app m uDecomp
+metricSq' (HerMetric' (Just (DenseLinear m))) u = uDecomp `HMat.dot` HMat.app m uDecomp
  where uDecomp = asPackedVector u
 
 -- | Evaluate a vector's &#x201c;magnitude&#x201d; through a metric. This assumes an actual
@@ -208,11 +209,11 @@ metric' m = sqrt . metricSq' m
 
 toDualWith :: HasMetric v => HerMetric v -> v -> DualSpace v
 toDualWith (HerMetric Nothing) = const zeroV
-toDualWith (HerMetric (Just m)) = fromPackedVector . HMat.app m . asPackedVector
+toDualWith (HerMetric (Just m)) = (m$)
 
 fromDualWith :: HasMetric v => HerMetric' v -> DualSpace v -> v
 fromDualWith (HerMetric' Nothing) = const zeroV
-fromDualWith (HerMetric' (Just m)) = fromPackedVector . HMat.app m . asPackedVector
+fromDualWith (HerMetric' (Just m)) = (m$)
 
 -- | Divide a vector by its own norm, according to metric, i.e. normalise it
 --   or &#x201c;project to the metric's boundary&#x201d;.
@@ -244,31 +245,27 @@ metrics' :: (HasMetric v, Floating (Scalar v)) => HerMetric' v -> [DualSpace v] 
 metrics' m vs = sqrt . sum $ metricSq' m <$> vs
 
 
-transformMetric :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
-           => (w :-* v) -> HerMetric v -> HerMetric w
+transformMetric :: ∀ s v w . (HasMetric v, HasMetric w, Scalar v~s, Scalar w~s)
+           => Linear s w v -> HerMetric v -> HerMetric w
 transformMetric _ (HerMetric Nothing) = HerMetric Nothing
-transformMetric t (HerMetric (Just m)) = matrixMetric $ HMat.tr tmat HMat.<> m HMat.<> tmat
- where tmat = asPackedMatrix t
+transformMetric t (HerMetric (Just m)) = HerMetric . Just $ adjoint t . m . t
 
-transformMetric' :: ( HasMetric v, HasMetric w, Scalar v ~ Scalar w )
-           => (v :-* w) -> HerMetric' v -> HerMetric' w
+transformMetric' :: ∀ s v w . (HasMetric v, HasMetric w, Scalar v~s, Scalar w~s)
+           => Linear s v w -> HerMetric' v -> HerMetric' w
 transformMetric' _ (HerMetric' Nothing) = HerMetric' Nothing
-transformMetric' t (HerMetric' (Just m))
-                      = matrixMetric' $ tmat HMat.<> m HMat.<> HMat.tr tmat
- where tmat = asPackedMatrix t
+transformMetric' t (HerMetric' (Just m)) = HerMetric' . Just $ t . m . adjoint t
 
 -- | This does something vaguely like  @\\s t -> (s⋅t)²@,
 --   but without actually requiring an inner product on the covectors.
 --   Used for calculating the superaffine term of multiplications in
 --   'Differentiable' categories.
-dualCoCoProduct :: (HasMetric v, HasMetric w, Scalar v ~ Scalar w)
-           => (w :-* v) -> (w :-* v) -> HerMetric w
-dualCoCoProduct s t = ( (sArr `HMat.dot` (t²PLUSs² HMat.<\> sArr))
+dualCoCoProduct :: (HasMetric v, HasMetric w, Scalar v ~ s, Scalar w ~ s)
+           => Linear s w v -> Linear s w v -> HerMetric w
+dualCoCoProduct (DenseLinear smat) (DenseLinear tmat)
+                  = ( (sArr `HMat.dot` (t²PLUSs² HMat.<\> sArr))
                        * (tArr `HMat.dot` (t²PLUSs² HMat.<\> tArr)) )
                     *^ matrixMetric t²PLUSs²
- where tmat = asPackedMatrix t
-       tArr = HMat.flatten tmat
-       smat = asPackedMatrix s
+ where tArr = HMat.flatten tmat
        sArr = HMat.flatten smat
        t²PLUSs² = tmat HMat.<> HMat.tr tmat + smat HMat.<> HMat.tr smat
 
@@ -285,16 +282,17 @@ dualiseMetric' (HerMetric' m) = HerMetric m
 -- | The inverse mapping of a metric tensor. Since a metric maps from
 --   a space to its dual, the inverse maps from the dual into the
 --   (double-dual) space &#x2013; i.e., it is a metric on the dual space.
+--   Deprecated: the singular case isn't properly handled.
 recipMetric' :: HasMetric v => HerMetric v -> HerMetric' v
 recipMetric' (HerMetric Nothing) = singularMetric'
-recipMetric' (HerMetric (Just m))
+recipMetric' (HerMetric (Just (DenseLinear m)))
           | isInfinite' detm  = singularMetric'
           | otherwise         = matrixMetric' minv
  where (minv, (detm, _)) = HMat.invlndet m
 
 recipMetric :: HasMetric v => HerMetric' v -> HerMetric v
 recipMetric (HerMetric' Nothing) = singularMetric
-recipMetric (HerMetric' (Just m))
+recipMetric (HerMetric' (Just (DenseLinear m)))
           | isInfinite' detm  = singularMetric
           | otherwise         = matrixMetric minv
  where (minv, (detm, _)) = HMat.invlndet m
@@ -316,24 +314,24 @@ isInfinite' x = x==x*2
 --   &#x201c;scaled length&#x201d; doesn't really makes sense then in the usual way!)
 eigenSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
 eigenSpan (HerMetric' Nothing) = []
-eigenSpan (HerMetric' (Just m)) = map fromPackedVector eigSpan
+eigenSpan (HerMetric' (Just (DenseLinear m))) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH' m
        eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
 eigenSpan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [DualSpace v]
 eigenSpan' (HerMetric Nothing) = []
-eigenSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
+eigenSpan' (HerMetric (Just (DenseLinear m))) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH' m
        eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
 eigenCoSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [DualSpace v]
 eigenCoSpan (HerMetric' Nothing) = []
-eigenCoSpan (HerMetric' (Just m)) = map fromPackedVector eigSpan
+eigenCoSpan (HerMetric' (Just (DenseLinear m))) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH' m
        eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 eigenCoSpan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [v]
 eigenCoSpan' (HerMetric Nothing) = []
-eigenCoSpan' (HerMetric (Just m)) = map fromPackedVector eigSpan
+eigenCoSpan' (HerMetric (Just (DenseLinear m))) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH' m
        eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
@@ -396,7 +394,7 @@ ket ^<.> bra = bra <.>^ ket
 
 
 euclideanMetric' :: forall v . (HasMetric v, InnerSpace v) => HerMetric v
-euclideanMetric' = HerMetric . pure $ HMat.ident n
+euclideanMetric' = HerMetric . pure . DenseLinear $ HMat.ident n
  where (Tagged n) = dimension :: Tagged v Int
 
 -- -- | Associate a Hilbert space vector canonically with its dual-space counterpart,
@@ -478,9 +476,13 @@ completeBasisFunctional f = recompose [ (bid b, f $ basisValue b) | b <- cb ]
 -- | Transpose a linear operator. Contrary to popular belief, this does not
 --   just inverse the direction of mapping between the spaces, but also switch to
 --   their duals.
-adjoint :: (HasMetric v, HasMetric w, Scalar w ~ Scalar v)
+adjoint :: (HasMetric v, HasMetric w, s~Scalar v, s~Scalar w)
+     => (Linear s v w) -> Linear s (DualSpace w) (DualSpace v)
+adjoint (DenseLinear m) = DenseLinear $ HMat.tr m
+
+adjoint_fln :: (HasMetric v, HasMetric w, Scalar w ~ Scalar v)
      => (v :-* w) -> DualSpace w :-* DualSpace v
-adjoint m = linear $ \w -> functional $ \v
+adjoint_fln m = linear $ \w -> functional $ \v
                      -> w <.>^lapply m v
 
 
@@ -496,7 +498,8 @@ instance (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Num (HerMetric v) whe
   negate = negateV
            
   -- | This does /not/ work correctly if the metrics don't share an eigenbasis!
-  HerMetric m * HerMetric n = HerMetric $ liftA2 (HMat.<>) m n
+  HerMetric m * HerMetric n = HerMetric . fmap DenseLinear
+                              $ liftA2 (HMat.<>) (getDenseMatrix<$>m) (getDenseMatrix<$>n)
                               
   -- | Undefined, though it could actually be done.
   abs = error "abs undefined for HerMetric"
@@ -506,7 +509,8 @@ instance (HasMetric v, v ~ DualSpace v, Num (Scalar v)) => Num (HerMetric v) whe
 metrNumFun :: (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Num v)
       => (v -> v) -> HerMetric v -> HerMetric v
 metrNumFun f (HerMetric Nothing) = matrixMetric . HMat.scalar $ f 0
-metrNumFun f (HerMetric (Just m)) = matrixMetric . HMat.scalar . f $ m HMat.! 0 HMat.! 0
+metrNumFun f (HerMetric (Just (DenseLinear m)))
+              = matrixMetric . HMat.scalar . f $ m HMat.! 0 HMat.! 0
 
 instance (HasMetric v, v ~ Scalar v, v ~ DualSpace v, Fractional v) 
             => Fractional (HerMetric v) where
@@ -568,52 +572,40 @@ factoriseMetric' met = (sumV *** sumV) . unzip
 productMetric :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric v -> HerMetric w -> HerMetric (v,w)
 productMetric (HerMetric Nothing) (HerMetric Nothing) = HerMetric Nothing
-productMetric (HerMetric (Just mv)) (HerMetric (Just mw))
-        = HerMetric . Just $ HMat.diagBlock [mv, mw]
-productMetric (HerMetric Nothing) (HerMetric (Just mw))
-        = HerMetric . Just $ HMat.diagBlock [HMat.konst 0 (dv,dv), mw]
- where (Tagged dv) = dimension :: Tagged v Int
-productMetric (HerMetric (Just mv)) (HerMetric Nothing)
-        = HerMetric . Just $ HMat.diagBlock [mv, HMat.konst 0 (dw,dw)]
- where (Tagged dw) = dimension :: Tagged w Int
+productMetric (HerMetric (Just mv)) (HerMetric (Just mw)) = HerMetric . Just $ mv *** mw
+productMetric (HerMetric Nothing) (HerMetric (Just mw)) = HerMetric . Just $ zeroV *** mw
+productMetric (HerMetric (Just mv)) (HerMetric Nothing) = HerMetric . Just $ mv *** zeroV
 
 productMetric' :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric' v -> HerMetric' w -> HerMetric' (v,w)
 productMetric' (HerMetric' Nothing) (HerMetric' Nothing) = HerMetric' Nothing
-productMetric' (HerMetric' (Just mv)) (HerMetric' (Just mw))
-        = HerMetric' . Just $ HMat.diagBlock [mv, mw]
-productMetric' (HerMetric' Nothing) (HerMetric' (Just mw))
-        = HerMetric' . Just $ HMat.diagBlock [HMat.konst 0 (dv,dv), mw]
- where (Tagged dv) = dimension :: Tagged v Int
-productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing)
-        = HerMetric' . Just $ HMat.diagBlock [mv, HMat.konst 0 (dw,dw)]
- where (Tagged dw) = dimension :: Tagged w Int
+productMetric' (HerMetric' (Just mv)) (HerMetric' (Just mw)) = HerMetric' . Just $ mv***mw
+productMetric' (HerMetric' Nothing) (HerMetric' (Just mw)) = HerMetric' . Just $ zeroV***mw
+productMetric' (HerMetric' (Just mv)) (HerMetric' Nothing) = HerMetric' . Just $ mv***zeroV
 
 
 applyLinMapMetric :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric (Linear ℝ v w) -> DualSpace v -> HerMetric w
 applyLinMapMetric met v' = transformMetric ap2v met
- where ap2v :: w :-* Linear ℝ v w
-       ap2v = linear $ \w -> denseLinear $ \v -> w ^* (v'<.>^v)
+ where ap2v :: Linear ℝ w (Linear ℝ v w)
+       ap2v = denseLinear $ \w -> denseLinear $ \v -> w ^* (v'<.>^v)
 
 applyLinMapMetric' :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric' (Linear ℝ v w) -> v -> HerMetric' w
 applyLinMapMetric' met v = transformMetric' ap2v met
- where ap2v :: Linear ℝ v w :-* w
-       ap2v = linear ($v)
+ where ap2v :: Linear ℝ (Linear ℝ v w) w
+       ap2v = denseLinear ($v)
 
 
 
 covariance :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
-          => HerMetric' (v,w) -> Option (v:-*w)
+          => HerMetric' (v,w) -> Option (Linear ℝ v w)
 covariance (HerMetric' Nothing) = pure zeroV
 covariance (HerMetric' (Just m))
     | isInfinite' detvnm  = empty
-    | otherwise           = pure . fromPackedMatrix $
-                               wmat HMat.<> m HMat.<> vmat HMat.<> vnorml
- where wmat = asPackedMatrix (linear snd :: (v,w):-*w)
-       vmat = asPackedMatrix (linear (id&&&const zeroV) :: v:-*(v,w))
-       (vnorml, (detvnm, _)) = HMat.invlndet (HMat.tr vmat HMat.<> m HMat.<> vmat)
+    | otherwise           = return $ snd . m . (id&&&zeroV) . DenseLinear vnorml
+ where (vnorml, (detvnm, _))
+           = HMat.invlndet . getDenseMatrix $ snd . m . (id&&&zeroV)
 
 
 metricAsLength :: HerMetric ℝ -> ℝ

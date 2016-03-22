@@ -405,7 +405,7 @@ fromFnGraphPoints = fromLeafPoints' fg_sShIdPart
        fg_sShIdPart (Shade c expa) xs
         | b:bs <- [DBranch (v, zeroV) mempty
                     | v <- eigenCoSpan
-                           (transformMetric' (linear fst) expa :: Metric' x) ]
+                           (transformMetric' fst expa :: Metric' x) ]
                       = sShIdPartition' c xs $ b:|bs
 
 fromLeafPoints' :: ∀ x. WithField ℝ Manifold x =>
@@ -544,10 +544,10 @@ filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours)
  where jShade@(Shade' j₀ jExpa) = f shxy
        baseMet :: ℝ -> Linear ℝ (Needle x) (Needle y) -> Metric y -> Metric (x,y)
        baseMet q dfc my = recipMetric
-            $ transformMetric' (linear $ id &&& (dfc$))
+            $ transformMetric' (denseLinear $ id &&& (dfc$))
                                (recipMetric' expax) ^* q
              ^+^ recipMetric' expa ^* q
-             ^+^ transformMetric' (linear $ (zeroV,)) (recipMetric' my)
+             ^+^ transformMetric' (zeroV&&&id) (recipMetric' my)
        marginδs :: [(Needle x, (Needle y, Metric y))]
        marginδs = [ (δxm, (δym, expany))
                   | Shade' (xn, yn) expan <- neighbours
@@ -559,7 +559,7 @@ filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours)
                         (Option (Just δxm))
                            = (xn .+~^ xntoMarg :: x) .-~. x
                         (Option (Just δym))
-                           = (yn .+~^ lapply yc'n xntoMarg :: y
+                           = (yn .+~^ (yc'n $ xntoMarg) :: y
                                ) .-~. y
                   ]
        back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y

@@ -55,10 +55,12 @@ import qualified Data.Vector
 import Data.Maybe
 import Data.Semigroup
 import Data.Function (on)
+import Data.Embedding
 import Data.Fixed
 
 import Data.VectorSpace
 import Data.LinearMap
+import Data.LinearMap.Category
 import Data.LinearMap.HerMetric
 import Data.MemoTrie (HasTrie(..))
 import Data.AffineSpace
@@ -318,10 +320,12 @@ instance (MetricScalar s) => Category (Differentiable s) where
   id = Differentiable $ \x -> (x, idL, const zeroV)
   Differentiable f . Differentiable g = Differentiable $
      \x -> let (y, g', devg) = g x
+               jg = convertLinear $->$ g'
                (z, f', devf) = f y
-               devfg δz = let δy = transformMetric f' δz
+               jf = convertLinear $->$ f'
+               devfg δz = let δy = transformMetric jf δz
                               εy = devf δz
-                          in transformMetric g' εy ^+^ devg δy ^+^ devg εy
+                          in transformMetric jg εy ^+^ devg δy ^+^ devg εy
            in (z, f'*.*g', devfg)
   AffinDiffable ef f . AffinDiffable eg g = AffinDiffable (ef . eg) (f . g)
   f . g = genericiseDifferentiable f . genericiseDifferentiable g
@@ -353,13 +357,11 @@ instance (MetricScalar s) => Morphism (Differentiable s) where
    where h (x,y) = ((fx, gy), lPar, devfg)
           where (fx, f', devf) = f x
                 (gy, g', devg) = g y
-                devfg δs = transformMetric lfst δx 
-                           ^+^ transformMetric lsnd δy
-                  where δx = devf $ transformMetric lcofst δs
-                        δy = devg $ transformMetric lcosnd δs
+                devfg δs = transformMetric fst δx 
+                           ^+^ transformMetric snd δy
+                  where δx = devf $ transformMetric (id&&&zeroV) δs
+                        δy = devg $ transformMetric (zeroV&&&id) δs
                 lPar = linear $ lapply f'***lapply g'
-         lfst = linear fst; lsnd = linear snd
-         lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
   AffinDiffable IsDiffableEndo f *** AffinDiffable IsDiffableEndo g
          = AffinDiffable IsDiffableEndo $ f *** g
   AffinDiffable _ f *** AffinDiffable _ g = AffinDiffable NotDiffableEndo $ f *** g
@@ -376,10 +378,9 @@ instance (MetricScalar s) => PreArrow (Differentiable s) where
    where h x = ((fx, gx), lFanout, devfg)
           where (fx, f', devf) = f x
                 (gx, g', devg) = g x
-                devfg δs = (devf $ transformMetric lcofst δs)
-                           ^+^ (devg $ transformMetric lcosnd δs)
+                devfg δs = (devf $ transformMetric (id&&&zeroV) δs)
+                           ^+^ (devg $ transformMetric (zeroV&&&id) δs)
                 lFanout = linear $ lapply f'&&&lapply g'
-         lcofst = linear (,zeroV); lcosnd = linear (zeroV,)
   f &&& g = genericiseDifferentiable f &&& genericiseDifferentiable g
 
 
@@ -445,20 +446,21 @@ dfblFnValsCombine cmb (GenericAgent (Differentiable f))
                       (GenericAgent (Differentiable g)) 
     = GenericAgent . Differentiable $
         \d -> let (c', f', devf) = f d
+                  jf = convertLinear$->$f'
                   (c'', g', devg) = g d
+                  jg = convertLinear$->$g'
                   (c, h', devh) = cmb c' c''
-                  h'l = h' *.* lcofst; h'r = h' *.* lcosnd
+                  jh = convertLinear$->$h'
+                  jhl = jh . (id&&&zeroV); jhr = jh . (zeroV&&&id)
               in ( c
                  , h' *.* linear (lapply f' &&& lapply g')
-                 , \εc -> let εc' = transformMetric h'l εc
-                              εc'' = transformMetric h'r εc
+                 , \εc -> let εc' = transformMetric jhl εc
+                              εc'' = transformMetric jhr εc
                               (δc',δc'') = devh εc 
                           in devf εc' ^+^ devg εc''
-                               ^+^ transformMetric f' δc'
-                               ^+^ transformMetric g' δc''
+                               ^+^ transformMetric jf δc'
+                               ^+^ transformMetric jg δc''
                  )
- where lcofst = linear(,zeroV)
-       lcosnd = linear(zeroV,) 
 dfblFnValsCombine cmb (GenericAgent fa) (GenericAgent ga) 
          = dfblFnValsCombine cmb (GenericAgent $ genericiseDifferentiable fa)
                                  (GenericAgent $ genericiseDifferentiable ga)
@@ -535,7 +537,7 @@ minDblfuncs (Differentiable f) (Differentiable g) = Differentiable h
                                ^+^ transformMetric δj d )
         where (fx, jf, devf) = f x
               (gx, jg, devg) = g x
-              δj = jf ^-^ jg
+              δj = convertLinear $->$ jf ^-^ jg
 
 
 postEndo :: ∀ c a b . (HasAgent c, Object c a, Object c b)
@@ -826,21 +828,22 @@ grwDfblFnValsCombine cmb (GenericRWDFV (RWDiffable fpcs))
                       (Option(Just(Differentiable f)), Option(Just(Differentiable g))) ->
                         pure . Differentiable $ \d
                          -> let (c', f', devf) = f d
+                                jf = convertLinear $->$ f'
                                 (c'',g', devg) = g d
+                                jg = convertLinear $->$ g'
                                 (c, h', devh) = cmb c' c''
-                                h'l = h' *.* lcofst; h'r = h' *.* lcosnd
+                                jh = convertLinear $->$ h'
+                                jhl = jh . (id&&&zeroV); jhr = jh . (zeroV&&&id)
                             in ( c
                                , h' *.* linear (lapply f' &&& lapply g')
-                               , \εc -> let εc' = transformMetric h'l εc
-                                            εc'' = transformMetric h'r εc
+                               , \εc -> let εc' = transformMetric jhl εc
+                                            εc'' = transformMetric jhr εc
                                             (δc',δc'') = devh εc 
                                         in devf εc' ^+^ devg εc''
-                                             ^+^ transformMetric f' δc'
-                                             ^+^ transformMetric g' δc''
+                                             ^+^ transformMetric jf δc'
+                                             ^+^ transformMetric jg δc''
                                )
                       _ -> notDefinedHere
- where lcofst = linear(,zeroV)
-       lcosnd = linear(zeroV,) 
 grwDfblFnValsCombine cmb fv gv
         = grwDfblFnValsCombine cmb (genericiseRWDFV fv) (genericiseRWDFV gv)
 
@@ -952,7 +955,9 @@ instance (RealDimension n, LocallyScalable n a)
                 mulDi (Differentiable f) (Differentiable g)
                    = Differentiable $
                        \d -> let (c₁, slf, devf) = f d
+                                 jf = convertLinear$->$slf
                                  (c₂, slg, devg) = g d
+                                 jg = convertLinear$->$slg
                                  c = c₁*c₂; c₁² = c₁^2; c₂² = c₂^2
                                  h' = c₁*^slg ^+^ c₂*^slf
                                  in ( c
@@ -960,7 +965,7 @@ instance (RealDimension n, LocallyScalable n a)
                                     , \εc -> let rε² = metric εc 1
                                                  c₁worst² = c₁² + recip(1 + c₂²*rε²)
                                                  c₂worst² = c₂² + recip(1 + c₁²*rε²)
-                                             in (4*rε²) *^ dualCoCoProduct slf slg
+                                             in (4*rε²) *^ dualCoCoProduct jf jg
                                                 ^+^ devf (εc^*(4*c₂worst²))
                                                 ^+^ devg (εc^*(4*c₁worst²))
                     -- TODO: add formal proof for this (or, if necessary, the correct form)

@@ -62,7 +62,7 @@ module Data.Manifold.PseudoAffine (
             , EuclidSpace
             , LocallyScalable
             -- ** Local functions
-            , LocalLinear
+            , LocalLinear, LocalAffine
             -- * Misc
             , palerp
             ) where
@@ -224,6 +224,7 @@ type LocallyScalable s x = ( PseudoAffine x
                            , s ~ Scalar (Needle x) )
 
 type LocalLinear x y = Linear (Scalar (Needle x)) (Needle x) (Needle y)
+type LocalAffine x y = (Needle y, LocalLinear x y)
 
 -- | Basically just an &#x201c;updated&#x201d; version of the 'VectorSpace' class.
 --   Every vector space is a manifold, this constraint makes it explicit.
