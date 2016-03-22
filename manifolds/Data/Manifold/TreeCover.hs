@@ -188,6 +188,8 @@ subshadeId (Shade c expa) = subshadeId' c . NE.fromList $ eigenCoSpan expa
 pointsShades :: WithField ℝ Manifold x => [x] -> [Shade x]
 pointsShades = map snd . pointsShades' zeroV
 
+pointsShade's :: WithField ℝ Manifold x => [x] -> [Shade' x]
+pointsShade's = map (\(Shade c e) -> Shade' c $ recipMetric e) . pointsShades
 
 pseudoECM :: WithField ℝ Manifold x => NonEmpty x -> (x, ([x],[x]))
 pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
@@ -496,6 +498,12 @@ trunks (PlainLeaves lvs) = pointsShades lvs
 trunks (DisjointBranches _ brs) = Hask.foldMap trunks brs
 trunks (OverlappingBranches _ sh _) = [sh]
 
+unsafeFmapLeaves :: (x -> x) -> ShadeTree x -> ShadeTree x
+unsafeFmapLeaves f (PlainLeaves lvs) = PlainLeaves $ fmap f lvs
+unsafeFmapLeaves f (DisjointBranches n brs)
+                  = DisjointBranches n $ unsafeFmapLeaves f <$> brs
+unsafeFmapLeaves f (OverlappingBranches n sh brs)
+                  = OverlappingBranches n sh $ fmap (unsafeFmapLeaves f) <$> brs
 
 
 intersectShade's :: ∀ y . WithField ℝ Manifold y => [Shade' y] -> Option (Shade' y)
@@ -675,6 +683,15 @@ traverseTwigsWithEnvirons f = fst . go []
               lvsm = onlyLeaves ctm
        purgeRemotes xyz = xyz
     
+
+completeTopShading :: (WithField ℝ Manifold x, WithField ℝ Manifold y)
+                   => x`Shaded`y -> [Shade' (x,y)]
+completeTopShading (PlainLeaves plvs)
+                     = pointsShade's $ (_topological &&& _untopological) <$> plvs
+completeTopShading (DisjointBranches _ bqs)
+                     = take 1 . completeTopShading =<< NE.toList bqs
+completeTopShading t = pointsShade's . map (_topological &&& _untopological) $ onlyLeaves t
+
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
 -- simplexFaces (Simplex p (ZeroSimplex q))    = TriangVertices $ Arr.fromList [p, q]
