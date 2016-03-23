@@ -690,20 +690,21 @@ completeTopShading (DisjointBranches _ bqs)
                      = take 1 . completeTopShading =<< NE.toList bqs
 completeTopShading t = pointsShade's . map (_topological &&& _untopological) $ onlyLeaves t
 
-flexTopShading :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
-                  => (Shade' (x,y) -> (Shade' y, LocalLinear x y))
-                      -> x`Shaded`y -> x`Shaded`y
+flexTopShading :: ∀ x y f . ( WithField ℝ Manifold x, WithField ℝ Manifold y
+                            , Applicative f (->) (->) )
+                  => (Shade' (x,y) -> f (Shade' y, LocalLinear x y))
+                      -> x`Shaded`y -> f (x`Shaded`y)
 flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
                     $ recst (completeTopShading tr) tr
  where recst qsh@(_:_) (DisjointBranches n bqs)
-          = DisjointBranches n $ NE.zipWith (recst . (:[])) (NE.fromList qsh) bqs
-       recst [sha@(Shade' (xc,yc) expa)] t = unsafeFmapLeaves applδj t
-        where (Shade' yc' expay', δj) = f sha
-              Option (Just δyc) = yc'.-~.yc
-              j₀ :: LocalLinear x y
-              Option (Just j₀) = covariance $ recipMetric' expa
-              applδj (WithAny y x) = WithAny (y .+~^ (δj $ δx)) x
-               where Option (Just δx) = x.-~.xc
+          = undefined -- DisjointBranches n $ NE.zipWith (recst . (:[])) (NE.fromList qsh) bqs
+       recst [sha@(Shade' (xc,yc) expa)] t = fmap fts $ f sha
+        where fts (Shade' yc' expay', δj) = unsafeFmapLeaves applδj t
+               where Option (Just δyc) = yc'.-~.yc
+                     j₀ :: LocalLinear x y
+                     Option (Just j₀) = covariance $ recipMetric' expa
+                     applδj (WithAny y x) = WithAny (y .+~^ (δj $ δx)) x
+                      where Option (Just δx) = x.-~.xc
        
        assert_onlyToplevDisjoint, assert_connected :: x`Shaded`y -> ()
        assert_onlyToplevDisjoint (DisjointBranches _ dp) = rnf (assert_connected<$>dp)
@@ -715,10 +716,12 @@ flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
 
 filterDEqnSolution_static :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y
-               -> x`Shaded`y -> x`Shaded`y
-filterDEqnSolution_static deq tr = runIdentity $ traverseTwigsWithEnvirons locSoltn tr
- where locSoltn :: (x`Shaded`y, [x`Shaded`y]) -> Identity (x`Shaded`y)
-       locSoltn = pure . fst
+               -> x`Shaded`y -> Option (x`Shaded`y)
+filterDEqnSolution_static deq tr = traverseTwigsWithEnvirons locSoltn tr
+ where locSoltn :: (x`Shaded`y, [x`Shaded`y]) -> Option (x`Shaded`y)
+       locSoltn (local, environs)
+            = flexTopShading (filterDEqnSolution_loc deq
+                              . (, completeTopShading=<<environs)) local
 
 
 
