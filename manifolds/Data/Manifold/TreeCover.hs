@@ -544,11 +544,9 @@ type DifferentialEqn x y = Shade' (x,y) -> Shade' (LocalLinear x y)
 
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
-           => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)]) -> [Shade' (x,y)]
-filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours)
-    = case yc of
-        Option (Just (Shade' yres yrExpa))
-                 -> [Shade' (x,yres) (baseMet 1 j₀ yrExpa)]
+           => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)])
+                   -> Option (Shade' y, LocalLinear x y)
+filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours) = (,j₀) <$> yc
  where jShade@(Shade' j₀ jExpa) = f shxy
        baseMet :: ℝ -> Linear ℝ (Needle x) (Needle y) -> Metric y -> Metric (x,y)
        baseMet q dfc my = recipMetric
@@ -683,7 +681,7 @@ traverseTwigsWithEnvirons f = fst . go []
               lvsm = onlyLeaves ctm
        purgeRemotes xyz = xyz
     
-
+    
 completeTopShading :: (WithField ℝ Manifold x, WithField ℝ Manifold y)
                    => x`Shaded`y -> [Shade' (x,y)]
 completeTopShading (PlainLeaves plvs)
@@ -713,6 +711,19 @@ flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
        assert_connected (OverlappingBranches _ _ dp)
            = rnf (Hask.foldMap assert_connected<$>dp)
        assert_connected (PlainLeaves _) = ()
+
+
+filterDEqnSolution_static :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
+           => DifferentialEqn x y
+               -> x`Shaded`y -> x`Shaded`y
+filterDEqnSolution_static deq tr = runIdentity $ traverseTwigsWithEnvirons locSoltn tr
+ where locSoltn :: (x`Shaded`y, [x`Shaded`y]) -> Identity (x`Shaded`y)
+       locSoltn = pure . fst
+
+
+
+
+
 
 
 -- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
