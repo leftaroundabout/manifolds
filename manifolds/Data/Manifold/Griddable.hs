@@ -139,12 +139,12 @@ instance (Griddable m a, Griddable n a) => Griddable (m,n) a where
                fstGriddingParams :: GriddingParameters m a
              , sndGriddingParams :: GriddingParameters n a }
   mkGridding (PairGriddingParameters p₁ p₂) n (Shade (c₁,c₂) e₁e₂)
-          = gshmap ( uncurry fullShade . (                  (,c₂).(^.shadeCtr)
+          = ( gshmap ( uncurry fullShade . (                  (,c₂).(^.shadeCtr)
                                          &&& (`productMetric'`e₂).(^.shadeExpanse)) )
-              <$> g₁s
-         ++ gshmap ( uncurry fullShade . (                  (c₁,).(^.shadeCtr)
+              <$> g₁s )
+         ++ ( gshmap ( uncurry fullShade . (                  (c₁,).(^.shadeCtr)
                                          &&& ( productMetric' e₁).(^.shadeExpanse)) )
-              <$> g₂s
+              <$> g₂s )
    where g₁s = mkGridding p₁ n $ fullShade c₁ e₁
          g₂s = mkGridding p₂ n $ fullShade c₂ e₂
          (e₁,e₂) = factoriseMetric' e₁e₂ 

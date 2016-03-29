@@ -235,7 +235,7 @@ shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs) = case extractJust tryMerge shs
                   = Just $ let cc = c₂ .+~^ v ^/ 2
                                Option (Just cv₁) = c₁.-~.cc
                                Option (Just cv₂) = c₂.-~.cc
-                           in Shade cc . sumV $ [e₁, e₂] ++ projector'<$>[cv₁, cv₂] 
+                           in Shade cc . sumV $ [e₁, e₂] ++ (projector'<$>[cv₁, cv₂])
            | otherwise  = Nothing
 shadesMerge _ shs = shs
 
@@ -1046,8 +1046,8 @@ breakdownAutoTriang (AutoTriang t) = doTriangBuild t
 partitionsOfFstLength :: Int -> [a] -> [([a],[a])]
 partitionsOfFstLength 0 l = [([],l)]
 partitionsOfFstLength n [] = []
-partitionsOfFstLength n (x:xs) = first (x:) <$> partitionsOfFstLength (n-1) xs
-                              ++ second (x:) <$> partitionsOfFstLength n xs
+partitionsOfFstLength n (x:xs) = ( first (x:) <$> partitionsOfFstLength (n-1) xs )
+                              ++ ( second (x:) <$> partitionsOfFstLength n xs )
 
 splxVertices :: Simplex n x -> [x]
 splxVertices (ZS x) = [x]
