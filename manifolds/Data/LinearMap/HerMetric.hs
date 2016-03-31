@@ -605,7 +605,7 @@ covariance (HerMetric' (Just m))
     | isInfinite' detvnm  = empty
     | otherwise           = return $ snd . m . (id&&&zeroV) . DenseLinear vnorml
  where (vnorml, (detvnm, _))
-           = HMat.invlndet . getDenseMatrix $ snd . m . (id&&&zeroV)
+           = HMat.invlndet . getDenseMatrix $ fst . m . (id&&&zeroV)
 
 
 metricAsLength :: HerMetric ℝ -> ℝ
