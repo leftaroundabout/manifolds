@@ -45,7 +45,8 @@ module Data.Manifold.TreeCover (
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
-       , twigsWithEnvirons
+       , twigsWithEnvirons, completeTopShading
+       , WithAny(..), Shaded, stiAsIntervalMapping
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
        , AutoTriang, elementaryTriang, breakdownAutoTriang
@@ -64,6 +65,7 @@ import Data.Ord (comparing)
 import Control.DeepSeq
 
 import Data.VectorSpace
+import Data.AffineSpace
 import Data.LinearMap
 import Data.LinearMap.HerMetric
 import Data.LinearMap.Category
@@ -1300,6 +1302,13 @@ stiWithDensity (OverlappingBranches n (Shade (WithAny _ bc) extend) brs) = ovbSW
                  $ linearCombo [(v, d/dens) | Cℝay d v <- NE.toList contribs]
         where dens = sum (hParamCℝay <$> contribs)
 
+stiAsIntervalMapping :: (x ~ ℝ, y ~ ℝ)
+            => x`Shaded`y -> [(x, ((y, Diff y), Linear ℝ x y))]
+stiAsIntervalMapping = twigsWithEnvirons >=> pure.fst >=> completeTopShading >=> pure.
+             \(Shade' (xloc, yloc) shd)
+                 -> ( xloc, ( (yloc, recip $ metric shd (0,1))
+                            , case covariance (recipMetric' shd) of
+                                {Option(Just j)->j} ) )
 
 smoothInterpolate :: (WithField ℝ Manifold x, WithField ℝ LinearManifold y)
              => NonEmpty (x,y) -> x -> y
