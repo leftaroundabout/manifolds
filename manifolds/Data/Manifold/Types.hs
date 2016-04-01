@@ -50,10 +50,11 @@ module Data.Manifold.Types (
         , D¹(..), D²(..)
         , ℝay
         , CD¹(..), Cℝay(..)
-        -- * Misc
         -- * Cut-planes
         , Cutplane(..)
         , fathomCutDistance, sideOfCut
+        -- * Linear mappings
+        , Linear
    ) where
 
 
@@ -75,6 +76,7 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.Cone
 import Data.LinearMap.HerMetric
 import Data.VectorSpace.FiniteDimensional
+import Data.LinearMap.Category (Linear)
 
 import qualified Prelude
 

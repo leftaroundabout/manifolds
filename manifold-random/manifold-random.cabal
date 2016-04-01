@@ -27,6 +27,8 @@ library
   build-depends:       base >=4.7 && <4.9
                        , random-fu >=0.2 && <0.3
                        , manifolds >=0.2 && < 0.2.4
+                       , constrained-categories
+                       , semigroups
                        , vector-space
   -- hs-source-dirs:      
   default-language:    Haskell2010

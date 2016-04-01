@@ -733,13 +733,18 @@ flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
                     $ recst (completeTopShading tr) tr
  where recst qsh@(_:_) (DisjointBranches n bqs)
           = undefined -- DisjointBranches n $ NE.zipWith (recst . (:[])) (NE.fromList qsh) bqs
-       recst [sha@(Shade' (xc,yc) expa)] t = fmap fts $ f sha
-        where fts (Shade' yc' expay', δj) = unsafeFmapLeaves applδj t
-               where Option (Just δyc) = yc'.-~.yc
-                     j₀ :: LocalLinear x y
-                     Option (Just j₀) = covariance $ recipMetric' expa
-                     applδj (WithAny y x) = WithAny (y .+~^ (δj $ δx)) x
-                      where Option (Just δx) = x.-~.xc
+       recst [sha@(Shade' (xc₀,yc₀) expa₀)] t = fmap fts $ f sha
+        where expa'₀ = recipMetric' expa₀
+              j₀ :: LocalLinear x y
+              Option (Just j₀) = covariance expa'₀
+              (_,expay₀) = factoriseMetric expa₀
+              fts (Shade' yc expay, jtg) = unsafeFmapLeaves applδj t
+               where Option (Just δyc) = yc.-~.yc₀
+                     tfm = imitateMetricSpanChange expay₀ (recipMetric' expay)
+                     applδj (WithAny y x)
+                           = WithAny (yc₀ .+~^ ((tfm$δy) ^+^ (jtg$δx) ^+^ δyc)) x
+                      where Option (Just δx) = x.-~.xc₀
+                            Option (Just δy) = y.-~.(yc₀.+~^(j₀$δx))
        
        assert_onlyToplevDisjoint, assert_connected :: x`Shaded`y -> ()
        assert_onlyToplevDisjoint (DisjointBranches _ dp) = rnf (assert_connected<$>dp)
@@ -748,6 +753,13 @@ flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
            = rnf (Hask.foldMap assert_connected<$>dp)
        assert_connected (PlainLeaves _) = ()
 
+flexTwigsShading :: ∀ x y f . ( WithField ℝ Manifold x, WithField ℝ Manifold y
+                              , Hask.Applicative f )
+                  => (Shade' (x,y) -> f (Shade' y, LocalLinear x y))
+                      -> x`Shaded`y -> f (x`Shaded`y)
+flexTwigsShading f = traverseTwigsWithEnvirons locFlex
+ where locFlex :: ∀ μ . (x`Shaded`y, μ) -> f (x`Shaded`y)
+       locFlex (lsh, _) = flexTopShading f lsh
 
 filterDEqnSolution_static :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y

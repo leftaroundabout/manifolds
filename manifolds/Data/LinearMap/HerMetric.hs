@@ -42,6 +42,7 @@ module Data.LinearMap.HerMetric (
   , adjoint
   , extendMetric
   , applyLinMapMetric, applyLinMapMetric'
+  , imitateMetricSpanChange
   -- * The dual-space class
   , HasMetric
   , HasMetric'(..)
@@ -596,6 +597,12 @@ applyLinMapMetric' met v = transformMetric' ap2v met
  where ap2v :: Linear ℝ (Linear ℝ v w) w
        ap2v = denseLinear ($v)
 
+
+
+imitateMetricSpanChange :: ∀ v . (HasMetric v, Scalar v ~ ℝ)
+                           => HerMetric v -> HerMetric' v -> Linear ℝ v v
+imitateMetricSpanChange (HerMetric (Just m)) (HerMetric' (Just n)) = n . m
+imitateMetricSpanChange _ _ = zeroV
 
 
 covariance :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
