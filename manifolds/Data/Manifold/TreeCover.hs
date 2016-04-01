@@ -34,9 +34,13 @@
 
 module Data.Manifold.TreeCover (
        -- * Shades 
-         Shade(..), Shade'(..)
-       -- ** Lenses and constructors
-       , shadeCtr, shadeExpanse, shadeNarrowness, fullShade, fullShade', pointsShades
+         Shade(..), Shade'(..), IsShade
+       -- ** Lenses
+       , shadeCtr, shadeExpanse, shadeNarrowness
+       -- ** Construction
+       , fullShade, fullShade', pointsShades
+       -- ** Evaluation
+       , occlusion, factoriseShade
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints
        -- * Simple view helpers
@@ -45,7 +49,7 @@ module Data.Manifold.TreeCover (
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
-       , twigsWithEnvirons, completeTopShading
+       , twigsWithEnvirons, completeTopShading, flexTwigsShading
        , WithAny(..), Shaded, stiAsIntervalMapping
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
@@ -102,10 +106,11 @@ import Data.Traversable (forM)
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import Control.Category.Constrained.Prelude hiding
-     ((^), all, elem, sum, forM, Foldable(..), foldr1, Traversable)
+     ((^), all, elem, sum, forM, Foldable(..), foldr1, Traversable, traverse)
 import Control.Arrow.Constrained
 import Control.Monad.Constrained hiding (forM)
 import Data.Foldable.Constrained
+import Data.Traversable.Constrained (traverse)
 
 import GHC.Generics (Generic)
 
@@ -139,15 +144,39 @@ class IsShade shade where
   shadeCtr :: Functor f (->) (->) => (Interior x->f (Interior x)) -> shade x -> f (shade x)
 --  -- | Convert between 'Shade' and 'Shade' (which must be neither singular nor infinite).
 --  unsafeDualShade :: WithField ℝ Manifold x => shade x -> shade* x
+  -- | Check the statistical likelihood-density of a point being within a shade.
+  --   This is taken as a normal distribution.
+  occlusion :: ( Manifold x, s ~ (Scalar (Needle x)), RealDimension s )
+                => shade x -> x -> s
+  factoriseShade :: ( Manifold x, RealDimension (Scalar (Needle x))
+                    , Manifold y, RealDimension (Scalar (Needle y)) )
+                => shade (x,y) -> (shade x, shade y)
 
 instance IsShade Shade where
   shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
+  occlusion (Shade p₀ δ) = occ
+   where occ p = case p .-~. p₀ of
+           Option(Just vd) | mSq <- metricSq δinv vd
+                           , mSq == mSq  -- avoid NaN
+                           -> exp (negate mSq)
+           _               -> zeroV
+         δinv = recipMetric δ
+  factoriseShade (Shade (x₀,y₀) δxy) = (Shade x₀ δx, Shade y₀ δy)
+   where (δx,δy) = factoriseMetric' δxy
 
 shadeExpanse :: Functor f (->) (->) => (Metric' x -> f (Metric' x)) -> Shade x -> f (Shade x)
 shadeExpanse f (Shade c e) = fmap (Shade c) $ f e
 
 instance IsShade Shade' where
   shadeCtr f (Shade' c e) = fmap (`Shade'`e) $ f c
+  occlusion (Shade' p₀ δinv) = occ
+   where occ p = case p .-~. p₀ of
+           Option(Just vd) | mSq <- metricSq δinv vd
+                           , mSq == mSq  -- avoid NaN
+                           -> exp (negate mSq)
+           _               -> zeroV
+  factoriseShade (Shade' (x₀,y₀) δxy) = (Shade' x₀ δx, Shade' y₀ δy)
+   where (δx,δy) = factoriseMetric δxy
 
 shadeNarrowness :: Functor f (->) (->) => (Metric x -> f (Metric x)) -> Shade' x -> f (Shade' x)
 shadeNarrowness f (Shade' c e) = fmap (Shade' c) $ f e
@@ -241,8 +270,22 @@ shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs) = case extractJust tryMerge shs
            | otherwise  = Nothing
 shadesMerge _ shs = shs
 
+-- | Evaluate the shade as a quadratic form; essentially
+-- @
+-- minusLogOcclusion sh x = x <.>^ (sh^.shadeExpanse $ x - sh^.shadeCtr)
+-- @
+-- where 'shadeExpanse' gives a metric (matrix) that characterises the
+-- width of the shade.
+minusLogOcclusion' :: ( Manifold x, s ~ (Scalar (Needle x)), RealDimension s )
+              => Shade' x -> x -> s
+minusLogOcclusion' (Shade' p₀ δinv) = occ
+ where occ p = case p .-~. p₀ of
+         Option(Just vd) | mSq <- metricSq δinv vd
+                         , mSq == mSq  -- avoid NaN
+                         -> mSq
+         _               -> 1/0
 minusLogOcclusion :: ( Manifold x, s ~ (Scalar (Needle x)), RealDimension s )
-                => Shade x -> x -> s
+              => Shade x -> x -> s
 minusLogOcclusion (Shade p₀ δ) = occ
  where occ p = case p .-~. p₀ of
          Option(Just vd) | mSq <- metricSq δinv vd
@@ -251,16 +294,6 @@ minusLogOcclusion (Shade p₀ δ) = occ
          _               -> 1/0
        δinv = recipMetric δ
   
--- | Check the statistical likelyhood of a point being within a shade.
-occlusion :: ( Manifold x, s ~ (Scalar (Needle x)), RealDimension s )
-                => Shade x -> x -> s
-occlusion (Shade p₀ δ) = occ
- where occ p = case p .-~. p₀ of
-         Option(Just vd) | mSq <- metricSq δinv vd
-                         , mSq == mSq  -- avoid NaN
-                         -> exp (negate mSq)
-         _               -> zeroV
-       δinv = recipMetric δ
 
 
 
