@@ -54,7 +54,7 @@ module Data.Manifold.Types (
         , Cutplane(..)
         , fathomCutDistance, sideOfCut
         -- * Linear mappings
-        , Linear
+        , Linear, denseLinear
    ) where
 
 
@@ -76,7 +76,7 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.Cone
 import Data.LinearMap.HerMetric
 import Data.VectorSpace.FiniteDimensional
-import Data.LinearMap.Category (Linear)
+import Data.LinearMap.Category (Linear, denseLinear)
 
 import qualified Prelude
 

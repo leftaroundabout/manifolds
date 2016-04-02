@@ -51,6 +51,7 @@ module Data.Manifold.TreeCover (
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
        , twigsWithEnvirons, completeTopShading, flexTwigsShading
        , WithAny(..), Shaded, stiAsIntervalMapping
+       , DifferentialEqn, filterDEqnSolution_static
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
        , AutoTriang, elementaryTriang, breakdownAutoTriang
