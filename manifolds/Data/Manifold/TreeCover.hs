@@ -132,12 +132,15 @@ data PSM x = PSM {
 --   there is 'Region', whose implementation is vastly more complex.
 data Shade x = Shade { _shadeCtr :: !(Interior x)
                      , _shadeExpanse :: !(Metric' x) }
+deriving instance (Show x, Show (Needle x), WithField ℝ Manifold x) => Show (Shade x)
 
 -- | A &#x201c;co-shade&#x201d; can describe ellipsoid regions as well, but unlike
 --   'Shade' it can be unlimited / infinitely wide in some directions.
 --   It does OTOH need to have nonzero thickness, which 'Shade' needs not.
 data Shade' x = Shade' { _shade'Ctr :: !(Interior x)
                        , _shade'Narrowness :: !(Metric x) }
+deriving instance (Show x, Show (DualSpace (Needle x)), WithField ℝ Manifold x)
+             => Show (Shade' x)
 
 class IsShade shade where
 --  type (*) shade :: *->*
@@ -1272,7 +1275,7 @@ sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `Overlappi
 data x`WithAny`y
       = WithAny { _untopological :: y
                 , _topological :: !x  }
- deriving (Hask.Functor)
+ deriving (Hask.Functor, Show)
 
 instance (Semimanifold x) => Semimanifold (x`WithAny`y) where
   type Needle (WithAny x y) = Needle x
