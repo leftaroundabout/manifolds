@@ -587,12 +587,6 @@ filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Man
                    -> Option (Shade' y, LocalLinear x y)
 filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours) = (,j₀) <$> yc
  where jShade@(Shade' j₀ jExpa) = f shxy
-       baseMet :: ℝ -> Linear ℝ (Needle x) (Needle y) -> Metric y -> Metric (x,y)
-       baseMet q dfc my = recipMetric
-            $ transformMetric' (denseLinear $ id &&& (dfc$))
-                               (recipMetric' expax) ^* q
-             ^+^ recipMetric' expa ^* q
-             ^+^ transformMetric' (zeroV&&&id) (recipMetric' my)
        marginδs :: [(Needle x, (Needle y, Metric y))]
        marginδs = [ (δxm, (δym, expany))
                   | Shade' (xn, yn) expan <- neighbours
@@ -770,9 +764,15 @@ filterDEqnSolution_static :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ 
                -> x`Shaded`y -> Option (x`Shaded`y)
 filterDEqnSolution_static deq tr = traverseTwigsWithEnvirons locSoltn tr
  where locSoltn :: (x`Shaded`y, [x`Shaded`y]) -> Option (x`Shaded`y)
-       locSoltn (local, environs)
-            = flexTopShading (filterDEqnSolution_loc deq
-                              . (, completeTopShading=<<environs)) local
+       locSoltn (local, environs) = do
+            flexed <- flexTopShading (filterDEqnSolution_loc deq
+                                       . (, completeTopShading=<<environs)) local
+            top'@(Shade' _ top'exp)
+                     <- intersectShade's $ completeTopShading =<< [local, flexed]
+            let (_, top'y) = factoriseShade top'
+            j' <- covariance $ recipMetric' top'exp
+            flexTopShading (const $ pure (top'y, j')) flexed
+                
 
 
 
