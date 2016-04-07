@@ -40,7 +40,9 @@ module Data.Manifold.TreeCover (
        -- ** Construction
        , fullShade, fullShade', pointsShades
        -- ** Evaluation
-       , occlusion, factoriseShade
+       , occlusion
+       -- ** Misc
+       , factoriseShade, intersectShade's
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints
        -- * Simple view helpers
