@@ -69,7 +69,8 @@ uncertainFunctionSamplesT n shx f = do
       let t₀ = fromLeafPoints pts
           ntwigs = length $ twigsWithEnvirons t₀
           nPerTwig = fromIntegral n / fromIntegral ntwigs
-          ensureThickness :: Shade' (x,y) -> RVarT m (Shade' y, Linear ℝ (Needle x) (Needle y))
+          ensureThickness :: Shade' (x,y)
+                  -> RVarT m (x, (Shade' y, Linear ℝ (Needle x) (Needle y)))
           ensureThickness shl@(Shade' (xlc,ylc) expa) = do
              let Option (Just jOrig) = covariance $ recipMetric' expa
                  (expax,expay) = factoriseMetric expa
@@ -86,17 +87,18 @@ uncertainFunctionSamplesT n shx f = do
                          $ confidence + occlusion shl (x,y)
              css <- mkControlSample [] 0
              let [Shade (xCtrl,yCtrl) expaCtrl] = pointsShades css
+                 yCtrl :: y
                  expayCtrl = recipMetric . snd $ factoriseMetric' expaCtrl
                  Option (Just jCtrl) = covariance expaCtrl
                  jFin = jOrig^*η ^+^ jCtrl^*η'
                  Option (Just δx) = xlc.-~.xCtrl
-                 yCtrl' = yCtrl .+~^ (jFin $ δx)
                  η, η' :: ℝ
                  η = nPerTwig / (nPerTwig + fromIntegral (length css))
                  η' = 1 - η
-                 yCtrl' :: y
-                 Option (Just δy) = yCtrl'.-~.ylc
-             return (Shade' (ylc .+~^ δy^*η') (expay^*η ^+^ expayCtrl^*η'), jFin)
+                 Option (Just δy) = yCtrl.-~.ylc
+             return ( xlc .+~^ δx^*η'
+                    , ( Shade' (ylc .+~^ δy^*η') (expay^*η ^+^ expayCtrl^*η')
+                      , jFin ) )
       flexTwigsShading ensureThickness t₀
 
 uncrtFuncIntervalSpls :: (x~ℝ, y~ℝ)

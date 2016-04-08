@@ -727,23 +727,23 @@ completeTopShading t = pointsShade's . map (_topological &&& _untopological) $ o
 
 flexTopShading :: ∀ x y f . ( WithField ℝ Manifold x, WithField ℝ Manifold y
                             , Applicative f (->) (->) )
-                  => (Shade' (x,y) -> f (Shade' y, LocalLinear x y))
+                  => (Shade' (x,y) -> f (x, (Shade' y, LocalLinear x y)))
                       -> x`Shaded`y -> f (x`Shaded`y)
 flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
                     $ recst (completeTopShading tr) tr
  where recst qsh@(_:_) (DisjointBranches n bqs)
           = undefined -- DisjointBranches n $ NE.zipWith (recst . (:[])) (NE.fromList qsh) bqs
-       recst [sha@(Shade' (xc₀,yc₀) expa₀)] t = fmap fts $ f sha
+       recst [sha@(Shade' (_,yc₀) expa₀)] t = fmap fts $ f sha
         where expa'₀ = recipMetric' expa₀
               j₀ :: LocalLinear x y
               Option (Just j₀) = covariance expa'₀
               (_,expay₀) = factoriseMetric expa₀
-              fts (Shade' yc expay, jtg) = unsafeFmapLeaves applδj t
+              fts (xc, (Shade' yc expay, jtg)) = unsafeFmapLeaves applδj t
                where Option (Just δyc) = yc.-~.yc₀
                      tfm = imitateMetricSpanChange expay₀ (recipMetric' expay)
                      applδj (WithAny y x)
                            = WithAny (yc₀ .+~^ ((tfm$δy) ^+^ (jtg$δx) ^+^ δyc)) x
-                      where Option (Just δx) = x.-~.xc₀
+                      where Option (Just δx) = x.-~.xc
                             Option (Just δy) = y.-~.(yc₀.+~^(j₀$δx))
        
        assert_onlyToplevDisjoint, assert_connected :: x`Shaded`y -> ()
@@ -755,7 +755,7 @@ flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
 
 flexTwigsShading :: ∀ x y f . ( WithField ℝ Manifold x, WithField ℝ Manifold y
                               , Hask.Applicative f )
-                  => (Shade' (x,y) -> f (Shade' y, LocalLinear x y))
+                  => (Shade' (x,y) -> f (x, (Shade' y, LocalLinear x y)))
                       -> x`Shaded`y -> f (x`Shaded`y)
 flexTwigsShading f = traverseTwigsWithEnvirons locFlex
  where locFlex :: ∀ μ . (x`Shaded`y, μ) -> f (x`Shaded`y)
@@ -767,13 +767,16 @@ filterDEqnSolution_static :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ 
 filterDEqnSolution_static deq tr = traverseTwigsWithEnvirons locSoltn tr
  where locSoltn :: (x`Shaded`y, [x`Shaded`y]) -> Option (x`Shaded`y)
        locSoltn (local, environs) = do
-            flexed <- flexTopShading (filterDEqnSolution_loc deq
-                                       . (, completeTopShading=<<environs)) local
-            top'@(Shade' _ top'exp)
+            let enviShades = completeTopShading =<< environs
+            flexed <- flexTopShading
+                           (\oSh@(Shade' (ox,_) _) -> 
+                              (ox,) <$> filterDEqnSolution_loc deq (oSh, enviShades)
+                           ) local
+            top'@(Shade' (top'x,_) top'exp)
                      <- intersectShade's $ completeTopShading =<< [local, flexed]
-            let (_, top'y) = factoriseShade top'
+            let (_, top'ySh) = factoriseShade top'
             j' <- covariance $ recipMetric' top'exp
-            flexTopShading (const $ pure (top'y, j')) flexed
+            flexTopShading (const $ pure (top'x, (top'ySh, j'))) flexed
                 
 
 
