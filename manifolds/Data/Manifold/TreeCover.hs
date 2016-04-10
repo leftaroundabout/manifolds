@@ -1412,28 +1412,44 @@ procureShading :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
           => (Shade x -> Option (Shade y)) -> Shade x -> x`Shaded`y
 procureShading f (Shade x₀ expax) = go globalMeshes
  where go :: [[x]] -> x`Shaded`y
-       go (mesh:meshes) = case fromLeafPoints mesh of
-            PlainLeaves _ -> go meshes
-            OverlappingBranches _ shl@(Shade xl xle) brs
-              -> case f shl of
-                   Option (Just (Shade y yexpa))
-                     -> let addYs :: NonEmpty x -> NonEmpty (x`WithAny`y)
-                            addYs l = foldr (NE.<|) (fmap ( WithAny y   ) l     )
-                                                    (fmap (`WithAny`xmid) yexamp)
-                             where xmid = leavesBarycenter l
-                            yexamp = [ y .+~^ σ*^δy
-                                     | δy <- eigenSpan yexpa, σ <- [-1,1] ]
-                        in overlappingBranches (shadeWithAny y shl)
-                             $ (\(DBranch dir hs)
-                                -> DBranch dir
-                                           (unsafeFmapTree addYs id (shadeWithAny y)<$>hs)
-                               )<$> brs
+       go meshes@(mesh:finerMeshes) = case fromLeafPoints mesh of
+          OverlappingBranches _ shl@(Shade xl xle) brs
+           -> case f shl of
+               Option (Just (Shade y yexpa))
+                 -> let addYs :: NonEmpty x -> NonEmpty (x`WithAny`y)
+                        addYs l = foldr (NE.<|) (fmap ( WithAny y   ) l     )
+                                                (fmap (`WithAny`xmid) yexamp)
+                         where xmid = leavesBarycenter l
+                        yexamp = [ y .+~^ σ*^δy
+                                 | δy <- eigenSpan yexpa, σ <- [-1,1] ]
+                    in overlappingBranches (shadeWithAny y shl)
+                         $ (\(DBranch dir hs)
+                            -> DBranch dir
+                                       (unsafeFmapTree addYs id (shadeWithAny y)<$>hs)
+                           )<$> brs
+               Option Nothing
+                 -> overlapAny shl . fmap
+                     (\(DBranch dir _, obrs)
+                     -> let odirs = boughDirection<$>obrs
+                            [u,l] = [ go $ map
+                                       (filter $ \p -> case p.-~.xl of
+                                             Option (Just v)
+                                               -> let q₀ = τ<.>^v
+                                                  in all ((<q₀).abs.(<.>^v)) odirs
+                                          ) meshes
+                                    | τ <- [dir, negateV dir] ]
+                        in DBranch dir $ Hourglass u l
+                     ) $ fociNE brs
+          _ -> go finerMeshes
        globalMeshes :: [[x]]
        globalMeshes = [ [ x₀ .+~^ sumV (zipWith (*^) μs regionBasis)
                         | μs <- unitHyperballCartesianCover d (2^depth) ]
                       | depth <- [2..] ]
        regionBasis = eigenSpan expax
        d = length regionBasis
+       
+       overlapAny :: Shade x -> NonEmpty (DBranch (x`WithAny`y)) -> x`Shaded`y
+       overlapAny shx brs = overlappingBranches undefined brs
 
 unitHyperballCartesianCover :: Int -- ^ Dimension
                             -> Int -- ^ Resolution per dimension
@@ -1459,6 +1475,9 @@ mkCone h v = Cℝay h v
 foci :: [a] -> [(a,[a])]
 foci [] = []
 foci (x:xs) = (x,xs) : fmap (second (x:)) (foci xs)
+       
+fociNE :: NonEmpty a -> NonEmpty (a,[a])
+fociNE (x:|xs) = (x,xs) :| fmap (second (x:)) (foci xs)
        
 
 (.:) :: (c->d) -> (a->b->c) -> a->b->d 
