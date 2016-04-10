@@ -539,12 +539,37 @@ trunks (PlainLeaves lvs) = pointsShades lvs
 trunks (DisjointBranches _ brs) = Hask.foldMap trunks brs
 trunks (OverlappingBranches _ sh _) = [sh]
 
+
+nLeaves :: ShadeTree x -> Int
+nLeaves (PlainLeaves lvs) = length lvs
+nLeaves (DisjointBranches n _) = n
+nLeaves (OverlappingBranches n _ _) = n
+
+overlappingBranches :: Shade x -> NonEmpty (DBranch x) -> ShadeTree x
+overlappingBranches shx brs = OverlappingBranches n shx brs
+ where n = sum $ fmap (sum . fmap nLeaves) brs
+
 unsafeFmapLeaves :: (x -> x) -> ShadeTree x -> ShadeTree x
 unsafeFmapLeaves f (PlainLeaves lvs) = PlainLeaves $ fmap f lvs
 unsafeFmapLeaves f (DisjointBranches n brs)
                   = DisjointBranches n $ unsafeFmapLeaves f <$> brs
 unsafeFmapLeaves f (OverlappingBranches n sh brs)
                   = OverlappingBranches n sh $ fmap (unsafeFmapLeaves f) <$> brs
+
+unsafeFmapTree :: (NonEmpty x -> NonEmpty y)
+               -> (Needle' x -> Needle' y)
+               -> (Shade x -> Shade y)
+               -> ShadeTree x -> ShadeTree y
+unsafeFmapTree _ _ _ (PlainLeaves []) = PlainLeaves []
+unsafeFmapTree f _ _ (PlainLeaves lvs) = PlainLeaves . toList . f $ NE.fromList lvs
+unsafeFmapTree f fn fs (DisjointBranches n brs)
+    = let brs' = unsafeFmapTree f fn fs <$> brs
+      in DisjointBranches (sum $ nLeaves<$>brs') brs'
+unsafeFmapTree f fn fs (OverlappingBranches n sh brs)
+    = let brs' = fmap (\(DBranch dir br)
+                        -> DBranch (fn dir) (unsafeFmapTree f fn fs<$>br)
+                      ) brs
+      in overlappingBranches (fs sh) brs'
 
 
 intersectShade's :: ∀ y . WithField ℝ Manifold y => [Shade' y] -> Option (Shade' y)
@@ -885,7 +910,7 @@ optimalBottomExtension s xs
 simplexPlane :: forall n x . (KnownNat n, WithField ℝ Manifold x)
         => Metric x -> Simplex n x -> Embedding (Linear ℝ) (FreeVect n ℝ) (Needle x)
 simplexPlane m s = embedding
- where bc = barycenter s
+ where bc = simplexBarycenter s
        spread = init . map ((.-~.bc) >>> \(Option (Just v)) -> v) $ splxVertices s
        embedding = case spanHilbertSubspace m spread of
                      (Option (Just e)) -> e
@@ -893,10 +918,14 @@ simplexPlane m s = embedding
                                 \ simplex (which cannot span sufficient basis vectors)."
 
 
+leavesBarycenter :: WithField ℝ Manifold x => NonEmpty x -> x
+leavesBarycenter (x :| xs) = x .+~^ sumV [x'–x | x'<-xs] ^/ (n+1)
+ where n = fromIntegral $ length xs
+       x' – x = case x'.-~.x of {Option(Just v)->v}
 
 -- simplexShade :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-barycenter :: forall x n . (KnownNat n, WithField ℝ Manifold x) => Simplex n x -> x
-barycenter = bc 
+simplexBarycenter :: forall x n . (KnownNat n, WithField ℝ Manifold x) => Simplex n x -> x
+simplexBarycenter = bc 
  where bc (ZS x) = x
        bc (x :<| xs') = x .+~^ sumV [x'–x | x'<-splxVertices xs'] ^/ (n+1)
        
@@ -906,7 +935,7 @@ barycenter = bc
 toISimplex :: forall x n . (KnownNat n, WithField ℝ Manifold x)
                  => Metric x -> Simplex n x -> ISimplex n x
 toISimplex m s = ISimplex $ fromEmbedProject fromBrc toBrc
- where bc = barycenter s
+ where bc = simplexBarycenter s
        (Embedding emb (DenseLinear prj))
                          = simplexPlane m s
        (r₀:rs) = [ prj HMat.#> asPackedVector v
@@ -1320,6 +1349,9 @@ instance (AdditiveGroup x) => Hask.Monad (WithAny x) where
   WithAny y x >>= f = WithAny r $ x^+^q
    where WithAny r q = f y
 
+shadeWithAny :: y -> Shade x -> Shade (x`WithAny`y)
+shadeWithAny y (Shade x xe) = Shade (WithAny y x) xe
+
 shadeWithoutAnything :: Shade (x`WithAny`y) -> Shade x
 shadeWithoutAnything (Shade (WithAny _ b) e) = Shade b e
 
@@ -1374,6 +1406,46 @@ smoothInterpolate l = \x ->
        n = fromIntegral $ length l'
        l' = (uncurry WithAny . swap) <$> NE.toList l
        ltr = stiWithDensity $ fromLeafPoints l'
+
+
+procureShading :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
+          => (Shade x -> Option (Shade y)) -> Shade x -> x`Shaded`y
+procureShading f (Shade x₀ expax) = go globalMeshes
+ where go :: [[x]] -> x`Shaded`y
+       go (mesh:meshes) = case fromLeafPoints mesh of
+            PlainLeaves _ -> go meshes
+            OverlappingBranches _ shl@(Shade xl xle) brs
+              -> case f shl of
+                   Option (Just (Shade y yexpa))
+                     -> let addYs :: NonEmpty x -> NonEmpty (x`WithAny`y)
+                            addYs l = foldr (NE.<|) (fmap ( WithAny y   ) l     )
+                                                    (fmap (`WithAny`xmid) yexamp)
+                             where xmid = leavesBarycenter l
+                            yexamp = [ y .+~^ σ*^δy
+                                     | δy <- eigenSpan yexpa, σ <- [-1,1] ]
+                        in overlappingBranches (shadeWithAny y shl)
+                             $ (\(DBranch dir hs)
+                                -> DBranch dir
+                                           (unsafeFmapTree addYs id (shadeWithAny y)<$>hs)
+                               )<$> brs
+       globalMeshes :: [[x]]
+       globalMeshes = [ [ x₀ .+~^ sumV (zipWith (*^) μs regionBasis)
+                        | μs <- unitHyperballCartesianCover d (2^depth) ]
+                      | depth <- [2..] ]
+       regionBasis = eigenSpan expax
+       d = length regionBasis
+
+unitHyperballCartesianCover :: Int -- ^ Dimension
+                            -> Int -- ^ Resolution per dimension
+                            -> [[ℝ]]
+unitHyperballCartesianCover d₀ n = fst <$> uhcc d₀
+ where uhcc 0 = [([],0)]
+       uhcc d = [ (x : xs, lxs')
+                | (xs,lxs) <- uhcc (d-1)
+                , x <- [-1, 1/fromIntegral n - 1 .. 1]
+                , let lxs' = x^2 + lxs
+                , lxs' < 1
+                ]
 
 
 coneTip :: (AdditiveGroup v) => Cℝay v
