@@ -13,6 +13,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveFoldable             #-}
+{-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE FunctionalDependencies     #-}
@@ -418,7 +419,7 @@ instance WithField ℝ Manifold x => Monoid (ShadeTree x) where
 
 -- | Build a quite nicely balanced tree from a cloud of points, on any real manifold.
 -- 
---   Example: https://github.com/leftaroundabout/manifolds/blob/master/test/generate-ShadeTrees.ipynb
+--   Example: https://github.com/leftaroundabout/manifolds/blob/master/test/generate-ShadeTrees.ipynb#pseudorandomCloudTree
 -- 
 -- <<images/examples/simple-2d-ShadeTree.png>>
 fromLeafPoints :: ∀ x. WithField ℝ Manifold x => [x] -> ShadeTree x
@@ -1164,7 +1165,7 @@ type Trees = GenericTree [] []
 type NonEmptyTree = GenericTree NonEmpty []
     
 newtype GenericTree c b x = GenericTree { treeBranches :: c (x,GenericTree b b x) }
- deriving (Hask.Functor)
+ deriving (Hask.Functor, Hask.Foldable, Hask.Traversable)
 instance (Hask.MonadPlus c) => Semigroup (GenericTree c b x) where
   GenericTree b1 <> GenericTree b2 = GenericTree $ Hask.mplus b1 b2
 instance (Hask.MonadPlus c) => Monoid (GenericTree c b x) where
@@ -1434,7 +1435,14 @@ procureShading f (Shade x₀ expax) = go globalMeshes
        d = length regionBasis
        
        overlapAny :: Shade x -> NonEmpty (DBranch (x`WithAny`y)) -> x`Shaded`y
-       overlapAny shx brs = overlappingBranches undefined brs
+       overlapAny (Shade x ex) brs
+           = let y = find_y $ toList =<< toList brs
+             in overlappingBranches (Shade (WithAny y x) ex) brs
+        where find_y :: [x`Shaded`y] -> y
+              find_y (OverlappingBranches _ (Shade (WithAny y _) _) _ : _) = y
+              find_y (PlainLeaves ((WithAny y _) : _) : _) = y
+              find_y (_ : bs') = find_y bs'
+                      
 
 unitHyperballCartesianCover :: Int -- ^ Dimension
                             -> Int -- ^ Resolution per dimension
