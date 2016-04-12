@@ -419,7 +419,7 @@ instance WithField ℝ Manifold x => Monoid (ShadeTree x) where
 
 -- | Build a quite nicely balanced tree from a cloud of points, on any real manifold.
 -- 
---   Example: https://github.com/leftaroundabout/manifolds/blob/master/test/generate-ShadeTrees.ipynb#pseudorandomCloudTree
+--   Example: https://nbviewer.jupyter.org/github/leftaroundabout/manifolds/blob/master/test/generate-ShadeTrees.ipynb#pseudorandomCloudTree
 -- 
 -- <<images/examples/simple-2d-ShadeTree.png>>
 fromLeafPoints :: ∀ x. WithField ℝ Manifold x => [x] -> ShadeTree x
@@ -1165,7 +1165,9 @@ type Trees = GenericTree [] []
 type NonEmptyTree = GenericTree NonEmpty []
     
 newtype GenericTree c b x = GenericTree { treeBranches :: c (x,GenericTree b b x) }
- deriving (Hask.Functor, Hask.Foldable, Hask.Traversable)
+ deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
+instance (NFData x, Hask.Foldable c, Hask.Foldable b) => NFData (GenericTree c b x) where
+  rnf (GenericTree t) = rnf $ toList t
 instance (Hask.MonadPlus c) => Semigroup (GenericTree c b x) where
   GenericTree b1 <> GenericTree b2 = GenericTree $ Hask.mplus b1 b2
 instance (Hask.MonadPlus c) => Monoid (GenericTree c b x) where
@@ -1295,7 +1297,9 @@ sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `Overlappi
 data x`WithAny`y
       = WithAny { _untopological :: y
                 , _topological :: !x  }
- deriving (Hask.Functor, Show)
+ deriving (Hask.Functor, Show, Generic)
+
+instance (NFData x, NFData y) => NFData (WithAny x y)
 
 instance (Semimanifold x) => Semimanifold (x`WithAny`y) where
   type Needle (WithAny x y) = Needle x
@@ -1421,9 +1425,9 @@ procureShading f (Shade x₀ expax) = go globalMeshes
                                        (filter $ \p -> case p.-~.xl of
                                              Option (Just v)
                                                -> let q₀ = τ<.>^v
-                                                  in all ((<q₀).abs.(<.>^v)) odirs
+                                                  in q₀>0 && all ((<q₀).abs.(<.>^v)) odirs
                                           ) meshes
-                                    | τ <- [dir, negateV dir] ]
+                                    | τ <- [negateV dir, dir] ]
                         in DBranch dir $ Hourglass u l
                      ) $ fociNE brs
           _ -> go finerMeshes
