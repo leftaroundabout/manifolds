@@ -53,7 +53,7 @@ module Data.Manifold.TreeCover (
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
        , twigsWithEnvirons, completeTopShading, flexTwigsShading
-       , WithAny(..), Shaded, stiAsIntervalMapping, procureShading
+       , WithAny(..), Shaded, stiAsIntervalMapping, spanShading
        , DifferentialEqn, filterDEqnSolution_static
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
@@ -1398,67 +1398,19 @@ smoothInterpolate l = \x ->
        ltr = stiWithDensity $ fromLeafPoints l'
 
 
-procureShading :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
-          => (Shade x -> Option (Shade y)) -> Shade x -> x`Shaded`y
-procureShading f (Shade x₀ expax) = go globalMeshes
- where go :: [[x]] -> x`Shaded`y
-       go meshes@(mesh:finerMeshes) = case fromLeafPoints mesh of
-          OverlappingBranches _ shl@(Shade xl xle) brs
-           -> case f shl of
-               Option (Just (Shade y yexpa))
-                 -> let addYs :: NonEmpty x -> NonEmpty (x`WithAny`y)
-                        addYs l = foldr (NE.<|) (fmap ( WithAny y   ) l     )
-                                                (fmap (`WithAny`xmid) yexamp)
-                         where xmid = leavesBarycenter l
-                        yexamp = [ y .+~^ σ*^δy
-                                 | δy <- eigenSpan yexpa, σ <- [-1,1] ]
-                    in overlappingBranches (shadeWithAny y shl)
-                         $ (\(DBranch dir hs)
-                            -> DBranch dir
-                                       (unsafeFmapTree addYs id (shadeWithAny y)<$>hs)
-                           )<$> brs
-               Option Nothing
-                 -> overlapAny shl . fmap
-                     (\(DBranch dir _, obrs)
-                     -> let odirs = boughDirection<$>obrs
-                            [u,l] = [ go $ map
-                                       (filter $ \p -> case p.-~.xl of
-                                             Option (Just v)
-                                               -> let q₀ = τ<.>^v
-                                                  in q₀>0 && all ((<q₀).abs.(<.>^v)) odirs
-                                          ) meshes
-                                    | τ <- [negateV dir, dir] ]
-                        in DBranch dir $ Hourglass u l
-                     ) $ fociNE brs
-          _ -> go finerMeshes
-       globalMeshes :: [[x]]
-       globalMeshes = [ [ x₀ .+~^ sumV (zipWith (*^) μs regionBasis)
-                        | μs <- unitHyperballCartesianCover d (2^depth) ]
-                      | depth <- [2..] ]
-       regionBasis = eigenSpan expax
-       d = length regionBasis
-       
-       overlapAny :: Shade x -> NonEmpty (DBranch (x`WithAny`y)) -> x`Shaded`y
-       overlapAny (Shade x ex) brs
-           = let y = find_y $ toList =<< toList brs
-             in overlappingBranches (Shade (WithAny y x) ex) brs
-        where find_y :: [x`Shaded`y] -> y
-              find_y (OverlappingBranches _ (Shade (WithAny y _) _) _ : _) = y
-              find_y (PlainLeaves ((WithAny y _) : _) : _) = y
-              find_y (_ : bs') = find_y bs'
+spanShading :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
+          => (Shade x -> Shade y) -> ShadeTree x -> x`Shaded`y
+spanShading f = unsafeFmapTree addYs id addYSh
+ where addYs :: NonEmpty x -> NonEmpty (x`WithAny`y)
+       addYs l = foldr (NE.<|) (fmap ( WithAny ymid) l     )
+                               (fmap (`WithAny`xmid) yexamp)
+          where [xsh@(Shade xmid _)] = pointsShades $ toList l
+                Shade ymid yexpa = f xsh
+                yexamp = [ ymid .+~^ σ*^δy
+                         | δy <- eigenSpan yexpa, σ <- [-1,1] ]
+       addYSh :: Shade x -> Shade (x`WithAny`y)
+       addYSh xsh = shadeWithAny (_shadeCtr $ f xsh) xsh
                       
-
-unitHyperballCartesianCover :: Int -- ^ Dimension
-                            -> Int -- ^ Resolution per dimension
-                            -> [[ℝ]]
-unitHyperballCartesianCover d₀ n = fst <$> uhcc d₀
- where uhcc 0 = [([],0)]
-       uhcc d = [ (x : xs, lxs')
-                | (xs,lxs) <- uhcc (d-1)
-                , x <- [-1, 1/fromIntegral n - 1 .. 1]
-                , let lxs' = x^2 + lxs
-                , lxs' < 1
-                ]
 
 
 coneTip :: (AdditiveGroup v) => Cℝay v

@@ -12,3 +12,4 @@ bin/
 \#*
 *.lock
 .#*
+.ipynb_checkpoints
