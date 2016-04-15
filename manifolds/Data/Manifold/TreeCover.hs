@@ -25,6 +25,8 @@
 {-# LANGUAGE UnicodeSyntax              #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE PatternGuards              #-}
+{-# LANGUAGE PatternSynonyms            #-}
+{-# LANGUAGE ViewPatterns               #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -35,7 +37,7 @@
 
 module Data.Manifold.TreeCover (
        -- * Shades 
-         Shade(..), Shade'(..), IsShade
+         Shade(..), pattern(:±), Shade'(..), IsShade
        -- ** Lenses
        , shadeCtr, shadeExpanse, shadeNarrowness
        -- ** Construction
@@ -201,6 +203,13 @@ fullShade ctr expa = Shade ctr expa
 
 fullShade' :: WithField ℝ Manifold x => x -> Metric x -> Shade' x
 fullShade' ctr expa = Shade' ctr expa
+
+
+pattern (:±) :: () => WithField ℝ Manifold x => x -> [Needle x] -> Shade x
+pattern x :± shs <- Shade x (eigenSpan -> shs)
+ where x :± shs = fullShade x . sumV $ projector'<$>shs
+
+
 
 subshadeId' :: WithField ℝ Manifold x
                    => x -> NonEmpty (Needle' x) -> x -> (Int, HourglassBulb)
