@@ -41,7 +41,7 @@ module Data.Manifold.TreeCover (
        -- ** Lenses
        , shadeCtr, shadeExpanse, shadeNarrowness
        -- ** Construction
-       , fullShade, fullShade', pointsShades
+       , fullShade, fullShade', pointsShades, pointsCovers
        -- ** Evaluation
        , occlusion
        -- ** Misc
@@ -224,19 +224,39 @@ subshadeId (Shade c expa) = subshadeId' c . NE.fromList $ eigenCoSpan expa
                  
 
 
--- | Attempt to find a 'Shade' that &#x201c;covers&#x201d; the given points.
+-- | Attempt to find a 'Shade' that describes the distribution of given points.
 --   At least in an affine space (and thus locally in any manifold), this can be used to
 --   estimate the parameters of a normal distribution from which some points were
---   sampled.
+--   sampled. Note that some points will be &#x201c;outside&#x201d; of the shade,
+--   as happens for a normal distribution with some statistical likelyhood.
+--   (Use 'pointsCovers' if you need to prevent that.)
 -- 
 --   For /nonconnected/ manifolds it will be necessary to yield separate shades
 --   for each connected component. And for an empty input list, there is no shade!
---   Hence the list result.
+--   Hence the result type is a list.
 pointsShades :: WithField ℝ Manifold x => [x] -> [Shade x]
 pointsShades = map snd . pointsShades' zeroV
 
+-- | Like 'pointsShades', but ensure that all points are actually in
+--   the shade, i.e. if @['Shade' x₀ ex]@ is the result then
+--   @'metric' (recipMetric ex) (p-x₀) ≤ 1@ for all @p@ in the list.
+pointsCovers :: ∀ x . WithField ℝ Manifold x => [x] -> [Shade x]
+pointsCovers = map guaranteeIn . pointsShades' zeroV
+ where guaranteeIn (ps, Shade x₀ ex) 
+          = case ps >>= \p -> let Option (Just v) = p.-~.x₀
+                              in guard (metric ex' v > 1) >> [(p,projector' v)]
+             of []   -> Shade x₀ ex
+                outs -> guaranteeIn ( fst<$>outs
+                                    , Shade x₀
+                                         $ ex ^+^ sumV (snd<$>outs)
+                                                    ^/ fromIntegral (2 * length outs) )
+        where ex' = recipMetric ex
+
 pointsShade's :: WithField ℝ Manifold x => [x] -> [Shade' x]
 pointsShade's = map (\(Shade c e) -> Shade' c $ recipMetric e) . pointsShades
+
+pointsCover's :: WithField ℝ Manifold x => [x] -> [Shade' x]
+pointsCover's = map (\(Shade c e) -> Shade' c $ recipMetric e) . pointsCovers
 
 pseudoECM :: WithField ℝ Manifold x => NonEmpty x -> (x, ([x],[x]))
 pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
@@ -530,7 +550,7 @@ sortByKey = map snd . sortBy (comparing fst)
 
 
 trunks :: ∀ x. WithField ℝ Manifold x => ShadeTree x -> [Shade x]
-trunks (PlainLeaves lvs) = pointsShades lvs
+trunks (PlainLeaves lvs) = pointsCovers lvs
 trunks (DisjointBranches _ brs) = Hask.foldMap trunks brs
 trunks (OverlappingBranches _ sh _) = [sh]
 
@@ -743,7 +763,7 @@ completeTopShading (PlainLeaves plvs)
                      = pointsShade's $ (_topological &&& _untopological) <$> plvs
 completeTopShading (DisjointBranches _ bqs)
                      = take 1 . completeTopShading =<< NE.toList bqs
-completeTopShading t = pointsShade's . map (_topological &&& _untopological) $ onlyLeaves t
+completeTopShading t = pointsCover's . map (_topological &&& _untopological) $ onlyLeaves t
 
 flexTopShading :: ∀ x y f . ( WithField ℝ Manifold x, WithField ℝ Manifold y
                             , Applicative f (->) (->) )
@@ -1413,7 +1433,7 @@ spanShading f = unsafeFmapTree addYs id addYSh
  where addYs :: NonEmpty x -> NonEmpty (x`WithAny`y)
        addYs l = foldr (NE.<|) (fmap ( WithAny ymid) l     )
                                (fmap (`WithAny`xmid) yexamp)
-          where [xsh@(Shade xmid _)] = pointsShades $ toList l
+          where [xsh@(Shade xmid _)] = pointsCovers $ toList l
                 Shade ymid yexpa = f xsh
                 yexamp = [ ymid .+~^ σ*^δy
                          | δy <- eigenSpan yexpa, σ <- [-1,1] ]
