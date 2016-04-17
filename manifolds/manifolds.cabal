@@ -64,6 +64,7 @@ Library
   Exposed-modules:   Data.Manifold
                      Data.Manifold.PseudoAffine
                      Data.Manifold.TreeCover
+                     Data.Manifold.Web
                      Data.SimplicialComplex
                      Data.LinearMap.HerMetric
                      Data.Function.Differentiable

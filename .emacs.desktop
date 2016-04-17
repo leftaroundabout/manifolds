@@ -2,7 +2,7 @@
 ;; --------------------------------------------------------------------------
 ;; Desktop File for Emacs
 ;; --------------------------------------------------------------------------
-;; Created Sat Dec 12 20:40:46 2015
+;; Created Sun Apr 17 20:58:12 2016
 ;; Desktop file format version 206
 ;; Emacs version 24.3.1
 
@@ -12,26 +12,37 @@
 (setq tags-table-list nil)
 (setq search-ring nil)
 (setq regexp-search-ring nil)
-(setq register-alist nil)
-(setq file-name-history '("" "manifolds"))
+(setq register-alist '((48 . "import Data.Function.Differentiable.Data\n")))
+(setq file-name-history '("~/progwrit/haskell/manifolds/" "" "manifolds"))
 
 ;; Buffer section -- buffers listed in same order as in buffer list:
+(desktop-create-buffer 206
+  "manifolds/Data/Manifold/Web.hs"
+  "Web.hs"
+  'haskell-mode
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
+  2990
+  '(3183 nil)
+  nil
+  nil
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
+
 (desktop-create-buffer 206
   "manifolds/Data/Manifold/Types.hs"
   "Types.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   1
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/Data/Function/Affine.hs"
   "Affine.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   2213
   '(2615 nil)
   nil
@@ -42,7 +53,7 @@
   "manifolds/Data/Manifold/PseudoAffine.hs"
   "PseudoAffine.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   9695
   '(9528 nil)
   nil
@@ -53,18 +64,18 @@
   "manifolds/Data/Manifold/TreeCover.hs"
   "TreeCover.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   31290
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/manifolds.cabal"
   "manifolds.cabal"
   'haskell-cabal-mode
-  '(vim-local-mode linum-mode)
+  '(undo-tree-mode linum-mode)
   3888
   '(3456 nil)
   nil
@@ -75,7 +86,7 @@
   "manifolds/Data/Function/Differentiable.hs"
   "Differentiable.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   49609
   '(2420 nil)
   nil
@@ -86,109 +97,109 @@
   "manifolds/Data/Manifold/Riemannian.hs"
   "Riemannian.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   1
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifold-random/Data/Random/Manifold.hs"
   "Manifold.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   1
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifold-random/manifold-random.cabal"
   "manifold-random.cabal"
   'haskell-cabal-mode
-  '(vim-local-mode linum-mode)
+  '(undo-tree-mode linum-mode)
   1
   '(nil nil)
   nil
   nil
-  '((indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/Data/SimplicialComplex.hs"
   "SimplicialComplex.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   1
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/Data/Embedding.hs"
   "Embedding.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   1
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/Data/CoNat.hs"
   "CoNat.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   1
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/Data/Manifold/Types/Primitive.hs"
   "Primitive.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   1
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/Data/LinearMap/Category.hs"
   "linear-category"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   1
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/Data/VectorSpace/FiniteDimensional.hs"
   "FiniteDimensional.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   1
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
 (desktop-create-buffer 206
   "manifolds/Data/LinearMap/HerMetric.hs"
   "HerMetric.hs"
   'haskell-mode
-  '(haskell-indent-mode vim-local-mode linum-mode auto-complete-mode)
+  '(haskell-indent-mode undo-tree-mode linum-mode auto-complete-mode)
   21375
   '(nil nil)
   nil
   nil
-  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix)))
+  '((tab-width . 8) (indent-tabs-mode) (buffer-file-coding-system . utf-8-unix) (overwrite-mode)))
 
