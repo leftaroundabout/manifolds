@@ -627,7 +627,7 @@ type DifferentialEqn x y = Shade' (x,y) -> Shade' (LocalLinear x y)
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)])
                    -> Option (Shade' y, LocalLinear x y)
-filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours) = (,j₀) <$> yc
+filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours@(_:_)) = (,j₀) <$> yc
  where jShade@(Shade' j₀ jExpa) = f shxy
        marginδs :: [(Needle x, (Needle y, Metric y))]
        marginδs = [ (δxm, (δym, expany))
