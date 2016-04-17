@@ -47,9 +47,9 @@ module Data.Manifold.TreeCover (
        -- ** Misc
        , factoriseShade, intersectShade's
        -- * Shade trees
-       , ShadeTree(..), fromLeafPoints
-       -- * Simple view helpers
-       , onlyNodes, onlyLeaves
+       , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree
+       -- * View helpers
+       , onlyNodes
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
@@ -454,6 +454,26 @@ instance WithField ℝ Manifold x => Monoid (ShadeTree x) where
 fromLeafPoints :: ∀ x. WithField ℝ Manifold x => [x] -> ShadeTree x
 fromLeafPoints = fromLeafPoints' sShIdPartition
 
+
+indexShadeTree :: ∀ x . WithField ℝ Manifold x
+       => ShadeTree x -> Int -> Either Int ([ShadeTree x], x)
+indexShadeTree _ i
+    | i<0        = Left i
+indexShadeTree sh@(PlainLeaves lvs) i = case length lvs of
+  n | i<n       -> Right ([sh], lvs!!i)
+    | otherwise -> Left $ i-n
+indexShadeTree (DisjointBranches n brs) i
+    | i<n        = foldl (\case 
+                             Left i' -> (`indexShadeTree`i')
+                             result  -> return result
+                         ) (Left i) brs
+    | otherwise  = Left $ i-n
+indexShadeTree sh@(OverlappingBranches n _ brs) i
+    | i<n        = first (sh:) <$> foldl (\case 
+                             Left i' -> (`indexShadeTree`i')
+                             result  -> return result
+                         ) (Left i) (toList brs>>=toList)
+    | otherwise  = Left $ i-n
 
 
 fromFnGraphPoints :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
