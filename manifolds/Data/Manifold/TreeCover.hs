@@ -55,7 +55,8 @@ module Data.Manifold.TreeCover (
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
        , twigsWithEnvirons, completeTopShading, flexTwigsShading
-       , WithAny(..), Shaded, stiAsIntervalMapping, spanShading, stripShadedUntopological
+       , WithAny(..), Shaded, stiAsIntervalMapping, spanShading
+       , constShaded, stripShadedUntopological
        , DifferentialEqn, filterDEqnSolution_static
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
@@ -451,7 +452,7 @@ instance WithField ℝ Manifold x => Monoid (ShadeTree x) where
 
 -- | Build a quite nicely balanced tree from a cloud of points, on any real manifold.
 -- 
---   Example: https://nbviewer.jupyter.org/github/leftaroundabout/manifolds/blob/master/test/generate-ShadeTrees.ipynb#pseudorandomCloudTree
+--   Example: https://nbviewer.jupyter.org/github/leftaroundabout/manifolds/blob/master/test/Trees-and-Webs.ipynb#pseudorandomCloudTree
 -- 
 -- <<images/examples/simple-2d-ShadeTree.png>>
 fromLeafPoints :: ∀ x. WithField ℝ Manifold x => [x] -> ShadeTree x
@@ -1378,6 +1379,9 @@ shadeWithAny y (Shade x xe) = Shade (WithAny y x) xe
 
 shadeWithoutAnything :: Shade (x`WithAny`y) -> Shade x
 shadeWithoutAnything (Shade (WithAny _ b) e) = Shade b e
+
+constShaded :: y -> ShadeTree x -> x`Shaded`y
+constShaded y = unsafeFmapTree (WithAny y<$>) id (shadeWithAny y)
 
 stripShadedUntopological :: x`Shaded`y -> ShadeTree x
 stripShadedUntopological = unsafeFmapTree (fmap _topological) id shadeWithoutAnything

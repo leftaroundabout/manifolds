@@ -40,7 +40,7 @@ module Data.Manifold.Web where
 
 import Data.List hiding (filter, all, elem, sum, foldr1)
 import Data.Maybe
-import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Vector as Arr
 import qualified Data.Vector.Unboxed as UArr
 import Data.List.NonEmpty (NonEmpty(..))
@@ -107,6 +107,14 @@ data PointsWeb x y = PointsWeb {
      }
 
 
+
+fromShadeTree_auto :: ∀ x . WithField ℝ Manifold x => ShadeTree x -> PointsWeb x ()
+fromShadeTree_auto = fromShaded (recipMetric . _shadeExpanse) . constShaded ()
+
+fromShadeTree :: ∀ x . WithField ℝ Manifold x
+     => (Shade x -> Metric x) -> ShadeTree x -> PointsWeb x ()
+fromShadeTree mf = fromShaded mf . constShaded ()
+
 fromShaded :: ∀ x y . WithField ℝ Manifold x
      => (Shade x -> Metric x) -- ^ Local scalar-product generator. You can always
                               --   use @'recipMetric' . '_shadeExpanse'@ (but this
@@ -131,12 +139,13 @@ fromShaded metricf shd = PointsWeb shd' assocData
                            when (iNgb/=i) `id`do
                               let (Option (Just v)) = xNgb.-~.x
                               oldNgbs <- get
-                              when (all (\(_,nw) -> nw<.>^v < 1) oldNgbs) `id`do
+                              when (all (\(_,(_,nw)) -> nw<.>^v < 1) oldNgbs) `id`do
                                  let w = w₀ ^/ (w₀<.>^v)
                                       where w₀ = toDualWith locRieM v
-                                 put $ (i, w)
-                                       : [(i,nw) | (i,nw)<-oldNgbs
-                                                 , w<.>^fromDualWith locRieM' nw < 1
+                                 put $ (iNgb, (v,w))
+                                       : [ neighbour
+                                         | neighbour@(_,(nv,_))<-oldNgbs
+                                                   , w<.>^nv < 1
                                          ]
               
               locRieM :: Metric x
@@ -144,6 +153,19 @@ fromShaded metricf shd = PointsWeb shd' assocData
                                   $ onlyLeaves locT
                                    ++ Hask.foldMap (onlyLeaves . snd) neighRegions of
                           [sh₀] -> metricf sh₀
-              locRieM' :: Metric' x
-              locRieM' = recipMetric' locRieM
 
+indexWeb :: WithField ℝ Manifold x => PointsWeb x y -> WebNodeId -> Option (x,y)
+indexWeb (PointsWeb rsc assocD) i
+  | i>=0, i<Arr.length assocD
+  , Right (_,x) <- indexShadeTree rsc i  = pure (x, fst (assocD Arr.! i))
+  | otherwise                            = empty
+
+webEdges :: ∀ x y . WithField ℝ Manifold x
+            => PointsWeb x y -> [((x,y), (x,y))]
+webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
+ where allEdges :: Set.Set (WebNodeId,WebNodeId)
+       allEdges = Hask.foldMap (\(i,(_,ngbs))
+                    -> Set.fromList [(min i i', max i i')
+                                    | i'<-UArr.toList ngbs ]
+                               ) $ Arr.indexed assoc
+       lookId i | Option (Just xy) <- indexWeb web i  = xy
