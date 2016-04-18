@@ -55,7 +55,7 @@ module Data.Manifold.TreeCover (
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
        , twigsWithEnvirons, completeTopShading, flexTwigsShading
-       , WithAny(..), Shaded, stiAsIntervalMapping, spanShading
+       , WithAny(..), Shaded, stiAsIntervalMapping, spanShading, stripShadedUntopological
        , DifferentialEqn, filterDEqnSolution_static
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
@@ -1378,6 +1378,9 @@ shadeWithAny y (Shade x xe) = Shade (WithAny y x) xe
 
 shadeWithoutAnything :: Shade (x`WithAny`y) -> Shade x
 shadeWithoutAnything (Shade (WithAny _ b) e) = Shade b e
+
+stripShadedUntopological :: x`Shaded`y -> ShadeTree x
+stripShadedUntopological = unsafeFmapTree (fmap _topological) id shadeWithoutAnything
 
 -- | This is to 'ShadeTree' as 'Data.Map.Map' is to 'Data.Set.Set'.
 type x`Shaded`y = ShadeTree (x`WithAny`y)

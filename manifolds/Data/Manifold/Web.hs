@@ -98,11 +98,52 @@ import Data.Traversable.Constrained (traverse)
 import GHC.Generics (Generic)
 
 
+type WebNodeId = Int
+type NeighbourRefs = UArr.Vector WebNodeId
 
 data PointsWeb x y = PointsWeb {
        _webNodeRsc :: ShadeTree x
-     , _webNodeAssocData :: Arr.Vector y
-     , _webEdges :: UArr.Vector Int
+     , _webNodeAssocData :: Arr.Vector (y, NeighbourRefs)
      }
 
+
+fromShaded :: ∀ x y . WithField ℝ Manifold x
+     => (Shade x -> Metric x) -- ^ Local scalar-product generator. You can always
+                              --   use @'recipMetric' . '_shadeExpanse'@ (but this
+                              --   may give distortions compared to an actual
+                              --   Riemannian metric).
+     -> x`Shaded`y            -- ^ Source tree.
+     -> PointsWeb x y
+fromShaded metricf shd = PointsWeb shd' assocData 
+ where shd' = stripShadedUntopological shd
+       assocData = Hask.foldMap locMesh $ twigsWithEnvirons shd
+       
+       locMesh :: ((Int, ShadeTree (x`WithAny`y)), [(Int, ShadeTree (x`WithAny`y))])
+                   -> Arr.Vector (y, NeighbourRefs)
+       locMesh ((i₀, locT), neighRegions) = Arr.map findNeighbours locLeaves
+        where locLeaves = Arr.map (first (+i₀)) . Arr.indexed . Arr.fromList
+                                          $ onlyLeaves locT
+              findNeighbours :: (Int, x`WithAny`y) -> (y, NeighbourRefs)
+              findNeighbours (i, WithAny y x)
+                         = (y, UArr.fromList $ fst<$>execState seek mempty)
+               where seek = do
+                        Hask.forM_ locLeaves $ \(iNgb, WithAny _ xNgb) ->
+                           when (iNgb/=i) `id`do
+                              let (Option (Just v)) = xNgb.-~.x
+                              oldNgbs <- get
+                              when (all (\(_,nw) -> nw<.>^v < 1) oldNgbs) `id`do
+                                 let w = w₀ ^/ (w₀<.>^v)
+                                      where w₀ = toDualWith locRieM v
+                                 put $ (i, w)
+                                       : [(i,nw) | (i,nw)<-oldNgbs
+                                                 , w<.>^fromDualWith locRieM' nw < 1
+                                         ]
+              
+              locRieM :: Metric x
+              locRieM = case pointsCovers . map _topological
+                                  $ onlyLeaves locT
+                                   ++ Hask.foldMap (onlyLeaves . snd) neighRegions of
+                          [sh₀] -> metricf sh₀
+              locRieM' :: Metric' x
+              locRieM' = recipMetric' locRieM
 
