@@ -120,7 +120,7 @@ fromShaded :: ∀ x y . WithField ℝ Manifold x
                               --   use @'recipMetric' . '_shadeExpanse'@ (but this
                               --   may give distortions compared to an actual
                               --   Riemannian metric).
-     -> x`Shaded`y            -- ^ Source tree.
+     -> (x`Shaded`y)          -- ^ Source tree.
      -> PointsWeb x y
 fromShaded metricf shd = PointsWeb shd' assocData 
  where shd' = stripShadedUntopological shd
@@ -131,22 +131,33 @@ fromShaded metricf shd = PointsWeb shd' assocData
        locMesh ((i₀, locT), neighRegions) = Arr.map findNeighbours locLeaves
         where locLeaves = Arr.map (first (+i₀)) . Arr.indexed . Arr.fromList
                                           $ onlyLeaves locT
+              vicinityLeaves = Hask.foldMap
+                                (\(i₀n, ngbR) -> Arr.map (first (+i₀n))
+                                               . Arr.indexed
+                                               . Arr.fromList
+                                               $ onlyLeaves ngbR
+                                ) neighRegions
               findNeighbours :: (Int, x`WithAny`y) -> (y, NeighbourRefs)
               findNeighbours (i, WithAny y x)
                          = (y, UArr.fromList $ fst<$>execState seek mempty)
                where seek = do
-                        Hask.forM_ locLeaves $ \(iNgb, WithAny _ xNgb) ->
+                        Hask.forM_ (locLeaves Arr.++ vicinityLeaves)
+                                  $ \(iNgb, WithAny _ xNgb) ->
                            when (iNgb/=i) `id`do
                               let (Option (Just v)) = xNgb.-~.x
                               oldNgbs <- get
-                              when (all (\(_,(_,nw)) -> nw<.>^v < 1) oldNgbs) `id`do
+                              when (all (\(_,(_,nw)) -> visibleOverlap nw v) oldNgbs) `id`do
                                  let w = w₀ ^/ (w₀<.>^v)
                                       where w₀ = toDualWith locRieM v
                                  put $ (iNgb, (v,w))
                                        : [ neighbour
                                          | neighbour@(_,(nv,_))<-oldNgbs
-                                                   , w<.>^nv < 1
+                                         , visibleOverlap w nv
                                          ]
+              
+              visibleOverlap :: Needle' x -> Needle x -> Bool
+              visibleOverlap w v = o < 1
+               where o = w<.>^v
               
               locRieM :: Metric x
               locRieM = case pointsCovers . map _topological

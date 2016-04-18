@@ -406,8 +406,8 @@ traverseDirectionChoices f dbs
                               -> [(ѧ,τ), (negateV ѧ,β)]
  where td pds (ѧt@(_,(ѧ,_)):vb:vds)
          = liftA3 (\t' b' -> (DBranch ѧ (Hourglass t' b') :))
-             (f ѧt $ pds++vb:uds)
-             (f vb $ pds++ѧt:uds)
+             (f ѧt $ vb:uds)
+             (f vb $ ѧt:uds)
              $ td (ѧt:vb:pds) vds
         where uds = pds ++ vds
        td _ _ = pure []
@@ -725,11 +725,11 @@ traverseTwigsWithEnvirons f = fst . go [] . (0,)
                               ++ map ((+i₀)***snd) alts
               envi' = approach =<< envi
               approach (i₀e, apt@(OverlappingBranches _ (Shade envc _) _))
-                  = twigsaveTrim hither apt
+                  = first (+i₀e) <$> twigsaveTrim hither apt
                where Option (Just δxenv) = robc .-~. envc
                      hither (DBranch bdir (Hourglass bdc₁ bdc₂))
-                       | bdir<.>^δxenv > 0  = [(i₀e             , bdc₁)]
-                       | otherwise          = [(i₀e+nLeaves bdc₁, bdc₂)]
+                       | bdir<.>^δxenv > 0  = [(0           , bdc₁)]
+                       | otherwise          = [(nLeaves bdc₁, bdc₂)]
               approach q = [q]
        go envi plvs@(i₀, (PlainLeaves _))
                          = (f $ purgeRemotes (plvs, envi), True)
