@@ -394,21 +394,24 @@ directionChoices (DBranch ѧ (Hourglass t b) : hs)
        uds = directionChoices hs
 
 traverseDirectionChoices :: (WithField ℝ Manifold x, Hask.Applicative f)
-               => (     (Needle' x, ShadeTree x)
-                    -> [(Needle' x, ShadeTree x)]
+               => (    (Int, (Needle' x, ShadeTree x))
+                    -> [(Int, (Needle' x, ShadeTree x))]
                     -> f (ShadeTree x) )
                  -> [DBranch x]
                  -> f [DBranch x]
-traverseDirectionChoices f dbs = td [] (dbs >>=
-                            \(DBranch ѧ (Hourglass τ β))
-                              -> [(ѧ,τ), (negateV ѧ,β)])
- where td pds ((ѧ,t):(v,b):vds)
+traverseDirectionChoices f dbs
+           = td [] . scanLeafNums 0
+               $ dbs >>= \(DBranch ѧ (Hourglass τ β))
+                              -> [(ѧ,τ), (negateV ѧ,β)]
+ where td pds (ѧt@(_,(ѧ,_)):vb:vds)
          = liftA3 (\t' b' -> (DBranch ѧ (Hourglass t' b') :))
-             (f (ѧ,t) $ pds++(v,b):uds)
-             (f (v,b) $ pds++(ѧ,t):uds)
-             $ td ((ѧ,t):(v,b):pds) vds
+             (f ѧt $ pds++vb:uds)
+             (f vb $ pds++ѧt:uds)
+             $ td (ѧt:vb:pds) vds
         where uds = pds ++ vds
        td _ _ = pure []
+       scanLeafNums _ [] = []
+       scanLeafNums i₀ ((v,t):vts) = (i₀, (v,t)) : scanLeafNums (i₀ + nLeaves t) vts
 
 
 instance (NFData x, NFData (Needle' x)) => NFData (ShadeTree x) where
@@ -680,8 +683,8 @@ filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours@(_:_)) = (,j₀) 
 -- The simple list-yielding version (see rev. b4a427d59ec82889bab2fde39225b14a57b694df
 -- may well be more efficient than this version via a traversal.
 twigsWithEnvirons :: ∀ x. WithField ℝ Manifold x
-    => ShadeTree x -> [(ShadeTree x, [ShadeTree x])]
-twigsWithEnvirons = execWriter . traverseTwigsWithEnvirons (writer . (fst&&&pure))
+    => ShadeTree x -> [((Int, ShadeTree x), [(Int, ShadeTree x)])]
+twigsWithEnvirons = execWriter . traverseTwigsWithEnvirons (writer . (snd.fst&&&pure))
 
 data OuterMaybeT f a = OuterNothing | OuterJust (f a) deriving (Hask.Functor)
 instance (Hask.Applicative f) => Hask.Applicative (OuterMaybeT f) where
@@ -691,59 +694,72 @@ instance (Hask.Applicative f) => Hask.Applicative (OuterMaybeT f) where
 
 traverseTwigsWithEnvirons :: ∀ x f .
             (WithField ℝ Manifold x, Hask.Applicative f)
-    => ((ShadeTree x, [ShadeTree x]) -> f (ShadeTree x))
+    => ( ((Int, ShadeTree x), [(Int, ShadeTree x)]) -> f (ShadeTree x))
          -> ShadeTree x -> f (ShadeTree x)
-traverseTwigsWithEnvirons f = fst . go []
- where go :: [ShadeTree x] -> ShadeTree x -> (f (ShadeTree x), Bool)
-       go _ (DisjointBranches nlvs djbs) = ( fmap (DisjointBranches nlvs)
-                                               $ Hask.traverse (fst . go []) djbs
-                                           , False )
-       go envi ct@(OverlappingBranches nlvs rob@(Shade robc _) brs)
+traverseTwigsWithEnvirons f = fst . go [] . (0,)
+ where go :: [(Int, ShadeTree x)] -> (Int, ShadeTree x)
+                          -> (f (ShadeTree x), Bool)
+       go _ (i₀, DisjointBranches nlvs djbs) = ( fmap (DisjointBranches nlvs)
+                                                   . Hask.traverse (fst . go [])
+                                                   $ NE.zip ioffs djbs
+                                               , False )
+        where ioffs = NE.scanl (\i -> (+i) . nLeaves) i₀ djbs
+       go envi ct@(i₀, (OverlappingBranches nlvs rob@(Shade robc _) brs))
                 = ( case descentResult of
                      OuterNothing -> f
-                         $ purgeRemotes (ct, Hask.foldMap (twigProximæ robc) envi)
+                         $ purgeRemotes
+                            (ct, Hask.foldMap (\(io,te)
+                                            -> first (+io) <$> twigProximæ robc te) envi)
                      OuterJust dR -> fmap (OverlappingBranches nlvs rob . NE.fromList) dR
                   , False )
         where descentResult = traverseDirectionChoices tdc $ NE.toList brs
-              tdc (vy, ty) alts = case go envi'' ty of
+              tdc (io, (vy, ty)) alts = case go envi'' (i₀+io, ty) of
                                    (_, True) -> OuterNothing
                                    (down, _) -> OuterJust down
-               where envi'' = filter (trunks >>> \(Shade ce _:_)
+               where envi'' = filter (snd >>> trunks >>> \(Shade ce _:_)
                                          -> let Option (Just δyenv) = ce.-~.robc
                                                 qq = vy<.>^δyenv
                                             in qq > -1 && qq < 5
                                        ) envi'
-                              ++ map snd alts
+                              ++ map ((+i₀)***snd) alts
               envi' = approach =<< envi
-              approach apt@(OverlappingBranches _ (Shade envc _) _)
+              approach (i₀e, apt@(OverlappingBranches _ (Shade envc _) _))
                   = twigsaveTrim hither apt
                where Option (Just δxenv) = robc .-~. envc
                      hither (DBranch bdir (Hourglass bdc₁ bdc₂))
-                       | bdir<.>^δxenv > 0  = [bdc₁]
-                       | otherwise          = [bdc₂]
+                       | bdir<.>^δxenv > 0  = [(i₀e             , bdc₁)]
+                       | otherwise          = [(i₀e+nLeaves bdc₁, bdc₂)]
               approach q = [q]
-       go envi plvs@(PlainLeaves _) = (f $ purgeRemotes (plvs, envi), True)
+       go envi plvs@(i₀, (PlainLeaves _))
+                         = (f $ purgeRemotes (plvs, envi), True)
        
-       twigProximæ :: x -> ShadeTree x -> [ShadeTree x]
-       twigProximæ x₀ (DisjointBranches _ djbs) = Hask.foldMap (twigProximæ x₀) djbs
+       twigProximæ :: x -> ShadeTree x -> [(Int, ShadeTree x)]
+       twigProximæ x₀ (DisjointBranches _ djbs)
+               = Hask.foldMap (\(i₀,st) -> first (+i₀) <$> twigProximæ x₀ st)
+                    $ NE.zip ioffs djbs
+        where ioffs = NE.scanl (\i -> (+i) . nLeaves) 0 djbs
        twigProximæ x₀ ct@(OverlappingBranches _ (Shade xb qb) brs)
                    = twigsaveTrim hither ct
         where Option (Just δxb) = x₀ .-~. xb
               hither (DBranch bdir (Hourglass bdc₁ bdc₂))
                  | bdir<.>^δxb > 0  = twigProximæ x₀ bdc₁
-                 | otherwise        = twigProximæ x₀ bdc₂
-       twigProximæ _ plainLeaves = [plainLeaves]
+                 | otherwise        = first (+nLeaves bdc₁)
+                                     <$> twigProximæ x₀ bdc₂
+       twigProximæ _ plainLeaves = [(0, plainLeaves)]
        
-       twigsaveTrim :: (DBranch x -> [ShadeTree x])
-                       -> ShadeTree x -> [ShadeTree x]
+       twigsaveTrim :: (DBranch x -> [(Int,ShadeTree x)])
+                       -> ShadeTree x -> [(Int,ShadeTree x)]
        twigsaveTrim f ct@(OverlappingBranches _ _ dbs)
-                 = case Hask.mapM (f >>> noLeaf) dbs of
+                 = case Hask.mapM (\(i₀,dbr) -> noLeaf $ first(+i₀)<$>f dbr)
+                                 $ NE.zip ioffs dbs of
                       Just pqe -> Hask.fold pqe
-                      _        -> [ct]
-        where noLeaf [PlainLeaves _] = empty
+                      _        -> [(0,ct)]
+        where noLeaf [(_,PlainLeaves _)] = empty
               noLeaf bqs = pure bqs
+              ioffs = NE.scanl (\i -> (+i) . sum . fmap nLeaves . toList) 0 dbs
        
-       purgeRemotes :: (ShadeTree x, [ShadeTree x]) -> (ShadeTree x, [ShadeTree x])
+       purgeRemotes :: ((Int,ShadeTree x), [(Int,ShadeTree x)])
+                    -> ((Int,ShadeTree x), [(Int,ShadeTree x)])
        purgeRemotes = id -- See 7d1f3a4 for the implementation; this didn't work reliable. 
     
 completeTopShading :: (WithField ℝ Manifold x, WithField ℝ Manifold y)
@@ -787,16 +803,16 @@ flexTwigsShading :: ∀ x y f . ( WithField ℝ Manifold x, WithField ℝ Manifo
                   => (Shade' (x,y) -> f (x, (Shade' y, LocalLinear x y)))
                       -> x`Shaded`y -> f (x`Shaded`y)
 flexTwigsShading f = traverseTwigsWithEnvirons locFlex
- where locFlex :: ∀ μ . (x`Shaded`y, μ) -> f (x`Shaded`y)
-       locFlex (lsh, _) = flexTopShading f lsh
+ where locFlex :: ∀ μ . ((Int, x`Shaded`y), μ) -> f (x`Shaded`y)
+       locFlex ((_,lsh), _) = flexTopShading f lsh
 
 filterDEqnSolution_static :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
            => DifferentialEqn x y
                -> x`Shaded`y -> Option (x`Shaded`y)
 filterDEqnSolution_static deq tr = traverseTwigsWithEnvirons locSoltn tr
- where locSoltn :: (x`Shaded`y, [x`Shaded`y]) -> Option (x`Shaded`y)
-       locSoltn (local, environs) = do
-            let enviShades = completeTopShading =<< environs
+ where locSoltn :: ((Int,x`Shaded`y), [(Int,x`Shaded`y)]) -> Option (x`Shaded`y)
+       locSoltn ((_,local), environs) = do
+            let enviShades = completeTopShading =<< snd<$>environs
             flexed <- flexTopShading
                            (\oSh@(Shade' (ox,_) _) -> 
                               (ox,) <$> filterDEqnSolution_loc deq (oSh, enviShades)
@@ -1398,7 +1414,7 @@ stiWithDensity (OverlappingBranches n (Shade (WithAny _ bc) extend) brs) = ovbSW
 
 stiAsIntervalMapping :: (x ~ ℝ, y ~ ℝ)
             => x`Shaded`y -> [(x, ((y, Diff y), Linear ℝ x y))]
-stiAsIntervalMapping = twigsWithEnvirons >=> pure.fst >=> completeTopShading >=> pure.
+stiAsIntervalMapping = twigsWithEnvirons >=> pure.snd.fst >=> completeTopShading >=> pure.
              \(Shade' (xloc, yloc) shd)
                  -> ( xloc, ( (yloc, recip $ metric shd (0,1))
                             , case covariance (recipMetric' shd) of
