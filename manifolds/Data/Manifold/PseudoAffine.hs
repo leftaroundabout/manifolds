@@ -268,8 +268,8 @@ type HilbertSpace x = ( LinearManifold x, InnerSpace x
 type EuclidSpace x = ( AffineManifold x, InnerSpace (Diff x)
                      , DualSpace (Diff x) ~ Diff x, Floating (Scalar (Diff x)) )
 
-euclideanMetric :: EuclidSpace x => Tagged x (Metric x)
-euclideanMetric = Tagged euclideanMetric'
+euclideanMetric :: EuclidSpace x => proxy x -> Metric x
+euclideanMetric _ = euclideanMetric'
 
 
 -- | A co-needle can be understood as a “paper stack”, with which you can measure

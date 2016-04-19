@@ -120,6 +120,11 @@ instance Traversable (PointsWeb x) (PointsWeb x) (->) (->) where
    where (ys,ngss) = Arr.unzip asd
 
 
+
+fromWebNodes :: ∀ x y . WithField ℝ Manifold x
+                    => (Shade x->Metric x) -> [(x,y)] -> PointsWeb x y
+fromWebNodes mf = fromShaded mf . fromLeafPoints . map (uncurry WithAny . swap)
+
 fromShadeTree_auto :: ∀ x . WithField ℝ Manifold x => ShadeTree x -> PointsWeb x ()
 fromShadeTree_auto = fromShaded (recipMetric . _shadeExpanse) . constShaded ()
 

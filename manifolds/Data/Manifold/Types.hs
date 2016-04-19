@@ -54,7 +54,7 @@ module Data.Manifold.Types (
         , Cutplane(..)
         , fathomCutDistance, sideOfCut
         -- * Linear mappings
-        , Linear, denseLinear
+        , Linear, LocalLinear, denseLinear
    ) where
 
 

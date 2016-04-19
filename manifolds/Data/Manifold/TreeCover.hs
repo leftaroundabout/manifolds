@@ -37,7 +37,7 @@
 
 module Data.Manifold.TreeCover (
        -- * Shades 
-         Shade(..), pattern(:±), Shade'(..), IsShade
+         Shade(..), pattern(:±), Shade'(..), (|±|), IsShade
        -- ** Lenses
        , shadeCtr, shadeExpanse, shadeNarrowness
        -- ** Construction
@@ -206,9 +206,20 @@ fullShade' :: WithField ℝ Manifold x => x -> Metric x -> Shade' x
 fullShade' ctr expa = Shade' ctr expa
 
 
+-- | Span a 'Shade' from a center point and multiple deviation-vectors.
 pattern (:±) :: () => WithField ℝ Manifold x => x -> [Needle x] -> Shade x
 pattern x :± shs <- Shade x (eigenSpan -> shs)
  where x :± shs = fullShade x . sumV $ projector'<$>shs
+
+
+-- | Similar to ':±', but instead of expanding the shade, each vector /restricts/ it.
+--   Iff these form a orthogonal basis (in whatever sense applicable), then both
+--   methods will be equivalent.
+-- 
+--   Note that '|±|' is only possible, as such, in an inner-product space; in
+--   general you need reciprocal vectors ('Needle'') to define a 'Shade''.
+(|±|) :: WithField ℝ EuclidSpace x => x -> [Needle x] -> Shade' x
+x |±| shs = Shade' x $ sumV [projector $ v^/(v<.>v) | v<-shs]
 
 
 
@@ -1098,7 +1109,7 @@ AutoTriang a `autoTriangMappend` AutoTriang b = AutoTriang c
 elementaryTriang :: ∀ n n' x . (KnownNat n', n~S n', WithField ℝ EuclidSpace x)
                       => Simplex n x -> AutoTriang n x
 elementaryTriang t = AutoTriang (fullOpenSimplex m t >> return ())
- where (Tagged m) = euclideanMetric :: Tagged x (Metric x)
+ where m = euclideanMetric t
 
 breakdownAutoTriang :: ∀ n n' x . (KnownNat n', n ~ S n') => AutoTriang n x -> [Simplex n x]
 breakdownAutoTriang (AutoTriang t) = doTriangBuild t
