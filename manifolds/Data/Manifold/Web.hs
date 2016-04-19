@@ -103,8 +103,8 @@ type NeighbourRefs = UArr.Vector WebNodeId
 
 data PointsWeb :: * -> * -> * where
    PointsWeb :: {
-       _webNodeRsc :: ShadeTree x
-     , _webNodeAssocData :: Arr.Vector (y, NeighbourRefs)
+       webNodeRsc :: ShadeTree x
+     , webNodeAssocData :: Arr.Vector (y, NeighbourRefs)
      } -> PointsWeb x y
   deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
 
@@ -201,4 +201,10 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
        asd''= Arr.map (\(xy,n) ->
                        ((xy, [fst (asd' Arr.! j) | j<-UArr.toList n]), n)
                  ) asd'
+
+
+filterDEqnSolution_static :: (WithField ℝ Manifold x, WithField ℝ Manifold y)
+       => DifferentialEqn x y -> PointsWeb x (Shade' y) -> Option (PointsWeb x (Shade' y))
+filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse (filterDEqnSolution_loc f)
+
 

@@ -57,7 +57,7 @@ module Data.Manifold.TreeCover (
        , twigsWithEnvirons, completeTopShading, flexTwigsShading
        , WithAny(..), Shaded, stiAsIntervalMapping, spanShading
        , constShaded, stripShadedUntopological
-       , DifferentialEqn, filterDEqnSolution_static
+       , DifferentialEqn, filterDEqnSolution_loc
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
        , AutoTriang, elementaryTriang, breakdownAutoTriang
@@ -645,27 +645,23 @@ intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
 
 
 
-type DifferentialEqn x y = Shade' (x,y) -> Shade' (LocalLinear x y)
+type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
 
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
-           => DifferentialEqn x y -> (Shade' (x,y), [Shade' (x,y)])
-                   -> Option (Shade' y, LocalLinear x y)
-filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours@(_:_)) = (,j₀) <$> yc
+           => DifferentialEqn x y -> ((x, Shade' y), [(x, Shade' y)])
+                   -> Option (Shade' y)
+filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours@(_:_)) = yc
  where jShade@(Shade' j₀ jExpa) = f shxy
+       [shxy] = pointsCovers [ (xs, ys.+~^δy)
+                             | (xs, Shade' ys yse) <- (x,shy):neighbours
+                             , δy <- eigenCoSpan' yse ]
+       [Shade' _ expax] = pointsCover's (fst<$>neighbours)
        marginδs :: [(Needle x, (Needle y, Metric y))]
        marginδs = [ (δxm, (δym, expany))
-                  | Shade' (xn, yn) expan <- neighbours
-                  , let (Option (Just δx)) = x.-~.xn
-                        (expanx, expany) = factoriseMetric expan
-                        (Option (Just yc'n))
-                               = covariance $ recipMetric' expan
-                        xntoMarg = metriNormalise expanx δx
-                        (Option (Just δxm))
-                           = (xn .+~^ xntoMarg :: x) .-~. x
-                        (Option (Just δym))
-                           = (yn .+~^ (yc'n $ xntoMarg) :: y
-                               ) .-~. y
+                  | (xn, Shade' yn expany) <- neighbours
+                  , let (Option (Just δxm)) = xn.-~.x
+                        (Option (Just δym)) = yn.-~.y
                   ]
        back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y
        back2Centre (δx, (δym, expany))
@@ -676,7 +672,6 @@ filterDEqnSolution_loc f (shxy@(Shade' (x,y) expa), neighbours@(_:_)) = (,j₀) 
               δx' = toDualWith expax δx
        yc :: Option (Shade' y)
        yc = intersectShade's $ back2Centre <$> marginδs
-       (expax, expay) = factoriseMetric expa
        xSpan = eigenCoSpan' expax
 
 
@@ -806,23 +801,6 @@ flexTwigsShading :: ∀ x y f . ( WithField ℝ Manifold x, WithField ℝ Manifo
 flexTwigsShading f = traverseTwigsWithEnvirons locFlex
  where locFlex :: ∀ μ . ((Int, x`Shaded`y), μ) -> f (x`Shaded`y)
        locFlex ((_,lsh), _) = flexTopShading f lsh
-
-filterDEqnSolution_static :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
-           => DifferentialEqn x y
-               -> x`Shaded`y -> Option (x`Shaded`y)
-filterDEqnSolution_static deq tr = traverseTwigsWithEnvirons locSoltn tr
- where locSoltn :: ((Int,x`Shaded`y), [(Int,x`Shaded`y)]) -> Option (x`Shaded`y)
-       locSoltn ((_,local), environs) = do
-            let enviShades = completeTopShading =<< snd<$>environs
-            flexed <- flexTopShading
-                           (\oSh@(Shade' (ox,_) _) -> 
-                              (ox,) <$> filterDEqnSolution_loc deq (oSh, enviShades)
-                           ) local
-            top'@(Shade' (top'x,_) top'exp)
-                     <- intersectShade's $ completeTopShading =<< [local, flexed]
-            let (_, top'ySh) = factoriseShade top'
-            j' <- covariance $ recipMetric' top'exp
-            flexTopShading (const $ pure (top'x, (top'ySh, j'))) flexed
                 
 
 
