@@ -93,7 +93,7 @@ import Control.Category.Constrained.Prelude hiding
 import Control.Arrow.Constrained
 import Control.Monad.Constrained hiding (forM)
 import Data.Foldable.Constrained
-import Data.Traversable.Constrained (traverse)
+import Data.Traversable.Constrained (Traversable, traverse)
 
 import GHC.Generics (Generic)
 
@@ -101,11 +101,23 @@ import GHC.Generics (Generic)
 type WebNodeId = Int
 type NeighbourRefs = UArr.Vector WebNodeId
 
-data PointsWeb x y = PointsWeb {
+data PointsWeb :: * -> * -> * where
+   PointsWeb :: {
        _webNodeRsc :: ShadeTree x
      , _webNodeAssocData :: Arr.Vector (y, NeighbourRefs)
-     }
+     } -> PointsWeb x y
+  deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
 
+instance (NFData x, NFData (Needle' x), NFData y) => NFData (PointsWeb x y)
+
+instance Foldable (PointsWeb x) (->) (->) where
+  ffoldl = uncurry . Hask.foldl' . curry
+  foldMap = Hask.foldMap
+instance Traversable (PointsWeb x) (PointsWeb x) (->) (->) where
+  traverse f (PointsWeb rsc asd)
+           = fmap (PointsWeb rsc . (`Arr.zip`ngss) . Arr.fromList)
+              . traverse f $ Arr.toList ys
+   where (ys,ngss) = Arr.unzip asd
 
 
 fromShadeTree_auto :: ∀ x . WithField ℝ Manifold x => ShadeTree x -> PointsWeb x ()
@@ -180,3 +192,13 @@ webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
                                     | i'<-UArr.toList ngbs ]
                                ) $ Arr.indexed assoc
        lookId i | Option (Just xy) <- indexWeb web i  = xy
+
+
+localFocusWeb :: WithField ℝ Manifold x => PointsWeb x y -> PointsWeb x ((x,y), [(x,y)])
+localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
+ where asd' = Arr.imap (\i (y,n) -> case indexShadeTree rsc i of
+                                         Right (_,x) -> ((x,y),n) ) asd
+       asd''= Arr.map (\(xy,n) ->
+                       ((xy, [fst (asd' Arr.! j) | j<-UArr.toList n]), n)
+                 ) asd'
+
