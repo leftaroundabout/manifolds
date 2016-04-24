@@ -617,15 +617,16 @@ covariance (HerMetric' (Just m))
 
 metricAsLength :: HerMetric ℝ -> ℝ
 metricAsLength m = case metricSq m 1 of
-   o | o > 0    -> recip o
-     | o < 0    -> error "Metric fails to be positive definite!"
-     | o == 0   -> error "Trying to use zero metric as length."
+   o | o > 0      -> sqrt $ recip o
+     | o < 0      -> error "Metric fails to be positive definite!"
+     | o == 0     -> error "Trying to use zero metric as length."
+     | otherwise  -> error "Metric yields NaN."
 
 metricFromLength :: ℝ -> HerMetric ℝ
 metricFromLength = projector . recip
 
 metric'AsLength :: HerMetric' ℝ -> ℝ
-metric'AsLength = recip . (`metric'`1)  -- do we really want `recip` here?
+metric'AsLength = sqrt . (`metric'`1)
 
 
 spanHilbertSubspace :: ∀ s v w
