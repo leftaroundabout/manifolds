@@ -70,8 +70,9 @@ identMat :: forall v w . FiniteDimensional v => Linear (Scalar v) w v
 identMat = DenseLinear $ HMat.ident n
  where (Tagged n) = dimension :: Tagged v Int
 
--- | Coerce the matrix representations of two linear mappings;
---   the result makes sense iff the spaces are canonically isomorphic.
+-- | Coerce the matrix representations of two linear mappings; the result makes
+--   sense iff the spaces are canonically isomorphic (certainly if they
+--   are good instances of 'Data.Manifold.PseudoAffine.LocallyCoercible').
 unsafeCoerceLinear :: Linear s a b -> Linear s c d
 unsafeCoerceLinear (DenseLinear m) = DenseLinear m
 

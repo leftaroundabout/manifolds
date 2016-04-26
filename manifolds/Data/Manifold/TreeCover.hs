@@ -45,7 +45,7 @@ module Data.Manifold.TreeCover (
        -- ** Evaluation
        , occlusion
        -- ** Misc
-       , factoriseShade, intersectShade's
+       , factoriseShade, intersectShade's, coerceShade
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree
        -- * View helpers
@@ -161,9 +161,7 @@ class IsShade shade where
   factoriseShade :: ( Manifold x, RealDimension (Scalar (Needle x))
                     , Manifold y, RealDimension (Scalar (Needle y)) )
                 => shade (x,y) -> (shade x, shade y)
-  unsafeCoerceShadeFmap :: (WithField ℝ Manifold x, WithField ℝ Manifold y)
-          => (x -> y)   -- ^ must a representational identity (WRT the tangent spaces' baseis).
-          -> shade x -> shade y
+  coerceShade :: (Manifold x, Manifold y, LocallyCoercible x y) => shade x -> shade y
 
 instance IsShade Shade where
   shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
@@ -176,8 +174,8 @@ instance IsShade Shade where
          δinv = recipMetric δ
   factoriseShade (Shade (x₀,y₀) δxy) = (Shade x₀ δx, Shade y₀ δy)
    where (δx,δy) = factoriseMetric' δxy
-  unsafeCoerceShadeFmap f (Shade x (HerMetric' δxym))
-          = Shade (f x) (HerMetric' $ unsafeCoerceLinear<$>δxym)
+  coerceShade (Shade x (HerMetric' δxym))
+          = Shade (locallyTrivialDiffeomorphism x) (HerMetric' $ unsafeCoerceLinear<$>δxym)
 
 shadeExpanse :: Functor f (->) (->) => (Metric' x -> f (Metric' x)) -> Shade x -> f (Shade x)
 shadeExpanse f (Shade c e) = fmap (Shade c) $ f e
@@ -192,8 +190,8 @@ instance IsShade Shade' where
            _               -> zeroV
   factoriseShade (Shade' (x₀,y₀) δxy) = (Shade' x₀ δx, Shade' y₀ δy)
    where (δx,δy) = factoriseMetric δxy
-  unsafeCoerceShadeFmap f (Shade' x (HerMetric δxym))
-          = Shade' (f x) (HerMetric $ unsafeCoerceLinear<$>δxym)
+  coerceShade (Shade' x (HerMetric δxym))
+          = Shade' (locallyTrivialDiffeomorphism x) (HerMetric $ unsafeCoerceLinear<$>δxym)
 
 shadeNarrowness :: Functor f (->) (->) => (Metric x -> f (Metric x)) -> Shade' x -> f (Shade' x)
 shadeNarrowness f (Shade' c e) = fmap (Shade' c) $ f e

@@ -32,6 +32,7 @@
 {-# LANGUAGE FunctionalDependencies   #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE LiberalTypeSynonyms      #-}
+{-# LANGUAGE DataKinds                #-}
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE TupleSections            #-}
@@ -64,7 +65,7 @@ module Data.Manifold.PseudoAffine (
             -- ** Local functions
             , LocalLinear, LocalAffine
             -- * Misc
-            , palerp
+            , palerp, LocallyCoercible(..)
             ) where
     
 
@@ -78,6 +79,7 @@ import Data.Function (on)
 import Data.Fixed
 
 import Data.VectorSpace
+import Data.Embedding
 import Data.LinearMap
 import Data.LinearMap.HerMetric
 import Data.LinearMap.Category
@@ -219,6 +221,29 @@ class ( Semimanifold x, Semimanifold (Interior x)
 class (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold m
 instance (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold m
 
+
+
+-- | Instances of this class must be diffeomorphic manifolds, and even have
+--   /canonically isomorphic/ tangent spaces, so that
+--   @'fromPackedVector' . 'asPackedVector' :: 'Needle' x -> 'Needle' ξ@
+--   defines a meaningful “representational identity“ between these spaces.
+class (PseudoAffine x, PseudoAffine ξ, Scalar (Needle x) ~ Scalar (Needle ξ))
+         => LocallyCoercible x ξ where
+  -- | Must be compatible with the canonical isomorphism on the tangent spaces,
+  --   i.e.
+  -- @
+  -- locallyTrivialDiffeomorphism (p .+~^ 'fromPackedVector' v)
+  --   ≡ locallyTrivialDiffeomorphism p .+~^ 'fromPackedVector' v
+  -- @
+  locallyTrivialDiffeomorphism :: x -> ξ
+  
+instance LocallyCoercible ℝ ℝ where locallyTrivialDiffeomorphism = id
+instance LocallyCoercible (ℝ,ℝ) (ℝ,ℝ) where locallyTrivialDiffeomorphism = id
+instance LocallyCoercible (ℝ,(ℝ,ℝ)) (ℝ,(ℝ,ℝ)) where locallyTrivialDiffeomorphism = id
+instance LocallyCoercible ((ℝ,ℝ),ℝ) ((ℝ,ℝ),ℝ) where locallyTrivialDiffeomorphism = id
+
+
+
 type LocallyScalable s x = ( PseudoAffine x
                            , HasMetric (Needle x)
                            , s ~ Scalar (Needle x) )
@@ -331,6 +356,14 @@ instance SmoothScalar s => Semimanifold (FinVecArrRep t b s) where
   (.+~^) = (.+^)
 instance SmoothScalar s => PseudoAffine (FinVecArrRep t b s) where
   a.-~.b = pure (a.-.b)
+instance SmoothScalar s => LocallyCoercible (FinVecArrRep t b s) (FinVecArrRep t b s) where
+  locallyTrivialDiffeomorphism = id
+instance (SmoothScalar s, LinearManifold b, Scalar b ~ s)
+           => LocallyCoercible (FinVecArrRep t b s) b where
+  locallyTrivialDiffeomorphism = (concreteArrRep$<-$)
+instance (SmoothScalar s, LinearManifold b, Scalar b ~ s)
+           => LocallyCoercible b (FinVecArrRep t b s) where
+  locallyTrivialDiffeomorphism = (concreteArrRep$->$)
   
 
 instance Semimanifold (ZeroDim k) where
@@ -360,6 +393,10 @@ instance (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
                 Tagged tb = translateP :: Tagged b (Interior b -> Needle b -> Interior b)
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   (a,b).-~.(c,d) = liftA2 (,) (a.-~.c) (b.-~.d)
+instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
+     => LocallyCoercible (a,(b,c)) ((a,b),c) where locallyTrivialDiffeomorphism = regroup
+instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
+     => LocallyCoercible ((a,b),c) (a,(b,c)) where locallyTrivialDiffeomorphism = regroup'
 
 instance (Semimanifold a, Semimanifold b, Semimanifold c) => Semimanifold (a,b,c) where
   type Needle (a,b,c) = (Needle a, Needle b, Needle c)
@@ -379,6 +416,18 @@ instance (Semimanifold a, Semimanifold b, Semimanifold c) => Semimanifold (a,b,c
                 Tagged tc = translateP :: Tagged c (Interior c -> Needle c -> Interior c)
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
   (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
+instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
+     => LocallyCoercible (a,b,c) ((a,b),c) where
+  locallyTrivialDiffeomorphism (a,b,c) = ((a,b),c)
+instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
+     => LocallyCoercible (a,b,c) (a,(b,c)) where
+  locallyTrivialDiffeomorphism (a,b,c) = (a,(b,c))
+instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
+     => LocallyCoercible ((a,b),c) (a,b,c) where
+  locallyTrivialDiffeomorphism ((a,b),c) = (a,b,c)
+instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
+     => LocallyCoercible (a,(b,c)) (a,b,c) where
+  locallyTrivialDiffeomorphism (a,(b,c)) = (a,b,c)
 
 instance (MetricScalar a, KnownNat n) => Semimanifold (FreeVect n a) where
   type Needle (FreeVect n a) = FreeVect n a
@@ -388,6 +437,11 @@ instance (MetricScalar a, KnownNat n) => Semimanifold (FreeVect n a) where
   (.+~^) = (.+^)
 instance (MetricScalar a, KnownNat n) => PseudoAffine (FreeVect n a) where
   a.-~.b = pure (a.-.b)
+instance LocallyCoercible ℝ (ℝ ^ S Z) where
+  locallyTrivialDiffeomorphism = replicVector
+instance LocallyCoercible (ℝ ^ S Z) ℝ where
+  locallyTrivialDiffeomorphism = (<.>^replicVector 1)
+
 
 instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => Semimanifold (a⊗b) where
   type Needle (a⊗b) = a ⊗ b
