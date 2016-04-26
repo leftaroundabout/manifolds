@@ -70,6 +70,11 @@ identMat :: forall v w . FiniteDimensional v => Linear (Scalar v) w v
 identMat = DenseLinear $ HMat.ident n
  where (Tagged n) = dimension :: Tagged v Int
 
+-- | Coerce the matrix representations of two linear mappings;
+--   the result makes sense iff the spaces are canonically isomorphic.
+unsafeCoerceLinear :: Linear s a b -> Linear s c d
+unsafeCoerceLinear (DenseLinear m) = DenseLinear m
+
 convertLinear :: ∀ v w s . ( FiniteDimensional v, FiniteDimensional w
                            , Scalar v ~ s, Scalar w ~ s )
                    => Isomorphism (->) (v:-*w) (Linear s v w)
