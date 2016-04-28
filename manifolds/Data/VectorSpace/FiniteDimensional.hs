@@ -86,6 +86,12 @@ class (HasBasis v, HasTrie (Basis v), SmoothScalar (Scalar v)) => FiniteDimensio
   completeBasis :: Tagged v [Basis v]
   completeBasis = liftA2 (\dim f -> f <$> [0 .. dim - 1]) dimension indexBasis
   
+  completeBasisValues :: [v]
+  completeBasisValues = defCBVs
+   where defCBVs :: ∀ v . FiniteDimensional v => [v]
+         defCBVs = basisValue <$> cb
+          where Tagged cb = completeBasis :: Tagged v [Basis v]
+  
   asPackedVector :: v -> HMat.Vector (Scalar v)
   asPackedVector v = HMat.fromList $ snd <$> decompose v
   

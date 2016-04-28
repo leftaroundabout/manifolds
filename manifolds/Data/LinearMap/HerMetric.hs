@@ -55,6 +55,7 @@ module Data.LinearMap.HerMetric (
   , Stiefel1(..)
   , linMapAsTensProd, linMapFromTensProd
   , covariance
+  , outerProducts
   ) where
     
 
@@ -679,7 +680,7 @@ instance (HasMetric v, Scalar v ~ Double, Show (DualSpace v)) => Show (HerMetric
     | null eigSp  = showString "zeroV"
     | otherwise   = showParen (p>5)
                       . foldr1 ((.) . (.(" ^+^ "++)))
-                      $ ((("projector "++).).showsPrec 6)<$>eigSp
+                      $ ((("projector "++).).showsPrec 10)<$>eigSp
    where eigSp = eigenSpan' m
 
 instance (HasMetric v, Scalar v ~ Double, Show v) => Show (HerMetric' v) where
@@ -687,7 +688,7 @@ instance (HasMetric v, Scalar v ~ Double, Show v) => Show (HerMetric' v) where
     | null eigSp  = showString "zeroV"
     | otherwise   = showParen (p>5)
                       . foldr1 ((.) . (.(" ^+^ "++)))
-                      $ ((("projector' "++).).showsPrec 6)<$>eigSp
+                      $ ((("projector' "++).).showsPrec 10)<$>eigSp
    where eigSp = eigenSpan m
 
 
@@ -706,3 +707,24 @@ linMapFromTensProd :: (FiniteDimensional v, FiniteDimensional w, Scalar v~Scalar
                     => DualSpace v ⊗ w -> v:-*w
 linMapFromTensProd (DensTensProd m) = linear $
                          asPackedVector >>> HMat.app m >>> fromPackedVector
+
+
+
+(⊗) :: (HasMetric v, FiniteDimensional w, Scalar v ~ s, Scalar w ~ s)
+                    => w -> DualSpace v -> Linear s v w
+w ⊗ v' = denseLinear $ \x -> w ^* (v'<.>^x)
+
+outerProducts :: (HasMetric v, FiniteDimensional w, Scalar v ~ s, Scalar w ~ s)
+                    => [(w, DualSpace v)] -> Linear s v w
+outerProducts = sumV . fmap (uncurry(⊗))
+    -- inefficient, since ⊗ directly yields dense matrices.
+
+instance ∀ v w s . ( HasMetric v, FiniteDimensional w
+                   , Show (DualSpace v), Show w, Scalar v ~ s, Scalar w ~ s )
+    => Show (Linear s v w) where
+  showsPrec p f = showParen (p>9) $ ("outerProducts "++)
+        . shows [ (w, v' :: DualSpace v)
+                | (v,v') <- zip completeBasisValues completeBasisValues
+                , let w = f $ v ]
+  
+
