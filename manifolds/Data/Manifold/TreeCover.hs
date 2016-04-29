@@ -45,7 +45,7 @@ module Data.Manifold.TreeCover (
        -- ** Evaluation
        , occlusion
        -- ** Misc
-       , factoriseShade, intersectShade's, coerceShade
+       , factoriseShade, intersectShade's, Refinable, coerceShade
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree
        -- * View helpers
@@ -627,36 +627,34 @@ unsafeFmapTree f fn fs (OverlappingBranches n sh brs)
       in overlappingBranches (fs sh) brs'
 
 
-intersectShade's :: ∀ y . WithField ℝ Manifold y => [Shade' y] -> Option (Shade' y)
-intersectShade's [] = error "Global `Shade'` not implemented, so can't do intersection of zero co-shades."
-intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
- where inter2 :: Shade' y -> Shade' y -> Option (Shade' y)
-       inter2 (Shade' c e) (Shade' ζ η)
-           | μe < 1 && μη < 1  = return $ Shade' iCtr iExpa
-           | otherwise         = empty
-        where [c', ζ'] = [ ctr.+~^linearCombo
-                                     [ (v, 1 / (1 + metricSq oExpa w))
-                                     | v <- (*^) <$> [-1,1] <*> span
-                                     , let p = ctr .+~^ v  :: y
-                                           Option (Just w) = p.-~.oCtr
-                                     ]
-                         | ctr                  <- [c,     ζ    ]
-                         | span <- eigenCoSpan'<$> [e,     η    ]
-                         | (oCtr,oExpa)         <- [(ζ,η), (c,e)]
-                         ]
-              Option (Just c'2ζ') = ζ'.-~.c'
-              Option (Just c2ζ') = ζ'.-~.c
-              Option (Just ζ2c') = c'.-~.ζ
-              μc = metricSq e c2ζ'
-              μζ = metricSq η ζ2c'
-              iCtr = c' .+~^ c'2ζ' ^* (μζ/(μc + μζ)) -- weighted mean between c' and ζ'.
-              Option (Just rc) = c.-~.iCtr
-              Option (Just rζ) = ζ.-~.iCtr
-              rcⰰ = toDualWith e rc
-              rζⰰ = toDualWith η rζ
-              μe = rcⰰ<.>^rc
-              μη = rζⰰ<.>^rζ
-              iExpa = (e^+^η)^/2 ^+^ projector rcⰰ^/(1-μe) ^+^ projector rζⰰ^/(1-μη)
+
+class (WithField ℝ Manifold y) => Refinable y where
+  -- | Right-biased intersection operation. Laws:
+  -- 
+  --   * If @p@ is in @a@ and @b@, then it is also in @refineShade' a b@.
+  --   * If @p@ is not in @b@, then it should not be in @refineShade' a b@ either.
+  -- 
+  --   Where set membership is defined by @'minusLogOcclusion'' sh p@ being less
+  --   than one.
+  refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
+
+instance Refinable ℝ where
+  refineShade' (Shade' cl el) (Shade' cr er)
+         = case (metricSq el 1, metricSq er 1) of
+             (0, _) -> return $ Shade' cr er
+             (_, 0) -> return $ Shade' cl el
+             (ql,qr) | ql>0, qr>0
+                    -> let [rl,rr] = sqrt . recip <$> [ql,qr]
+                           b = maximum $ zipWith (-) [cl,cr] [rl,rr]
+                           t = minimum $ zipWith (+) [cl,cr] [rl,rr]
+                       in guard (b<t) >>
+                           let cm = (b+t)/2
+                               rm = (t-b)/2
+                           in return $ Shade' cm (projector $ recip rm)
+                            
+
+intersectShade's :: ∀ y . Refinable y => NonEmpty (Shade' y) -> Option (Shade' y)
+intersectShade's (sh:|shs) = Hask.foldrM refineShade' sh shs
 
 
 
@@ -664,7 +662,7 @@ intersectShade's (sh:shs) = Hask.foldrM inter2 sh shs
 type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
 
 
-filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
+filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
            => DifferentialEqn x y -> ((x, Shade' y), [(x, Shade' y)])
                    -> Option (Shade' y)
 filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours@(_:_)) = yc
@@ -689,7 +687,7 @@ filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours@(_:_)) = yc
         where δyb = δym ^-^ (j₀ $ δx)
               -- δx' = toDualWith expax δx
        yc :: Option (Shade' y)
-       yc = intersectShade's $ shy : (back2Centre <$> marginδs)
+       yc = intersectShade's $ shy :| (back2Centre <$> marginδs)
        xSpan = eigenCoSpan' expax
 
 
