@@ -669,10 +669,11 @@ filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Man
                    -> Option (Shade' y)
 filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours@(_:_)) = yc
  where jShade@(Shade' j₀ jExpa) = f shxy
-       [shxy] = pointsCovers [ (xs, ys.+~^δy)
+       [shxy] = pointsCovers [ (xs, ys')
                              | (xs, Shade' ys yse) <- (x,shy):neighbours
-                             , δy <- eigenCoSpan' yse ]
-       [Shade' _ expax] = pointsCover's (fst<$>neighbours)
+                             , δy <- eigenCoSpan' yse
+                             , ys' <- [ys.+~^δy, ys.-~^δy] ]
+       [Shade' _ expax] = pointsCover's $ x : (fst<$>neighbours)
        marginδs :: [(Needle x, (Needle y, Metric y))]
        marginδs = [ (δxm, (δym, expany))
                   | (xn, Shade' yn expany) <- neighbours
@@ -683,11 +684,12 @@ filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours@(_:_)) = yc
        back2Centre (δx, (δym, expany))
             = Shade' (y.+~^δyb) . recipMetric
                 $ recipMetric' expany
-                  ^+^ recipMetric' (applyLinMapMetric jExpa δx')
+                  ^+^ applyLinMapMetric' (recipMetric' jExpa) δx -- not suitable for most PDEs!
+                  -- ^+^ recipMetric' (applyLinMapMetric jExpa δx')
         where δyb = δym ^-^ (j₀ $ δx)
-              δx' = toDualWith expax δx
+              -- δx' = toDualWith expax δx
        yc :: Option (Shade' y)
-       yc = intersectShade's $ back2Centre <$> marginδs
+       yc = intersectShade's $ shy : (back2Centre <$> marginδs)
        xSpan = eigenCoSpan' expax
 
 
