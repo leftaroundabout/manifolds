@@ -637,6 +637,7 @@ class (WithField ℝ Manifold y) => Refinable y where
   --   Where set membership is defined by @'minusLogOcclusion'' sh p@ being less
   --   than one.
   refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
+  convolveShade' :: Shade' y -> Shade' (Needle y) -> Shade' y
 
 instance Refinable ℝ where
   refineShade' (Shade' cl el) (Shade' cr er)
@@ -651,6 +652,13 @@ instance Refinable ℝ where
                            let cm = (b+t)/2
                                rm = (t-b)/2
                            in return $ Shade' cm (projector $ recip rm)
+  convolveShade' (Shade' y₀ ey) (Shade' δ₀ eδ)
+         = case (metricSq ey 1, metricSq eδ 1) of
+             (wy,wδ) | wy>0, wδ>0
+                 -> Shade' (y₀.+~^δ₀)
+                           ( projector . recip
+                                  $ recip (sqrt wy) + recip (sqrt wδ) )
+             (_ , _) -> Shade' y₀ zeroV
                             
 
 intersectShade's :: ∀ y . Refinable y => NonEmpty (Shade' y) -> Option (Shade' y)
@@ -680,12 +688,11 @@ filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours@(_:_)) = yc
                   ]
        back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y
        back2Centre (δx, (δym, expany))
-            = Shade' (y.+~^δyb) . recipMetric
-                $ recipMetric' expany
-                  ^+^ applyLinMapMetric' (recipMetric' jExpa) δx -- not suitable for most PDEs!
-                  -- ^+^ recipMetric' (applyLinMapMetric jExpa δx')
+            = convolveShade'
+                (Shade' y expany)
+                (Shade' δyb $ applyLinMapMetric jExpa δx')
         where δyb = δym ^-^ (j₀ $ δx)
-              -- δx' = toDualWith expax δx
+              δx' = toDualWith expax δx
        yc :: Option (Shade' y)
        yc = intersectShade's $ shy :| (back2Centre <$> marginδs)
        xSpan = eigenCoSpan' expax
