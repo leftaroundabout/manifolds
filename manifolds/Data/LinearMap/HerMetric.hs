@@ -330,12 +330,16 @@ eigenCoSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [DualSpace v]
 eigenCoSpan (HerMetric' Nothing) = []
 eigenCoSpan (HerMetric' (Just (DenseLinear m))) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH' m
-       eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
+       eigSpan = map (uncurry $ HMat.scale . recip . sqrt)
+                 . filter ((>0) . fst)
+                 $ zip (HMat.toList μs) (HMat.toColumns vsm)
 eigenCoSpan' :: (HasMetric v, Scalar v ~ ℝ) => HerMetric v -> [v]
 eigenCoSpan' (HerMetric Nothing) = []
 eigenCoSpan' (HerMetric (Just (DenseLinear m))) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH' m
-       eigSpan = zipWith (HMat.scale . recip . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
+       eigSpan = map (uncurry $ HMat.scale . recip . sqrt)
+                 . filter ((>0) . fst)
+                 $ zip (HMat.toList μs) (HMat.toColumns vsm)
 
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
