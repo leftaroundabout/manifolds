@@ -306,14 +306,16 @@ isInfinite' x = x==x*2
 
 
 
--- | The eigenbasis of a /positive definite/ metric, with each eigenvector scaled
---   to the square root of the eigenvalue.
+-- | The eigenbasis of a metric, with each eigenvector scaled to the
+--   square root of the eigenvalue. If the metric is not positive
+--   definite (i.e. if it has zero eigenvalues), then the 'eigenSpan'
+--   will contain zero vectors.
 --   
 --   This constitutes, in a sense,
 --   a decomposition of a metric into a set of 'projector'' vectors. If those
 --   are 'sumV'ed again, the original metric is obtained. (This holds even for
 --   non-Hilbert/Banach spaces, even though the concept of eigenbasis and
---   &#x201c;scaled length&#x201d; doesn't really makes sense then in the usual way!)
+--   &#x201c;scaled length&#x201d; doesn't really make sense then in the usual way.)
 eigenSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
 eigenSpan (HerMetric' Nothing) = []
 eigenSpan (HerMetric' (Just (DenseLinear m))) = map fromPackedVector eigSpan
@@ -326,6 +328,14 @@ eigenSpan' (HerMetric (Just (DenseLinear m))) = map fromPackedVector eigSpan
  where (μs,vsm) = HMat.eigSH' m
        eigSpan = zipWith (HMat.scale . sqrt) (HMat.toList μs) (HMat.toColumns vsm)
 
+-- | The reciprocal-space counterparts of the nonzero-EV eigenvectors, as can
+--   be obtained from 'eigenSpan'. The systems of vectors/dual vectors
+--   behave as orthonormal groups WRT each other, i.e. for each @f@
+--   in @'eigenCoSpan' m@ there will be exactly one @v@ in @'eigenSpan' m@
+--   such that @f<.>^v ≡ 1@; the other @f<.>^v@ pairings are zero.
+-- 
+--   Furthermore, @'metric' m f ≡ 1@ for each @f@ in the co-span, which might
+--   be seen as the actual defining characteristic of these span/co-span systems.
 eigenCoSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [DualSpace v]
 eigenCoSpan (HerMetric' Nothing) = []
 eigenCoSpan (HerMetric' (Just (DenseLinear m))) = map fromPackedVector eigSpan
