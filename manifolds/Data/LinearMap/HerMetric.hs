@@ -21,7 +21,7 @@ module Data.LinearMap.HerMetric (
   , toDualWith, fromDualWith
   , metricSq, metricSq', metric, metric', metrics, metrics'
   -- * Defining metrics
-  , projector, projector'
+  , projector, projector', projectors, projector's
   , euclideanMetric'
   -- * Metrics induce inner products
   , spanHilbertSubspace
@@ -167,13 +167,23 @@ instance HasMetric v => VectorSpace (HerMetric' v) where
 --   describing the ellipsoid span of the vectors /e/&#x2080; and 2&#x22c5;/e/&#x2081;.
 --   Metrics generated this way are positive definite if no negative coefficients have
 --   been introduced with the '*^' scaling operator or with '^-^'.
+--   
+--   Note: @projector a ^+^ projector b ^+^ ...@ is more efficiently written as
+--   @projectors [a, b, ...]@
 projector :: HasMetric v => DualSpace v -> HerMetric v
-projector u = matrixMetric $ HMat.outer uDecomp uDecomp
- where uDecomp = asPackedVector u
+projector u = HerMetric . pure $ u ⊗ u
 
 projector' :: HasMetric v => v -> HerMetric' v
-projector' v = matrixMetric' $ HMat.outer vDecomp vDecomp
- where vDecomp = asPackedVector v
+projector' v = HerMetric' . pure $ v ⊗ v
+
+-- | Efficient shortcut for the 'sumV' of multiple 'projector's.
+projectors :: HasMetric v => [DualSpace v] -> HerMetric v
+projectors [] = zeroV
+projectors us = HerMetric . pure . outerProducts $ zip us us
+
+projector's :: HasMetric v => [v] -> HerMetric' v
+projector's [] = zeroV
+projector's vs = HerMetric' . pure . outerProducts $ zip vs vs
 
 
 singularMetric :: forall v . HasMetric v => HerMetric v
@@ -313,9 +323,10 @@ isInfinite' x = x==x*2
 --   
 --   This constitutes, in a sense,
 --   a decomposition of a metric into a set of 'projector'' vectors. If those
---   are 'sumV'ed again, the original metric is obtained. (This holds even for
---   non-Hilbert/Banach spaces, even though the concept of eigenbasis and
---   &#x201c;scaled length&#x201d; doesn't really make sense then in the usual way.)
+--   are 'sumV'ed again (use 'projectors's' for this), then the original metric
+--   is obtained. (This holds even for non-Hilbert/Banach spaces,
+--   although the concept of eigenbasis and
+--   &#x201c;scaled length&#x201d; doesn't really make sense there.)
 eigenSpan :: (HasMetric v, Scalar v ~ ℝ) => HerMetric' v -> [v]
 eigenSpan (HerMetric' Nothing) = []
 eigenSpan (HerMetric' (Just (DenseLinear m))) = map fromPackedVector eigSpan
@@ -726,12 +737,15 @@ linMapFromTensProd (DensTensProd m) = linear $
 
 (⊗) :: (HasMetric v, FiniteDimensional w, Scalar v ~ s, Scalar w ~ s)
                     => w -> DualSpace v -> Linear s v w
-w ⊗ v' = denseLinear $ \x -> w ^* (v'<.>^x)
+w ⊗ v' = DenseLinear $ HMat.outer wDecomp v'Decomp
+ where wDecomp = asPackedVector w
+       v'Decomp = asPackedVector v'
 
 outerProducts :: (HasMetric v, FiniteDimensional w, Scalar v ~ s, Scalar w ~ s)
                     => [(w, DualSpace v)] -> Linear s v w
-outerProducts = sumV . fmap (uncurry(⊗))
-    -- inefficient, since ⊗ directly yields dense matrices.
+outerProducts [] = zeroV
+outerProducts pds = DenseLinear $ HMat.fromColumns (asPackedVector.fst<$>pds)
+                          HMat.<> HMat.fromRows    (asPackedVector.snd<$>pds)
 
 instance ∀ v w s . ( HasMetric v, FiniteDimensional w
                    , Show (DualSpace v), Show w, Scalar v ~ s, Scalar w ~ s )
