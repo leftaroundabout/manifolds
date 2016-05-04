@@ -588,13 +588,11 @@ orthonormalPairsWith met = mkON
 factoriseMetric :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric (v,w) -> (HerMetric v, HerMetric w)
 factoriseMetric (HerMetric Nothing) = (HerMetric Nothing, HerMetric Nothing)
-factoriseMetric met = (sumV *** sumV) . unzip
-                   $ (projector.fst &&& projector.snd) <$> eigenSpan' met
+factoriseMetric met = (projectors *** projectors) . unzip $ eigenSpan' met
 
 factoriseMetric' :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric' (v,w) -> (HerMetric' v, HerMetric' w)
-factoriseMetric' met = (sumV *** sumV) . unzip
-                   $ (projector'.fst &&& projector'.snd) <$> eigenSpan met
+factoriseMetric' met = (projector's *** projector's) . unzip $ eigenSpan met
 
 productMetric :: ∀ v w . (HasMetric v, HasMetric w, Scalar v ~ ℝ, Scalar w ~ ℝ)
                => HerMetric v -> HerMetric w -> HerMetric (v,w)

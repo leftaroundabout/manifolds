@@ -214,7 +214,7 @@ fullShade' ctr expa = Shade' ctr expa
 -- | Span a 'Shade' from a center point and multiple deviation-vectors.
 pattern (:±) :: () => WithField ℝ Manifold x => x -> [Needle x] -> Shade x
 pattern x :± shs <- Shade x (eigenSpan -> shs)
- where x :± shs = fullShade x . sumV $ projector'<$>shs
+ where x :± shs = fullShade x $ projector's shs
 
 
 -- | Similar to ':±', but instead of expanding the shade, each vector /restricts/ it.
@@ -224,7 +224,7 @@ pattern x :± shs <- Shade x (eigenSpan -> shs)
 --   Note that '|±|' is only possible, as such, in an inner-product space; in
 --   general you need reciprocal vectors ('Needle'') to define a 'Shade''.
 (|±|) :: WithField ℝ EuclidSpace x => x -> [Needle x] -> Shade' x
-x |±| shs = Shade' x $ sumV [projector $ v^/(v<.>v) | v<-shs]
+x |±| shs = Shade' x $ projectors [v^/(v<.>v) | v<-shs]
 
 
 
@@ -291,7 +291,7 @@ pointsShades' minExt ps = case expa of
                            _ -> pointsShades' minExt inc'd
                                   ++ pointsShades' minExt unreachable
  where (ctr,(inc'd,unreachable)) = pseudoECM $ NE.fromList ps
-       expa = ( (^+^minExt) . (^/ fromIntegral(length ps)) . sumV . map projector' )
+       expa = ( (^+^minExt) . (^/ fromIntegral(length ps)) . projector's )
               <$> mapM (.-~.ctr) ps
        
 
@@ -319,7 +319,7 @@ shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs) = case extractJust tryMerge shs
                   = Just $ let cc = c₂ .+~^ v ^/ 2
                                Option (Just cv₁) = c₁.-~.cc
                                Option (Just cv₂) = c₂.-~.cc
-                           in Shade cc . sumV $ [e₁, e₂] ++ (projector'<$>[cv₁, cv₂])
+                           in Shade cc $ e₁ ^+^ e₂ ^+^ projector's [cv₁, cv₂]
            | otherwise  = Nothing
 shadesMerge _ shs = shs
 
