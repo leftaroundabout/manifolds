@@ -45,7 +45,7 @@ module Data.Manifold.TreeCover (
        -- ** Evaluation
        , occlusion
        -- ** Misc
-       , factoriseShade, intersectShade's, Refinable, coerceShade
+       , factoriseShade, intersectShade's, Refinable, refineShade', convolveShade', coerceShade
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree
        -- * View helpers
@@ -637,7 +637,62 @@ class (WithField ℝ Manifold y) => Refinable y where
   --   Where set membership is defined by @'minusLogOcclusion'' sh p@ being less
   --   than one.
   refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
+  
+  -- | If @p@ is in @a@ and @δ@ is in @b@, then @p.+~^δ@ is in @convolveShade' a b@.
   convolveShade' :: Shade' y -> Shade' (Needle y) -> Shade' y
+  convolveShade' (Shade' y₀ ey) (Shade' δ₀ eδ)
+          = Shade' (y₀.+~^δ₀)
+                   ( projectors [ f ^* ζ (f<.>^v)
+                                | (e,sp) <- [(ey,eδsp), (eδ,eysp)]
+                                , v <- sp
+                                , let f = toDualWith e v
+                                ] )
+   where eδsp = eigenCoSpan' eδ
+         eysp = eigenCoSpan' ey
+         ζ q = recip $ 2 * q * (q + 2*sqrt q + 1)
+  -- (y − y₀)² ⋅ ey < 1
+  -- ∴ 1/√ey > |y − y₀|
+  -- (δ − δ₀)² ⋅ eδ < 1
+  -- ∴ 1/√eδ > |δ − δ₀|
+  -- We search e such that
+  -- ((y+δ) − (y₀+δ₀))² ⋅ e < 1
+  -- The one-dimensional case is covered perfectly by
+  -- e = 1 / (1/√ey + 1/√eδ)²
+  -- Proof: let WLOG y₀ = δ₀ = 0, then
+  -- √( ((y+δ) − (y₀+δ₀))² ⋅ e )
+  -- = √( (y+δ)² / (1/√ey + 1/√eδ)² )
+  -- < (1/√ey)/(1/√ey + 1/√eδ) + (1/√eδ)/(1/√ey + 1/√eδ)
+  -- = 1/(1 + √ey/√eδ) + 1/(√eδ/√ey + 1)
+  -- = √eδ/(√eδ + √ey) + √ey/(√eδ + √ey)
+  -- = √eδ/(√eδ + √ey) + √eδ/(√eδ + √ey)
+  -- = 1
+  -- Observe now
+  -- e = 1 / (1/√ey + 1/√eδ)²
+  --   = 1 / (1/√ey + 1/√eδ)⋅(1/√ey + 1/√eδ)
+  --   = 1 / (√eδ/ey + 1/√ey)⋅(1/√eδ + √ey/eδ)
+  --   = √eδ⋅√ey / (eδ/ey + √eδ/√ey)⋅(√ey/√eδ + ey/eδ)
+  -- We want to give a lower bound on this. Use a=√ey, b=√eδ
+  -- a⋅b / (a²/b² + a/b)⋅(b/a + b²/a²)
+  -- !≥ (a²/b)² ⋅ ζ(a²/b²) + (b²/a)² ⋅ ζ(b²/a²)
+  -- = ( (a²/b)² ⋅ ζ(a²/b²) ⋅ (a²/b²+a/b) + (b²/a)² ⋅ ζ(b²/a²) ⋅ (a²/b²+a/b) )
+  --         / (a²/b² + a/b)
+  -- = ( a⁵/b³ ⋅ ζ(a²/b²) ⋅ (a/b+1) + b³/a ⋅ ζ(b²/a²) ⋅ (a/b+1) )
+  --         / (a²/b² + a/b)
+  -- = ( a⁵/b³ ⋅ ζ(a²/b²) ⋅ (a/b+1)⋅(b/a+b²/a²) + b³/a ⋅ ζ(b²/a²) ⋅ (a/b+1)⋅(b/a+b²/a²) )
+  --         / (a²/b² + a/b)⋅(b/a + b²/a²)
+  -- = ( a⁴/b² ⋅ ζ(a²/b²) ⋅ (a/b+1)⋅(1+b/a) + b⁴/a² ⋅ ζ(b²/a²) ⋅ (a/b+1)⋅(1+b/a) )
+  --         / (a²/b² + a/b)⋅(b/a + b²/a²)
+  -- = a⋅b ⋅ ( a³/b³ ⋅ ζ(a²/b²) ⋅ (a/b+1)⋅(1+b/a) + b³/a³ ⋅ ζ(b²/a²) ⋅ (a/b+1)⋅(1+b/a) )
+  --         / (a²/b² + a/b)⋅(b/a + b²/a²)
+  -- So we need
+  -- 1 ≥ a³/b³ ⋅ ζ(a²/b²) ⋅ (a/b+1)⋅(1+b/a) + b³/a³ ⋅ ζ(b²/a²) ⋅ (a/b+1)⋅(1+b/a)
+  -- = (a/b)³ ⋅ (a/b + 1)⋅(1 + (a/b)⁻¹) ⋅ ζ(a²/b²) + b³/a³ ⋅ (a/b+1)⋅(1+(a/b)⁻¹) ⋅ ζ(b²/a²)
+  -- This can be achieved by choosing
+  -- ζ q = 1 / 2⋅(√q³ ⋅ (√q+1) ⋅ (1+√q⁻¹))
+  --     = 1 / 2⋅(√q⁴ + 2⋅√q³ + √q²)
+  --     = 1 / 2⋅q⋅(q + 2⋅√q + 1).
+  -- TODO: prove multidimensional case.
+  
 
 instance Refinable ℝ where
   refineShade' (Shade' cl el) (Shade' cr er)
