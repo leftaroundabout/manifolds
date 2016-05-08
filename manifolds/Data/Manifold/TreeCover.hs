@@ -649,7 +649,8 @@ class (WithField ℝ Manifold y) => Refinable y where
                                 ] )
    where eδsp = eigenCoSpan' eδ
          eysp = eigenCoSpan' ey
-         ζ q = recip $ 2 * q * (q + 2*sqrt q + 1)
+         ζ = sqrt >>> \sq -> recip $ s2 * sq * (sq + 1)
+         s2 = sqrt 2
   -- (y − y₀)² ⋅ ey < 1
   -- ∴ 1/√ey > |y − y₀|
   -- (δ − δ₀)² ⋅ eδ < 1
@@ -668,30 +669,19 @@ class (WithField ℝ Manifold y) => Refinable y where
   -- = 1
   -- Observe now
   -- e = 1 / (1/√ey + 1/√eδ)²
-  --   = 1 / (1/√ey + 1/√eδ)⋅(1/√ey + 1/√eδ)
-  --   = 1 / (√eδ/ey + 1/√ey)⋅(1/√eδ + √ey/eδ)
-  --   = √eδ⋅√ey / (eδ/ey + √eδ/√ey)⋅(√ey/√eδ + ey/eδ)
-  -- We want to give a lower bound on this. Use a=√ey, b=√eδ
-  -- a⋅b / (a²/b² + a/b)⋅(b/a + b²/a²)
-  -- !≥ (a²/b)² ⋅ ζ(a²/b²) + (b²/a)² ⋅ ζ(b²/a²)
-  -- = ( (a²/b)² ⋅ ζ(a²/b²) ⋅ (a²/b²+a/b) + (b²/a)² ⋅ ζ(b²/a²) ⋅ (a²/b²+a/b) )
-  --         / (a²/b² + a/b)
-  -- = ( a⁵/b³ ⋅ ζ(a²/b²) ⋅ (a/b+1) + b³/a ⋅ ζ(b²/a²) ⋅ (a/b+1) )
-  --         / (a²/b² + a/b)
-  -- = ( a⁵/b³ ⋅ ζ(a²/b²) ⋅ (a/b+1)⋅(b/a+b²/a²) + b³/a ⋅ ζ(b²/a²) ⋅ (a/b+1)⋅(b/a+b²/a²) )
-  --         / (a²/b² + a/b)⋅(b/a + b²/a²)
-  -- = ( a⁴/b² ⋅ ζ(a²/b²) ⋅ (a/b+1)⋅(1+b/a) + b⁴/a² ⋅ ζ(b²/a²) ⋅ (a/b+1)⋅(1+b/a) )
-  --         / (a²/b² + a/b)⋅(b/a + b²/a²)
-  -- = a⋅b ⋅ ( a³/b³ ⋅ ζ(a²/b²) ⋅ (a/b+1)⋅(1+b/a) + b³/a³ ⋅ ζ(b²/a²) ⋅ (a/b+1)⋅(1+b/a) )
-  --         / (a²/b² + a/b)⋅(b/a + b²/a²)
-  -- So we need
-  -- 1 ≥ a³/b³ ⋅ ζ(a²/b²) ⋅ (a/b+1)⋅(1+b/a) + b³/a³ ⋅ ζ(b²/a²) ⋅ (a/b+1)⋅(1+b/a)
-  -- = (a/b)³ ⋅ (a/b + 1)⋅(1 + (a/b)⁻¹) ⋅ ζ(a²/b²) + b³/a³ ⋅ (a/b+1)⋅(1+(a/b)⁻¹) ⋅ ζ(b²/a²)
-  -- This can be achieved by choosing
-  -- ζ q = 1 / 2⋅(√q³ ⋅ (√q+1) ⋅ (1+√q⁻¹))
-  --     = 1 / 2⋅(√q⁴ + 2⋅√q³ + √q²)
-  --     = 1 / 2⋅q⋅(q + 2⋅√q + 1).
-  -- TODO: prove multidimensional case.
+  --   = 1 / 2⋅(1/√ey + 1/√eδ)² + 1 / 2⋅(1/√ey + 1/√eδ)²
+  --   = eδ / 2⋅(√eδ/√ey + 1)² + ey / 2⋅(1 + √ey/√eδ)²
+  --   = (eδ/√ey)² / 2⋅(eδ/ey)⋅(√eδ/√ey + 1)² + (ey/√eδ)² / 2⋅(ey/eδ)⋅(1 + √ey/√eδ)²
+  --   = (eδ/√ey)² / 2⋅(eδ/ey)⋅(√(eδ/ey) + 1)² + (ey/√eδ)² / 2⋅(ey/eδ)⋅(1 + √(ey/eδ))²
+  --   = (eδ/√ey ⋅ ζ(eδ/ey))² + (ey/√eδ ⋅ ζ(ey/eδ))²
+  -- with
+  -- ζ q = 1 / √(2⋅q)⋅(√q + 1).
+  --     = 1 / √2⋅√q⋅(√q + 1).
+  -- Here, 1/√ey or 1/√eδ correspond to vectors v in @eigenCoSpan' ey@ or @eδ@
+  -- (the e⋆ are themselves "quadratic dual vectors");
+  -- eδ/√ey corresponds to @toDualWith e v@, and @projector@ implements the
+  -- square-sum over such dual vectors (after being scaled with ζ).
+  -- TODO: properly prove multidimensional case.
   
 
 instance Refinable ℝ where
@@ -707,13 +697,16 @@ instance Refinable ℝ where
                            let cm = (b+t)/2
                                rm = (t-b)/2
                            in return $ Shade' cm (projector $ recip rm)
-  convolveShade' (Shade' y₀ ey) (Shade' δ₀ eδ)
-         = case (metricSq ey 1, metricSq eδ 1) of
-             (wy,wδ) | wy>0, wδ>0
-                 -> Shade' (y₀.+~^δ₀)
-                           ( projector . recip
-                                  $ recip (sqrt wy) + recip (sqrt wδ) )
-             (_ , _) -> Shade' y₀ zeroV
+--   convolveShade' (Shade' y₀ ey) (Shade' δ₀ eδ)
+--          = case (metricSq ey 1, metricSq eδ 1) of
+--              (wy,wδ) | wy>0, wδ>0
+--                  -> Shade' (y₀.+~^δ₀)
+--                            ( projector . recip
+--                                   $ recip (sqrt wy) + recip (sqrt wδ) )
+--              (_ , _) -> Shade' y₀ zeroV
+
+instance (Refinable a, Refinable b) => Refinable (a,b)
+  
                             
 
 intersectShade's :: ∀ y . Refinable y => NonEmpty (Shade' y) -> Option (Shade' y)
