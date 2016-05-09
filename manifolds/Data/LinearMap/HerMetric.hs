@@ -37,6 +37,7 @@ module Data.LinearMap.HerMetric (
   , recipMetric, recipMetric'
   , eigenSpan, eigenSpan'
   , eigenCoSpan, eigenCoSpan'
+  , eigenSystem, eigenSystem'
   , metriNormalise, metriNormalise'
   , metriScale', metriScale
   , adjoint
@@ -361,6 +362,38 @@ eigenCoSpan' (HerMetric (Just (DenseLinear m))) = map fromPackedVector eigSpan
        eigSpan = map (uncurry $ HMat.scale . recip . sqrt)
                  . filter ((>0) . fst)
                  $ zip (HMat.toList μs) (HMat.toColumns vsm)
+
+-- | Generalised combination of 'eigenSpan' and 'eigenCoSpan'; this will give a
+--   maximum spanning set of vector-covector pairs @(f,v)@ such that @f<.>^v ≡ 1@
+--   and @metric m f ≡ 1@, whereas all @f@ and @v'@ from different tuples
+--   are orthogonal.
+--   It also yields the /kernel/ of singular metric, spanned by a set of stiefel-manifold
+--   points, i.e. vectors of unspecified length that correspond to the eigenvalue 0.
+eigenSystem :: ∀ v . (HasMetric v, Scalar v ~ ℝ)
+                  => HerMetric' v -> ([Stiefel1 v], [(v, DualSpace v)])
+eigenSystem (HerMetric' Nothing) = (fmap Stiefel1 completeBasisValues, [])
+eigenSystem (HerMetric' (Just (DenseLinear m))) = concat***concat $ unzip eigSpan
+ where (μs,vsm) = HMat.eigSH' m
+       eigSpan = zipWith (\μ v
+                  -> if μ>0
+                      then let sμ = sqrt μ
+                           in ([], [( fromPackedVector $ HMat.scale sμ v
+                                    , fromPackedVector $ HMat.scale (recip sμ) v )])
+                      else ([Stiefel1 $ fromPackedVector v], [])
+                 ) (HMat.toList μs) (HMat.toColumns vsm)
+
+eigenSystem' :: ∀ v . (HasMetric v, Scalar v ~ ℝ)
+                  => HerMetric v -> ([Stiefel1 (DualSpace v)], [(v, DualSpace v)])
+eigenSystem' (HerMetric Nothing) = (fmap Stiefel1 completeBasisValues, [])
+eigenSystem' (HerMetric (Just (DenseLinear m))) = concat***concat $ unzip eigSpan
+ where (μs,vsm) = HMat.eigSH' m
+       eigSpan = zipWith (\μ v
+                  -> if μ>0
+                      then let sμ = sqrt μ
+                           in ([], [( fromPackedVector $ HMat.scale (recip sμ) v
+                                    , fromPackedVector $ HMat.scale sμ v )])
+                      else ([Stiefel1 $ fromPackedVector v], [])
+                 ) (HMat.toList μs) (HMat.toColumns vsm)
 
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
