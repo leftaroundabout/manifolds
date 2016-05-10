@@ -407,6 +407,50 @@ instance (HasMetric v, Scalar v ~ ℝ) => HasEigenSystem (HerMetric v) where
                         else ([Stiefel1 $ fromPackedVector v], [])
                    ) (HMat.toList μs) (HMat.toColumns vsm)
 
+instance (HasMetric v, Scalar v ~ ℝ) => HasEigenSystem (HerMetric' v, HerMetric' v) where
+  type EigenVector (HerMetric' v, HerMetric' v) = v
+  eigenSystem (n, HerMetric' (Just (DenseLinear m))) | not $ null nSpan
+                                      = (++nKernel).concat***concat $ unzip eigSpan
+   where (μs,vsm) = HMat.eigSH' $ fromv2ℝn HMat.<> m HMat.<> fromℝn2v'
+                    -- m :: v' -> v
+         eigSpan = zipWith (\μ v
+                    -> if μ>0
+                        then let sμ = sqrt μ
+                             in ([], [( fromPackedVector $
+                                        fromℝn2v HMat.#> HMat.scale sμ v
+                                      , fromPackedVector $
+                                        fromℝn2v' HMat.#> HMat.scale (recip sμ) v )
+                                      ])
+                        else ([Stiefel1 $ fromPackedVector v], [])
+                   ) (HMat.toList μs) (HMat.toColumns vsm)
+         fromv2ℝn = HMat.fromRows $ map (asPackedVector . snd) nSpan
+         fromℝn2v' = HMat.tr fromv2ℝn
+         fromℝn2v = HMat.fromColumns $ map (asPackedVector . fst) nSpan
+         (nKernel, nSpan) = eigenSystem n
+  eigenSystem (_, HerMetric' Nothing) = (fmap Stiefel1 completeBasisValues, [])
+
+instance (HasMetric v, Scalar v ~ ℝ) => HasEigenSystem (HerMetric v, HerMetric v) where
+  type EigenVector (HerMetric v, HerMetric v) = DualSpace v
+  eigenSystem (n, HerMetric (Just (DenseLinear m))) | not $ null nSpan
+                                      = (++nKernel).concat***concat $ unzip eigSpan
+   where (μs,vsm) = HMat.eigSH' $ fromv'2ℝn HMat.<> m HMat.<> fromℝn2v
+                    -- m :: v -> v'
+         eigSpan = zipWith (\μ v
+                    -> if μ>0
+                        then let sμ = sqrt μ
+                             in ([], [( fromPackedVector $
+                                        fromℝn2v' HMat.#> HMat.scale sμ v
+                                      , fromPackedVector $
+                                        fromℝn2v HMat.#> HMat.scale (recip sμ) v )
+                                      ])
+                        else ([Stiefel1 $ fromPackedVector v], [])
+                   ) (HMat.toList μs) (HMat.toColumns vsm)
+         fromv'2ℝn = HMat.fromRows $ map (asPackedVector . snd) nSpan
+         fromℝn2v = HMat.tr fromv'2ℝn
+         fromℝn2v' = HMat.fromColumns $ map (asPackedVector . fst) nSpan
+         (nKernel, nSpan) = eigenSystem n
+  eigenSystem (_, HerMetric Nothing) = (fmap Stiefel1 completeBasisValues, [])
+
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
 type MetricScalar s = ( SmoothScalar s
