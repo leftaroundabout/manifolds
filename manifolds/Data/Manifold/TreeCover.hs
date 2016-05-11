@@ -642,46 +642,12 @@ class (WithField ℝ Manifold y) => Refinable y where
   convolveShade' :: Shade' y -> Shade' (Needle y) -> Shade' y
   convolveShade' (Shade' y₀ ey) (Shade' δ₀ eδ)
           = Shade' (y₀.+~^δ₀)
-                   ( projectors [ f ^* ζ (f<.>^v)
-                                | (e,sp) <- [(ey,eδsp), (eδ,eysp)]
-                                , v <- sp
-                                , let f = toDualWith e v
+                   ( projectors [ f ^* ζ (metric ey v)
+                                | (f,v) <- eδsp
                                 ] )
-   where eδsp = eigenCoSpan' eδ
-         eysp = eigenCoSpan' ey
-         ζ = sqrt >>> \sq -> recip $ s2 * sq * (sq + 1)
-         s2 = sqrt 2
-  -- (y − y₀)² ⋅ ey < 1
-  -- ∴ 1/√ey > |y − y₀|
-  -- (δ − δ₀)² ⋅ eδ < 1
-  -- ∴ 1/√eδ > |δ − δ₀|
-  -- We search e such that
-  -- ((y+δ) − (y₀+δ₀))² ⋅ e < 1
-  -- The one-dimensional case is covered perfectly by
-  -- e = 1 / (1/√ey + 1/√eδ)²
-  -- Proof: let WLOG y₀ = δ₀ = 0, then
-  -- √( ((y+δ) − (y₀+δ₀))² ⋅ e )
-  -- = √( (y+δ)² / (1/√ey + 1/√eδ)² )
-  -- < (1/√ey)/(1/√ey + 1/√eδ) + (1/√eδ)/(1/√ey + 1/√eδ)
-  -- = 1/(1 + √ey/√eδ) + 1/(√eδ/√ey + 1)
-  -- = √eδ/(√eδ + √ey) + √ey/(√eδ + √ey)
-  -- = √eδ/(√eδ + √ey) + √eδ/(√eδ + √ey)
-  -- = 1
-  -- Observe now
-  -- e = 1 / (1/√ey + 1/√eδ)²
-  --   = 1 / 2⋅(1/√ey + 1/√eδ)² + 1 / 2⋅(1/√ey + 1/√eδ)²
-  --   = eδ / 2⋅(√eδ/√ey + 1)² + ey / 2⋅(1 + √ey/√eδ)²
-  --   = (eδ/√ey)² / 2⋅(eδ/ey)⋅(√eδ/√ey + 1)² + (ey/√eδ)² / 2⋅(ey/eδ)⋅(1 + √ey/√eδ)²
-  --   = (eδ/√ey)² / 2⋅(eδ/ey)⋅(√(eδ/ey) + 1)² + (ey/√eδ)² / 2⋅(ey/eδ)⋅(1 + √(ey/eδ))²
-  --   = (eδ/√ey ⋅ ζ(eδ/ey))² + (ey/√eδ ⋅ ζ(ey/eδ))²
-  -- with
-  -- ζ q = 1 / √(2⋅q)⋅(√q + 1).
-  --     = 1 / √2⋅√q⋅(√q + 1).
-  -- Here, 1/√ey or 1/√eδ correspond to vectors v in @eigenCoSpan' ey@ or @eδ@
-  -- (the e⋆ are themselves "quadratic dual vectors");
-  -- eδ/√ey corresponds to @toDualWith e v@, and @projector@ implements the
-  -- square-sum over such dual vectors (after being scaled with ζ).
-  -- TODO: properly prove multidimensional case.
+   where (_,eδsp) = eigenSystem (ey,eδ)
+         ζ 0 = 0
+         ζ sq = recip $ recip sq + 1
   
 
 instance Refinable ℝ where
