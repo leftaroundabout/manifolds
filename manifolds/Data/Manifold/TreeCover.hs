@@ -638,16 +638,30 @@ class (WithField ℝ Manifold y) => Refinable y where
   --   than one.
   refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
   
-  -- | If @p@ is in @a@ and @δ@ is in @b@, then @p.+~^δ@ is in @convolveShade' a b@.
+  -- | If @p@ is in @a@ (red) and @δ@ is in @b@ (green),
+  --   then @p.+~^δ@ is in @convolveShade' a b@ (blue).
+  -- 
+--   Example: https://nbviewer.jupyter.org/github/leftaroundabout/manifolds/blob/master/test/ShadeCombinations.ipynb#shadeConvolutions
+-- 
+-- <<images/examples/ShadeCombinations/2Dconvolution-skewed.png>>
   convolveShade' :: Shade' y -> Shade' (Needle y) -> Shade' y
   convolveShade' (Shade' y₀ ey) (Shade' δ₀ eδ)
           = Shade' (y₀.+~^δ₀)
-                   ( projectors [ f ^* ζ (metric ey v)
-                                | (f,v) <- eδsp
-                                ] )
+                   ( projectors [ f ^* ζ crl
+                                | (f,_) <- eδsp
+                                | crl <- corelap ] )
    where (_,eδsp) = eigenSystem (ey,eδ)
-         ζ 0 = 0
-         ζ sq = recip $ recip sq + 1
+         corelap = map (metric ey . snd) eδsp
+         ζ = case filter (>0) corelap of
+            [] -> const 0
+            nzrelap
+               -> let cre₁ = 1/minimum nzrelap
+                      cre₂ =  maximum nzrelap
+                      edgeFactor = sqrt ( (1 + cre₁)^2 + (1 + cre₂)^2 )
+                                / (sqrt (1 + cre₁^2) + sqrt (1 + cre₂^2))
+                  in \case
+                        0  -> 0
+                        sq -> edgeFactor / (recip sq + 1)
   
 
 instance Refinable ℝ where
