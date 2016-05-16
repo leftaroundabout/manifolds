@@ -628,7 +628,6 @@ unsafeFmapTree f fn fs (OverlappingBranches n sh brs)
       in overlappingBranches (fs sh) brs'
 
 
-
 -- | Class of manifolds which can use 'Shade'' as a basic set type.
 --   This is easily possible for vector spaces with the default implementations.
 class (WithField ℝ Manifold y) => Refinable y where
@@ -638,11 +637,35 @@ class (WithField ℝ Manifold y) => Refinable y where
   subShade' (Shade' ac ae) tsh = all ((<1) . minusLogOcclusion' tsh)
                                   [ ac.+~^σ*^v | σ<-[0,1], v<-eigenCoSpan' ae ]
   
-  -- | Right-biased intersection operation. Laws:
-  -- 
-  --   * If @p@ is in @a@ and @b@, then it is also in @refineShade' a b@.
-  --   * If @p@ is not in @b@, then it should not be in @refineShade' a b@ either.
+  -- | Specialised intersection operation. If @p@ is in @a@ and @b@, then it is
+  --   also in @refineShade' a b@. (The converse may not hold.)
   refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
+  refineShade' (Shade' c e) (Shade' ζ η)
+           | μe < 1 && μη < 1  = return $ Shade' iCtr iExpa
+           | otherwise         = empty
+        where [c', ζ'] = [ ctr.+~^linearCombo
+                                     [ (v, 1 / (1 + metricSq oExpa w))
+                                     | v <- (*^) <$> [-1,1] <*> span
+                                     , let p = ctr .+~^ v  :: y
+                                           Option (Just w) = p.-~.oCtr
+                                     ]
+                         | ctr                  <- [c,     ζ    ]
+                         | span <- eigenCoSpan'<$> [e,     η    ]
+                         | (oCtr,oExpa)         <- [(ζ,η), (c,e)]
+                         ]
+              Option (Just c'2ζ') = ζ'.-~.c'
+              Option (Just c2ζ') = ζ'.-~.c
+              Option (Just ζ2c') = c'.-~.ζ
+              μc = metricSq e c2ζ'
+              μζ = metricSq η ζ2c'
+              iCtr = c' .+~^ c'2ζ' ^* (μζ/(μc + μζ)) -- weighted mean between c' and ζ'.
+              Option (Just rc) = c.-~.iCtr
+              Option (Just rζ) = ζ.-~.iCtr
+              rcⰰ = toDualWith e rc
+              rζⰰ = toDualWith η rζ
+              μe = rcⰰ<.>^rc
+              μη = rζⰰ<.>^rζ
+              iExpa = (e^+^η)^/2 ^+^ projector rcⰰ^/(1-μe) ^+^ projector rζⰰ^/(1-μη)
   
   -- | If @p@ is in @a@ (red) and @δ@ is in @b@ (green),
   --   then @p.+~^δ@ is in @convolveShade' a b@ (blue).
