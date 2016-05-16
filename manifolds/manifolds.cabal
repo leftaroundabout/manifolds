@@ -74,6 +74,7 @@ Library
                      Data.Manifold.Riemannian
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive
+                   Data.SetLike.Intersection
                    Data.Manifold.Cone
                    Data.CoNat
                    Data.Embedding

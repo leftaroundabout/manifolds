@@ -93,6 +93,7 @@ import Data.Manifold.Types.Primitive ((^), empty)
 import Data.Manifold.PseudoAffine
 import Data.Function.Differentiable
 import Data.Function.Differentiable.Data
+import Data.SetLike.Intersection
     
 import Data.Embedding
 import Data.CoNat
