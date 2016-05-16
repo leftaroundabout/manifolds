@@ -628,14 +628,19 @@ unsafeFmapTree f fn fs (OverlappingBranches n sh brs)
 
 
 
+-- | Class of manifolds which can use 'Shade'' as a basic set type.
+--   This is easily possible for vector spaces with the default implementations.
 class (WithField ℝ Manifold y) => Refinable y where
+  -- | @a `subShade'` b ≡ True@ means @a@ is fully contained in @b@, i.e. from
+  --   @'minusLogOcclusion'' a p < 1@ follows also @minusLogOcclusion' b p < 1@.
+  subShade' :: Shade' y -> Shade' y -> Bool
+  subShade' (Shade' ac ae) tsh = all ((<1) . minusLogOcclusion' tsh)
+                                  [ ac.+~^σ*^v | σ<-[0,1], v<-eigenCoSpan' ae ]
+  
   -- | Right-biased intersection operation. Laws:
   -- 
   --   * If @p@ is in @a@ and @b@, then it is also in @refineShade' a b@.
   --   * If @p@ is not in @b@, then it should not be in @refineShade' a b@ either.
-  -- 
-  --   Where set membership is defined by @'minusLogOcclusion'' sh p@ being less
-  --   than one.
   refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
   
   -- | If @p@ is in @a@ (red) and @δ@ is in @b@ (green),
