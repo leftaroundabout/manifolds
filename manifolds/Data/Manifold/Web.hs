@@ -210,6 +210,10 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
 
 filterDEqnSolution_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> Option (PointsWeb x (Shade' y))
-filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse (filterDEqnSolution_loc f)
+filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse `id`
+                   \((x,shy), ngbs) -> if null ngbs
+                     then pure shy
+                     else refineShade' shy
+                            =<< filterDEqnSolution_loc f ((x,shy), NE.fromList ngbs)
 
 

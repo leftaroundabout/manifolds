@@ -22,6 +22,7 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE ParallelListComp           #-}
+{-# LANGUAGE MonadComprehensions        #-}
 {-# LANGUAGE UnicodeSyntax              #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE PatternGuards              #-}
@@ -728,16 +729,16 @@ type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
 
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
-           => DifferentialEqn x y -> ((x, Shade' y), [(x, Shade' y)])
+           => DifferentialEqn x y -> ((x, Shade' y), NonEmpty (x, Shade' y))
                    -> Option (Shade' y)
-filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours@(_:_)) = yc
+filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours) = yc
  where jShade@(Shade' j₀ jExpa) = f shxy
        [shxy] = pointsCovers [ (xs, ys')
-                             | (xs, Shade' ys yse) <- (x,shy):neighbours
+                             | (xs, Shade' ys yse) <- (x,shy):NE.toList neighbours
                              , δy <- eigenCoSpan' yse
                              , ys' <- [ys.+~^δy, ys.-~^δy] ]
-       [Shade' _ expax] = pointsCover's $ x : (fst<$>neighbours)
-       marginδs :: [(Needle x, (Needle y, Metric y))]
+       [Shade' _ expax] = pointsCover's $ x : (fst<$>NE.toList neighbours)
+       marginδs :: NonEmpty (Needle x, (Needle y, Metric y))
        marginδs = [ (δxm, (δym, expany))
                   | (xn, Shade' yn expany) <- neighbours
                   , let (Option (Just δxm)) = xn.-~.x
@@ -751,7 +752,7 @@ filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours@(_:_)) = yc
         where δyb = δym ^-^ (j₀ $ δx)
               δx' = toDualWith expax δx
        yc :: Option (Shade' y)
-       yc = intersectShade's $ shy :| (back2Centre <$> marginδs)
+       yc = intersectShade's $ back2Centre <$> marginδs
        xSpan = eigenCoSpan' expax
 
 
