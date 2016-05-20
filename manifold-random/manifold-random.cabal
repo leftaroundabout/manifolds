@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                manifold-random
-version:             0.1.2.0
+version:             0.1.2.1
 synopsis:            Sampling random points on general manifolds.
 -- description:         
 homepage:            https://github.com/leftaroundabout/manifolds
@@ -26,7 +26,7 @@ library
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.9
                        , random-fu >=0.2 && <0.3
-                       , manifolds >=0.2 && < 0.2.4
+                       , manifolds >=0.2.2 && < 0.2.4
                        , constrained-categories
                        , semigroups
                        , vector-space
