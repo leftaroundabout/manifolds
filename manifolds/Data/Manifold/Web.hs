@@ -16,7 +16,7 @@
 {-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE FunctionalDependencies     #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE RankNTypes                 #-}
@@ -25,17 +25,24 @@
 {-# LANGUAGE UnicodeSyntax              #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE PatternGuards              #-}
-{-# LANGUAGE PatternSynonyms            #-}
-{-# LANGUAGE ViewPatterns               #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE LiberalTypeSynonyms        #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE DataKinds                  #-}
 
 
-module Data.Manifold.Web where
+module Data.Manifold.Web (
+              -- * The web data type
+              PointsWeb
+              -- ** Construction
+            , fromWebNodes, fromShadeTree_auto, fromShadeTree, fromShaded
+              -- ** Lookup
+            , indexWeb, webEdges
+              -- ** Local environments
+            , localFocusWeb
+              -- * Differential equations
+            , filterDEqnSolution_static, iterateFilterDEqn_static
+            ) where
 
 
 import Data.List hiding (filter, all, elem, sum, foldr1)
@@ -208,6 +215,10 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                  ) asd'
 
 
+iterateFilterDEqn_static :: (WithField ℝ Manifold x, Refinable y)
+       => DifferentialEqn x y -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
+iterateFilterDEqn_static f = itWhileJust $ filterDEqnSolution_static f
+
 filterDEqnSolution_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> Option (PointsWeb x (Shade' y))
 filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse `id`
@@ -215,5 +226,13 @@ filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse `id`
                      then pure shy
                      else refineShade' shy
                             =<< filterDEqnSolution_loc f ((x,shy), NE.fromList ngbs)
+
+
+
+
+
+itWhileJust :: (a -> Option a) -> a -> [a]
+itWhileJust f x | Option (Just y) <- f x  = x : itWhileJust f y
+itWhileJust _ x = [x]
 
 
