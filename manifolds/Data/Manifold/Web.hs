@@ -76,6 +76,7 @@ import Data.Manifold.PseudoAffine
 import Data.Function.Differentiable
 import Data.Function.Differentiable.Data
 import Data.Manifold.TreeCover
+import Data.SetLike.Intersection
     
 import Data.Embedding
 import Data.CoNat
@@ -214,6 +215,23 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                        ((xy, [fst (asd' Arr.! j) | j<-UArr.toList n]), n)
                  ) asd'
 
+
+data QSet x = QSet {
+      qSetHull :: Shade' x
+      -- ^ If @p@ is in all intersectors, it must also be in the hull.
+    , qSetIntersectors :: [Shade' x]
+    }
+
+cons2QSet :: Refinable x => Shade' x -> QSet x -> Option (QSet x)
+cons2QSet sh (QSet h₀ []) = cons2QSet sh (QSet h₀ [h₀])
+cons2QSet sh (QSet _ ists)
+          = fmap (\hull' -> QSet hull' (NE.toList ists'))
+               $ intersectShade's ists'
+ where IntersectT ists' = rmTautologyIntersect perfectRefine $ IntersectT (sh:|ists)
+       perfectRefine sh₁ sh₂
+         | sh₁`subShade'`sh₂   = pure sh₁
+         | sh₂`subShade'`sh₁   = pure sh₂
+         | otherwise           = empty
 
 iterateFilterDEqn_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]

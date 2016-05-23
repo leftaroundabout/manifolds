@@ -46,7 +46,8 @@ module Data.Manifold.TreeCover (
        -- ** Evaluation
        , occlusion
        -- ** Misc
-       , factoriseShade, intersectShade's, Refinable, refineShade', convolveShade', coerceShade
+       , factoriseShade, intersectShade's
+       , Refinable, subShade', refineShade', convolveShade', coerceShade
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree
        -- * View helpers
