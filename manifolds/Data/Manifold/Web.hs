@@ -235,7 +235,9 @@ cons2QSet sh (QSet _ ists)
 
 iterateFilterDEqn_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
-iterateFilterDEqn_static f = itWhileJust $ filterDEqnSolution_static f
+iterateFilterDEqn_static f = map (fmap qSetHull)
+                           . itWhileJust (filterDEqnSolutions_static f)
+                           . fmap (`QSet`[])
 
 filterDEqnSolution_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> Option (PointsWeb x (Shade' y))
@@ -244,6 +246,14 @@ filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse `id`
                      then pure shy
                      else refineShade' shy
                             =<< filterDEqnSolution_loc f ((x,shy), NE.fromList ngbs)
+
+filterDEqnSolutions_static :: (WithField ℝ Manifold x, Refinable y)
+       => DifferentialEqn x y -> PointsWeb x (QSet y) -> Option (PointsWeb x (QSet y))
+filterDEqnSolutions_static f = localFocusWeb >>> Hask.traverse `id`
+            \((x, shy@(QSet hull _)), ngbs) -> if null ngbs
+              then pure shy
+              else (`cons2QSet`shy) =<< filterDEqnSolution_loc f
+                                          ((x,hull), second qSetHull<$>NE.fromList ngbs)
 
 
 
