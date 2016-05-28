@@ -15,7 +15,6 @@ import Control.Category.Constrained.Prelude (($))
 
 import Data.VectorSpace
 import Data.AffineSpace
-import Data.LinearMap
 import Data.LinearMap.HerMetric
 import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
@@ -24,8 +23,6 @@ import Data.Manifold.TreeCover
 import Data.Semigroup
 
 import Data.Random
-import Data.Random.Distribution
-import Data.Random.Distribution.Normal
 
 import Control.Applicative
 import Control.Monad

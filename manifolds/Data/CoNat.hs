@@ -45,7 +45,6 @@ import Data.MemoTrie
 import Data.VectorSpace
 import Data.AffineSpace
 import Data.Basis
-import Data.AdditiveGroup
 import qualified Data.List as List
     
 import qualified Prelude as Hask hiding(foldl)
@@ -60,7 +59,6 @@ import Data.Traversable.Constrained
 
 
 import qualified Data.Vector as Arr
-import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import Unsafe.Coerce
 

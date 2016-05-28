@@ -50,33 +50,21 @@ module Data.Function.Differentiable (
 
 
 import Data.List
-import qualified Data.Vector.Generic as Arr
-import qualified Data.Vector
 import Data.Maybe
 import Data.Semigroup
-import Data.Function (on)
 import Data.Embedding
-import Data.Fixed
 
 import Data.VectorSpace
 import Data.LinearMap
 import Data.LinearMap.Category
 import Data.LinearMap.HerMetric
-import Data.MemoTrie (HasTrie(..))
 import Data.AffineSpace
 import Data.Function.Differentiable.Data
 import Data.Function.Affine
 import Data.Basis
-import Data.Complex hiding (magnitude)
-import Data.Void
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
-
-import Data.CoNat
-import Data.VectorSpace.FiniteDimensional
-
-import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import qualified Prelude
 import qualified Control.Applicative as Hask

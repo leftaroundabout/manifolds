@@ -63,9 +63,7 @@ import Data.AffineSpace
 import Data.MemoTrie (HasTrie(..))
 import Data.Basis
 import Data.Fixed
-import Data.Void
 import Data.Tagged
-import Data.Monoid
 import Data.Semigroup
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
 import qualified Data.Vector.Generic as Arr

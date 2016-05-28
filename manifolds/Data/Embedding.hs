@@ -29,9 +29,6 @@
 
 module Data.Embedding where
 
-import Data.Tagged
-import Data.Semigroup
-
 import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask

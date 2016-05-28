@@ -31,22 +31,12 @@ module Data.Manifold.Cone where
     
 
 
-import Data.List
 import qualified Data.Vector.Generic as Arr
-import qualified Data.Vector
 import Data.Maybe
 import Data.Semigroup
-import Data.Function (on)
-import Data.Fixed
 
 import Data.VectorSpace
-import Data.LinearMap
 import Data.LinearMap.HerMetric
-import Data.MemoTrie (HasTrie(..))
-import Data.AffineSpace
-import Data.Basis
-import Data.Complex hiding (magnitude)
-import Data.Void
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 
@@ -64,7 +54,6 @@ import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
 import Data.Manifold.PseudoAffine
-import Data.Embedding
 
 
 

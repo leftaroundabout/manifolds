@@ -31,15 +31,12 @@
 module Data.LinearMap.Category where
 
 import Data.Tagged
-import Data.Semigroup
 
-import Data.MemoTrie
 import Data.VectorSpace
 import Data.LinearMap
 import Data.VectorSpace.FiniteDimensional
 import Data.AffineSpace
 import Data.Basis
-import Data.AdditiveGroup
     
 import qualified Prelude as Hask hiding(foldl)
 import qualified Control.Applicative as Hask

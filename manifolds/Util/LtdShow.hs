@@ -6,7 +6,6 @@
 module Util.LtdShow (LtdShow(..)) where
 
 import qualified Data.Vector as V
-import Data.Vector(fromList, toList, (!), singleton)
 
 type Array = V.Vector
 

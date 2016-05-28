@@ -37,28 +37,19 @@ module Data.Function.Affine (
     
 
 
-import Data.List
-import Data.Maybe
 import Data.Semigroup
 
 import Data.VectorSpace
 import Data.LinearMap
 import Data.LinearMap.HerMetric
-import Data.MemoTrie (HasTrie(..))
 import Data.AffineSpace
-import Data.Basis
-import Data.Void
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
 
-import Data.CoNat
-import Data.VectorSpace.FiniteDimensional
-
 import qualified Prelude
 import qualified Control.Applicative as Hask
 
-import Data.Constraint.Trivial
 import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Category.Constrained.Reified
 import Control.Arrow.Constrained

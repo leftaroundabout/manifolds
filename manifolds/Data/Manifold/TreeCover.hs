@@ -79,23 +79,14 @@ import Control.DeepSeq
 
 import Data.VectorSpace
 import Data.AffineSpace
-import Data.LinearMap
 import Data.LinearMap.HerMetric
 import Data.LinearMap.Category
-import Data.AffineSpace
-import Data.Basis
-import Data.Complex hiding (magnitude)
-import Data.Void
 import Data.Tagged
-import Data.Proxy
 
 import Data.SimplicialComplex
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty)
 import Data.Manifold.PseudoAffine
-import Data.Function.Differentiable
-import Data.Function.Differentiable.Data
-import Data.SetLike.Intersection
     
 import Data.Embedding
 import Data.CoNat
@@ -106,7 +97,6 @@ import qualified Control.Monad       as Hask hiding(forM_, sequence)
 import Data.Functor.Identity
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
-import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, elem, toList, sum, foldr1)

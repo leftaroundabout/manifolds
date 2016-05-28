@@ -66,10 +66,8 @@ module Data.LinearMap.HerMetric (
 import Data.VectorSpace
 import Data.LinearMap
 import Data.Basis
-import Data.MemoTrie
 import Data.Semigroup
 import Data.Tagged
-import Data.Void
 import qualified Data.List as List
 
 import qualified Prelude as Hask

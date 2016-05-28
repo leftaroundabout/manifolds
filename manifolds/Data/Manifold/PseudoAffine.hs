@@ -70,12 +70,8 @@ module Data.Manifold.PseudoAffine (
     
 
 
-import Data.List
-import qualified Data.Vector.Generic as Arr
-import qualified Data.Vector
 import Data.Maybe
 import Data.Semigroup
-import Data.Function (on)
 import Data.Fixed
 
 import Data.VectorSpace
@@ -83,18 +79,12 @@ import Data.Embedding
 import Data.LinearMap
 import Data.LinearMap.HerMetric
 import Data.LinearMap.Category
-import Data.MemoTrie (HasTrie(..))
 import Data.AffineSpace
-import Data.Basis
-import Data.Complex hiding (magnitude)
-import Data.Void
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 
 import Data.CoNat
 import Data.VectorSpace.FiniteDimensional
-
-import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import qualified Prelude
 import qualified Control.Applicative as Hask

@@ -64,22 +64,15 @@ module Data.SimplicialComplex (
 
 import Data.List hiding (filter, all, elem)
 import Data.Maybe
-import qualified Data.Map as Map
 import qualified Data.Vector as Arr
-import Data.List.NonEmpty (NonEmpty(..))
 import Data.List.FastNub
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
 import Data.Ord (comparing)
 
-import Data.VectorSpace
-import Data.LinearMap
 import Data.LinearMap.Category
-import Data.Void
 import Data.Tagged
-import Data.Proxy
 
-import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty)
 import Data.Manifold.PseudoAffine
     
@@ -101,7 +94,6 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
-import GHC.Generics (Generic)
 
 infixr 5 :<|, .<.
 

@@ -59,7 +59,6 @@ module Data.Manifold.Types.Primitive (
 import Data.VectorSpace
 import Data.AffineSpace
 import Data.Basis
-import Data.Complex hiding (magnitude)
 import Data.Void
 import Data.Monoid
 
@@ -71,8 +70,6 @@ import qualified Prelude
 
 import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
-import Control.Monad.Constrained
-import Data.Foldable.Constrained
 
 import Data.Embedding
 
