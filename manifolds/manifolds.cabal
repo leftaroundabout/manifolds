@@ -66,6 +66,7 @@ Library
                      Data.Manifold.PseudoAffine
                      Data.Manifold.TreeCover
                      Data.Manifold.Web
+                     Data.Manifold.DifferentialEquation
                      Data.SimplicialComplex
                      Data.LinearMap.HerMetric
                      Data.Function.Differentiable
