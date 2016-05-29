@@ -33,6 +33,7 @@
 
 module Data.Manifold.DifferentialEquation (
               DifferentialEqn
+            , constLinearDEqn
             , filterDEqnSolution_static, iterateFilterDEqn_static
             ) where
 
