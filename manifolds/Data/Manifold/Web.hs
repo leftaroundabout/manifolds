@@ -42,6 +42,8 @@ module Data.Manifold.Web (
             , localFocusWeb
               -- * Differential equations
             , filterDEqnSolution_static, iterateFilterDEqn_static
+              -- * Misc
+            , ConvexSet(..)
             ) where
 
 
@@ -194,16 +196,16 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                  ) asd'
 
 
-data QSet x = QSet {
-      qSetHull :: Shade' x
+data ConvexSet x = ConvexSet {
+      convexSetHull :: Shade' x
       -- ^ If @p@ is in all intersectors, it must also be in the hull.
-    , qSetIntersectors :: [Shade' x]
+    , convexSetIntersectors :: [Shade' x]
     }
 
-cons2QSet :: Refinable x => Shade' x -> QSet x -> Option (QSet x)
-cons2QSet sh (QSet h₀ []) = cons2QSet sh (QSet h₀ [h₀])
-cons2QSet sh (QSet _ ists)
-          = fmap (\hull' -> QSet hull' (NE.toList ists'))
+cons2ConvexSet :: Refinable x => Shade' x -> ConvexSet x -> Option (ConvexSet x)
+cons2ConvexSet sh (ConvexSet h₀ []) = cons2ConvexSet sh (ConvexSet h₀ [h₀])
+cons2ConvexSet sh (ConvexSet _ ists)
+          = fmap (\hull' -> ConvexSet hull' (NE.toList ists'))
                $ intersectShade's ists'
  where IntersectT ists' = rmTautologyIntersect perfectRefine $ IntersectT (sh:|ists)
        perfectRefine sh₁ sh₂
@@ -213,9 +215,9 @@ cons2QSet sh (QSet _ ists)
 
 iterateFilterDEqn_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
-iterateFilterDEqn_static f = map (fmap qSetHull)
+iterateFilterDEqn_static f = map (fmap convexSetHull)
                            . itWhileJust (filterDEqnSolutions_static f)
-                           . fmap (`QSet`[])
+                           . fmap (`ConvexSet`[])
 
 filterDEqnSolution_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> Option (PointsWeb x (Shade' y))
@@ -226,12 +228,12 @@ filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse `id`
                             =<< filterDEqnSolution_loc f ((x,shy), NE.fromList ngbs)
 
 filterDEqnSolutions_static :: (WithField ℝ Manifold x, Refinable y)
-       => DifferentialEqn x y -> PointsWeb x (QSet y) -> Option (PointsWeb x (QSet y))
+       => DifferentialEqn x y -> PointsWeb x (ConvexSet y) -> Option (PointsWeb x (ConvexSet y))
 filterDEqnSolutions_static f = localFocusWeb >>> Hask.traverse `id`
-            \((x, shy@(QSet hull _)), ngbs) -> if null ngbs
+            \((x, shy@(ConvexSet hull _)), ngbs) -> if null ngbs
               then pure shy
-              else (`cons2QSet`shy) =<< filterDEqnSolution_loc f
-                                          ((x,hull), second qSetHull<$>NE.fromList ngbs)
+              else (`cons2ConvexSet`shy) =<< filterDEqnSolution_loc f
+                                          ((x,hull), second convexSetHull<$>NE.fromList ngbs)
 
 
 
