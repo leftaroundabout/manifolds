@@ -43,7 +43,7 @@ module Data.Manifold.Web (
               -- * Differential equations
             , filterDEqnSolution_static, iterateFilterDEqn_static
               -- * Misc
-            , ConvexSet(..)
+            , ConvexSet(..), ellipsoid
             ) where
 
 
@@ -196,22 +196,35 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                  ) asd'
 
 
-data ConvexSet x = ConvexSet {
+data ConvexSet x
+    = EmptyConvex
+    | ConvexSet {
       convexSetHull :: Shade' x
       -- ^ If @p@ is in all intersectors, it must also be in the hull.
     , convexSetIntersectors :: [Shade' x]
     }
 
-cons2ConvexSet :: Refinable x => Shade' x -> ConvexSet x -> Option (ConvexSet x)
-cons2ConvexSet sh (ConvexSet h₀ []) = cons2ConvexSet sh (ConvexSet h₀ [h₀])
-cons2ConvexSet sh (ConvexSet _ ists)
-          = fmap (\hull' -> ConvexSet hull' (NE.toList ists'))
-               $ intersectShade's ists'
- where IntersectT ists' = rmTautologyIntersect perfectRefine $ IntersectT (sh:|ists)
-       perfectRefine sh₁ sh₂
-         | sh₁`subShade'`sh₂   = pure sh₁
-         | sh₂`subShade'`sh₁   = pure sh₂
-         | otherwise           = empty
+ellipsoid :: Shade' x -> ConvexSet x
+ellipsoid s = ConvexSet s [s]
+
+intersectors :: ConvexSet x -> Option (NonEmpty (Shade' x))
+intersectors (ConvexSet h []) = pure (h:|[])
+intersectors (ConvexSet _ (i:sts)) = pure (i:|sts)
+intersectors _ = empty
+
+-- | Under intersection.
+instance Refinable x => Semigroup (ConvexSet x) where
+  a<>b = sconcat (a:|[b])
+  sconcat csets
+    | Option (Just allIntersectors) <- sconcat <$> Hask.traverse intersectors csets
+    , IntersectT ists <- rmTautologyIntersect perfectRefine $ IntersectT allIntersectors
+    , Option (Just hull') <- intersectShade's ists
+                 = ConvexSet hull' (NE.toList ists)
+    | otherwise  = EmptyConvex
+   where perfectRefine sh₁ sh₂
+           | sh₁`subShade'`sh₂   = pure sh₁
+           | sh₂`subShade'`sh₁   = pure sh₂
+           | otherwise           = empty
 
 iterateFilterDEqn_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
@@ -232,8 +245,11 @@ filterDEqnSolutions_static :: (WithField ℝ Manifold x, Refinable y)
 filterDEqnSolutions_static f = localFocusWeb >>> Hask.traverse `id`
             \((x, shy@(ConvexSet hull _)), ngbs) -> if null ngbs
               then pure shy
-              else (`cons2ConvexSet`shy) =<< filterDEqnSolution_loc f
-                                          ((x,hull), second convexSetHull<$>NE.fromList ngbs)
+              else ((shy<>) . ellipsoid)
+                      <$> filterDEqnSolution_loc f
+                               ((x,hull), second convexSetHull<$>NE.fromList ngbs)
+                     >>= \case EmptyConvex -> empty
+                               c           -> pure c
 
 
 
