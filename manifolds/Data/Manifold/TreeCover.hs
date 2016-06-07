@@ -630,32 +630,20 @@ class (WithField ℝ Manifold y) => Refinable y where
                                   [ ac.+~^σ*^v | σ<-[0,1], v<-eigenCoSpan' ae ]
   
   refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
-  refineShade' (Shade' c e) (Shade' ζ η)
-           | μe < 1 && μη < 1  = return $ Shade' iCtr iExpa
-           | otherwise         = empty
-        where [c', ζ'] = [ ctr.+~^linearCombo
-                                     [ (v, 1 / (1 + metricSq oExpa w))
-                                     | v <- (*^) <$> [-1,1] <*> span
-                                     , let p = ctr .+~^ v  :: y
-                                           Option (Just w) = p.-~.oCtr
-                                     ]
-                         | ctr                  <- [c,     ζ    ]
-                         | span <- eigenCoSpan'<$> [e,     η    ]
-                         | (oCtr,oExpa)         <- [(ζ,η), (c,e)]
-                         ]
-              Option (Just c'2ζ') = ζ'.-~.c'
-              Option (Just c2ζ') = ζ'.-~.c
-              Option (Just ζ2c') = c'.-~.ζ
-              μc = metricSq e c2ζ'
-              μζ = metricSq η ζ2c'
-              iCtr = c' .+~^ c'2ζ' ^* (μζ/(μc + μζ)) -- weighted mean between c' and ζ'.
-              Option (Just rc) = c.-~.iCtr
-              Option (Just rζ) = ζ.-~.iCtr
-              rcⰰ = toDualWith e rc
-              rζⰰ = toDualWith η rζ
-              μe = rcⰰ<.>^rc
-              μη = rζⰰ<.>^rζ
-              iExpa = (e^+^η)^/2 ^+^ projector rcⰰ^/(1-μe) ^+^ projector rζⰰ^/(1-μη)
+  refineShade' (Shade' _ (HerMetric Nothing)) s₂ = pure s₂
+  refineShade' s₁ (Shade' _ (HerMetric Nothing)) = pure s₁
+  refineShade' (Shade' c₁ (HerMetric (Just e₁))) 
+               (Shade' c₂ (HerMetric (Just e₂)))
+           | Option (Just δc) <- c₂.-~.c₁
+           , e₂δc <- e₂ $ δc
+           , c' <- σe <\$ e₂δc
+           , cc <- c₁ .+~^ c'
+           , α <- 2 + δc^<.>e₂δc + c'^<.>e₂δc
+           , α > 0
+           , ee <- σe ^/ α
+           , c'^<.>(ee$c') < 1  = pure (Shade' cc . HerMetric $ Just ee)
+           | otherwise          = empty
+   where σe = e₁^+^e₂
   -- ⟨x−c₁|e₁|x−c₁⟩ < 1  ∧  ⟨x−c₂|e₂|x−c₂⟩ < 1
   -- We search (cc,ee) such that this implies
   -- ⟨x−cc|ee|x−cc⟩ < 1.
@@ -674,30 +662,31 @@ class (WithField ℝ Manifold y) => Refinable y where
   --   = 2⋅⟨v| $ e₁|cc⟩ − e₁|c₁⟩ + e₂|cc⟩ − e₂|c₂⟩
   -- (e₁+e₂)|cc⟩ = e₁|c₁⟩ + e₂|c₂⟩
   -- or, using c₁ as reference position,
-  -- (e₁+e₂)|δc⟩ ≡ (e₁+e₂)|cc−c₁⟩ = e₂|c₂−c₁⟩
+  -- (e₁+e₂)|c'⟩ ≡ (e₁+e₂)|cc−c₁⟩ = e₂|c₂−c₁⟩
   -- If we now choose
   -- ee = (e₁+e₂) / α
   -- then
   -- ⟨x−cc|ee|x−cc⟩ ⋅ α
-  --  = ⟨x−(c₁+δc)|ee|x−(c₁+δc)⟩ ⋅ α
-  --  = ⟨x−c₁|e₁+e₂|x−c₁⟩ + (-2⋅⟨x−c₁| + ⟨δc|) (e₁+e₂) |δc⟩
-  --  = ⟨x−c₁|e₁+e₂|x−c₁⟩ + (-2⋅⟨x−c₁| + ⟨δc|) (e₂|c₂−c₁⟩)
+  --  = ⟨x−(c₁+c')|ee|x−(c₁+c')⟩ ⋅ α
+  --  = ⟨x−c₁|e₁+e₂|x−c₁⟩ + (-2⋅⟨x−c₁| + ⟨c'|) (e₁+e₂) |c'⟩
+  --  = ⟨x−c₁|e₁+e₂|x−c₁⟩ + (-2⋅⟨x−c₁| + ⟨c'|) (e₂|c₂−c₁⟩)
   --  = ⟨x−c₁|e₁|x−c₁⟩ + ⟨x|e₂|x⟩ − 2⋅⟨c₁|e₂|x⟩ + ⟨c₁|e₂|c₁⟩
-  --    − 2⋅⟨x−c₁|e₂|c₂−c₁⟩ + ⟨δc|e₂|c₂−c₁⟩
+  --    − 2⋅⟨x−c₁|e₂|c₂−c₁⟩ + ⟨c'|e₂|c₂−c₁⟩
   --  = ⟨x−c₁|e₁|x−c₁⟩ + ⟨x|e₂|x⟩ − 2⋅⟨c₂|e₂|x⟩ + ⟨c₂|e₂|c₂⟩
   --    + 2⋅⟨c₂|e₂|x⟩ − 2⋅⟨c₁|e₂|x⟩ + ⟨c₁|e₂|c₁⟩ − ⟨c₂|e₂|c₂⟩
-  --    − 2⋅⟨x−c₁|e₂|c₂−c₁⟩ + ⟨δc|e₂|c₂−c₁⟩
+  --    − 2⋅⟨x−c₁|e₂|c₂−c₁⟩ + ⟨c'|e₂|c₂−c₁⟩
   --  = ⟨x−c₁|e₁|x−c₁⟩ + ⟨x−c₂|e₂|x−c₂⟩
   --    + 2⋅⟨c₂−c₁|e₂|x⟩ + ⟨c₁|e₂|c₁⟩ − ⟨c₂|e₂|c₂⟩
-  --    − 2⋅⟨x−c₁|e₂|c₂−c₁⟩ + ⟨δc|e₂|c₂−c₁⟩
-  --  ≤ 2
-  --    + ⟨c₁|e₂|c₁⟩ − ⟨c₂|e₂|c₂⟩
-  --    + 2⋅⟨c₁|e₂|c₂−c₁⟩ + ⟨δc|e₂|c₂−c₁⟩
-  --  = 2 − ⟨c₂|e₂|c₂⟩ + ⟨c₁|e₂|c₂−c₁⟩ + ⟨c₁|e₂|c₂⟩ + ⟨δc|e₂|c₂−c₁⟩
-  --  = 2 + ⟨c₁−c₂|e₂|c₂⟩ + ⟨c₁|e₂|c₂−c₁⟩ + ⟨δc|e₂|c₂−c₁⟩
-  --  = 2 + ⟨c₂|e₂|c₁−c₂⟩ + ⟨c₁|e₂|c₂−c₁⟩ + ⟨δc|e₂|c₂−c₁⟩
-  --  = 2 + ⟨c₂−c₁|e₂|c₂−c₁⟩ + ⟨δc|e₂|c₂−c₁⟩
+  --    − 2⋅⟨x−c₁|e₂|c₂−c₁⟩ + ⟨c'|e₂|c₂−c₁⟩
+  --  ≤ 2 + ⟨c₁|e₂|c₁⟩ − ⟨c₂|e₂|c₂⟩
+  --       + 2⋅⟨c₁|e₂|c₂−c₁⟩ + ⟨c'|e₂|c₂−c₁⟩
+  --  = 2 − ⟨c₂|e₂|c₂⟩ + ⟨c₁|e₂|c₂−c₁⟩ + ⟨c₁|e₂|c₂⟩ + ⟨c'|e₂|c₂−c₁⟩
+  --  = 2 + ⟨c₁−c₂|e₂|c₂⟩ + ⟨c₁|e₂|c₂−c₁⟩ + ⟨c'|e₂|c₂−c₁⟩
+  --  = 2 + ⟨c₂|e₂|c₁−c₂⟩ + ⟨c₁|e₂|c₂−c₁⟩ + ⟨c'|e₂|c₂−c₁⟩
+  --  = 2 + ⟨c₂−c₁|e₂|c₂−c₁⟩ + ⟨c'|e₂|c₂−c₁⟩
   --  = 2 + ⟨c₂−c₁|e₂|c₂−c₁⟩ + ⟨cc−c₁|e₂|c₂−c₁⟩
+  --  = 2 + |δc|◞e₂ + ⟨c'|e₂|δc⟩
+  --  ≡ α
 
   -- ⟨x−cc|ee|x−cc⟩ ⋅ α
   --  = ⟨x|e₁+e₂|x⟩ + (-2⋅⟨x| + ⟨cc|) (e₁+e₂) |cc⟩

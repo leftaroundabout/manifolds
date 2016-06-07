@@ -137,6 +137,16 @@ instance (SmoothScalar s) => PreArrow (Linear s) where
 instance (SmoothScalar s) => EnhancedCat (->) (Linear s) where
   arr (DenseLinear mat) = fromPackedVector . HMat.app mat . asPackedVector
 
+-- | Inverse function application (for isomorphisms), or
+--   least-square solution of a linear equation.
+--   Note that least-square is not really well-defined,
+--   without reference to a norm / scalar product; the operator uses
+--   the implicit norm induced from the 'FiniteDimensional' representation.
+(<\$) :: ( SmoothScalar s, FiniteDimensional v, FiniteDimensional w
+         , Scalar v ~ s, Scalar w ~ s
+         ) => Linear s v w -> w -> v
+DenseLinear mat <\$ v = fromPackedVector . (mat HMat.<\>) $ asPackedVector v
+
 type DenseLinearFuncValue s = GenericAgent (Linear s)
 
 instance (SmoothScalar s) => HasAgent (Linear s) where
