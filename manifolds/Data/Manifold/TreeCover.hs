@@ -637,7 +637,10 @@ class (WithField ℝ Manifold y) => Refinable y where
            , cc <- σe <\$ e₂c₂
            , α <- 2 + (cc^-^c₂)<.>^e₂c₂
            , α > 0
-           , ee <- σe ^/ α      = pure (Shade' (c₀.+~^cc) . HerMetric $ Just ee)
+           , ee <- σe ^/ α
+           , narr <- ee $ c₂    = return $
+                 Shade' (c₀.+~^cc)
+                        (HerMetric (Just ee) ^+^ projector narr ^* (1 + α/2))
            | otherwise          = empty
    where σe = e₁^+^e₂
   refineShade' (Shade' _ (HerMetric Nothing)) s₂ = pure s₂
@@ -678,6 +681,14 @@ class (WithField ℝ Manifold y) => Refinable y where
   -- Really we want
   -- ⟨x−cc|ee|x−cc⟩ ⋅ α < α
   -- So choose α = 2 + ⟨cc−c₂|e₂|c₂⟩.
+  -- 
+  -- The ellipsoid "cc±√ee" captures perfectly the intersection
+  -- of the boundary of the shades, but it tends to significantly
+  -- overshoot the interior intersection in perpendicular direction,
+  -- i.e. in direction of c₂−c₀. E.g.
+  -- https://github.com/leftaroundabout/manifolds/blob/bc0460b9/manifolds/images/examples/ShadeCombinations/EllipseIntersections.png
+  -- To compensate, trim the result in that direction to the actual
+  -- thickness of the lens-shaped intersection:
 
   
   -- | If @p@ is in @a@ (red) and @δ@ is in @b@ (green),
