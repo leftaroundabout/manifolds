@@ -635,12 +635,17 @@ class (WithField ℝ Manifold y) => Refinable y where
            | Option (Just c₂) <- c₀₂.-~.c₀
            , e₂c₂ <- e₂ $ c₂
            , cc <- σe <\$ e₂c₂
-           , α <- 2 + (cc^-^c₂)<.>^e₂c₂
+           , cc₂ <- cc ^-^ c₂
+           , e₁cc <- e₁ $ cc
+           , α <- 2 + cc₂<.>^e₂c₂
            , α > 0
            , ee <- σe ^/ α
-           , narr <- ee $ c₂    = return $
-                 Shade' (c₀.+~^cc)
-                        (HerMetric (Just ee) ^+^ projector narr ^* (1 + α/2))
+           , narr <- c₂ ^* sqrt(1 + α/2)
+           , cc' <- cc ^-^ c₂^*( (cc^<.>e₁cc - cc₂^<.>(e₂$cc₂))
+                                / 2 * (c₂^<.>(e₁cc) - e₂c₂<.>^cc₂) )
+                  = return $
+                 Shade' (c₀.+~^cc')
+                        (HerMetric (Just ee) ^+^ projector (ee $ narr))
            | otherwise          = empty
    where σe = e₁^+^e₂
   refineShade' (Shade' _ (HerMetric Nothing)) s₂ = pure s₂
@@ -685,10 +690,26 @@ class (WithField ℝ Manifold y) => Refinable y where
   -- The ellipsoid "cc±√ee" captures perfectly the intersection
   -- of the boundary of the shades, but it tends to significantly
   -- overshoot the interior intersection in perpendicular direction,
-  -- i.e. in direction of c₂−c₀. E.g.
+  -- i.e. in direction of c₂−c₁. E.g.
   -- https://github.com/leftaroundabout/manifolds/blob/bc0460b9/manifolds/images/examples/ShadeCombinations/EllipseIntersections.png
-  -- To compensate, trim the result in that direction to the actual
-  -- thickness of the lens-shaped intersection:
+  -- To compensate,
+  -- 1. Correct the optimisation scheme. Simply minimising the quadratic
+  --    form actually overrepresents the smaller shade. One
+  --    possibility would be to optimise under the constraint that
+  --    the badnesses are equal (with a Lagrange multiplier). As
+  --    an approximation to that, use a single Newton-Raphson step
+  --    in direction of c₂−c₁ ≡ c₂:
+  --    d(cc) := ⟨cc|e₁|cc⟩ − ⟨cc−c₂|e₂|cc−c₂⟩ =! 0
+  --    Around δ=0, consider
+  --    ∂/∂δ d(cc + δ⋅c₂)
+  --    = ∂/∂δ ⟨cc+δ⋅c₂|e₁|cc+δ⋅c₂⟩ − ∂/∂δ ⟨cc+δ⋅c₂−c₂|e₂|cc+δ⋅c₂−c₂⟩
+  --    = ⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc−c₂⟩ + 𝓞(δ)
+  --    = ⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc−c₂⟩
+  --    cc' := cc − d cc ⋅ c₂/(∂/∂δ d(cc + δ⋅c₂))
+  --        = cc − c₂⋅(⟨cc|e₁|cc⟩ − ⟨cc−c₂|e₂|cc−c₂⟩) / (⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc−c₂⟩)
+  --        = cc − c₂⋅(⟨cc|e₁|cc⟩ − ⟨cc−c₂|e₂|cc−c₂⟩) / (⟨c₂|e₁|cc⟩ − ⟨cc₂|e₂|c₂⟩)
+  -- 2. trim the result in that direction to the actual
+  --    thickness of the lens-shaped intersection:
 
   
   -- | If @p@ is in @a@ (red) and @δ@ is in @b@ (green),
