@@ -633,19 +633,28 @@ class (WithField ℝ Manifold y) => Refinable y where
   refineShade' (Shade' c₀ (HerMetric (Just e₁))) 
                (Shade' c₀₂ (HerMetric (Just e₂)))
            | Option (Just c₂) <- c₀₂.-~.c₀
+           , e₁c₂ <- e₁ $ c₂
            , e₂c₂ <- e₂ $ c₂
            , cc <- σe <\$ e₂c₂
            , cc₂ <- cc ^-^ c₂
            , e₁cc <- e₁ $ cc
+           , e₂cc <- e₂ $ cc
            , α <- 2 + cc₂<.>^e₂c₂
            , α > 0
            , ee <- σe ^/ α
            , narr <- c₂ ^* sqrt(1 + α/2)
-           , cc' <- cc ^-^ c₂^*( (cc^<.>e₁cc - cc₂^<.>(e₂$cc₂))
-                                / 2 * (c₂^<.>(e₁cc) - e₂c₂<.>^cc₂) )
+           , c₂e₁c₂ <- c₂^<.>e₁c₂
+           , c₂e₂c₂ <- c₂^<.>e₂c₂
+           , a <- c₂e₁c₂ - c₂e₂c₂
+           , b <- 2 * (c₂^<.>e₁cc - e₂c₂<.>^cc₂)
+           , c <- (2*^c₂^-^cc)^<.>e₂cc - c₂e₂c₂ + cc^<.>e₁cc
+           , γ <- if a /= 0 then (- b + sqrt(b^2 - 4*a*c)) / (2*a)
+                            else 0
+           , cc' <- cc ^+^ γ*^c₂
                   = return $
                  Shade' (c₀.+~^cc')
                         (HerMetric (Just ee) ^+^ projector (ee $ narr))
+           
            | otherwise          = empty
    where σe = e₁^+^e₂
   refineShade' (Shade' _ (HerMetric Nothing)) s₂ = pure s₂
@@ -694,20 +703,30 @@ class (WithField ℝ Manifold y) => Refinable y where
   -- https://github.com/leftaroundabout/manifolds/blob/bc0460b9/manifolds/images/examples/ShadeCombinations/EllipseIntersections.png
   -- To compensate,
   -- 1. Correct the optimisation scheme. Simply minimising the quadratic
-  --    form actually overrepresents the smaller shade. One
-  --    possibility would be to optimise under the constraint that
-  --    the badnesses are equal (with a Lagrange multiplier). As
-  --    an approximation to that, use a single Newton-Raphson step
-  --    in direction of c₂−c₁ ≡ c₂:
-  --    d(cc) := ⟨cc|e₁|cc⟩ − ⟨cc−c₂|e₂|cc−c₂⟩ =! 0
-  --    Around δ=0, consider
-  --    ∂/∂δ d(cc + δ⋅c₂)
-  --    = ∂/∂δ ⟨cc+δ⋅c₂|e₁|cc+δ⋅c₂⟩ − ∂/∂δ ⟨cc+δ⋅c₂−c₂|e₂|cc+δ⋅c₂−c₂⟩
-  --    = ⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc−c₂⟩ + 𝓞(δ)
-  --    = ⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc−c₂⟩
-  --    cc' := cc − d cc ⋅ c₂/(∂/∂δ d(cc + δ⋅c₂))
-  --        = cc − c₂⋅(⟨cc|e₁|cc⟩ − ⟨cc−c₂|e₂|cc−c₂⟩) / (⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc−c₂⟩)
-  --        = cc − c₂⋅(⟨cc|e₁|cc⟩ − ⟨cc−c₂|e₂|cc−c₂⟩) / (⟨c₂|e₁|cc⟩ − ⟨cc₂|e₂|c₂⟩)
+  --    form actually overrepresents the smaller shade. One possibility
+  --    would be to optimise under the constraint that the badnesses
+  --    are equal (with a Lagrange multiplier). As a compromise, use the
+  --    unconstrained optimisation but achieve equal intersector-badnesses
+  --    by correcting in c₂−c₁ ≡ c₂ direction:
+  --    d c := ⟨c|e₁|c⟩ − ⟨c−c₂|e₂|c−c₂⟩ =! 0
+  --    d (cc + γ⋅c₂)
+  --        = ⟨cc+γ⋅c₂|e₁|cc+γ⋅c₂⟩ − ⟨cc+(γ−1)⋅c₂|e₂|cc+(γ−1)⋅c₂⟩
+  --        = ⟨cc|e₁|cc⟩ + 2⋅γ⋅⟨c₂|e₁|cc⟩ + γ²⋅⟨c₂|e₁|c₂⟩
+  --          − ⟨cc|e₂|cc⟩ − 2⋅(γ−1)⋅⟨c₂|e₂|cc⟩ − (γ−1)²⋅⟨c₂|e₂|c₂⟩
+  --        = γ² ⋅ (⟨c₂|e₁|c₂⟩ − ⟨c₂|e₂|c₂⟩) + ⟨cc|e₁|cc⟩ + 2⋅γ⋅⟨c₂|e₁|cc⟩
+  --          − ⟨cc|e₂|cc⟩ − 2⋅(γ−1)⋅⟨c₂|e₂|cc⟩ − (-2⋅γ+1)⋅⟨c₂|e₂|c₂⟩
+  --        = γ² ⋅ (⟨c₂|e₁|c₂⟩ − ⟨c₂|e₂|c₂⟩)
+  --           + 2⋅γ ⋅ (⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc⟩ + ⟨c₂|e₂|c₂⟩)
+  --          − ⟨cc|e₂|cc⟩ + 2⋅⟨c₂|e₂|cc⟩ − ⟨c₂|e₂|c₂⟩ + ⟨cc|e₁|cc⟩
+  --        =! 0
+  -- So
+  -- γ = (- b ± √(b²−4⋅a⋅c)) / 2⋅a
+  -- with
+  -- a = ⟨c₂|e₁|c₂⟩ − ⟨c₂|e₂|c₂⟩
+  -- b = 2 ⋅ (⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc⟩ + ⟨c₂|e₂|c₂⟩)
+  --   = 2 ⋅ (⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc₂⟩)
+  -- c = -⟨cc|e₂|cc⟩ + 2⋅⟨c₂|e₂|cc⟩ − ⟨c₂|e₂|c₂⟩ + ⟨cc|e₁|cc⟩
+  --   = ⟨2⋅c₂−cc|e₂|cc⟩ − ⟨c₂|e₂|c₂⟩ + ⟨cc|e₁|cc⟩
   -- 2. trim the result in that direction to the actual
   --    thickness of the lens-shaped intersection:
 
