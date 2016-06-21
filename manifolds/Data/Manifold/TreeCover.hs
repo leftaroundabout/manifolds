@@ -645,12 +645,19 @@ class (WithField ℝ Manifold y) => Refinable y where
            , narr <- c₂ ^* sqrt(1 + α/2)
            , c₂e₁c₂ <- c₂^<.>e₁c₂
            , c₂e₂c₂ <- c₂^<.>e₂c₂
-           , a <- c₂e₁c₂ - c₂e₂c₂
-           , b <- 2 * (c₂^<.>e₁cc - e₂c₂<.>^cc₂)
-           , c <- (2*^c₂^-^cc)^<.>e₂cc - c₂e₂c₂ + cc^<.>e₁cc
-           , γ <- if a /= 0 then (- b + sqrt(b^2 - 4*a*c)) / (2*a)
-                            else 0
-           , cc' <- cc ^+^ γ*^c₂
+           , γ₁ <- let a = c₂e₁c₂
+                       b = 2 * (c₂^<.>e₁cc)
+                       c = cc^<.>e₁cc - 1
+                   in if a /= 0 && b^2 > 4*a*c
+                       then (signum b * sqrt(b^2 - 4*a*c) - b) / (2*a)
+                       else error $ "a₁,b₁,c₁: "++ show (a,b,c)
+           , γ₂ <- let a = c₂e₂c₂
+                       b = 2 * (c₂^<.>e₂cc - c₂e₂c₂)
+                       c = cc^<.>e₂cc - 2 * (cc^<.>e₂c₂) + c₂e₂c₂ - 1
+                   in if a /= 0 && b^2 > 4*a*c
+                       then (signum b * sqrt(b^2 - 4*a*c) - b) / (2*a)
+                       else error $ "a₂,b₂,c₂: "++ show (a,b,c)
+           , cc' <- cc ^+^ ((γ₁+γ₂)/2)*^c₂
                   = return $
                  Shade' (c₀.+~^cc')
                         (HerMetric (Just ee) ^+^ projector (ee $ narr))
@@ -701,32 +708,25 @@ class (WithField ℝ Manifold y) => Refinable y where
   -- overshoot the interior intersection in perpendicular direction,
   -- i.e. in direction of c₂−c₁. E.g.
   -- https://github.com/leftaroundabout/manifolds/blob/bc0460b9/manifolds/images/examples/ShadeCombinations/EllipseIntersections.png
-  -- To compensate,
-  -- 1. Correct the optimisation scheme. Simply minimising the quadratic
-  --    form actually overrepresents the smaller shade. One possibility
-  --    would be to optimise under the constraint that the badnesses
-  --    are equal (with a Lagrange multiplier). As a compromise, use the
-  --    unconstrained optimisation but achieve equal intersector-badnesses
-  --    by correcting in c₂−c₁ ≡ c₂ direction:
-  --    d c := ⟨c|e₁|c⟩ − ⟨c−c₂|e₂|c−c₂⟩ =! 0
-  --    d (cc + γ⋅c₂)
-  --        = ⟨cc+γ⋅c₂|e₁|cc+γ⋅c₂⟩ − ⟨cc+(γ−1)⋅c₂|e₂|cc+(γ−1)⋅c₂⟩
-  --        = ⟨cc|e₁|cc⟩ + 2⋅γ⋅⟨c₂|e₁|cc⟩ + γ²⋅⟨c₂|e₁|c₂⟩
-  --          − ⟨cc|e₂|cc⟩ − 2⋅(γ−1)⋅⟨c₂|e₂|cc⟩ − (γ−1)²⋅⟨c₂|e₂|c₂⟩
-  --        = γ² ⋅ (⟨c₂|e₁|c₂⟩ − ⟨c₂|e₂|c₂⟩) + ⟨cc|e₁|cc⟩ + 2⋅γ⋅⟨c₂|e₁|cc⟩
-  --          − ⟨cc|e₂|cc⟩ − 2⋅(γ−1)⋅⟨c₂|e₂|cc⟩ − (-2⋅γ+1)⋅⟨c₂|e₂|c₂⟩
-  --        = γ² ⋅ (⟨c₂|e₁|c₂⟩ − ⟨c₂|e₂|c₂⟩)
-  --           + 2⋅γ ⋅ (⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc⟩ + ⟨c₂|e₂|c₂⟩)
-  --          − ⟨cc|e₂|cc⟩ + 2⋅⟨c₂|e₂|cc⟩ − ⟨c₂|e₂|c₂⟩ + ⟨cc|e₁|cc⟩
-  --        =! 0
-  -- So
-  -- γ = (- b ± √(b²−4⋅a⋅c)) / 2⋅a
-  -- with
-  -- a = ⟨c₂|e₁|c₂⟩ − ⟨c₂|e₂|c₂⟩
-  -- b = 2 ⋅ (⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc⟩ + ⟨c₂|e₂|c₂⟩)
-  --   = 2 ⋅ (⟨c₂|e₁|cc⟩ − ⟨c₂|e₂|cc₂⟩)
-  -- c = -⟨cc|e₂|cc⟩ + 2⋅⟨c₂|e₂|cc⟩ − ⟨c₂|e₂|c₂⟩ + ⟨cc|e₁|cc⟩
-  --   = ⟨2⋅c₂−cc|e₂|cc⟩ − ⟨c₂|e₂|c₂⟩ + ⟨cc|e₁|cc⟩
+  -- 1. Really, the relevant points are those where either of the
+  --    intersector badnesses becomes 1. The intersection shade should
+  --    be centered between those points. We perform according corrections,
+  --    but only in c₂ direction, so this can be handled efficiently
+  --    as a 1D quadratic equation.
+  --    Consider
+  --       dⱼ c := ⟨c−cⱼ|eⱼ|c−cⱼ⟩ =! 1
+  --       dⱼ (cc + γ⋅c₂)
+  --           = ⟨cc+γ⋅c₂−cⱼ|eⱼ|cc+γ⋅c₂−cⱼ⟩
+  --           = ⟨cc−cⱼ|eⱼ|cc−cⱼ⟩ + 2⋅γ⋅⟨c₂|eⱼ|cc−cⱼ⟩ + γ²⋅⟨c₂|eⱼ|c₂⟩
+  --           =! 1
+  --    So
+  --    γⱼ = (- b ± √(b²−4⋅a⋅c)) / 2⋅a
+  --     where a = ⟨c₂|eⱼ|c₂⟩
+  --           b = 2 ⋅ (⟨c₂|eⱼ|cc⟩ − ⟨c₂|eⱼ|cⱼ⟩)
+  --           c = ⟨cc|eⱼ|cc⟩ − 2⋅⟨cc|eⱼ|cⱼ⟩ + ⟨cⱼ|eⱼ|cⱼ⟩ − 1
+  --    The ± sign should be chosen to get the smaller |γ| (otherwise
+  --    we end up on the wrong side of the shade), i.e.
+  --    γⱼ = (sgn bⱼ ⋅ √(bⱼ²−4⋅aⱼ⋅cⱼ) − bⱼ) / 2⋅aⱼ
   -- 2. trim the result in that direction to the actual
   --    thickness of the lens-shaped intersection:
 
