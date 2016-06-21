@@ -645,20 +645,13 @@ class (WithField ℝ Manifold y) => Refinable y where
            , c₂e₁c₂ <- c₂^<.>e₁c₂
            , c₂e₂c₂ <- c₂^<.>e₂c₂
            , c₂eec₂ <- (c₂e₁c₂ + c₂e₂c₂) / α
-           , γ₁ <- let a = c₂e₁c₂
-                       b = 2 * (c₂^<.>e₁cc)
-                       c = cc^<.>e₁cc - 1
-                       disc = b^2 - 4*a*c
-                   in if a /= 0 && disc > 0
-                       then (signum b * sqrt disc - b) / (2*a)
-                       else 0
-           , γ₂ <- let a = c₂e₂c₂
-                       b = 2 * (c₂^<.>e₂cc - c₂e₂c₂)
-                       c = cc^<.>e₂cc - 2 * (cc^<.>e₂c₂) + c₂e₂c₂ - 1
-                       disc = b^2 - 4*a*c
-                   in if a /= 0 && disc > 0
-                       then (signum b * sqrt disc - b) / (2*a)
-                       else 0
+           , [γ₁,γ₂] <- middle . sort
+                $ quadraticEqnSol c₂e₁c₂
+                                  (2 * (c₂^<.>e₁cc))
+                                  (cc^<.>e₁cc - 1)
+               ++ quadraticEqnSol c₂e₂c₂
+                                  (2 * (c₂^<.>e₂cc - c₂e₂c₂))
+                                  (cc^<.>e₂cc - 2 * (cc^<.>e₂c₂) + c₂e₂c₂ - 1)
            , cc' <- cc ^+^ ((γ₁+γ₂)/2)*^c₂
            , rγ <- abs (γ₁ - γ₂) / 2
            , η <- if rγ * c₂eec₂ /= 0 && 1 - rγ^2 * c₂eec₂ > 0
@@ -670,6 +663,13 @@ class (WithField ℝ Manifold y) => Refinable y where
            
            | otherwise          = empty
    where σe = e₁^+^e₂
+         quadraticEqnSol a b c
+             | a /= 0 && disc > 0  = [ (σ * sqrt disc - b) / (2*a)
+                                     | σ <- [-1, 1] ]
+             | otherwise           = [0]
+          where disc = b^2 - 4*a*c
+         middle (_:x:y:_) = [x,y]
+         middle l = l
   refineShade' (Shade' _ (HerMetric Nothing)) s₂ = pure s₂
   refineShade' s₁ (Shade' _ (HerMetric Nothing)) = pure s₁
   -- ⟨x−c₁|e₁|x−c₁⟩ < 1  ∧  ⟨x−c₂|e₂|x−c₂⟩ < 1
