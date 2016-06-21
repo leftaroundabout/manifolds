@@ -642,25 +642,31 @@ class (WithField ℝ Manifold y) => Refinable y where
            , α <- 2 + cc₂<.>^e₂c₂
            , α > 0
            , ee <- σe ^/ α
-           , narr <- c₂ ^* sqrt(1 + α/2)
            , c₂e₁c₂ <- c₂^<.>e₁c₂
            , c₂e₂c₂ <- c₂^<.>e₂c₂
+           , c₂eec₂ <- (c₂e₁c₂ + c₂e₂c₂) / α
            , γ₁ <- let a = c₂e₁c₂
                        b = 2 * (c₂^<.>e₁cc)
                        c = cc^<.>e₁cc - 1
-                   in if a /= 0 && b^2 > 4*a*c
-                       then (signum b * sqrt(b^2 - 4*a*c) - b) / (2*a)
-                       else error $ "a₁,b₁,c₁: "++ show (a,b,c)
+                       disc = b^2 - 4*a*c
+                   in if a /= 0 && disc > 0
+                       then (signum b * sqrt disc - b) / (2*a)
+                       else 0
            , γ₂ <- let a = c₂e₂c₂
                        b = 2 * (c₂^<.>e₂cc - c₂e₂c₂)
                        c = cc^<.>e₂cc - 2 * (cc^<.>e₂c₂) + c₂e₂c₂ - 1
-                   in if a /= 0 && b^2 > 4*a*c
-                       then (signum b * sqrt(b^2 - 4*a*c) - b) / (2*a)
-                       else error $ "a₂,b₂,c₂: "++ show (a,b,c)
+                       disc = b^2 - 4*a*c
+                   in if a /= 0 && disc > 0
+                       then (signum b * sqrt disc - b) / (2*a)
+                       else 0
            , cc' <- cc ^+^ ((γ₁+γ₂)/2)*^c₂
+           , rγ <- abs (γ₁ - γ₂) / 2
+           , η <- if rγ * c₂eec₂ /= 0 && 1 - rγ^2 * c₂eec₂ > 0
+                   then sqrt (1 - rγ^2 * c₂eec₂) / (rγ * c₂eec₂)
+                   else 0
                   = return $
                  Shade' (c₀.+~^cc')
-                        (HerMetric (Just ee) ^+^ projector (ee $ narr))
+                        (HerMetric (Just ee) ^+^ projector (ee $ c₂^*η))
            
            | otherwise          = empty
    where σe = e₁^+^e₂
@@ -727,8 +733,18 @@ class (WithField ℝ Manifold y) => Refinable y where
   --    The ± sign should be chosen to get the smaller |γ| (otherwise
   --    we end up on the wrong side of the shade), i.e.
   --    γⱼ = (sgn bⱼ ⋅ √(bⱼ²−4⋅aⱼ⋅cⱼ) − bⱼ) / 2⋅aⱼ
-  -- 2. trim the result in that direction to the actual
-  --    thickness of the lens-shaped intersection:
+  -- 2. Trim the result in that direction to the actual
+  --    thickness of the lens-shaped intersection: we want
+  --    ⟨rγ⋅c₂|ee'|rγ⋅c₂⟩ = 1
+  --    for a squeezed version of ee,
+  --    ee' = ee + ee|η⋅c₂⟩⟨η⋅c₂|ee
+  --    ee' = ee + η² ⋅ ee|c₂⟩⟨c₂|ee
+  --    ⟨rγ⋅c₂|ee'|rγ⋅c₂⟩
+  --        = rγ² ⋅ (⟨c₂|ee|c₂⟩ + η² ⋅ ⟨c₂|ee|c₂⟩²)
+  --        = rγ² ⋅ ⟨c₂|ee|c₂⟩ + η² ⋅ rγ² ⋅ ⟨c₂|ee|c₂⟩²
+  --    η² = (1 − rγ²⋅⟨c₂|ee|c₂⟩) / (rγ² ⋅ ⟨c₂|ee|c₂⟩²)
+  --    η = √(1 − rγ²⋅⟨c₂|ee|c₂⟩) / (rγ ⋅ ⟨c₂|ee|c₂⟩)
+  --    With ⟨c₂|ee|c₂⟩ = (⟨c₂|e₁|c₂⟩ + ⟨c₂|e₂|c₂⟩)/α.
 
   
   -- | If @p@ is in @a@ (red) and @δ@ is in @b@ (green),
