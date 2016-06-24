@@ -87,16 +87,23 @@ import GHC.Generics (Generic)
 
 
 type WebNodeId = Int
-type NeighbourRefs = UArr.Vector WebNodeId
+
+data Neighbourhood x = Neighbourhood {
+     neighbours :: UArr.Vector WebNodeId
+   , localScalarProduct :: Metric x
+   }
+  deriving (Generic)
+
+instance (NFData x, NFData (HerMetric (Needle x))) => NFData (Neighbourhood x)
 
 data PointsWeb :: * -> * -> * where
    PointsWeb :: {
        webNodeRsc :: ShadeTree x
-     , webNodeAssocData :: Arr.Vector (y, NeighbourRefs)
+     , webNodeAssocData :: Arr.Vector (y, Neighbourhood x)
      } -> PointsWeb x y
   deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
 
-instance (NFData x, NFData (Needle' x), NFData y) => NFData (PointsWeb x y)
+instance (NFData x, NFData (HerMetric (Needle x)), NFData (Needle' x), NFData y) => NFData (PointsWeb x y)
 
 instance Foldable (PointsWeb x) (->) (->) where
   ffoldl = uncurry . Hask.foldl' . curry
@@ -132,7 +139,7 @@ fromShaded metricf shd = PointsWeb shd' assocData
        assocData = Hask.foldMap locMesh $ twigsWithEnvirons shd
        
        locMesh :: ((Int, ShadeTree (x`WithAny`y)), [(Int, ShadeTree (x`WithAny`y))])
-                   -> Arr.Vector (y, NeighbourRefs)
+                   -> Arr.Vector (y, Neighbourhood x)
        locMesh ((i₀, locT), neighRegions) = Arr.map findNeighbours locLeaves
         where locLeaves = Arr.map (first (+i₀)) . Arr.indexed . Arr.fromList
                                           $ onlyLeaves locT
@@ -142,9 +149,11 @@ fromShaded metricf shd = PointsWeb shd' assocData
                                                . Arr.fromList
                                                $ onlyLeaves ngbR
                                 ) neighRegions
-              findNeighbours :: (Int, x`WithAny`y) -> (y, NeighbourRefs)
+              findNeighbours :: (Int, x`WithAny`y) -> (y, Neighbourhood x)
               findNeighbours (i, WithAny y x)
-                         = (y, UArr.fromList $ fst<$>execState seek mempty)
+                         = (y, Neighbourhood
+                                 (UArr.fromList $ fst<$>execState seek mempty)
+                                 locRieM )
                where seek = do
                         Hask.forM_ (locLeaves Arr.++ vicinityLeaves)
                                   $ \(iNgb, WithAny _ xNgb) ->
@@ -180,7 +189,7 @@ webEdges :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> [((x,y), (x,y))]
 webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
  where allEdges :: Set.Set (WebNodeId,WebNodeId)
-       allEdges = Hask.foldMap (\(i,(_,ngbs))
+       allEdges = Hask.foldMap (\(i,(_, Neighbourhood ngbs _))
                     -> Set.fromList [(min i i', max i i')
                                     | i'<-UArr.toList ngbs ]
                                ) $ Arr.indexed assoc
@@ -192,7 +201,8 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
  where asd' = Arr.imap (\i (y,n) -> case indexShadeTree rsc i of
                                          Right (_,x) -> ((x,y),n) ) asd
        asd''= Arr.map (\(xy,n) ->
-                       ((xy, [fst (asd' Arr.! j) | j<-UArr.toList n]), n)
+                       ((xy, [ fst (asd' Arr.! j)
+                             | j<-UArr.toList (neighbours n)]), n)
                  ) asd'
 
 
