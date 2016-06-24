@@ -726,6 +726,15 @@ covariance (HerMetric' (Just m))
            = HMat.invlndet . getDenseMatrix $ fst . m . (id&&&zeroV)
 
 
+volumeRatio :: HasMetric v => HerMetric v -> HerMetric v -> Scalar v
+volumeRatio (HerMetric Nothing) (HerMetric Nothing) = 1
+volumeRatio (HerMetric _) (HerMetric Nothing) = 0
+volumeRatio (HerMetric (Just (DenseLinear m₁)))
+            (HerMetric (Just (DenseLinear m₂)))
+    = HMat.det m₂ / HMat.det m₁
+volumeRatio (HerMetric Nothing) (HerMetric _) = 1/0
+
+
 metricAsLength :: HerMetric ℝ -> ℝ
 metricAsLength m = case metricSq m 1 of
    o | o > 0      -> sqrt $ recip o
