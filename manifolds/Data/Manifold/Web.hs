@@ -196,13 +196,29 @@ webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
        lookId i | Option (Just xy) <- indexWeb web i  = xy
 
 
-localFocusWeb :: WithField ℝ Manifold x => PointsWeb x y -> PointsWeb x ((x,y), [(x,y)])
+markWebBoundaries :: ∀ x y . WithField ℝ Manifold x
+            => PointsWeb x y -> PointsWeb x (y, Bool)
+markWebBoundaries = mwb . localFocusWeb
+ where mwb (PointsWeb rsc asd) = PointsWeb rsc asd'
+        where asd' = Arr.map (\(((x,y), ngbCo), ngbH)
+                      -> ((y, anyUnopposed (localScalarProduct ngbH) ngbCo), ngbH)
+                         ) asd
+       anyUnopposed rieM ngbCo = (`any`ngbCo) $ \(v,_)
+                         -> not $ (`any`ngbCo) $ \(v',_)
+                              -> toDualWith rieM v <.>^ v' < 0
+
+localFocusWeb :: WithField ℝ Manifold x
+                   => PointsWeb x y -> PointsWeb x ((x,y), [(Needle x, y)])
 localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
  where asd' = Arr.imap (\i (y,n) -> case indexShadeTree rsc i of
                                          Right (_,x) -> ((x,y),n) ) asd
-       asd''= Arr.map (\(xy,n) ->
-                       ((xy, [ fst (asd' Arr.! j)
-                             | j<-UArr.toList (neighbours n)]), n)
+       asd''= Arr.map (\((x,y),n) ->
+                       (((x,y), [ ( case x'.-~.x of
+                                     Option (Just v) -> v
+                                  , y')
+                                | j<-UArr.toList (neighbours n)
+                                , let ((x',y'),_) = asd' Arr.! j
+                                ]), n)
                  ) asd'
 
 

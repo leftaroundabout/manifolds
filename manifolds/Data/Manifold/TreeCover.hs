@@ -808,20 +808,20 @@ type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
 
 
 filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
-           => DifferentialEqn x y -> ((x, Shade' y), NonEmpty (x, Shade' y))
+           => DifferentialEqn x y -> ((x, Shade' y), NonEmpty (Needle x, Shade' y))
                    -> Option (Shade' y)
 filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours) = yc
  where jShade@(Shade' j₀ jExpa) = f shxy
        [shxy] = pointsCovers [ (xs, ys')
-                             | (xs, Shade' ys yse) <- (x,shy):NE.toList neighbours
+                             | (xs, Shade' ys yse)
+                                 <- (x,shy):(first (x.+~^)<$>NE.toList neighbours)
                              , δy <- eigenCoSpan' yse
                              , ys' <- [ys.+~^δy, ys.-~^δy] ]
-       [Shade' _ expax] = pointsCover's $ x : (fst<$>NE.toList neighbours)
+       [Shade' _ expax] = pointsCover's $ x : ((x.+~^).fst<$>NE.toList neighbours)
        marginδs :: NonEmpty (Needle x, (Needle y, Metric y))
        marginδs = [ (δxm, (δym, expany))
-                  | (xn, Shade' yn expany) <- neighbours
-                  , let (Option (Just δxm)) = xn.-~.x
-                        (Option (Just δym)) = yn.-~.y
+                  | (δxm, Shade' yn expany) <- neighbours
+                  , let (Option (Just δym)) = yn.-~.y
                   ]
        back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y
        back2Centre (δx, (δym, expany))
