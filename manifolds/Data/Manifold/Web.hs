@@ -83,6 +83,8 @@ import Control.Monad.Constrained hiding (forM)
 import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
+import Control.Comonad (Comonad(..))
+
 import GHC.Generics (Generic)
 
 
@@ -185,6 +187,9 @@ indexWeb (PointsWeb rsc assocD) i
   , Right (_,x) <- indexShadeTree rsc i  = pure (x, fst (assocD Arr.! i))
   | otherwise                            = empty
 
+unsafeIndexWebData :: PointsWeb x y -> WebNodeId -> y
+unsafeIndexWebData (PointsWeb _ asd) i = fst (asd Arr.! i)
+
 webEdges :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> [((x,y), (x,y))]
 webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
@@ -196,13 +201,22 @@ webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
        lookId i | Option (Just xy) <- indexWeb web i  = xy
 
 
-markWebBoundaries :: ∀ x y . WithField ℝ Manifold x
-            => PointsWeb x y -> PointsWeb x (y, Bool)
-markWebBoundaries = mwb . localFocusWeb
- where mwb (PointsWeb rsc asd) = PointsWeb rsc asd'
-        where asd' = Arr.map (\(((x,y), ngbCo), ngbH)
-                      -> ((y, anyUnopposed (localScalarProduct ngbH) ngbCo), ngbH)
-                         ) asd
+webLocalInfo :: ∀ x y . WithField ℝ Manifold x
+            => PointsWeb x y -> PointsWeb x (WebLocally x y)
+webLocalInfo origWeb = result
+ where result = wli $ localFocusWeb origWeb
+       wli (PointsWeb rsc asd) = PointsWeb rsc asd'
+        where asd' = Arr.imap localInfo asd
+       localInfo i (((x,y), ngbCo), ngbH)
+            = ( LocalWebInfo {
+                  _thisNodeCoord = x
+                , _thisNodeData = y
+                , _containingWeb = result
+                , _thisNodeId = i
+                , _nodeNeighbours = ngbCo
+                , _nodeLocalScalarProduct = localScalarProduct ngbH
+                , _nodeIsOnBoundary = anyUnopposed (localScalarProduct ngbH) ngbCo
+                }, ngbH )
        anyUnopposed rieM ngbCo = (`any`ngbCo) $ \(v,_)
                          -> not $ (`any`ngbCo) $ \(v',_)
                               -> toDualWith rieM v <.>^ v' < 0
@@ -221,6 +235,24 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                                 ]), n)
                  ) asd'
 
+
+data WebLocally x y = LocalWebInfo {
+      _thisNodeCoord :: x
+    , _thisNodeData :: y
+    , _containingWeb :: PointsWeb x (WebLocally x y)
+    , _thisNodeId :: WebNodeId
+    , _nodeNeighbours :: [(Needle x, y)]
+    , _nodeLocalScalarProduct :: Metric x
+    , _nodeIsOnBoundary :: Bool
+    } deriving (Generic)
+
+instance Hask.Functor (WebLocally x) where
+  fmap f (LocalWebInfo co dt wb id ng sp bn)
+       = LocalWebInfo co (f dt) (fmap (fmap f) wb) id (map (second f) ng) sp bn
+instance WithField ℝ Manifold x => Comonad (WebLocally x) where
+  extract = _thisNodeData
+  duplicate lweb = unsafeIndexWebData deepened $ _thisNodeId lweb
+   where deepened = webLocalInfo $ _containingWeb lweb
 
 data ConvexSet x
     = EmptyConvex
