@@ -83,6 +83,7 @@ Library
                    Data.Function.Differentiable.Data
                    Data.Function.Affine
                    Data.VectorSpace.FiniteDimensional
+                   Control.Monad.Trans.OuterMaybe
                    Util.Associate
                    Util.LtdShow
   default-language: Haskell2010

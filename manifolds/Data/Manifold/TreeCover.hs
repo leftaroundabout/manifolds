@@ -97,6 +97,7 @@ import qualified Control.Monad       as Hask hiding(forM_, sequence)
 import Data.Functor.Identity
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
+import Control.Monad.Trans.OuterMaybe
 import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, elem, toList, sum, foldr1)
@@ -841,12 +842,6 @@ filterDEqnSolution_loc f ((x, shy@(Shade' y expay)), neighbours) = yc
 twigsWithEnvirons :: ∀ x. WithField ℝ Manifold x
     => ShadeTree x -> [((Int, ShadeTree x), [(Int, ShadeTree x)])]
 twigsWithEnvirons = execWriter . traverseTwigsWithEnvirons (writer . (snd.fst&&&pure))
-
-data OuterMaybeT f a = OuterNothing | OuterJust (f a) deriving (Hask.Functor)
-instance (Hask.Applicative f) => Hask.Applicative (OuterMaybeT f) where
-  pure = OuterJust . pure
-  OuterJust fs <*> OuterJust xs = OuterJust $ fs <*> xs
-  _ <*> _ = OuterNothing
 
 traverseTwigsWithEnvirons :: ∀ x f .
             (WithField ℝ Manifold x, Hask.Applicative f)
