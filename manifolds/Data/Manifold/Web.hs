@@ -41,7 +41,10 @@ module Data.Manifold.Web (
               -- ** Local environments
             , localFocusWeb
               -- * Differential equations
+              -- ** Fixed resolution
             , filterDEqnSolution_static, iterateFilterDEqn_static
+              -- ** Automatic resolution
+            , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- * Misc
             , ConvexSet(..), ellipsoid
             ) where
@@ -310,6 +313,13 @@ filterDEqnSolutions_static f = localFocusWeb >>> Hask.traverse `id`
                                ((x,hull), second convexSetHull<$>NE.fromList ngbs)
                      >>= \case EmptyConvex -> empty
                                c           -> pure c
+
+iterateFilterDEqn_adaptive :: (WithField ℝ Manifold x, Refinable y)
+       => MetricChoice x -> DifferentialEqn x y
+             -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
+iterateFilterDEqn_adaptive mf f = map (fmap (convexSetHull . fst))
+                                . itWhileJust (filterDEqnSolutions_adaptive mf f)
+                                . fmap ((,[]) . ellipsoid)
 
 filterDEqnSolutions_adaptive :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
        => MetricChoice x -> DifferentialEqn x y
