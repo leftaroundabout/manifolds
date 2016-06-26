@@ -39,8 +39,10 @@ module Data.LinearMap.HerMetric (
   , eigenSpan, eigenSpan'
   , eigenCoSpan, eigenCoSpan'
   , eigenSystem, HasEigenSystem, EigenVector
+  -- ** Scaling operations
   , metriNormalise, metriNormalise'
   , metriScale', metriScale
+  , volumeRatio
   , adjoint
   , extendMetric
   , applyLinMapMetric, applyLinMapMetric'

@@ -60,6 +60,7 @@ import Control.DeepSeq
 import Data.VectorSpace
 import Data.LinearMap.HerMetric
 import Data.Tagged
+import Data.Function (on)
 
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive (empty)
@@ -71,6 +72,7 @@ import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask hiding(forM_, sequence)
 import Control.Monad.Trans.State
+import Control.Monad.Trans.List
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, toList)
 import qualified Data.Traversable as Hask
@@ -119,7 +121,7 @@ instance Traversable (PointsWeb x) (PointsWeb x) (->) (->) where
 
 
 fromWebNodes :: ∀ x y . WithField ℝ Manifold x
-                    => (Shade x->Metric x) -> [(x,y)] -> PointsWeb x y
+                    => (MetricChoice x) -> [(x,y)] -> PointsWeb x y
 fromWebNodes mf = fromShaded mf . fromLeafPoints . map (uncurry WithAny . swap)
 
 fromShadeTree_auto :: ∀ x . WithField ℝ Manifold x => ShadeTree x -> PointsWeb x ()
@@ -130,7 +132,7 @@ fromShadeTree :: ∀ x . WithField ℝ Manifold x
 fromShadeTree mf = fromShaded mf . constShaded ()
 
 fromShaded :: ∀ x y . WithField ℝ Manifold x
-     => (Shade x -> Metric x) -- ^ Local scalar-product generator. You can always
+     => (MetricChoice x) -- ^ Local scalar-product generator. You can always
                               --   use @'recipMetric' . '_shadeExpanse'@ (but this
                               --   may give distortions compared to an actual
                               --   Riemannian metric).
@@ -309,8 +311,37 @@ filterDEqnSolutions_static f = localFocusWeb >>> Hask.traverse `id`
                      >>= \case EmptyConvex -> empty
                                c           -> pure c
 
+filterDEqnSolutions_adaptive :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
+       => MetricChoice x -> DifferentialEqn x y
+             -> PointsWeb x (ConvexSet y, [ℝ])
+                        -> Option (PointsWeb x (ConvexSet y, [ℝ]))
+filterDEqnSolutions_adaptive mf f
+         = fmap (fromWebNodes mf . concat) . runListT
+             . Hask.traverse localChange . Hask.toList . webLocalInfo
+ where localChange :: WebLocally x (ConvexSet y, [ℝ])
+                             -> ListT Option (x, (ConvexSet y, [ℝ]))
+       localChange localInfo@LocalWebInfo{
+                         _thisNodeCoord = x
+                       , _thisNodeData = (shy@(ConvexSet hull _), vyhist)
+                       , _nodeNeighbours = ngbs
+                       }
+        | null ngbs  = ListT $ pure [(x, (shy, 1:vyhist))]
+        | otherwise  = do
+               shy' <- ListT . fmap pure
+                      $ ((shy<>) . ellipsoid)
+                        <$> filterDEqnSolution_loc f
+                               ( (x,hull)
+                               , second (convexSetHull . fst) <$> NE.fromList ngbs )
+               volumeChange <- case shy' of
+                  EmptyConvex        -> ListT empty
+                  ConvexSet hull' _  -> return $ (volumeRatio`on`_shade'Narrowness)
+                                                      hull' hull
+               return $ (x, (shy', volumeChange : vyhist))
+                              
 
 
+
+type MetricChoice x = Shade x -> Metric x
 
 
 itWhileJust :: (a -> Option a) -> a -> [a]
