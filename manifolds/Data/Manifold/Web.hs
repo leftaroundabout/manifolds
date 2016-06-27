@@ -326,27 +326,46 @@ filterDEqnSolutions_adaptive :: ∀ x y . (WithField ℝ Manifold x, Refinable y
              -> PointsWeb x (ConvexSet y, [ℝ])
                         -> Option (PointsWeb x (ConvexSet y, [ℝ]))
 filterDEqnSolutions_adaptive mf f
-         = fmap (fromWebNodes mf . concat) . runListT
+         = fmap (fromWebNodes mf . concat)
              . Hask.traverse localChange . Hask.toList . webLocalInfo
  where localChange :: WebLocally x (ConvexSet y, [ℝ])
-                             -> ListT Option (x, (ConvexSet y, [ℝ]))
+                             -> Option [(x, (ConvexSet y, [ℝ]))]
        localChange localInfo@LocalWebInfo{
                          _thisNodeCoord = x
                        , _thisNodeData = (shy@(ConvexSet hull _), vyhist)
                        , _nodeNeighbours = ngbs
                        }
-        | null ngbs  = ListT $ pure [(x, (shy, 1:vyhist))]
+        | null ngbs  = return [(x, (shy, 1:vyhist))]
         | otherwise  = do
-               shy' <- ListT . fmap pure
-                      $ ((shy<>) . ellipsoid)
+               shy' <- ((shy<>) . ellipsoid)
                         <$> filterDEqnSolution_loc f
                                ( (x,hull)
                                , second (convexSetHull . fst) <$> NE.fromList ngbs )
                volumeChange <- case shy' of
-                  EmptyConvex        -> ListT empty
-                  ConvexSet hull' _  -> return $ (volumeRatio`on`_shade'Narrowness)
-                                                      hull' hull
-               return $ (x, (shy', volumeChange : vyhist))
+                  EmptyConvex        -> empty
+                  ConvexSet hull' _  -> return $
+                                        (volumeRatio`on`_shade'Narrowness) hull' hull
+               let age = length vyhist
+                   updated = (x, (shy', volumeChange : vyhist))
+               if isRefinement volumeChange
+                then return [updated]
+                else do
+                   stepStones <- fmap concat . forM ngbs
+                                   $ \(vN, (shyN, vyhistN)) -> do
+                      case vyhistN of
+                        _ -> return []
+                        (volumeChangeN:_) | isRefinement volumeChangeN
+                              -> return [(x.+~^vN^/2, (shy, []))]
+                   if length stepStones > 0
+                    then return $ updated : stepStones
+                    else if age < environAge
+                          then return []
+                          else return [updated]
+        where environAge = maximum $ length . snd . snd <$> ngbs
+       
+       -- | Decide whether a change in the error bound is significant enough to
+       --   be useful for further propagation.
+       isRefinement volChange = volChange < 0.99
                               
 
 
