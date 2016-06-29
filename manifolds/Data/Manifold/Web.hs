@@ -366,9 +366,14 @@ filterDEqnSolutions_adaptive mf f badness
                         (prevBadnessN:|(_:_))
                             | prevBadnessN < newBadness
                             , prevBadnessN / unfreshness < 1 -> do
-                                 let xStep = x .+~^ vN^/2
+                                 let stepV = vN^/2
+                                     xStep = x .+~^ stepV
                                  shyStep <- filterDEqnSolution_loc f
-                                            ( (xStep, hull), neighbourHulls )
+                                            ( (xStep, hull)
+                                            , NE.cons (negateV stepV, hull)
+                                                $ fmap (\(vN',hullN')
+                                                         -> (vN'^-^stepV, hullN') )
+                                                    neighbourHulls )
                                  return [(xStep, ( ellipsoid shyStep
                                                  , pure (badness xStep shyStep) ))]
                         _otherwise -> return []
