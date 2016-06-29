@@ -42,7 +42,7 @@ module Data.LinearMap.HerMetric (
   -- ** Scaling operations
   , metriNormalise, metriNormalise'
   , metriScale', metriScale
-  , volumeRatio
+  , volumeRatio, euclideanRelativeMetricVolume
   , adjoint
   , extendMetric
   , applyLinMapMetric, applyLinMapMetric'
@@ -736,6 +736,9 @@ volumeRatio (HerMetric (Just (DenseLinear m₁)))
     = HMat.det m₂ / HMat.det m₁
 volumeRatio (HerMetric Nothing) (HerMetric _) = 1/0
 
+euclideanRelativeMetricVolume :: (HasMetric v, InnerSpace v) => HerMetric v -> Scalar v
+euclideanRelativeMetricVolume (HerMetric Nothing) = 1/0
+euclideanRelativeMetricVolume (HerMetric (Just (DenseLinear m))) = recip $ HMat.det m
 
 metricAsLength :: HerMetric ℝ -> ℝ
 metricAsLength m = case metricSq m 1 of

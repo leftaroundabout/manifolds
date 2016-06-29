@@ -46,7 +46,7 @@ module Data.Manifold.Web (
               -- ** Automatic resolution
             , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- * Misc
-            , ConvexSet(..), ellipsoid
+            , ConvexSet(..), ellipsoid, euclideanVolGoal
             ) where
 
 
@@ -388,6 +388,11 @@ filterDEqnSolutions_adaptive mf f badness
 
 
 type MetricChoice x = Shade x -> Metric x
+
+
+euclideanVolGoal :: WithField ℝ EuclidSpace y => ℝ -> x -> Shade' y -> ℝ
+euclideanVolGoal vTgt _ (Shade' _ shy) = euclideanRelativeMetricVolume shy / vTgt
+
 
 
 itWhileJust :: (a -> Option a) -> a -> [a]
