@@ -357,7 +357,7 @@ filterDEqnSolutions_adaptive mf f badness
                    updated = (x, (shy', NE.cons newBadness badnessHist))
                if isRefinement newBadness
                 then return [updated]
-                else if newBadness < 1 && age < environAge
+                else if newBadness < unfreshness && age < environAge
                  then return []
                  else do
                    stepStones <- fmap concat . forM ngbs
@@ -365,7 +365,7 @@ filterDEqnSolutions_adaptive mf f badness
                       case badnessHistN of
                         (prevBadnessN:|(_:_))
                             | prevBadnessN < newBadness
-                            , prevBadnessN / unfreshness < 1 -> do
+                            , prevBadnessN < unfreshness -> do
                                  let stepV = vN^/2
                                      xStep = x .+~^ stepV
                                  shyStep <- filterDEqnSolution_loc f

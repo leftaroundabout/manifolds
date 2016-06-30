@@ -449,7 +449,7 @@ instance (HasMetric v, Scalar v ~ ℝ) => HasEigenSystem (HerMetric v, HerMetric
          fromℝn2v = HMat.tr fromv'2ℝn
          fromℝn2v' = HMat.fromColumns $ map (asPackedVector . fst) nSpan
          (nKernel, nSpan) = eigenSystem n
-  eigenSystem (_, HerMetric Nothing) = (fmap Stiefel1 completeBasisValues, [])
+  eigenSystem (_, _) = (fmap Stiefel1 completeBasisValues, [])
 
 
 -- | Constraint that a space's scalars need to fulfill so it can be used for 'HerMetric'.
