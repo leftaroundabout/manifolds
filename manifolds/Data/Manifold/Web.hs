@@ -331,41 +331,52 @@ filterDEqnSolutions_adaptive :: ∀ x y . (WithField ℝ Manifold x, Refinable y
        -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
              -> PointsWeb x (ConvexSet y, NonEmpty ℝ)
                         -> Option (PointsWeb x (ConvexSet y, NonEmpty ℝ))
-filterDEqnSolutions_adaptive mf f badness
-         = fmap (fromWebNodes mf . concat)
-             . Hask.traverse localChange . Hask.toList . webLocalInfo
- where localChange :: WebLocally x (ConvexSet y, NonEmpty ℝ)
+filterDEqnSolutions_adaptive mf f badness oldState
+         = fmap (fromWebNodes mf . concat) $ Hask.traverse localChange preproc'd
+ where preproc'd = Hask.toList $ webLocalInfo oldState
+       smallBadnessGradient, largeBadnessGradient :: ℝ
+       (smallBadnessGradient, largeBadnessGradient)
+           = ( badnessGradRated!!(n`div`4), badnessGradRated!!(n*3`div`4) )
+        where n = length badnessGradRated
+              badnessGradRated = sort [ bad / ngBad
+                                      | LocalWebInfo {
+                                            _thisNodeData=(_, bad:|_)
+                                          , _nodeNeighbours=ngbs
+                                          } <- preproc'd
+                                      , (_, (_, ngBad:|_)) <- ngbs
+                                      , ngBad<bad ]
+       localChange :: WebLocally x (ConvexSet y, NonEmpty ℝ)
                              -> Option [(x, (ConvexSet y, NonEmpty ℝ))]
        localChange localInfo@LocalWebInfo{
                          _thisNodeCoord = x
-                       , _thisNodeData = (shy@(ConvexSet hull _), badnessHist)
+                       , _thisNodeData = ( shy@(ConvexSet hull _)
+                                         , badnessHist@(prevBadness:|_) )
                        , _nodeNeighbours = ngbs
                        }
         | null ngbs  = return [(x, (shy, dupHead badnessHist))]
         | otherwise  = do
                let neighbourHulls = second (convexSetHull . fst) <$> NE.fromList ngbs
-               shy' <- ((shy<>) . ellipsoid)
-                        <$> filterDEqnSolution_loc f
-                               ( (x,hull), neighbourHulls )
-               newBadness <- case shy' of
-                  EmptyConvex        -> empty
-                  ConvexSet hull' _  -> return $ badness x hull'
-               let age = length badnessHist
-                   (environAge, unfreshness)
-                     = (maximum &&& fromIntegral . minimum)
-                         $ age : (length . snd . snd <$> ngbs)
-                   updated = (x, (shy', NE.cons newBadness badnessHist))
-               if isRefinement newBadness
-                then return [updated]
-                else if newBadness < unfreshness && age < environAge
-                 then return []
-                 else do
+                   age = length badnessHist
+                   environAge = maximum $ age : (length . snd . snd <$> ngbs)
+               case find (\(_, (_, prevBadnessN:|_))
+                               -> prevBadnessN / prevBadness > smallBadnessGradient)
+                              ngbs of
+                 Nothing | age < environAge   -- point is an obsolete step-stone;
+                   -> return []               -- do not further use it.
+                 _otherwise -> do
+                   shy' <- ((shy<>) . ellipsoid)
+                            <$> filterDEqnSolution_loc f
+                                   ( (x,hull), neighbourHulls )
+                   newBadness <- case shy' of
+                      EmptyConvex        -> empty
+                      ConvexSet hull' _  -> return $ badness x hull'
+                   let updated = (x, (shy', NE.cons newBadness badnessHist))
                    stepStones <- fmap concat . forM ngbs
                                    $ \(vN, (ConvexSet hullN _, badnessHistN)) -> do
                       case badnessHistN of
-                        (prevBadnessN:|(_:_))
-                            | prevBadnessN < newBadness
-                            , prevBadnessN < unfreshness -> do
+                        (prevBadnessN:|_)
+                            | badnessGrad <- prevBadnessN / prevBadness
+                            , badnessGrad > largeBadnessGradient -> do
                                  let stepV = vN^/2
                                      xStep = x .+~^ stepV
                                  shyStep <- filterDEqnSolution_loc f
@@ -377,17 +388,7 @@ filterDEqnSolutions_adaptive mf f badness
                                  return [(xStep, ( ellipsoid shyStep
                                                  , pure (badness xStep shyStep) ))]
                         _otherwise -> return []
-                   if length stepStones > 0
-                    then return $ updated : stepStones
-                    else if age < environAge
-                          then return []
-                          else return [updated]
-       
-              -- | Decide whether a change in the error bound is significant enough to
-              --   be useful for further propagation.
-           where isRefinement newBadness = case badnessHist of
-                     oldBad :| _ -> newBadness < NE.head badnessHist
-                         -- at the moment, accept any change towards more precision.
+                   return $ updated : stepStones
                               
 
 
