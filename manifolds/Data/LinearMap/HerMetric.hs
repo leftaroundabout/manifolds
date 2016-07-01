@@ -30,7 +30,7 @@ module Data.LinearMap.HerMetric (
   -- * One-dimensional axes and product spaces
   , factoriseMetric, factoriseMetric'
   , productMetric, productMetric'
-  , metricAsLength, metricFromLength, metric'AsLength
+  , tryMetricAsLength, metricAsLength, metricFromLength, metric'AsLength
   -- * Utility for metrics
   , transformMetric, transformMetric', dualCoCoProduct
   , dualiseMetric, dualiseMetric'
@@ -740,11 +740,17 @@ euclideanRelativeMetricVolume :: (HasMetric v, InnerSpace v) => HerMetric v -> S
 euclideanRelativeMetricVolume (HerMetric Nothing) = 1/0
 euclideanRelativeMetricVolume (HerMetric (Just (DenseLinear m))) = recip $ HMat.det m
 
+tryMetricAsLength :: HerMetric ℝ -> Option ℝ
+tryMetricAsLength m = case metricSq m 1 of
+   o | o > 0      -> pure . sqrt $ recip o
+     | otherwise  -> empty
+
+-- | Unsafe version of 'tryMetricAsLength', only works reliable if the metric
+--   is strictly positive definite.
 metricAsLength :: HerMetric ℝ -> ℝ
 metricAsLength m = case metricSq m 1 of
-   o | o > 0      -> sqrt $ recip o
+   o | o >= 0     -> sqrt $ recip o
      | o < 0      -> error "Metric fails to be positive definite!"
-     | o == 0     -> error "Trying to use zero metric as length."
      | otherwise  -> error "Metric yields NaN."
 
 metricFromLength :: ℝ -> HerMetric ℝ
