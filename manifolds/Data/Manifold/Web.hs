@@ -66,7 +66,7 @@ import Data.Tagged
 import Data.Function (on)
 
 import Data.Manifold.Types
-import Data.Manifold.Types.Primitive (empty)
+import Data.Manifold.Types.Primitive (empty, (^))
 import Data.Manifold.PseudoAffine
 import Data.Manifold.TreeCover
 import Data.SetLike.Intersection
@@ -412,7 +412,8 @@ type MetricChoice x = Shade x -> Metric x
 
 
 euclideanVolGoal :: WithField ℝ EuclidSpace y => ℝ -> x -> Shade' y -> ℝ
-euclideanVolGoal vTgt _ (Shade' _ shy) = euclideanRelativeMetricVolume shy / vTgt
+euclideanVolGoal vTgt _ (Shade' _ shy) = 0.3 + sqrt (η * (1 + η/(1+η)) / (3 + η))
+ where η = euclideanRelativeMetricVolume shy / vTgt
 
 
 
