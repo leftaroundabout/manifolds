@@ -357,7 +357,8 @@ filterDEqnSolutions_adaptive mf f badness oldState
         | otherwise  = do
                let neighbourHulls = second (convexSetHull . fst) <$> NE.fromList ngbs
                    age = length badnessHist
-                   environAge = maximum $ age : (length . snd . snd <$> ngbs)
+                   (environAge, unfreshness)
+                      = maximum&&&minimum $ age : (length . snd . snd <$> ngbs)
                case find (\(_, (_, prevBadnessN:|_))
                                -> prevBadnessN / prevBadness > smallBadnessGradient)
                               ngbs of
@@ -371,9 +372,12 @@ filterDEqnSolutions_adaptive mf f badness oldState
                       EmptyConvex        -> empty
                       ConvexSet hull' _  -> return $ badness x hull'
                    let updated = (x, (shy', NE.cons newBadness badnessHist))
-                   stepStones <- fmap concat . forM ngbs
+                   stepStones <-
+                     if unfreshness < 3
+                      then return []
+                      else fmap concat . forM ngbs
                                    $ \(vN, (ConvexSet hullN _, badnessHistN)) -> do
-                      case badnessHistN of
+                       case badnessHistN of
                         (prevBadnessN:|_)
                             | badnessGrad <- prevBadnessN / prevBadness
                             , badnessGrad > largeBadnessGradient -> do

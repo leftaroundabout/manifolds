@@ -828,7 +828,7 @@ filterDEqnSolution_loc f ((x, shy@(Shade' y _)), neighbours) = yc
        back2Centre (δx, (δym, expany))
             = convolveShade'
                 (Shade' y expany)
-                (Shade' δyb $ applyLinMapMetric jExpa δx')
+                (Shade' δyb $ applyLinMapMetric jExpa (δx'^/(δx'<.>^δx)))
         where δyb = δym ^-^ (j₀ $ δx)
               δx' = toDualWith expax δx
        yc :: Option (Shade' y)
