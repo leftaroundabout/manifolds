@@ -320,17 +320,27 @@ iterateFilterDEqn_adaptive :: (WithField ℝ Manifold x, Refinable y)
        -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
              -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
 iterateFilterDEqn_adaptive mf f badness
-    = map (fmap (convexSetHull . fst))
+    = map (fmap (convexSetHull . _solverNodeStatus))
     . itWhileJust (filterDEqnSolutions_adaptive mf f badness)
-    . fmap (\((x,shy),_) -> (ellipsoid shy, pure (badness x shy)))
+    . fmap (\((x,shy),_) -> SolverNodeInfo (ellipsoid shy)
+                                           (badness x shy)
+                                           1
+           )
     . localFocusWeb
+
+
+data SolverNodeState y = SolverNodeInfo {
+      _solverNodeStatus :: ConvexSet y
+    , _solverNodeBadness :: ℝ
+    , _solverNodeAge :: Int
+    }
 
 filterDEqnSolutions_adaptive :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> DifferentialEqn x y 
        -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
-             -> PointsWeb x (ConvexSet y, NonEmpty ℝ)
-                        -> Option (PointsWeb x (ConvexSet y, NonEmpty ℝ))
+             -> PointsWeb x (SolverNodeState y)
+                        -> Option (PointsWeb x (SolverNodeState y))
 filterDEqnSolutions_adaptive mf f badness oldState
          = fmap (fromWebNodes mf . concat) $ Hask.traverse localChange preproc'd
  where preproc'd = Hask.toList $ webLocalInfo oldState
@@ -340,26 +350,26 @@ filterDEqnSolutions_adaptive mf f badness oldState
         where n = length badnessGradRated
               badnessGradRated = sort [ bad / ngBad
                                       | LocalWebInfo {
-                                            _thisNodeData=(_, bad:|_)
+                                            _thisNodeData=SolverNodeInfo _ bad _
                                           , _nodeNeighbours=ngbs
                                           } <- preproc'd
-                                      , (_, (_, ngBad:|_)) <- ngbs
+                                      , (_, SolverNodeInfo _ ngBad _) <- ngbs
                                       , ngBad<bad ]
-       localChange :: WebLocally x (ConvexSet y, NonEmpty ℝ)
-                             -> Option [(x, (ConvexSet y, NonEmpty ℝ))]
+       localChange :: WebLocally x (SolverNodeState y)
+                             -> Option [(x, (SolverNodeState y))]
        localChange localInfo@LocalWebInfo{
                          _thisNodeCoord = x
-                       , _thisNodeData = ( shy@(ConvexSet hull _)
-                                         , badnessHist@(prevBadness:|_) )
+                       , _thisNodeData = SolverNodeInfo
+                                           shy@(ConvexSet hull _) prevBadness age
                        , _nodeNeighbours = ngbs
                        }
-        | null ngbs  = return [(x, (shy, dupHead badnessHist))]
+        | null ngbs  = return [(x, SolverNodeInfo shy prevBadness (age+1))]
         | otherwise  = do
-               let neighbourHulls = second (convexSetHull . fst) <$> NE.fromList ngbs
-                   age = length badnessHist
+               let neighbourHulls = second (convexSetHull . _solverNodeStatus)
+                                       <$> NE.fromList ngbs
                    (environAge, unfreshness)
-                      = maximum&&&minimum $ age : (length . snd . snd <$> ngbs)
-               case find (\(_, (_, prevBadnessN:|_))
+                      = maximum&&&minimum $ age : (_solverNodeAge . snd <$> ngbs)
+               case find (\(_, SolverNodeInfo _ prevBadnessN _)
                                -> prevBadnessN / prevBadness > smallBadnessGradient)
                               ngbs of
                  Nothing | age < environAge   -- point is an obsolete step-stone;
@@ -371,16 +381,17 @@ filterDEqnSolutions_adaptive mf f badness oldState
                    newBadness <- case shy' of
                       EmptyConvex        -> empty
                       ConvexSet hull' _  -> return $ badness x hull'
-                   let updated = (x, (shy', NE.cons newBadness badnessHist))
+                   let updated = (x, SolverNodeInfo shy' newBadness (age+1))
                    stepStones <-
                      if unfreshness < 3
                       then return []
                       else fmap concat . forM ngbs
-                                   $ \(vN, (ConvexSet hullN _, badnessHistN)) -> do
-                       case badnessHistN of
-                        (prevBadnessN:|_)
-                            | badnessGrad <- prevBadnessN / prevBadness
-                            , badnessGrad > largeBadnessGradient -> do
+                                   $ \(vN, SolverNodeInfo (ConvexSet hullN _)
+                                                          prevBadnessN ageN   ) -> do
+                       case ageN of
+                        _  | ageN > 0
+                           , badnessGrad <- prevBadnessN / prevBadness
+                           , badnessGrad > largeBadnessGradient -> do
                                  let stepV = vN^/2
                                      xStep = x .+~^ stepV
                                  shyStep <- filterDEqnSolution_loc f
@@ -389,8 +400,8 @@ filterDEqnSolutions_adaptive mf f badness oldState
                                                 $ fmap (\(vN',hullN')
                                                          -> (vN'^-^stepV, hullN') )
                                                     neighbourHulls )
-                                 return [(xStep, ( ellipsoid shyStep
-                                                 , pure (badness xStep shyStep) ))]
+                                 return [(xStep, SolverNodeInfo (ellipsoid shyStep)
+                                                 (badness xStep shyStep) 1 )]
                         _otherwise -> return []
                    return $ updated : stepStones
                               
