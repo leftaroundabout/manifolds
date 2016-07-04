@@ -91,6 +91,8 @@ import Data.Manifold.PseudoAffine
 import Data.Embedding
 import Data.CoNat
 
+import Lens.Micro (Lens')
+
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask hiding(forM_, sequence)
@@ -145,7 +147,7 @@ deriving instance (Show x, Show (DualSpace (Needle x)), WithField ℝ Manifold x
 class IsShade shade where
 --  type (*) shade :: *->*
   -- | Access the center of a 'Shade' or a 'Shade''.
-  shadeCtr :: Functor f (->) (->) => (Interior x->f (Interior x)) -> shade x -> f (shade x)
+  shadeCtr :: Lens' (shade x) (Interior x)
 --  -- | Convert between 'Shade' and 'Shade' (which must be neither singular nor infinite).
 --  unsafeDualShade :: WithField ℝ Manifold x => shade x -> shade* x
   -- | Check the statistical likelihood-density of a point being within a shade.
@@ -171,7 +173,7 @@ instance IsShade Shade where
   coerceShade (Shade x (HerMetric' δxym))
           = Shade (locallyTrivialDiffeomorphism x) (HerMetric' $ unsafeCoerceLinear<$>δxym)
 
-shadeExpanse :: Functor f (->) (->) => (Metric' x -> f (Metric' x)) -> Shade x -> f (Shade x)
+shadeExpanse :: Lens' (Shade x) (Metric' x)
 shadeExpanse f (Shade c e) = fmap (Shade c) $ f e
 
 instance IsShade Shade' where
@@ -187,7 +189,7 @@ instance IsShade Shade' where
   coerceShade (Shade' x (HerMetric δxym))
           = Shade' (locallyTrivialDiffeomorphism x) (HerMetric $ unsafeCoerceLinear<$>δxym)
 
-shadeNarrowness :: Functor f (->) (->) => (Metric x -> f (Metric x)) -> Shade' x -> f (Shade' x)
+shadeNarrowness :: Lens' (Shade' x) (Metric x)
 shadeNarrowness f (Shade' c e) = fmap (Shade' c) $ f e
 
 instance (AffineManifold x) => Semimanifold (Shade x) where

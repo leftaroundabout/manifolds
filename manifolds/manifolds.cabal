@@ -49,6 +49,7 @@ Library
                      , void
                      , tagged
                      , deepseq
+                     , microlens >= 0.4 && <= 0.5
                      , trivial-constraint >= 0.4
                      , constrained-categories >= 0.2.3 && < 0.3
   other-extensions:  FlexibleInstances
