@@ -46,7 +46,7 @@ module Data.Manifold.Web (
               -- ** Automatic resolution
             , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- * Misc
-            , ConvexSet(..), ellipsoid, euclideanVolGoal
+            , ConvexSet(..), ellipsoid
             ) where
 
 
@@ -64,6 +64,7 @@ import Data.VectorSpace
 import Data.LinearMap.HerMetric
 import Data.Tagged
 import Data.Function (on)
+import Data.Fixed (mod')
 
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive (empty, (^))
@@ -89,6 +90,7 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 import Control.Comonad (Comonad(..))
+import Lens.Micro ((%~))
 
 import GHC.Generics (Generic)
 
@@ -341,7 +343,7 @@ filterDEqnSolutions_adaptive :: ∀ x y . (WithField ℝ Manifold x, Refinable y
        -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
              -> PointsWeb x (SolverNodeState y)
                         -> Option (PointsWeb x (SolverNodeState y))
-filterDEqnSolutions_adaptive mf f badness oldState
+filterDEqnSolutions_adaptive mf f badness' oldState
          = fmap (fromWebNodes mf . concat) $ Hask.traverse localChange preproc'd
  where preproc'd = Hask.toList $ webLocalInfo oldState
        smallBadnessGradient, largeBadnessGradient :: ℝ
@@ -404,16 +406,16 @@ filterDEqnSolutions_adaptive mf f badness oldState
                                                  (badness xStep shyStep) 1 )]
                         _otherwise -> return []
                    return $ updated : stepStones
+       
+       totalAge = maximum $ _solverNodeAge . _thisNodeData <$> preproc'd
+       errTgtModulation = (1-) . (`mod'`1) . negate . sqrt $ fromIntegral totalAge
+       badness x = badness' x . (shadeNarrowness %~ (^* errTgtModulation))
                               
 
 
 
 type MetricChoice x = Shade x -> Metric x
 
-
-euclideanVolGoal :: WithField ℝ EuclidSpace y => ℝ -> x -> Shade' y -> ℝ
-euclideanVolGoal vTgt _ (Shade' _ shy) = 0.3 + sqrt (η * (1 + η/(1+η)) / (3 + η))
- where η = euclideanRelativeMetricVolume shy / vTgt
 
 
 

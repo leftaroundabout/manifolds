@@ -32,9 +32,15 @@
 
 
 module Data.Manifold.DifferentialEquation (
+            -- * Formulating simple differential eqns.
               DifferentialEqn
             , constLinearDEqn
             , filterDEqnSolution_static, iterateFilterDEqn_static
+            -- * Cost functions for error bounds
+            , maxDeviationsGoal
+            , uncertaintyGoal
+            , uncertaintyGoal'
+            , euclideanVolGoal
             ) where
 
 
@@ -56,6 +62,7 @@ import Data.Manifold.TreeCover
 import Data.Manifold.Web
 
 import qualified Numeric.LinearAlgebra.HMatrix as HMat
+import qualified Data.List as List
 
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
@@ -79,3 +86,32 @@ constLinearDEqn bwt = factoriseShade
                              in Shade' (fromPackedVector j) δj
  where bwt'@(DenseLinear bwt'm) = adjoint bwt
 
+
+-- | A function that variates, relatively speaking, most strongly
+--   for arguments around 1. In the zero-limit it approaches a constant
+--   (but with arbitrarily large derivative); for η → ∞ the derivative
+--   approaches 0.
+--   
+--   The idea is that if you consider the ratio of two function values,
+--   it will be close to 1 if both arguments on the same side of 1,
+--   even if their ratio is large.
+--   Only if both arguments are close to 1, or lie on opposite sides
+--   of it, will the ratio of the function values will be significant.
+goalSensitive :: ℝ -> ℝ
+goalSensitive η =  0.3 + sqrt (η * (1 + η/(1+η)) / (3 + η))
+
+euclideanVolGoal :: WithField ℝ EuclidSpace y => ℝ -> x -> Shade' y -> ℝ
+euclideanVolGoal vTgt _ (Shade' _ shy) = goalSensitive η
+ where η = euclideanRelativeMetricVolume shy / vTgt
+
+maxDeviationsGoal :: WithField ℝ EuclidSpace y => [Needle y] -> x -> Shade' y -> ℝ
+maxDeviationsGoal = uncertaintyGoal . projector's
+
+uncertaintyGoal :: WithField ℝ EuclidSpace y => Metric' y -> x -> Shade' y -> ℝ
+uncertaintyGoal = uncertaintyGoal' . const
+
+uncertaintyGoal' :: WithField ℝ EuclidSpace y => (x -> Metric' y) -> x -> Shade' y -> ℝ
+uncertaintyGoal' f x (Shade' _ shy)
+         = List.sum [goalSensitive $ 1 / metricSq' m q | q <- shySpan]
+ where shySpan = eigenSpan' shy
+       m = f x
