@@ -59,7 +59,7 @@ module Data.Manifold.TreeCover (
        , twigsWithEnvirons, completeTopShading, flexTwigsShading
        , WithAny(..), Shaded, stiAsIntervalMapping, spanShading
        , constShaded, stripShadedUntopological
-       , DifferentialEqn, filterDEqnSolution_loc
+       , DifferentialEqn, propagateDEqnSolution_loc
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild, singleFullSimplex, autoglueTriangulation
        , AutoTriang, elementaryTriang, breakdownAutoTriang
@@ -810,10 +810,10 @@ intersectShade's (sh:|shs) = Hask.foldrM refineShade' sh shs
 type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
 
 
-filterDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
+propagateDEqnSolution_loc :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
            => DifferentialEqn x y -> ((x, Shade' y), NonEmpty (Needle x, Shade' y))
-                   -> Option (Shade' y)
-filterDEqnSolution_loc f ((x, shy@(Shade' y _)), neighbours) = yc
+                   -> NonEmpty (Shade' y)
+propagateDEqnSolution_loc f ((x, shy@(Shade' y _)), neighbours) = ycs
  where jShade@(Shade' j₀ jExpa) = f shxy
        [shxy] = pointsCovers [ (xs, ys')
                              | (xs, Shade' ys yse)
@@ -833,8 +833,8 @@ filterDEqnSolution_loc f ((x, shy@(Shade' y _)), neighbours) = yc
                 (Shade' δyb $ applyLinMapMetric jExpa (δx'^/(δx'<.>^δx)))
         where δyb = δym ^-^ (j₀ $ δx)
               δx' = toDualWith expax δx
-       yc :: Option (Shade' y)
-       yc = intersectShade's $ back2Centre <$> marginδs
+       ycs :: NonEmpty (Shade' y)
+       ycs = back2Centre <$> marginδs
        xSpan = eigenCoSpan' expax
 
 

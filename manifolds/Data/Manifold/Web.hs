@@ -91,7 +91,7 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 import Control.Comonad (Comonad(..))
-import Lens.Micro ((%~))
+import Lens.Micro ((&), (%~), (^.), (.~))
 import Lens.Micro.TH
 
 import GHC.Generics (Generic)
@@ -319,7 +319,8 @@ filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse `id`
                    \((x,shy), ngbs) -> if null ngbs
                      then pure shy
                      else refineShade' shy
-                            =<< filterDEqnSolution_loc f ((x,shy), NE.fromList ngbs)
+                            =<< intersectShade's
+                                  ( propagateDEqnSolution_loc f ((x,shy), NE.fromList ngbs) )
 
 filterDEqnSolutions_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (ConvexSet y) -> Option (PointsWeb x (ConvexSet y))
@@ -327,8 +328,9 @@ filterDEqnSolutions_static f = localFocusWeb >>> Hask.traverse `id`
             \((x, shy@(ConvexSet hull _)), ngbs) -> if null ngbs
               then pure shy
               else ((shy<>) . ellipsoid)
-                      <$> filterDEqnSolution_loc f
-                               ((x,hull), second convexSetHull<$>NE.fromList ngbs)
+                      <$> intersectShade's 
+                            ( propagateDEqnSolution_loc f
+                               ((x,hull), second convexSetHull<$>NE.fromList ngbs) )
                      >>= \case EmptyConvex -> empty
                                c           -> pure c
 
@@ -340,34 +342,48 @@ data SolverNodeState y = SolverNodeInfo {
     }
 makeLenses ''SolverNodeState
 
-filterDEqnSolutions_adaptive :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
+filterDEqnSolutions_adaptive :: ∀ x y badness
+        . (WithField ℝ Manifold x, Refinable y, badness ~ ℝ)
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> DifferentialEqn x y 
-       -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
+       -> (x -> Shade' y -> badness)
              -> PointsWeb x (SolverNodeState y)
                         -> Option (PointsWeb x (SolverNodeState y))
 filterDEqnSolutions_adaptive mf f badness' oldState
-         = fmap (fromWebNodes mf . concat) $ Hask.traverse localChange preproc'd
- where preproc'd = Hask.toList $ webLocalInfo oldState
+         = fmap (fromWebNodes mf . concat)
+             $ Hask.traverse (uncurry localChange) preproc'd
+ where preproc'd :: [(WebLocally x (SolverNodeState y), [(Shade' y, badness)])]
+       preproc'd = map addPropagation . Hask.toList $ webLocalInfo oldState
+        where addPropagation wl
+                 | null neighbourHulls = (wl, [])
+                 | otherwise           = (wl, map (id&&&badness undefined) propFromNgbs)
+               where propFromNgbs = NE.toList $ propagateDEqnSolution_loc f
+                                     ( (thisPos, thisShy), NE.fromList neighbourHulls )
+                     thisPos = _thisNodeCoord wl :: x
+                     thisShy = convexSetHull . _solverNodeStatus $ _thisNodeData wl
+                     neighbourHulls = second (convexSetHull . _solverNodeStatus)
+                                        <$> _nodeNeighbours wl
        smallBadnessGradient, largeBadnessGradient :: ℝ
        (smallBadnessGradient, largeBadnessGradient)
            = ( badnessGradRated!!(n`div`4), badnessGradRated!!(n*3`div`4) )
         where n = length badnessGradRated
-              badnessGradRated = sort [ bad / ngBad
-                                      | LocalWebInfo {
-                                            _thisNodeData=SolverNodeInfo _ bad _
-                                          , _nodeNeighbours=ngbs
-                                          } <- preproc'd
-                                      , (_, SolverNodeInfo _ ngBad _) <- ngbs
-                                      , ngBad<bad ]
-       localChange :: WebLocally x (SolverNodeState y)
+              badnessGradRated = sort [ ngBad / bad
+                                      | ( LocalWebInfo {
+                                            _thisNodeData
+                                              = SolverNodeInfo _ bad _
+                                          , _nodeNeighbours=ngbs        }
+                                        , ngbProps) <- preproc'd
+                                      , (_, ngBad) <- ngbProps
+                                      , ngBad>bad ]
+       localChange :: WebLocally x (SolverNodeState y) -> [(Shade' y, badness)]
                              -> Option [(x, (SolverNodeState y))]
        localChange localInfo@LocalWebInfo{
                          _thisNodeCoord = x
                        , _thisNodeData = SolverNodeInfo
-                                           shy@(ConvexSet hull _) prevBadness age
+                                            shy@(ConvexSet hull _) prevBadness age
                        , _nodeNeighbours = ngbs
                        }
+                   ngbProps
         | null ngbs  = return [(x, SolverNodeInfo shy prevBadness (age+1))]
         | otherwise  = do
                let neighbourHulls = second (convexSetHull . _solverNodeStatus)
@@ -381,8 +397,7 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                    -> return []               -- do not further use it.
                  _otherwise -> do
                    shy' <- ((shy<>) . ellipsoid)
-                            <$> filterDEqnSolution_loc f
-                                   ( (x,hull), neighbourHulls )
+                            <$> intersectShade's (fst <$> NE.fromList ngbProps)
                    newBadness <- case shy' of
                       EmptyConvex        -> empty
                       ConvexSet hull' _  -> return $ badness x hull'
@@ -390,16 +405,18 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                    stepStones <-
                      if unfreshness < 3
                       then return []
-                      else fmap concat . forM ngbs
-                                   $ \(vN, SolverNodeInfo (ConvexSet hullN _)
-                                                          prevBadnessN ageN   ) -> do
+                      else fmap concat . forM (zip ngbs ngbProps)
+                                   $ \( (vN, SolverNodeInfo (ConvexSet hullN _)
+                                                          _ ageN)
+                                        , (_, nBadnessProp'd) ) -> do
                        case ageN of
                         _  | ageN > 0
-                           , badnessGrad <- prevBadnessN / prevBadness
+                           , badnessGrad <- nBadnessProp'd / prevBadness
                            , badnessGrad > largeBadnessGradient -> do
                                  let stepV = vN^/2
                                      xStep = x .+~^ stepV
-                                 shyStep <- filterDEqnSolution_loc f
+                                 shyStep <- intersectShade's $
+                                            propagateDEqnSolution_loc f
                                             ( (xStep, hull)
                                             , NE.cons (negateV stepV, hull)
                                                 $ fmap (\(vN',hullN')
@@ -410,7 +427,7 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                         _otherwise -> return []
                    return $ updated : stepStones
        
-       totalAge = maximum $ _solverNodeAge . _thisNodeData <$> preproc'd
+       totalAge = maximum $ _solverNodeAge . _thisNodeData . fst <$> preproc'd
        errTgtModulation = (1-) . (`mod'`1) . negate . sqrt $ fromIntegral totalAge
        badness x = badness' x . (shadeNarrowness %~ (^* errTgtModulation))
                               
