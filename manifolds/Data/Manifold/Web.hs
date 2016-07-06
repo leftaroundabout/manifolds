@@ -29,6 +29,7 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE LiberalTypeSynonyms        #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 
 module Data.Manifold.Web (
@@ -91,6 +92,7 @@ import Data.Traversable.Constrained (Traversable, traverse)
 
 import Control.Comonad (Comonad(..))
 import Lens.Micro ((%~))
+import Lens.Micro.TH
 
 import GHC.Generics (Generic)
 
@@ -123,6 +125,9 @@ instance Traversable (PointsWeb x) (PointsWeb x) (->) (->) where
               . traverse f $ Arr.toList ys
    where (ys,ngss) = Arr.unzip asd
 
+
+
+type MetricChoice x = Shade x -> Metric x
 
 
 fromWebNodes :: ∀ x y . WithField ℝ Manifold x
@@ -252,6 +257,7 @@ data WebLocally x y = LocalWebInfo {
     , _nodeLocalScalarProduct :: Metric x
     , _nodeIsOnBoundary :: Bool
     } deriving (Generic)
+makeLenses ''WebLocally
 
 instance Hask.Functor (WebLocally x) where
   fmap f (LocalWebInfo co dt wb id ng sp bn)
@@ -291,6 +297,16 @@ instance Refinable x => Semigroup (ConvexSet x) where
            | sh₂`subShade'`sh₁   = pure sh₂
            | otherwise           = empty
 
+
+
+itWhileJust :: (a -> Option a) -> a -> [a]
+itWhileJust f x | Option (Just y) <- f x  = x : itWhileJust f y
+itWhileJust _ x = [x]
+
+dupHead :: NonEmpty a -> NonEmpty a
+dupHead (x:|xs) = x:|x:xs
+
+
 iterateFilterDEqn_static :: (WithField ℝ Manifold x, Refinable y)
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
 iterateFilterDEqn_static f = map (fmap convexSetHull)
@@ -316,26 +332,13 @@ filterDEqnSolutions_static f = localFocusWeb >>> Hask.traverse `id`
                      >>= \case EmptyConvex -> empty
                                c           -> pure c
 
-iterateFilterDEqn_adaptive :: (WithField ℝ Manifold x, Refinable y)
-       => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
-       -> DifferentialEqn x y
-       -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
-             -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
-iterateFilterDEqn_adaptive mf f badness
-    = map (fmap (convexSetHull . _solverNodeStatus))
-    . itWhileJust (filterDEqnSolutions_adaptive mf f badness)
-    . fmap (\((x,shy),_) -> SolverNodeInfo (ellipsoid shy)
-                                           (badness x shy)
-                                           1
-           )
-    . localFocusWeb
-
 
 data SolverNodeState y = SolverNodeInfo {
       _solverNodeStatus :: ConvexSet y
     , _solverNodeBadness :: ℝ
     , _solverNodeAge :: Int
     }
+makeLenses ''SolverNodeState
 
 filterDEqnSolutions_adaptive :: ∀ x y . (WithField ℝ Manifold x, Refinable y)
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
@@ -413,16 +416,20 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                               
 
 
+iterateFilterDEqn_adaptive :: (WithField ℝ Manifold x, Refinable y)
+       => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
+       -> DifferentialEqn x y
+       -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
+             -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
+iterateFilterDEqn_adaptive mf f badness
+    = map (fmap (convexSetHull . _solverNodeStatus))
+    . itWhileJust (filterDEqnSolutions_adaptive mf f badness)
+    . fmap (\((x,shy),_) -> SolverNodeInfo (ellipsoid shy)
+                                           (badness x shy)
+                                           1
+           )
+    . localFocusWeb
 
-type MetricChoice x = Shade x -> Metric x
 
 
-
-
-itWhileJust :: (a -> Option a) -> a -> [a]
-itWhileJust f x | Option (Just y) <- f x  = x : itWhileJust f y
-itWhileJust _ x = [x]
-
-dupHead :: NonEmpty a -> NonEmpty a
-dupHead (x:|xs) = x:|x:xs
 
