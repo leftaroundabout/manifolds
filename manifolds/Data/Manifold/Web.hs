@@ -390,9 +390,9 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                                        <$> NE.fromList ngbs
                    (environAge, unfreshness)
                       = maximum&&&minimum $ age : (_solverNodeAge . snd <$> ngbs)
-               case find (\(_, SolverNodeInfo _ prevBadnessN _)
-                               -> prevBadnessN / prevBadness > smallBadnessGradient)
-                              ngbs of
+               case find (\(_, badnessN)
+                               -> badnessN / prevBadness > smallBadnessGradient)
+                              $ ngbProps of
                  Nothing | age < environAge   -- point is an obsolete step-stone;
                    -> return []               -- do not further use it.
                  _otherwise -> do
