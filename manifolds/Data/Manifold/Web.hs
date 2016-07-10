@@ -38,7 +38,7 @@ module Data.Manifold.Web (
               -- ** Construction
             , fromWebNodes, fromShadeTree_auto, fromShadeTree, fromShaded
               -- ** Lookup
-            , indexWeb, webEdges
+            , indexWeb, webEdges, toGraph
               -- ** Local environments
             , localFocusWeb
               -- * Differential equations
@@ -82,6 +82,7 @@ import qualified Data.Foldable       as Hask
 import Data.Foldable (all, toList)
 import qualified Data.Traversable as Hask
 import Data.Traversable (forM)
+import Data.Graph
 
 import Control.Category.Constrained.Prelude hiding
      ((^), all, elem, sum, forM, Foldable(..), foldr1, Traversable, traverse)
@@ -107,6 +108,11 @@ data Neighbourhood x = Neighbourhood {
 
 instance (NFData x, NFData (HerMetric (Needle x))) => NFData (Neighbourhood x)
 
+-- | A 'PointsWeb' is almost, but not quite a mesh. It is a stongly connected†
+--   directed graph, backed by a tree for fast nearest-neighbour lookup of points.
+-- 
+--   †In general, there can be disconnected components, but every connected
+--   component is strongly connected.
 data PointsWeb :: * -> * -> * where
    PointsWeb :: {
        webNodeRsc :: ShadeTree x
@@ -266,6 +272,21 @@ instance WithField ℝ Manifold x => Comonad (WebLocally x) where
   extract = _thisNodeData
   duplicate lweb = unsafeIndexWebData deepened $ _thisNodeId lweb
    where deepened = webLocalInfo $ _containingWeb lweb
+
+
+
+
+
+toGraph :: WithField ℝ Manifold x => PointsWeb x y -> (Graph, Vertex -> (x, y))
+toGraph wb = second (>>> \(i,_,_) -> case indexWeb wb i of {Option (Just xy) -> xy})
+                (graphFromEdges' edgs)
+ where edgs :: [(Int, Int, [Int])]
+       edgs = Arr.toList
+            . Arr.imap (\i (_, Neighbourhood ngbs _) -> (i, i, UArr.toList ngbs))
+                    $ webNodeAssocData wb
+
+
+
 
 data ConvexSet x
     = EmptyConvex
