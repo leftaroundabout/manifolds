@@ -154,11 +154,18 @@ fromShaded :: ∀ x y . WithField ℝ Manifold x
                               --   Riemannian metric).
      -> (x`Shaded`y)          -- ^ Source tree.
      -> PointsWeb x y
-fromShaded metricf shd = PointsWeb shd' assocData 
+fromShaded metricf = fromTopShaded metricf . fmapShaded ([],)
+
+fromTopShaded :: ∀ x y . WithField ℝ Manifold x
+     => (MetricChoice x)
+     -> (x`Shaded`([Needle x], y))  -- ^ Source tree, with a priori topology information.
+     -> PointsWeb x y
+fromTopShaded metricf shd = PointsWeb shd' assocData 
  where shd' = stripShadedUntopological shd
        assocData = Hask.foldMap locMesh $ twigsWithEnvirons shd
        
-       locMesh :: ((Int, ShadeTree (x`WithAny`y)), [(Int, ShadeTree (x`WithAny`y))])
+       locMesh :: ( (Int, ShadeTree (x`WithAny`([Needle x], y)))
+                  , [(Int, ShadeTree (x`WithAny`([Needle x], y)))])
                    -> Arr.Vector (y, Neighbourhood x)
        locMesh ((i₀, locT), neighRegions) = Arr.map findNeighbours locLeaves
         where locLeaves = Arr.map (first (+i₀)) . Arr.indexed . Arr.fromList
@@ -169,8 +176,8 @@ fromShaded metricf shd = PointsWeb shd' assocData
                                                . Arr.fromList
                                                $ onlyLeaves ngbR
                                 ) neighRegions
-              findNeighbours :: (Int, x`WithAny`y) -> (y, Neighbourhood x)
-              findNeighbours (i, WithAny y x)
+              findNeighbours :: (Int, x`WithAny`([Needle x], y)) -> (y, Neighbourhood x)
+              findNeighbours (i, WithAny (_,y) x)
                          = (y, Neighbourhood
                                  (UArr.fromList $ fst<$>execState seek mempty)
                                  locRieM )
