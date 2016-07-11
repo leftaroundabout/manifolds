@@ -49,7 +49,7 @@ module Data.Manifold.TreeCover (
        , factoriseShade, intersectShade's
        , Refinable, subShade', refineShade', convolveShade', coerceShade
        -- * Shade trees
-       , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree
+       , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree, positionIndex
        -- * View helpers
        , onlyNodes
        -- ** Auxiliary types
@@ -427,6 +427,15 @@ traverseDirectionChoices f dbs
        scanLeafNums i₀ ((v,t):vts) = (i₀, (v,t)) : scanLeafNums (i₀ + nLeaves t) vts
 
 
+indexDBranches :: NonEmpty (DBranch x) -> NonEmpty (DBranch' x (Int, ShadeTree x))
+indexDBranches (DBranch d (Hourglass t b) :| l) -- this could more concisely be written as a traversal
+              = DBranch d (Hourglass (0,t) (nt,b)) :| ixDBs (nt + nb) l
+ where nt = nLeaves t; nb = nLeaves b
+       ixDBs _ [] = []
+       ixDBs i₀ (DBranch δ (Hourglass τ β) : l)
+               = DBranch δ (Hourglass (i₀,τ) (i₀+nτ,β)) : ixDBs (i₀ + nτ + nβ) l
+        where nτ = nLeaves τ; nβ = nLeaves β
+
 instance (NFData x, NFData (Needle' x)) => NFData (ShadeTree x) where
   rnf (PlainLeaves xs) = rnf xs
   rnf (DisjointBranches n bs) = n `seq` rnf (NE.toList bs)
@@ -471,6 +480,8 @@ fromLeafPoints :: ∀ x. WithField ℝ Manifold x => [x] -> ShadeTree x
 fromLeafPoints = fromLeafPoints' sShIdPartition
 
 
+-- | The leaves of a shade tree are numbered. For a given index, this function
+--   attempts to find the leaf with that ID, within its immediate environment.
 indexShadeTree :: ∀ x . WithField ℝ Manifold x
        => ShadeTree x -> Int -> Either Int ([ShadeTree x], x)
 indexShadeTree _ i
@@ -490,6 +501,36 @@ indexShadeTree sh@(OverlappingBranches n _ brs) i
                              result  -> return result
                          ) (Left i) (toList brs>>=toList)
     | otherwise  = Left $ i-n
+
+
+-- | “Inverse indexing” of a tree. This is roughly a nearest-neighbour search,
+--   but not guaranteed to give the correct result unless evaluated at the
+--   precise position of a tree leaf.
+positionIndex :: ∀ x . WithField ℝ Manifold x
+       => Option (Metric x) -> ShadeTree x -> x -> Option (Int, ([ShadeTree x], x))
+positionIndex (Option (Just m)) sh@(PlainLeaves lvs) x
+        = case catMaybes [ ((i,p),) . metricSq m <$> getOption (p.-~.x)
+                            | (i,p) <- zip [0..] lvs] of
+           [] -> empty
+           l | ((i,p),_) <- minimumBy (comparing snd) l
+              -> pure (i, ([sh], p))
+positionIndex m (DisjointBranches _ brs) x
+        = fst . foldl' (\case
+                          (q@(Option (Just _)), i₀) -> const (q, i₀)
+                          (_, i₀) -> \t' -> ( first (+i₀) <$> positionIndex m t' x
+                                            , i₀+nLeaves t' ) )
+                       (empty, 0)
+              $        brs
+positionIndex _ sh@(OverlappingBranches n (Shade c ce) brs) x
+   | Option (Just vx) <- x.-~.c
+        = let (_,(i₀,t')) = maximumBy (comparing fst)
+                       [ (σ*ω, t')
+                       | DBranch d (Hourglass t'u t'd) <- NE.toList $ indexDBranches brs
+                       , let ω = d<.>^vx
+                       , (t',σ) <- [(t'u, 1), (t'd, -1)] ]
+          in first (+i₀) <$> positionIndex (return $ recipMetric ce) t' x
+positionIndex _ _ _ = empty
+
 
 
 fromFnGraphPoints :: ∀ x y . (WithField ℝ Manifold x, WithField ℝ Manifold y)
