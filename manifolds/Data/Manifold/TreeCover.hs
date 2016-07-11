@@ -57,7 +57,7 @@ module Data.Manifold.TreeCover (
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
        , twigsWithEnvirons, completeTopShading, flexTwigsShading
-       , WithAny(..), Shaded, stiAsIntervalMapping, spanShading
+       , WithAny(..), Shaded, fmapShaded, stiAsIntervalMapping, spanShading
        , constShaded, stripShadedUntopological
        , DifferentialEqn, propagateDEqnSolution_loc
        -- ** Triangulation-builders
@@ -618,7 +618,7 @@ unsafeFmapTree f fn fs (DisjointBranches n brs)
       in DisjointBranches (sum $ nLeaves<$>brs') brs'
 unsafeFmapTree f fn fs (OverlappingBranches n sh brs)
     = let brs' = fmap (\(DBranch dir br)
-                        -> DBranch (fn dir) (unsafeFmapTree f fn fs<$>br)
+                      -> DBranch (fn dir) (unsafeFmapTree f fn fs<$>br)
                       ) brs
       in overlappingBranches (fs sh) brs'
 
@@ -1520,6 +1520,11 @@ constShaded y = unsafeFmapTree (WithAny y<$>) id (shadeWithAny y)
 
 stripShadedUntopological :: x`Shaded`y -> ShadeTree x
 stripShadedUntopological = unsafeFmapTree (fmap _topological) id shadeWithoutAnything
+
+fmapShaded :: (y -> υ) -> (x`Shaded`y) -> (x`Shaded`υ)
+fmapShaded f = unsafeFmapTree (fmap $ \(WithAny y x) -> WithAny (f y) x)
+                              id
+                              (\(Shade yx shx) -> Shade (fmap f yx) shx)
 
 -- | This is to 'ShadeTree' as 'Data.Map.Map' is to 'Data.Set.Set'.
 type x`Shaded`y = ShadeTree (x`WithAny`y)
