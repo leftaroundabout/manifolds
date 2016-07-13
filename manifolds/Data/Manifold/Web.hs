@@ -158,7 +158,8 @@ fromShaded metricf = fromTopShaded metricf . fmapShaded ([],)
 
 fromTopShaded :: ∀ x y . WithField ℝ Manifold x
      => (MetricChoice x)
-     -> (x`Shaded`([Needle x], y))  -- ^ Source tree, with a priori topology information.
+     -> (x`Shaded`([Needle x], y))  -- ^ Source tree, with a priori topology information
+                                    --   (needles pointing to already-known neighbour candidates)
      -> PointsWeb x y
 fromTopShaded metricf shd = PointsWeb shd' assocData 
  where shd' = stripShadedUntopological shd
@@ -168,22 +169,26 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                   , [(Int, ShadeTree (x`WithAny`([Needle x], y)))])
                    -> Arr.Vector (y, Neighbourhood x)
        locMesh ((i₀, locT), neighRegions) = Arr.map findNeighbours locLeaves
-        where locLeaves = Arr.map (first (+i₀)) . Arr.indexed . Arr.fromList
+        where locLeaves :: Arr.Vector (Int, x`WithAny`([Needle x], y))
+              locLeaves = Arr.map (first (+i₀)) . Arr.indexed . Arr.fromList
                                           $ onlyLeaves locT
+              vicinityLeaves :: Arr.Vector (Int, x)
               vicinityLeaves = Hask.foldMap
-                                (\(i₀n, ngbR) -> Arr.map (first (+i₀n))
+                                (\(i₀n, ngbR) -> Arr.map ((+i₀n) *** _topological)
                                                . Arr.indexed
                                                . Arr.fromList
                                                $ onlyLeaves ngbR
                                 ) neighRegions
               findNeighbours :: (Int, x`WithAny`([Needle x], y)) -> (y, Neighbourhood x)
-              findNeighbours (i, WithAny (_,y) x)
+              findNeighbours (i, WithAny (vns,y) x)
                          = (y, Neighbourhood
                                  (UArr.fromList $ fst<$>execState seek mempty)
                                  locRieM )
-               where seek = do
-                        Hask.forM_ (locLeaves Arr.++ vicinityLeaves)
-                                  $ \(iNgb, WithAny _ xNgb) ->
+               where seek :: State [(Int, (Needle x, Needle' x))] ()
+                     seek = do
+                        Hask.forM_ (Arr.map (second _topological) locLeaves
+                                           Arr.++ vicinityLeaves Arr.++ aprioriNgbs)
+                                  $ \(iNgb, xNgb) ->
                            when (iNgb/=i) `id`do
                               let (Option (Just v)) = xNgb.-~.x
                               oldNgbs <- get
@@ -195,6 +200,12 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                                          | neighbour@(_,(nv,_))<-oldNgbs
                                          , visibleOverlap w nv
                                          ]
+                     aprioriNgbs :: Arr.Vector (Int, x)
+                     aprioriNgbs = Arr.fromList $ catMaybes
+                                    [ getOption $ (second $ const xN) <$>
+                                          positionIndex (pure locRieM) shd' xN
+                                    | v <- vns
+                                    , let xN = x.+~^v :: x ]
               
               visibleOverlap :: Needle' x -> Needle x -> Bool
               visibleOverlap w v = o < 1
