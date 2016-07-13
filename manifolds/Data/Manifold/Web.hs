@@ -140,6 +140,11 @@ fromWebNodes :: ∀ x y . WithField ℝ Manifold x
                     => (MetricChoice x) -> [(x,y)] -> PointsWeb x y
 fromWebNodes mf = fromShaded mf . fromLeafPoints . map (uncurry WithAny . swap)
 
+fromTopWebNodes :: ∀ x y . WithField ℝ Manifold x
+                    => (MetricChoice x) -> [((x,[Needle x]),y)] -> PointsWeb x y
+fromTopWebNodes mf = fromTopShaded mf . fromLeafPoints
+                   . map (uncurry WithAny . swap . regroup')
+
 fromShadeTree_auto :: ∀ x . WithField ℝ Manifold x => ShadeTree x -> PointsWeb x ()
 fromShadeTree_auto = fromShaded (recipMetric . _shadeExpanse) . constShaded ()
 
@@ -381,6 +386,14 @@ data SolverNodeState y = SolverNodeInfo {
     }
 makeLenses ''SolverNodeState
 
+
+type OldAndNew d = (Option d, [d])
+
+oldAndNew :: OldAndNew d -> [d]
+oldAndNew (Option (Just x), l) = x : l
+oldAndNew (_, l) = l
+
+
 filterDEqnSolutions_adaptive :: ∀ x y badness
         . (WithField ℝ Manifold x, Refinable y, badness ~ ℝ)
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
@@ -389,10 +402,11 @@ filterDEqnSolutions_adaptive :: ∀ x y badness
              -> PointsWeb x (SolverNodeState y)
                         -> Option (PointsWeb x (SolverNodeState y))
 filterDEqnSolutions_adaptive mf f badness' oldState
-         = fmap (fromWebNodes mf . concat)
+         = fmap (fromTopWebNodes mf . concat . fmap retraceBonds
+                                                       . Hask.toList . webLocalInfo)
              $ Hask.traverse (uncurry localChange) preproc'd
- where preproc'd :: [(WebLocally x (SolverNodeState y), [(Shade' y, badness)])]
-       preproc'd = map addPropagation . Hask.toList $ webLocalInfo oldState
+ where preproc'd :: PointsWeb x ((WebLocally x (SolverNodeState y), [(Shade' y, badness)]))
+       preproc'd = fmap addPropagation $ webLocalInfo oldState
         where addPropagation wl
                  | null neighbourHulls = (wl, [])
                  | otherwise           = (wl, map (id&&&badness undefined) propFromNgbs)
@@ -411,11 +425,11 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                                             _thisNodeData
                                               = SolverNodeInfo _ bad _
                                           , _nodeNeighbours=ngbs        }
-                                        , ngbProps) <- preproc'd
+                                        , ngbProps) <- Hask.toList preproc'd
                                       , (_, ngBad) <- ngbProps
                                       , ngBad>bad ]
        localChange :: WebLocally x (SolverNodeState y) -> [(Shade' y, badness)]
-                             -> Option [(x, (SolverNodeState y))]
+                             -> Option (OldAndNew ((x, [Needle x]), SolverNodeState y))
        localChange localInfo@LocalWebInfo{
                          _thisNodeCoord = x
                        , _thisNodeData = SolverNodeInfo
@@ -423,7 +437,7 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                        , _nodeNeighbours = ngbs
                        }
                    ngbProps
-        | null ngbs  = return [(x, SolverNodeInfo shy prevBadness (age+1))]
+        | null ngbs  = return (pure ((x,[]), SolverNodeInfo shy prevBadness (age+1)), [])
         | otherwise  = do
                let neighbourHulls = second (convexSetHull . _solverNodeStatus)
                                        <$> NE.fromList ngbs
@@ -433,14 +447,14 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                                -> badnessN / prevBadness > smallBadnessGradient)
                               $ ngbProps of
                  Nothing | age < environAge   -- point is an obsolete step-stone;
-                   -> return []               -- do not further use it.
+                   -> return (empty,empty)    -- do not further use it.
                  _otherwise -> do
                    shy' <- ((shy<>) . ellipsoid)
                             <$> intersectShade's (fst <$> NE.fromList ngbProps)
                    newBadness <- case shy' of
                       EmptyConvex        -> empty
                       ConvexSet hull' _  -> return $ badness x hull'
-                   let updated = (x, SolverNodeInfo shy' newBadness (age+1))
+                   let updatedNode = SolverNodeInfo shy' newBadness (age+1)
                    stepStones <-
                      if unfreshness < 3
                       then return []
@@ -454,6 +468,8 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                            , badnessGrad > largeBadnessGradient -> do
                                  let stepV = vN^/2
                                      xStep = x .+~^ stepV
+                                     stepNgbVs = negateV stepV
+                                                : fmap ((^-^stepV) . fst) ngbs
                                  shyStep <- intersectShade's $
                                             propagateDEqnSolution_loc f
                                             ( (xStep, hull)
@@ -461,14 +477,21 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                                                 $ fmap (\(vN',hullN')
                                                          -> (vN'^-^stepV, hullN') )
                                                     neighbourHulls )
-                                 return [(xStep, SolverNodeInfo (ellipsoid shyStep)
-                                                 (badness xStep shyStep) 1 )]
+                                 return [( (xStep, stepNgbVs)
+                                         , SolverNodeInfo (ellipsoid shyStep)
+                                                 (badness xStep shyStep) 1
+                                         )]
                         _otherwise -> return []
-                   return $ updated : stepStones
+                   let updated = ((x, fst<$>ngbs), updatedNode)
+                   return $ (pure updated, stepStones)
        
        totalAge = maximum $ _solverNodeAge . _thisNodeData . fst <$> preproc'd
        errTgtModulation = (1-) . (`mod'`1) . negate . sqrt $ fromIntegral totalAge
        badness x = badness' x . (shadeNarrowness %~ (^* errTgtModulation))
+       
+       retraceBonds :: WebLocally x (OldAndNew ((x, [Needle x]), SolverNodeState y))
+                       -> [((x, [Needle x]), SolverNodeState y)]
+       retraceBonds = oldAndNew . _thisNodeData
                               
 
 
