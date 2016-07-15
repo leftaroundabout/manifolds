@@ -58,6 +58,8 @@ import qualified Data.Vector as Arr
 import qualified Data.Vector.Unboxed as UArr
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
+import Data.List.FastNub (fastNubBy)
+import Data.Ord (comparing)
 import Data.Semigroup
 import Control.DeepSeq
 
@@ -173,15 +175,13 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
        locMesh :: ( (Int, ShadeTree (x`WithAny`([Needle x], y)))
                   , [(Int, ShadeTree (x`WithAny`([Needle x], y)))])
                    -> Arr.Vector (y, Neighbourhood x)
-       locMesh ((i₀, locT), neighRegions) = Arr.map findNeighbours locLeaves
-        where locLeaves :: Arr.Vector (Int, x`WithAny`([Needle x], y))
-              locLeaves = Arr.map (first (+i₀)) . Arr.indexed . Arr.fromList
-                                          $ onlyLeaves locT
-              vicinityLeaves :: Arr.Vector (Int, x)
+       locMesh ((i₀, locT), neighRegions) = Arr.map findNeighbours $ Arr.fromList locLeaves
+        where locLeaves :: [ (Int, x`WithAny`([Needle x], y)) ]
+              locLeaves = map (first (+i₀)) . zip [0..] $ onlyLeaves locT
+              vicinityLeaves :: [(Int, x)]
               vicinityLeaves = Hask.foldMap
-                                (\(i₀n, ngbR) -> Arr.map ((+i₀n) *** _topological)
-                                               . Arr.indexed
-                                               . Arr.fromList
+                                (\(i₀n, ngbR) -> map ((+i₀n) *** _topological)
+                                               . zip [0..]
                                                $ onlyLeaves ngbR
                                 ) neighRegions
               findNeighbours :: (Int, x`WithAny`([Needle x], y)) -> (y, Neighbourhood x)
@@ -191,8 +191,9 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                                  locRieM )
                where seek :: State [(Int, (Needle x, Needle' x))] ()
                      seek = do
-                        Hask.forM_ (Arr.map (second _topological) locLeaves
-                                           Arr.++ vicinityLeaves Arr.++ aprioriNgbs)
+                        Hask.forM_ ( fastNubBy (comparing fst)
+                                      $ map (second _topological) locLeaves
+                                           ++ vicinityLeaves ++ aprioriNgbs )
                                   $ \(iNgb, xNgb) ->
                            when (iNgb/=i) `id`do
                               let (Option (Just v)) = xNgb.-~.x
@@ -205,8 +206,8 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                                          | neighbour@(_,(nv,_))<-oldNgbs
                                          , visibleOverlap w nv
                                          ]
-                     aprioriNgbs :: Arr.Vector (Int, x)
-                     aprioriNgbs = Arr.fromList $ catMaybes
+                     aprioriNgbs :: [(Int, x)]
+                     aprioriNgbs = catMaybes
                                     [ getOption $ (second $ const xN) <$>
                                           positionIndex (pure locRieM) shd' xN
                                     | v <- vns
