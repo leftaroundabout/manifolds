@@ -507,7 +507,14 @@ indexShadeTree sh@(OverlappingBranches n _ brs) i
 --   but not guaranteed to give the correct result unless evaluated at the
 --   precise position of a tree leaf.
 positionIndex :: ∀ x . WithField ℝ Manifold x
-       => Option (Metric x) -> ShadeTree x -> x -> Option (Int, ([ShadeTree x], x))
+       => Option (Metric x)  -- ^ For deciding (at the lowest level) what “close” means;
+                             --   this is optional for any tree of depth >1.
+        -> ShadeTree x       -- ^ The tree to index into
+        -> x                 -- ^ Position to look up
+        -> Option (Int, ([ShadeTree x], x))
+                   -- ^ Index of the leaf near to the query point, the “path” of
+                   --   environment trees leading down to its position (in decreasing
+                   --   order of size), and actual position of the found node.
 positionIndex (Option (Just m)) sh@(PlainLeaves lvs) x
         = case catMaybes [ ((i,p),) . metricSq m <$> getOption (p.-~.x)
                             | (i,p) <- zip [0..] lvs] of
@@ -528,7 +535,8 @@ positionIndex _ sh@(OverlappingBranches n (Shade c ce) brs) x
                        | DBranch d (Hourglass t'u t'd) <- NE.toList $ indexDBranches brs
                        , let ω = d<.>^vx
                        , (t',σ) <- [(t'u, 1), (t'd, -1)] ]
-          in first (+i₀) <$> positionIndex (return $ recipMetric ce) t' x
+          in ((+i₀) *** first (sh:))
+                 <$> positionIndex (return $ recipMetric ce) t' x
 positionIndex _ _ _ = empty
 
 

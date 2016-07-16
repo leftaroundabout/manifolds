@@ -38,7 +38,7 @@ module Data.Manifold.Web (
               -- ** Construction
             , fromWebNodes, fromShadeTree_auto, fromShadeTree, fromShaded
               -- ** Lookup
-            , indexWeb, webEdges, toGraph
+            , nearestNeighbour, indexWeb, webEdges, toGraph
               -- ** Local environments
             , localFocusWeb
               -- * Differential equations
@@ -276,6 +276,21 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                                 , let ((x',y'),_) = asd' Arr.! j
                                 ]), n)
                  ) asd'
+
+
+nearestNeighbour :: WithField ℝ Manifold x
+                      => PointsWeb x y -> x -> Option (x,y)
+nearestNeighbour (PointsWeb rsc asd) x = fmap lkBest $ positionIndex empty rsc x
+ where lkBest (iEst, _) = (xProx, yProx)
+        where (iProx, (xProx, _)) = maximumBy (comparing $ snd . snd) $ neighbours
+              (yProx, _) = asd Arr.! iProx
+              (_, Neighbourhood neighbourIds locMetr) = asd Arr.! iEst
+              neighbours = [ (i, (xNgb, metricSq locMetr v))
+                           | i <- UArr.toList neighbourIds
+                           , let Right (_, xNgb) = indexShadeTree rsc i
+                                 Option (Just v) = xNgb.-~.x
+                           ]
+
 
 
 data WebLocally x y = LocalWebInfo {
