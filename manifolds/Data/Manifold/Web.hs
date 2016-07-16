@@ -281,8 +281,10 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
 nearestNeighbour :: WithField ℝ Manifold x
                       => PointsWeb x y -> x -> Option (x,y)
 nearestNeighbour (PointsWeb rsc asd) x = fmap lkBest $ positionIndex empty rsc x
- where lkBest (iEst, _) = (xProx, yProx)
-        where (iProx, (xProx, _)) = maximumBy (comparing $ snd . snd) $ neighbours
+ where lkBest (iEst, (_, xEst)) = (xProx, yProx)
+        where (iProx, (xProx, _)) = minimumBy (comparing $ snd . snd)
+                                     $ (iEst, (xEst, metricSq locMetr vEst))
+                                         : neighbours
               (yProx, _) = asd Arr.! iProx
               (_, Neighbourhood neighbourIds locMetr) = asd Arr.! iEst
               neighbours = [ (i, (xNgb, metricSq locMetr v))
@@ -290,6 +292,7 @@ nearestNeighbour (PointsWeb rsc asd) x = fmap lkBest $ positionIndex empty rsc x
                            , let Right (_, xNgb) = indexShadeTree rsc i
                                  Option (Just v) = xNgb.-~.x
                            ]
+              Option (Just vEst) = xEst.-~.x
 
 
 
