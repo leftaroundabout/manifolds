@@ -412,6 +412,10 @@ oldAndNew :: OldAndNew d -> [d]
 oldAndNew (Option (Just x), l) = x : l
 oldAndNew (_, l) = l
 
+oldAndNew' :: OldAndNew d -> [(Bool, d)]
+oldAndNew' (Option (Just x), l) = (True, x) : fmap (False,) l
+oldAndNew' (_, l) = (False,) <$> l
+
 
 filterDEqnSolutions_adaptive :: ∀ x y badness
         . (WithField ℝ Manifold x, Refinable y, badness ~ ℝ)
@@ -508,21 +512,34 @@ filterDEqnSolutions_adaptive mf f badness' oldState
        
        retraceBonds :: WebLocally x (WebLocally x (OldAndNew (x, SolverNodeState y)))
                        -> [((x, [Needle x]), SolverNodeState y)]
-       retraceBonds locWeb
-            = [ ( (x, [v | (_,ngb) <- knownNgbs
-                         , Option (Just v)
-                            <- case oldAndNew $ ngb^.thisNodeData of
-                                     [] -> [ xN.-~.x
-                                           | (nnId, (_,nnWeb)) <- ngb^.nodeNeighbours
-                                           , nnId /= myId
-                                           , (xN,_) <- oldAndNew nnWeb ]
-                                     l -> [xN.-~.x | (xN,_) <- l]
-                      ])
-                , snsy)
-              | (x, snsy) <- focused ]
-        where myId = locWeb^.thisNodeId
-              focused = oldAndNew $ locWeb^.thisNodeData^.thisNodeData
+       retraceBonds locWeb@LocalWebInfo{ _thisNodeId = myId
+                                       , _thisNodeCoord = xOld
+                                       , _nodeLocalScalarProduct = locMetr }
+            = [ ( (x, fst<$>neighbourCandidates), snsy)
+              | (isOld, (x, snsy)) <- focused
+              , let neighbourCandidates
+                     = [ (v,nnId)
+                       | (_,ngb) <- knownNgbs
+                       , (Option (Just v), nnId)
+                          <- case oldAndNew $ ngb^.thisNodeData of
+                                   [] -> [ (xN.-~.x, nnId)
+                                         | (nnId, (_,nnWeb)) <- ngb^.nodeNeighbours
+                                         , nnId /= myId
+                                         , (xN,_) <- oldAndNew nnWeb ]
+                                   l -> [(xN.-~.x, ngb^.thisNodeId) | (xN,_) <- l]
+                       ]
+                    possibleConflicts = [ metricSq locMetr v
+                                        | (v,nnId)<-neighbourCandidates
+                                        , nnId > myId ]
+              , isOld || null possibleConflicts
+                  || minimum possibleConflicts > oldMinDistSq / 4
+              ]
+        where focused = oldAndNew' $ locWeb^.thisNodeData^.thisNodeData
               knownNgbs = snd <$> locWeb^.nodeNeighbours
+              oldMinDistSq = minimum [ metricSq locMetr vOld
+                                     | (_,ngb) <- knownNgbs
+                                     , let Option (Just vOld) = ngb^.thisNodeCoord .-~. xOld
+                                     ]
                               
 
 
