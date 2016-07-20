@@ -78,7 +78,7 @@ import Data.Foldable.Constrained
 
 
 
-class PseudoAffine x => Geodesic x where
+class Semimanifold x => Geodesic x where
   geodesicBetween ::
           x -- ^ Starting point; the interpolation will yield this at -1.
        -> x -- ^ End point, for +1.

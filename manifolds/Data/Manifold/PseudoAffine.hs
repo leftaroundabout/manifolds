@@ -65,7 +65,7 @@ module Data.Manifold.PseudoAffine (
             -- ** Local functions
             , LocalLinear, LocalAffine
             -- * Misc
-            , palerp, LocallyCoercible(..)
+            , alerpB, palerp, palerpB, LocallyCoercible(..)
             ) where
     
 
@@ -310,14 +310,26 @@ type RieMetric' x = x -> Metric' x
 --   its end points.
 -- 
 --   A proper, really well-defined (on global scales) interpolation
---   only makes sense on a Riemannian manifold, as geodesics.
---   This is a task to be tackled in the future.
+--   only makes sense on a Riemannian manifold, as 'Data.Manifold.Riemannian.Geodesic'.
 palerp :: ∀ x. Manifold x
     => Interior x -> Interior x -> Option (Scalar (Needle x) -> x)
 palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
   Option (Just v) -> return $ \t -> p1 .+~^ t *^ v
   _ -> empty
 
+-- | Like 'palerp', but actually restricted to the interval between the points,
+--   with a signature like 'Data.Manifold.Riemannian.geodesicBetween'
+--   rather than 'Data.AffineSpace.alerp'.
+palerpB :: ∀ x. WithField ℝ Manifold x => Interior x -> Interior x -> Option (D¹ -> x)
+palerpB p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
+  Option (Just v) -> return $ \(D¹ t) -> p1 .+~^ ((t+1)/2) *^ v
+  _ -> empty
+
+-- | Like 'alerp', but actually restricted to the interval between the points.
+alerpB :: ∀ x. (AffineSpace x, VectorSpace (Diff x), Scalar (Diff x) ~ ℝ)
+                   => x -> x -> D¹ -> x
+alerpB p1 p2 = case p2 .-. p1 of
+  v -> \(D¹ t) -> p1 .+^ ((t+1)/2) *^ v
 
 
 

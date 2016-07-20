@@ -87,6 +87,7 @@ import Data.SimplicialComplex
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty)
 import Data.Manifold.PseudoAffine
+import Data.Manifold.Riemannian
     
 import Data.Embedding
 import Data.CoNat
@@ -199,6 +200,15 @@ instance (AffineManifold x) => Semimanifold (Shade x) where
   translateP = Tagged (.+~^)
   Shade c e .+~^ v = Shade (c.+^v) e
   Shade c e .-~^ v = Shade (c.-^v) e
+
+instance (WithField ℝ AffineManifold x, Geodesic x) => Geodesic (Shade x) where
+  geodesicBetween (Shade c e) (Shade ζ η) = pure interp
+   where ([], sharedSpan) = eigenSystem (e,η)
+         interp x = Shade (pinterp x)
+                          (sumV [ projector' $ v ^* (alerpB qe qη x)
+                                | ([qe,qη], (v,_)) <- zip coeffs sharedSpan])
+         coeffs = [ [metric' m v' | m <- [e,η]] | (_,v') <- sharedSpan ]
+         Option (Just pinterp) = geodesicBetween c ζ
 
 fullShade :: WithField ℝ Manifold x => x -> Metric' x -> Shade x
 fullShade ctr expa = Shade ctr expa
