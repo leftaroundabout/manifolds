@@ -52,7 +52,7 @@ module Data.Manifold.Types (
         , CD¹(..), Cℝay(..)
         -- * Cut-planes
         , Cutplane(..)
-        , fathomCutDistance, sideOfCut
+        , fathomCutDistance, sideOfCut, cutPosBetween
         -- * Linear mappings
         , Linear, LocalLinear, denseLinear
    ) where
@@ -256,4 +256,11 @@ fathomCutDistance (Cutplane sh (Stiefel1 cn)) met = \x -> fmap fathom $ x .-~. s
  where fathom v = (cn <.>^ v) / scaleDist
        scaleDist = metric' met cn
           
+
+cutPosBetween :: WithField ℝ Manifold x => Cutplane x -> (x,x) -> Option D¹
+cutPosBetween (Cutplane h (Stiefel1 cn)) (x₀,x₁)
+    | Option (Just [d₀,d₁]) <- map (cn<.>^) <$> sequenceA [x₀.-~.h, x₁.-~.h]
+    , d₀*d₁ < 0
+                  = pure . D¹ $ d₁ / (d₁ - d₀)
+    | otherwise   = empty
 

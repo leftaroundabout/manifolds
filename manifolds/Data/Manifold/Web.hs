@@ -74,6 +74,7 @@ import Data.Manifold.Types.Primitive (empty, (^))
 import Data.Manifold.PseudoAffine
 import Data.Manifold.TreeCover
 import Data.SetLike.Intersection
+import Data.Manifold.Riemannian
     
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
@@ -241,6 +242,21 @@ webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
                                     | i'<-UArr.toList ngbs ]
                                ) $ Arr.indexed assoc
        lookId i | Option (Just xy) <- indexWeb web i  = xy
+
+
+-- | Fetch a point between any two neighbouring web nodes on opposite
+--   sides of the plane, and linearly interpolate the values onto the
+--   cut plane.
+sliceWebLin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
+               => PointsWeb x y -> Cutplane x -> [(x,y)]
+sliceWebLin web = sliceEdgs
+ where edgs = webEdges web
+       sliceEdgs cp = [ (xi d, yi d)  -- Brute-force search through all edges
+                      | ((x₀,y₀), (x₁,y₁)) <- edgs
+                      , Option (Just d) <- [cutPosBetween cp (x₀,x₁)]
+                      , Option (Just xi) <- [geodesicBetween x₀ x₁]
+                      , Option (Just yi) <- [geodesicBetween y₀ y₁]
+                      ]
 
 
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
