@@ -204,10 +204,27 @@ instance (AffineManifold x) => Semimanifold (Shade x) where
 instance (WithField ℝ AffineManifold x, Geodesic x) => Geodesic (Shade x) where
   geodesicBetween (Shade c e) (Shade ζ η) = pure interp
    where ([], sharedSpan) = eigenSystem (e,η)
-         interp x = Shade (pinterp x)
-                          (sumV [ projector' $ v ^* (alerpB qe qη x)
-                                | ([qe,qη], (v,_)) <- zip coeffs sharedSpan])
+         interp t = Shade (pinterp t)
+                          (projector's [ v ^* (alerpB qe qη t)
+                                       | ([qe,qη], (v,_)) <- zip coeffs sharedSpan ])
          coeffs = [ [metric' m v' | m <- [e,η]] | (_,v') <- sharedSpan ]
+         Option (Just pinterp) = geodesicBetween c ζ
+
+instance (AffineManifold x) => Semimanifold (Shade' x) where
+  type Needle (Shade' x) = Diff x
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
+  Shade' c e .+~^ v = Shade' (c.+^v) e
+  Shade' c e .-~^ v = Shade' (c.-^v) e
+
+instance (WithField ℝ AffineManifold x, Geodesic x) => Geodesic (Shade' x) where
+  geodesicBetween (Shade' c e) (Shade' ζ η) = pure interp
+   where ([], sharedSpan) = eigenSystem (e,η)
+         interp t = Shade' (pinterp t)
+                           (projectors [ v' ^/ (alerpB qe qη t)
+                                       | ([qe,qη], (v',_)) <- zip coeffs sharedSpan ])
+         coeffs = [ [recip $ metric m v | m <- [e,η]] | (_,v) <- sharedSpan ]
          Option (Just pinterp) = geodesicBetween c ζ
 
 fullShade :: WithField ℝ Manifold x => x -> Metric' x -> Shade x
