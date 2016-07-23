@@ -50,7 +50,10 @@ module Data.Manifold.Types (
         , D¹(..), D²(..)
         , ℝay
         , CD¹(..), Cℝay(..)
-        -- * Cut-planes
+        -- * Affine subspaces
+        -- ** Lines
+        , Line
+        -- ** Hyperplanes
         , Cutplane(..)
         , fathomCutDistance, sideOfCut, cutPosBetween
         -- * Linear mappings
@@ -219,6 +222,8 @@ l2norm = realToFrac . HMat.norm_2
 
 
 
+data Line x = Line { lineHandle :: x
+                   , lineDirection :: Stiefel1 (Needle' x) }
 
 
 
@@ -263,4 +268,9 @@ cutPosBetween (Cutplane h (Stiefel1 cn)) (x₀,x₁)
     , d₀*d₁ < 0
                   = pure . D¹ $ d₁ / (d₁ - d₀)
     | otherwise   = empty
+
+
+lineAsPlaneIntersection :: WithField ℝ Manifold x => Line x -> [Cutplane x]
+lineAsPlaneIntersection (Line h dir)
+      = [Cutplane h nrml | nrml <- orthogonalComplementSpan [dir]]
 

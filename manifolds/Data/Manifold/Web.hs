@@ -39,6 +39,8 @@ module Data.Manifold.Web (
             , fromWebNodes, fromShadeTree_auto, fromShadeTree, fromShaded
               -- ** Lookup
             , nearestNeighbour, indexWeb, webEdges, toGraph
+              -- ** Decomposition
+            , sliceWebLin
               -- ** Local environments
             , localFocusWeb
               -- * Differential equations

@@ -60,6 +60,7 @@ module Data.LinearMap.HerMetric (
   , linMapAsTensProd, linMapFromTensProd
   , covariance
   , outerProducts
+  , orthogonalComplementSpan
   ) where
     
 
@@ -783,11 +784,25 @@ spanHilbertSubspace met = emb . orthonormalPairsWith met
 
 -- | Same as 'spanHilbertSubspace', but with the standard 'euclideanMetric' (i.e., the
 --   basis vectors will be orthonormal in the usual sense, in both @w@ and @v@).
-spanSubHilbertSpace :: forall s v w
+spanSubHilbertSpace :: ∀ s v w
         . (HasMetric v, InnerSpace v, Scalar v ~ s, IsFreeSpace w, Scalar w ~ s)
       => [v]
           -> Option (Embedding (Linear s) w v)
 spanSubHilbertSpace = spanHilbertSubspace euclideanMetric'
+
+
+orthogonalComplementSpan :: ∀ v . (HasMetric v, Scalar v ~ ℝ)
+                            => [Stiefel1 (DualSpace v)] -> [Stiefel1 v]
+orthogonalComplementSpan avoidSpace
+           = fst ( iterate nextOVect ( [], ( cycle completeBasisValues
+                                           , pseudoRieszPair <$> avoidSpace ) )
+                    !! (d - lav) )
+ where Tagged d = dimension :: Tagged v Int
+       lav = length avoidSpace
+       nextOVect (result, (v:src, avoid))
+           | Option (Just newAvoid@(vfin', _)) <- mkPseudoRieszPair vPurged
+                          = (Stiefel1 vfin':result, (src, newAvoid : avoid))
+        where vPurged = foldl (\vp (av', av) -> vp ^-^ av ^* (vp^<.>av')) v avoid
 
 
 -- | The /n/-th Stiefel manifold is the space of all possible configurations of
@@ -799,8 +814,17 @@ spanSubHilbertSpace = spanHilbertSubspace euclideanMetric'
 --   vectors modulo scaling by positive factors.
 newtype Stiefel1 v = Stiefel1 { getStiefel1N :: DualSpace v }
 
+pseudoRieszPair :: (HasMetric v, Scalar v ~ ℝ) => Stiefel1 v -> (v, DualSpace v)
+pseudoRieszPair (Stiefel1 v')
+              = (fromPackedVector $ HMat.scale (1/HMat.norm_2 vp) vp, v')
+ where vp = asPackedVector v'
 
-
+mkPseudoRieszPair :: (HasMetric v, Scalar v ~ ℝ) => DualSpace v -> Option (v, DualSpace v)
+mkPseudoRieszPair v'
+   | nv' > 0    = pure (fromPackedVector $ HMat.scale (1/nv') vp, v')
+   | otherwise  = empty
+ where vp = asPackedVector v'
+       nv' = HMat.norm_2 vp
 
 
 
