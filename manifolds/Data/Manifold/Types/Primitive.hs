@@ -66,6 +66,8 @@ import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import Control.Applicative (Const(..), Alternative(..))
 
+import Lens.Micro ((^.))
+
 import qualified Prelude
 
 import Control.Category.Constrained.Prelude hiding ((^))
@@ -283,8 +285,4 @@ infixr 8 ^
 (^) = (Prelude.^)
 
 
-infixl 8 ^.
-{-# INLINE (^.) #-}
-(^.) :: s -> (forall f . Prelude.Functor f => (a->f a) -> s->f s) -> a
-o ^. g = getConst (g Const o)
 

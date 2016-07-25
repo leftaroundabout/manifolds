@@ -72,7 +72,7 @@ import Data.Function (on)
 import Data.Fixed (mod')
 
 import Data.Manifold.Types
-import Data.Manifold.Types.Primitive (empty, (^))
+import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
 import Data.Manifold.TreeCover
 import Data.SetLike.Intersection
