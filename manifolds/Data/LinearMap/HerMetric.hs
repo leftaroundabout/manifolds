@@ -34,7 +34,7 @@ module Data.LinearMap.HerMetric (
   -- * Utility for metrics
   , transformMetric, transformMetric', dualCoCoProduct
   , dualiseMetric, dualiseMetric'
-  , recipMetric, recipMetric'
+  , recipMetric, recipMetric', safeRecipMetric, safeRecipMetric'
   -- ** Eigenvectors
   , eigenSpan, eigenSpan'
   , eigenCoSpan, eigenCoSpan'
@@ -298,20 +298,27 @@ dualiseMetric' (HerMetric' m) = HerMetric m
 --   a space to its dual, the inverse maps from the dual into the
 --   (double-dual) space &#x2013; i.e., it is a metric on the dual space.
 --   Deprecated: the singular case isn't properly handled.
-recipMetric' :: HasMetric v => HerMetric v -> HerMetric' v
-recipMetric' (HerMetric Nothing) = singularMetric'
-recipMetric' (HerMetric (Just (DenseLinear m)))
-          | isInfinite' detm  = singularMetric'
-          | otherwise         = matrixMetric' minv
- where (minv, (detm, _)) = HMat.invlndet m
-
 recipMetric :: HasMetric v => HerMetric' v -> HerMetric v
-recipMetric (HerMetric' Nothing) = singularMetric
-recipMetric (HerMetric' (Just (DenseLinear m)))
-          | isInfinite' detm  = singularMetric
-          | otherwise         = matrixMetric minv
+recipMetric m' | Option (Just m) <- safeRecipMetric m'  = m
+recipMetric _ = singularMetric
+
+recipMetric' :: HasMetric v => HerMetric v -> HerMetric' v
+recipMetric' m | Option (Just m') <- safeRecipMetric' m  = m'
+recipMetric' _ = singularMetric'
+
+safeRecipMetric :: HasMetric v => HerMetric' v -> Option (HerMetric v)
+safeRecipMetric (HerMetric' Nothing) = empty
+safeRecipMetric (HerMetric' (Just (DenseLinear m)))
+          | isInfinite' detm  = empty
+          | otherwise         = return $ matrixMetric minv
  where (minv, (detm, _)) = HMat.invlndet m
 
+safeRecipMetric' :: HasMetric v => HerMetric v -> Option (HerMetric' v)
+safeRecipMetric' (HerMetric Nothing) = empty
+safeRecipMetric' (HerMetric (Just (DenseLinear m)))
+          | isInfinite' detm  = empty
+          | otherwise         = return $ matrixMetric' minv
+ where (minv, (detm, _)) = HMat.invlndet m
 
 isInfinite' :: (Eq a, Num a) => a -> Bool
 isInfinite' 0 = False

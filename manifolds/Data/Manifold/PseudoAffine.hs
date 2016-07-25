@@ -181,6 +181,7 @@ class ( AdditiveGroup (Needle x), Interior (Interior x) ~ Interior x )
 class ( Semimanifold x, Semimanifold (Interior x)
       , Needle (Interior x) ~ Needle x, Interior (Interior x) ~ Interior x)
         => PseudoAffine x where
+  {-# MINIMAL (.-~.) | (.-~!) #-}
   -- | The path reaching from one point to another.
   --   Should only yield 'Nothing' if
   -- 
@@ -202,6 +203,14 @@ class ( Semimanifold x, Semimanifold (Interior x)
   --   manifold”. To adress this problem, these functions basically consider only the
   --   /interior/ of the space.
   (.-~.) :: x -> Interior x -> Option (Needle x)
+  p.-~.q = return $ p.-~!q
+  
+  -- | Unsafe version of '.-~.'. If the two points lie in disjoint regions,
+  --   the behaviour is undefined.
+  (.-~!) :: x -> Interior x -> Needle x
+  p.-~!q = case p.-~.q of
+      Option (Just v) -> v
+  
 
   
   
