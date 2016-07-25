@@ -52,7 +52,7 @@ module Data.Manifold.Types (
         , CD¹(..), Cℝay(..)
         -- * Affine subspaces
         -- ** Lines
-        , Line
+        , Line(..), lineAsPlaneIntersection
         -- ** Hyperplanes
         , Cutplane(..)
         , fathomCutDistance, sideOfCut, cutPosBetween

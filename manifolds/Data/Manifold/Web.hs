@@ -40,7 +40,7 @@ module Data.Manifold.Web (
               -- ** Lookup
             , nearestNeighbour, indexWeb, webEdges, toGraph
               -- ** Decomposition
-            , sliceWebLin
+            , sliceWeb_lin, sampleWebAlongLine_lin
               -- ** Local environments
             , localFocusWeb
               -- * Differential equations
@@ -246,12 +246,31 @@ webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
        lookId i | Option (Just xy) <- indexWeb web i  = xy
 
 
+data InterpolationIv y = InterpolationIv {
+          _interpolationSegRange :: (ℝ,ℝ)
+        , _interpolationFunction :: ℝ -> y
+        }
+
+type InterpolationSeq y = NonEmpty (InterpolationIv y)
+
+mkInterpolationSeq_lin :: (x~ℝ, Geodesic y)
+           => [(x,y)] -> InterpolationSeq y
+mkInterpolationSeq_lin [(xψ,yψ), (xω,yω)]
+       = return $ InterpolationIv
+           (xψ,xω)
+           (\x -> let drel = fromIntv0to1 $ (x-xψ)/(xω-xψ)
+                  in yio drel )
+ where Option (Just yio) = geodesicBetween yψ yω
+mkInterpolationSeq_lin (p₀:p₁:ps)
+    = mkInterpolationSeq_lin [p₀,p₁] <> mkInterpolationSeq_lin (p₁:ps)
+
+
 -- | Fetch a point between any two neighbouring web nodes on opposite
 --   sides of the plane, and linearly interpolate the values onto the
 --   cut plane.
-sliceWebLin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
+sliceWeb_lin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
                => PointsWeb x y -> Cutplane x -> [(x,y)]
-sliceWebLin web = sliceEdgs
+sliceWeb_lin web = sliceEdgs
  where edgs = webEdges web
        sliceEdgs cp = [ (xi d, yi d)  -- Brute-force search through all edges
                       | ((x₀,y₀), (x₁,y₁)) <- edgs
@@ -260,6 +279,27 @@ sliceWebLin web = sliceEdgs
                       , Option (Just yi) <- [geodesicBetween y₀ y₁]
                       ]
 
+sampleWebAlongLine_lin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
+               => PointsWeb x y -> x -> Needle x -> [(x,y)]
+sampleWebAlongLine_lin web x₀ dir = finalLine $ doSlices cutPlanes web
+ where cutPlanes = lineAsPlaneIntersection $ Line x₀ (Stiefel1 dir)
+       doSlices [cp] web' = sliceWeb_lin web' cp
+       doSlices (cp:cps) web' = case sliceWeb_lin web' cp of
+             ippts -> doSlices cps 
+                         $ fromWebNodes (recipMetric . _shadeExpanse) ippts
+       finalLine :: [(x,y)] -> [(x,y)]
+       finalLine verts = go (x₀,0) intpseq 
+        where intpseq = mkInterpolationSeq_lin
+                         [ (metric metr $ x.-~!x₀, y) | (x,y) <- verts ]
+              go xt (InterpolationIv _ f:|[])
+                        = (id***f) <$> iterate ((.+~^dir)***(+1)) xt
+              go xt (InterpolationIv (_,te) f:|fn:fs)
+                        = case break ((<te) . snd) $ iterate ((.+~^dir)***(+1)) xt of
+                             (thisRange, xtn:_)
+                                 -> ((id***f)<$>thisRange) ++ go xtn (fn:|fs)
+       Option (Just metr) = inferMetric $ webNodeRsc web
+       
+       
 
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x (WebLocally x y)
