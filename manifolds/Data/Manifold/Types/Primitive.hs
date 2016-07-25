@@ -44,7 +44,7 @@ module Data.Manifold.Types.Primitive (
         -- * Projective spaces
         , ℝP¹,  ℝP²(..)
         -- * Intervals\/disks\/cones
-        , D¹(..), D²(..)
+        , D¹(..), fromIntv0to1, D²(..)
         , ℝay
         , CD¹(..), Cℝay(..)
         -- * Tensor products
@@ -154,6 +154,10 @@ data ℝP² = ℝP² { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
 --   the two points -1 and 1 of 'S⁰', i.e. this is simply a closed interval.
 newtype D¹ = D¹ { xParamD¹ :: Double -- ^ Range @[-1, 1]@.
                 }
+fromIntv0to1 :: ℝ -> D¹
+fromIntv0to1 x | x<0        = D¹ (-1)
+               | x>1        = D¹ 1
+               | otherwise  = D¹ $ (x+1)/2
 
 -- | The standard, closed unit disk. Homeomorphic to the cone over 'S¹', but not in the
 --   the obvious, &#x201c;flat&#x201d; way. (And not at all, despite
