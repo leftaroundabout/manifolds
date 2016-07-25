@@ -6,6 +6,8 @@ module Data.List.FastNub where
 
 import Data.List
 import Data.Function
+import Data.Ord
+import Control.Arrow ((&&&))
 
 
 type FastNub a = (Eq a, Ord a) -- S̶h̶o̶u̶l̶d̶ ̶r̶e̶a̶l̶l̶y̶ ̶b̶e̶ ̶(̶E̶q̶ ̶a̶,̶̶ ̶H̶a̶s̶h̶a̶b̶l̶e̶ ̶a̶)̶
@@ -63,3 +65,10 @@ fnubIntersect xs ys = fis (fastNub xs) (fastNub ys)
        fis (x:xs) (y:ys) | x<y  = fis xs (y:ys)
                          | x>y  = fis (x:xs) ys
                          | otherwise  = x : fis xs ys
+
+
+-- | This function is also defined in "GHC.Exts", but only in a version that requires
+--   𝓞(𝑛⋅log 𝑛) function applications, as opposed to 𝑛 here.
+sortWith :: Ord b => (a -> b) -> [a] -> [a]
+sortWith f = map snd . sortBy (comparing fst) . map (f &&& id)
+
