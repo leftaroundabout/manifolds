@@ -66,6 +66,7 @@ module Data.Manifold.PseudoAffine (
             , LocalLinear, LocalAffine
             -- * Misc
             , alerpB, palerp, palerpB, LocallyCoercible(..)
+            , ImpliesMetric(..)
             ) where
     
 
@@ -94,6 +95,7 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
+import GHC.Exts (Constraint)
 
 
 
@@ -593,5 +595,24 @@ toS¹range φ = (φ+pi)`mod'`tau - pi
 
 
 
+
+class ImpliesMetric s where
+  {-# MINIMAL inferMetric | inferMetric' #-}
+  type MetricRequirement s x :: Constraint
+  type MetricRequirement s x = Semimanifold x
+  inferMetric :: (MetricRequirement s x, HasMetric (Needle x))
+                     => s x -> Option (Metric x)
+  inferMetric = safeRecipMetric <=< inferMetric'
+  inferMetric' :: (MetricRequirement s x, HasMetric (Needle x))
+                     => s x -> Option (Metric' x)
+  inferMetric' = safeRecipMetric' <=< inferMetric
+
+instance ImpliesMetric HerMetric where
+  type MetricRequirement HerMetric x = x ~ Needle x
+  inferMetric = pure
+
+instance ImpliesMetric HerMetric' where
+  type MetricRequirement HerMetric' x = x ~ Needle x
+  inferMetric' = pure
 
 

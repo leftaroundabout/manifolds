@@ -174,6 +174,14 @@ instance IsShade Shade where
   coerceShade (Shade x (HerMetric' δxym))
           = Shade (locallyTrivialDiffeomorphism x) (HerMetric' $ unsafeCoerceLinear<$>δxym)
 
+instance ImpliesMetric Shade where
+  type MetricRequirement Shade x = Manifold x
+  inferMetric' (Shade _ e) = pure e
+
+instance ImpliesMetric Shade' where
+  type MetricRequirement Shade' x = Manifold x
+  inferMetric (Shade' _ e) = pure e
+
 shadeExpanse :: Lens' (Shade x) (Metric' x)
 shadeExpanse f (Shade c e) = fmap (Shade c) $ f e
 
@@ -671,6 +679,13 @@ nLeaves :: ShadeTree x -> Int
 nLeaves (PlainLeaves lvs) = length lvs
 nLeaves (DisjointBranches n _) = n
 nLeaves (OverlappingBranches n _ _) = n
+
+
+instance ImpliesMetric ShadeTree where
+  type MetricRequirement ShadeTree x = Manifold x
+  inferMetric' (OverlappingBranches _ (Shade _ e) _) = pure e
+
+
 
 overlappingBranches :: Shade x -> NonEmpty (DBranch x) -> ShadeTree x
 overlappingBranches shx brs = OverlappingBranches n shx brs
