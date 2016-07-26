@@ -40,7 +40,7 @@ module Data.Manifold.Web (
               -- ** Lookup
             , nearestNeighbour, indexWeb, webEdges, toGraph
               -- ** Decomposition
-            , sliceWeb_lin, sampleWebAlongLine_lin
+            , sliceWeb_lin -- , sampleWebAlongLine_lin
               -- ** Local environments
             , localFocusWeb
               -- * Differential equations
@@ -279,16 +279,33 @@ sliceWeb_lin web = sliceEdgs
                       , Option (Just yi) <- [geodesicBetween y₀ y₁]
                       ]
 
-sampleWebAlongLine_lin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
-               => PointsWeb x y -> x -> Needle x -> [(x,y)]
-sampleWebAlongLine_lin web x₀ dir = finalLine $ doSlices cutPlanes web
- where cutPlanes = lineAsPlaneIntersection $ Line x₀ (Stiefel1 dir)
-       doSlices [cp] web' = sliceWeb_lin web' cp
-       doSlices (cp:cps) web' = case sliceWeb_lin web' cp of
-             ippts -> doSlices cps 
-                         $ fromWebNodes (recipMetric . _shadeExpanse) ippts
-       finalLine :: [(x,y)] -> [(x,y)]
-       finalLine verts = go (x₀,0) intpseq 
+-- sampleWebAlongLine_lin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
+--                => PointsWeb x y -> x -> Needle x -> [(x,y)]
+-- sampleWebAlongLine_lin web x₀ dir = sampleWebAlongLines_lin web x₀ [(dir, maxBound)]
+
+
+data GridPlanes x = GridPlanes {
+        _gridPlaneNormal :: Needle' x
+      , _gridPlaneSpacing :: Needle x
+      , _gridPlanesCount :: Int
+      }
+data GridSetup x = GridSetup {
+        _gridStartCorner :: x
+      , _gridSplitDirs :: [GridPlanes x]
+      }
+
+splitToGridLines :: (WithField ℝ Manifold x, Geodesic x, Geodesic y)
+          => PointsWeb x y -> GridSetup x -> [((x, GridPlanes x), [(x,y)])]
+splitToGridLines web (GridSetup x₀ [GridPlanes dirΩ spcΩ nΩ, linePln])
+    = [ ((x₀', linePln), sliceWeb_lin web $ Cutplane x₀' (Stiefel1 dirΩ))
+      | k <- [0 .. nΩ-1]
+      , let x₀' = x₀.+~^(fromIntegral k *^ spcΩ) ]
+
+sampleWebAlongGrid_lin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
+               => PointsWeb x y -> GridSetup x -> [(x,y)]
+sampleWebAlongGrid_lin web grid = finalLine =<< splitToGridLines web grid
+ where finalLine :: ((x, GridPlanes x), [(x,y)]) -> [(x,y)]
+       finalLine ((x₀, GridPlanes _ dir nSpl), verts) = take nSpl $ go (x₀,0) intpseq 
         where intpseq = mkInterpolationSeq_lin
                          [ (metric metr $ x.-~!x₀, y) | (x,y) <- verts ]
               go xt (InterpolationIv _ f:|[])
