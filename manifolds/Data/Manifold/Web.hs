@@ -294,6 +294,11 @@ data GridSetup x = GridSetup {
       , _gridSplitDirs :: [GridPlanes x]
       }
 
+cartesianGrid2D :: (x~ℝ, y~ℝ) => ((x,x), Int) -> ((y,y), Int) -> GridSetup (x,y)
+cartesianGrid2D ((x₀,x₁), nx) ((y₀,y₁), ny)
+    = GridSetup (x₀,y₀) [ GridPlanes (0,1) (0, (y₁-y₀)/fromIntegral ny) ny
+                        , GridPlanes (1,0) ((x₁-x₀)/fromIntegral nx, 0) ny ]
+
 splitToGridLines :: (WithField ℝ Manifold x, Geodesic x, Geodesic y)
           => PointsWeb x y -> GridSetup x -> [((x, GridPlanes x), [(x,y)])]
 splitToGridLines web (GridSetup x₀ [GridPlanes dirΩ spcΩ nΩ, linePln])
@@ -316,6 +321,13 @@ sampleWebAlongGrid_lin web grid = finalLine =<< splitToGridLines web grid
                                  -> ((id***f)<$>thisRange) ++ go xtn (fn:|fs)
        Option (Just metr) = inferMetric $ webNodeRsc web
        
+sampleWeb_2Dcartesian_lin :: (x~ℝ, y~ℝ, Geodesic z)
+             => PointsWeb (x,y) z -> ((x,x),Int) -> ((y,y),Int) -> [(y,[(x,z)])]
+sampleWeb_2Dcartesian_lin web (xspec@(_,nx)) yspec
+       = go . sampleWebAlongGrid_lin web $ cartesianGrid2D xspec yspec
+ where go [] = []
+       go l@(((_,y),_):_) = let (ln,l') = splitAt nx l
+                             in (y, map (\((x,_),z) -> (x,z)) ln) : go l'
        
 
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
