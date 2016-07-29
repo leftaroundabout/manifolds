@@ -251,7 +251,7 @@ data InterpolationIv y = InterpolationIv {
         , _interpolationFunction :: ℝ -> y
         }
 
-type InterpolationSeq y = NonEmpty (InterpolationIv y)
+type InterpolationSeq y = [InterpolationIv y]
 
 mkInterpolationSeq_lin :: (x~ℝ, Geodesic y)
            => [(x,y)] -> InterpolationSeq y
@@ -263,6 +263,7 @@ mkInterpolationSeq_lin [(xψ,yψ), (xω,yω)]
  where Option (Just yio) = geodesicBetween yψ yω
 mkInterpolationSeq_lin (p₀:p₁:ps)
     = mkInterpolationSeq_lin [p₀,p₁] <> mkInterpolationSeq_lin (p₁:ps)
+mkInterpolationSeq_lin _ = []
 
 
 -- | Fetch a point between any two neighbouring web nodes on opposite
@@ -307,28 +308,38 @@ splitToGridLines web (GridSetup x₀ [GridPlanes dirΩ spcΩ nΩ, linePln])
       , let x₀' = x₀.+~^(fromIntegral k *^ spcΩ) ]
 
 sampleWebAlongGrid_lin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
-               => PointsWeb x y -> GridSetup x -> [(x,y)]
+               => PointsWeb x y -> GridSetup x -> [(x,Option y)]
 sampleWebAlongGrid_lin web grid = finalLine =<< splitToGridLines web grid
- where finalLine :: ((x, GridPlanes x), [(x,y)]) -> [(x,y)]
-       finalLine ((x₀, GridPlanes _ dir nSpl), verts) = take nSpl $ go (x₀,0) intpseq 
+ where finalLine :: ((x, GridPlanes x), [(x,y)]) -> [(x,Option y)]
+       finalLine ((x₀, GridPlanes _ dir nSpl), verts)
+          | length verts < 2  = take nSpl $ (,empty)<$>iterate (.+~^dir) x₀
+       finalLine ((x₀, GridPlanes _ dir nSpl), verts)  = take nSpl $ go (x₀,0) intpseq 
         where intpseq = mkInterpolationSeq_lin
                          [ (metric metr $ x.-~!x₀, y) | (x,y) <- verts ]
-              go xt (InterpolationIv _ f:|[])
-                        = (id***f) <$> iterate ((.+~^dir)***(+1)) xt
-              go xt (InterpolationIv (_,te) f:|fn:fs)
+              go (x,_) [] = (,empty)<$>iterate (.+~^dir) x
+              go xt (InterpolationIv (_,te) f:fs)
                         = case break ((<te) . snd) $ iterate ((.+~^dir)***(+1)) xt of
                              (thisRange, xtn:_)
-                                 -> ((id***f)<$>thisRange) ++ go xtn (fn:|fs)
+                                 -> ((id***pure.f)<$>thisRange) ++ go xtn fs
        Option (Just metr) = inferMetric $ webNodeRsc web
        
 sampleWeb_2Dcartesian_lin :: (x~ℝ, y~ℝ, Geodesic z)
-             => PointsWeb (x,y) z -> ((x,x),Int) -> ((y,y),Int) -> [(y,[(x,z)])]
+             => PointsWeb (x,y) z -> ((x,x),Int) -> ((y,y),Int) -> [(y,[(x,Option z)])]
 sampleWeb_2Dcartesian_lin web (xspec@(_,nx)) yspec
        = go . sampleWebAlongGrid_lin web $ cartesianGrid2D xspec yspec
  where go [] = []
        go l@(((_,y),_):_) = let (ln,l') = splitAt nx l
                              in (y, map (\((x,_),z) -> (x,z)) ln) : go l'
        
+sampleEntireWeb_2Dcartesian_lin :: (x~ℝ, y~ℝ, Geodesic z)
+             => PointsWeb (x,y) z -> Int -> Int -> [(y,[(x,Option z)])]
+sampleEntireWeb_2Dcartesian_lin web nx ny
+       = sampleWeb_2Dcartesian_lin web ((x₀,x₁),nx) ((y₀,y₁),ny)
+ where x₀ = minimum (fst<$>pts)
+       x₁ = maximum (fst<$>pts)
+       y₀ = minimum (snd<$>pts)
+       y₁ = maximum (snd<$>pts)
+       pts = fst . fst <$> toList (localFocusWeb web)
 
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x (WebLocally x y)
