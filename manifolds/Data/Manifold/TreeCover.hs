@@ -682,8 +682,12 @@ nLeaves (OverlappingBranches n _ _) = n
 
 
 instance ImpliesMetric ShadeTree where
-  type MetricRequirement ShadeTree x = Manifold x
+  type MetricRequirement ShadeTree x = WithField ℝ Manifold x
   inferMetric' (OverlappingBranches _ (Shade _ e) _) = pure e
+  inferMetric' (PlainLeaves lvs) = case pointsShades lvs of
+        (Shade _ sh:_) -> pure sh
+        _ -> empty
+  inferMetric' (DisjointBranches _ (br:|_)) = inferMetric' br
 
 
 
