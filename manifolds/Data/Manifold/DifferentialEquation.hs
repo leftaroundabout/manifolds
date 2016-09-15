@@ -49,8 +49,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
 
 import Data.VectorSpace
-import Data.LinearMap.HerMetric
-import Data.LinearMap.Category
+import Math.LinearMap.Category
 import Data.AffineSpace
 import Data.Basis
 
@@ -61,7 +60,6 @@ import Data.Function.Differentiable.Data
 import Data.Manifold.TreeCover
 import Data.Manifold.Web
 
-import qualified Numeric.LinearAlgebra.HMatrix as HMat
 import qualified Data.List as List
 
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
@@ -78,13 +76,14 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 
-constLinearDEqn :: (WithField ℝ LinearManifold x, WithField ℝ LinearManifold y)
-              => Linear ℝ (DualSpace y) (Linear ℝ y x) -> DifferentialEqn x y
+constLinearDEqn :: ( WithField ℝ LinearManifold x, SimpleSpace x
+                   , WithField ℝ LinearManifold y, SimpleSpace y )
+              => LinearMap ℝ (DualVector y) (LinearMap ℝ y x) -> DifferentialEqn x y
 constLinearDEqn bwt = factoriseShade
-    >>> \(_x, Shade y δy) -> let j = bwt'm HMat.<\> (asPackedVector y)
-                                 δj = bwt' `transformMetric` recipMetric δy
-                             in Shade' (fromPackedVector j) δj
- where bwt'@(DenseLinear bwt'm) = adjoint bwt
+    >>> \(_x, Shade y δy) -> let j = bwt' \$ y
+                                 δj = bwt' `transformNorm` dualNorm δy
+                             in Shade' j δj
+ where bwt' = adjoint $ bwt
 
 
 -- | A function that variates, relatively speaking, most strongly
@@ -100,18 +99,26 @@ constLinearDEqn bwt = factoriseShade
 goalSensitive :: ℝ -> ℝ
 goalSensitive η =  0.3 + sqrt (η * (1 + η/(1+η)) / (3 + η))
 
-euclideanVolGoal :: WithField ℝ EuclidSpace y => ℝ -> x -> Shade' y -> ℝ
+euclideanVolGoal :: (WithField ℝ EuclidSpace y, SimpleSpace (Needle y))
+                          => ℝ -> x -> Shade' y -> ℝ
 euclideanVolGoal vTgt _ (Shade' _ shy) = goalSensitive η
  where η = euclideanRelativeMetricVolume shy / vTgt
 
-maxDeviationsGoal :: WithField ℝ EuclidSpace y => [Needle y] -> x -> Shade' y -> ℝ
-maxDeviationsGoal = uncertaintyGoal . projector's
+euclideanRelativeMetricVolume :: (SimpleSpace y, HilbertSpace y) => Norm y -> Scalar y
+euclideanRelativeMetricVolume (Norm m) = roughDet . arr $ ue . m
+ where Norm ue = euclideanNorm
 
-uncertaintyGoal :: WithField ℝ EuclidSpace y => Metric' y -> x -> Shade' y -> ℝ
+maxDeviationsGoal :: (WithField ℝ EuclidSpace y, SimpleSpace (Needle y))
+                        => [Needle y] -> x -> Shade' y -> ℝ
+maxDeviationsGoal = uncertaintyGoal . spanNorm
+
+uncertaintyGoal :: (WithField ℝ EuclidSpace y, SimpleSpace (Needle y))
+                      => Metric' y -> x -> Shade' y -> ℝ
 uncertaintyGoal = uncertaintyGoal' . const
 
-uncertaintyGoal' :: WithField ℝ EuclidSpace y => (x -> Metric' y) -> x -> Shade' y -> ℝ
+uncertaintyGoal' :: (WithField ℝ EuclidSpace y, SimpleSpace (Needle y))
+                         => (x -> Metric' y) -> x -> Shade' y -> ℝ
 uncertaintyGoal' f x (Shade' _ shy)
-         = List.sum [goalSensitive $ 1 / metricSq' m q | q <- shySpan]
- where shySpan = eigenSpan' shy
+         = List.sum [goalSensitive $ 1 / normSq m q | q <- shySpan]
+ where shySpan = normSpanningSystem shy
        m = f x

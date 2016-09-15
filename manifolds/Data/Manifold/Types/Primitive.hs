@@ -37,7 +37,7 @@ module Data.Manifold.Types.Primitive (
         , Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
         -- * Linear manifolds
-        , ZeroDim(..), isoAttachZeroDim
+        , ZeroDim(..)
         , ℝ⁰, ℝ, ℝ², ℝ³
         -- * Hyperspheres
         , S⁰(..), otherHalfSphere, S¹(..), S²(..)
@@ -57,12 +57,12 @@ module Data.Manifold.Types.Primitive (
 
 
 import Data.VectorSpace
+import Math.VectorSpace.ZeroDimensional
 import Data.AffineSpace
 import Data.Basis
 import Data.Void
 import Data.Monoid
-
-import qualified Numeric.LinearAlgebra.HMatrix as HMat
+import Math.LinearMap.Category ((⊗)())
 
 import Control.Applicative (Const(..), Alternative(..))
 
@@ -91,34 +91,6 @@ data GraphWindowSpec = GraphWindowSpec {
 
 
 
--- | A single point. Can be considered a zero-dimensional vector space, WRT any scalar.
-data ZeroDim k = Origin deriving(Eq, Show)
-instance Monoid (ZeroDim k) where
-  mempty = Origin
-  mappend Origin Origin = Origin
-instance AffineSpace (ZeroDim k) where
-  type Diff (ZeroDim k) = ZeroDim k
-  Origin .+^ Origin = Origin
-  Origin .-. Origin = Origin
-instance AdditiveGroup (ZeroDim k) where
-  zeroV = Origin
-  Origin ^+^ Origin = Origin
-  negateV Origin = Origin
-instance VectorSpace (ZeroDim k) where
-  type Scalar (ZeroDim k) = k
-  _ *^ Origin = Origin
-instance HasBasis (ZeroDim k) where
-  type Basis (ZeroDim k) = Void
-  basisValue = absurd
-  decompose Origin = []
-  decompose' Origin = absurd
-
-{-# INLINE isoAttachZeroDim #-}
-isoAttachZeroDim :: ( WellPointed c, UnitObject c ~ (), ObjectPair c a ()
-                    , Object c (ZeroDim k), ObjectPair c a (ZeroDim k)
-                    , PointObject c (ZeroDim k) )
-                       => Isomorphism c a (a, ZeroDim k)
-isoAttachZeroDim = second (Isomorphism (const Origin) terminal) . attachUnit
 
 -- | The zero-dimensional sphere is actually just two points. Implementation might
 --   therefore change to @ℝ⁰ 'Control.Category.Constrained.+' ℝ⁰@: the disjoint sum of two
@@ -187,9 +159,6 @@ data Cℝay x = Cℝay { hParamCℝay :: !Double -- ^ Range @[0, &#x221e;[@
 
 
 
-
--- | Dense tensor product of two vector spaces.
-newtype x⊗y = DensTensProd { getDensTensProd :: HMat.Matrix (Scalar y) }
 
 
 

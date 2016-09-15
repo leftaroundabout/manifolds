@@ -40,9 +40,10 @@ Library
   Build-Depends:     base>=4.5 && < 6
                      , transformers
                      , vector-space>=0.8
+                     , free-vector-spaces>=0.1.1
                      , MemoTrie
                      , vector
-                     , hmatrix >= 0.16 && < 0.18
+                     , linearmap-category < 0.2
                      , containers
                      , comonad
                      , semigroups
@@ -51,7 +52,7 @@ Library
                      , deepseq
                      , microlens >= 0.4 && <= 0.5, microlens-th
                      , trivial-constraint >= 0.4
-                     , constrained-categories >= 0.2.3 && < 0.3
+                     , constrained-categories >= 0.2.3 && < 0.3.1
   other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
@@ -69,7 +70,6 @@ Library
                      Data.Manifold.Web
                      Data.Manifold.DifferentialEquation
                      Data.SimplicialComplex
-                     Data.LinearMap.HerMetric
                      Data.Function.Differentiable
                      Data.Manifold.Types
                      Data.Manifold.Types.Stiefel
@@ -81,10 +81,8 @@ Library
                    Data.Manifold.Cone
                    Data.CoNat
                    Data.Embedding
-                   Data.LinearMap.Category
                    Data.Function.Differentiable.Data
                    Data.Function.Affine
-                   Data.VectorSpace.FiniteDimensional
                    Control.Monad.Trans.OuterMaybe
                    Util.Associate
                    Util.LtdShow

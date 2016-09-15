@@ -39,7 +39,6 @@ module Data.SimplicialComplex (
         , simplexVertices, simplexVertices'
         -- * Simplicial complexes
         , Triangulation
-        , singleSimplex
         -- * Triangulation-builder monad
         , TriangT
         , evalTriangT, runTriangT, doTriangT, getTriang
@@ -51,10 +50,7 @@ module Data.SimplicialComplex (
         , distinctSimplices, NeighbouringSimplices
         -- ** Building triangulations
         , disjointTriangulation
-        , disjointSimplex
         , mixinTriangulation
-        , introVertToTriang
-        , webinateTriang
         -- * Misc util
         , HaskMonad, liftInTriangT, unliftInTriangT
         , Nat, Zero, One, Two, Three, Succ
@@ -70,7 +66,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
 import Data.Ord (comparing)
 
-import Data.LinearMap.Category
+import Math.LinearMap.Category
 import Data.Tagged
 
 import Data.Manifold.Types.Primitive ((^), empty)
@@ -149,15 +145,6 @@ instance Hask.Functor (Triangulation n) where
   fmap f (TriangVertices vs) = TriangVertices $ first f <$> vs
   fmap f (TriangSkeleton sk vs) = TriangSkeleton (f<$>sk) vs
 deriving instance (Show x) => Show (Triangulation n x)
-
--- | Consider a single simplex as a simplicial complex, consisting only of
---   this simplex and its faces.
-singleSimplex :: ∀ n x . KnownNat n => Simplex n x -> Triangulation n x
-singleSimplex (ZS x) = TriangVertices $ pure (x, [])
-singleSimplex (x :<| s)
-         = runIdentity . execTriangT insX $ TriangSkeleton (singleSimplex s) mempty
- where insX :: ∀ t . TriangT t n x Identity ()
-       insX = introVertToTriang x [SimplexIT 0] >> return()
 
 nTopSplxs :: Triangulation n' x -> Int
 nTopSplxs (TriangVertices vs) = Arr.length vs
@@ -404,11 +391,6 @@ disjointTriangulation t = TriangT $
                                        | k <- take (nTopSplxs t) [nTopSplxs tr ..] ]
                                      , tr <> t )
 
-disjointSimplex :: ∀ t m n x . (KnownNat n, HaskMonad m)
-       => Simplex n x -> TriangT t n x m (SimplexIT t n x)
-disjointSimplex s = TriangT $ \tr -> return ( SimplexIT $ nTopSplxs tr
-                                            , tr <> singleSimplex s    )
-
 
 -- | Import a triangulation like with 'disjointTriangulation',
 --   together with references to some of its subsimplices.
@@ -425,59 +407,8 @@ mixinTriangulation t
        t' = fmap (fmap tgetSimplexIT) t
 
 
-webinateTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
-         => SimplexIT t Z x -> SimplexIT t n x -> TriangT t (S n) x m (SimplexIT t (S n) x)
-webinateTriang ptt@(SimplexIT pt) bst@(SimplexIT bs) = do
-  existsReady <- lookupSimplexCone ptt bst
-  case existsReady of
-   Option (Just ext) -> return ext
-   _ -> TriangT $ \(TriangSkeleton sk cnn)
-         -> let resi = Arr.length cnn
-                res = SimplexIT $ Arr.length cnn      :: SimplexIT t (S n) x
-            in case sk of
-             TriangVertices vs -> return
-                   $ ( res
-                     , TriangSkeleton (TriangVertices
-                           $ vs Arr.// [ (pt, second (resi:) $ vs Arr.! pt)
-                                       , (bs, second (resi:) $ vs Arr.! bs) ]
-                               ) $ Arr.snoc cnn (freeTuple$->$(pt, bs), []) )
-             TriangSkeleton _ cnn'
-                   -> let (cnbs,_) = cnn' Arr.! bs
-                      in do (cnws,sk') <- unsafeRunTriangT ( do
-                              cnws <- forM cnbs $ \j -> do
-                                 kt@(SimplexIT k) <- webinateTriang ptt (SimplexIT j)
-                                 addUplink' res kt
-                                 return k
-                              addUplink' res bst
-                              return cnws
-                             ) sk
-                            let snocer = (freeSnoc cnws bs, [])
-                            return $ (res, TriangSkeleton sk' $ Arr.snoc cnn snocer)
- where addUplink' :: SimplexIT t (S n) x -> SimplexIT t n x -> TriangT t n x m ()
-       addUplink' (SimplexIT i) (SimplexIT j) = TriangT
-        $ \sk -> pure ((), case sk of
-                       TriangVertices vs
-                           -> let (v,ul) = vs Arr.! j
-                              in TriangVertices $ vs Arr.// [(j, (v, i:ul))]
-                       TriangSkeleton skd us
-                           -> let (b,tl) = us Arr.! j
-                              in TriangSkeleton skd $ us Arr.// [(j, (b, i:tl))]
-                   )
                                                     
 
-
-
-introVertToTriang :: ∀ t m n x . (HaskMonad m, KnownNat n)
-                  => x -> [SimplexIT t n x] -> TriangT t (S n) x m (SimplexIT t Z x)
-introVertToTriang v glues = do
-      j <- fmap (\(Option(Just k)) -> SimplexIT k) . onSkeleton . TriangT
-             $ return . tVertSnoc
-      mapM_ (webinateTriang j) glues
-      return j
- where tVertSnoc :: Triangulation Z x -> (Int, Triangulation Z x)
-       tVertSnoc (TriangVertices vs)
-           = (Arr.length vs, TriangVertices $ vs `Arr.snoc` (v,[]))
-      
 
 
 

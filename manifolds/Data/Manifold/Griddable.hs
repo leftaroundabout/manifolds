@@ -38,7 +38,7 @@ module Data.Manifold.Griddable (GridAxis(..), Griddable(..)) where
 import Data.List hiding (filter, all, elem, sum)
 import Data.Maybe
 
-import Data.LinearMap.HerMetric
+import Math.LinearMap.Category
 
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), (^.))
@@ -97,7 +97,7 @@ instance Griddable ℝ String where
    where l = c - expa
          r = c + expa
          
-         expa = metric'AsLength expa'
+         expa = normalLength expa'
          
          (Just ax) = find ((>=n) . axisGrLength)
                 $ [ let qe = 10^^lqe' * nb
@@ -110,20 +110,21 @@ instance Griddable ℝ String where
                 | n < 0      = floor $ lg (-n)
 
 
-instance (Griddable m a, Griddable n a) => Griddable (m,n) a where
+instance ( SimpleSpace (Needle m), SimpleSpace (Needle n), SimpleSpace (Needle a)
+         , Griddable m a, Griddable n a ) => Griddable (m,n) a where
   data GriddingParameters (m,n) a = PairGriddingParameters {
                fstGriddingParams :: GriddingParameters m a
              , sndGriddingParams :: GriddingParameters n a }
   mkGridding (PairGriddingParameters p₁ p₂) n (Shade (c₁,c₂) e₁e₂)
           = ( gshmap ( uncurry fullShade . (                  (,c₂).(^.shadeCtr)
-                                         &&& (`productMetric'`e₂).(^.shadeExpanse)) )
+                                         &&& (`sumSubspaceNorms`e₂).(^.shadeExpanse)) )
               <$> g₁s )
          ++ ( gshmap ( uncurry fullShade . (                  (c₁,).(^.shadeCtr)
-                                         &&& ( productMetric' e₁).(^.shadeExpanse)) )
+                                         &&& ( sumSubspaceNorms e₁).(^.shadeExpanse)) )
               <$> g₂s )
    where g₁s = mkGridding p₁ n $ fullShade c₁ e₁
          g₂s = mkGridding p₂ n $ fullShade c₂ e₂
-         (e₁,e₂) = factoriseMetric' e₁e₂ 
+         (e₁,e₂) = summandSpaceNorms e₁e₂ 
 
 prettyFloatShow :: Int -> Double -> String
 prettyFloatShow _ 0 = "0"
@@ -144,11 +145,11 @@ data Interval = Interval { ivLBound, ivRBound :: ℝ }
 shade2Intvl :: Shade ℝ -> Interval
 shade2Intvl sh = Interval l r
  where c = sh ^. shadeCtr
-       expa = metric'AsLength $ sh ^. shadeExpanse
+       expa = normalLength $ sh ^. shadeExpanse
        l = c - expa; r = c + expa
 
 intvl2Shade :: Interval -> Shade ℝ
-intvl2Shade (Interval l r) = fullShade c (projector' expa)
+intvl2Shade (Interval l r) = fullShade c (spanNorm [expa])
  where c = (l+r) / 2
        expa = (r-l) / 2
        

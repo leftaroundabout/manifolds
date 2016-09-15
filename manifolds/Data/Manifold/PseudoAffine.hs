@@ -59,14 +59,13 @@ module Data.Manifold.PseudoAffine (
             , RealDimension, AffineManifold
             , LinearManifold
             , WithField
-            , HilbertSpace
+            , HilbertManifold
             , EuclidSpace
             , LocallyScalable
             -- ** Local functions
             , LocalLinear, LocalAffine
             -- * Misc
             , alerpB, palerp, palerpB, LocallyCoercible(..)
-            , ImpliesMetric(..)
             ) where
     
 
@@ -78,14 +77,12 @@ import Data.Fixed
 import Data.VectorSpace
 import Data.Embedding
 import Data.LinearMap
-import Data.LinearMap.HerMetric
-import Data.LinearMap.Category
+import Math.LinearMap.Category
 import Data.AffineSpace
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 
 import Data.CoNat
-import Data.VectorSpace.FiniteDimensional
 
 import qualified Prelude
 import qualified Control.Applicative as Hask
@@ -246,24 +243,22 @@ instance LocallyCoercible ((ℝ,ℝ),ℝ) ((ℝ,ℝ),ℝ) where locallyTrivialDi
 
 
 type LocallyScalable s x = ( PseudoAffine x
-                           , HasMetric (Needle x)
-                           , s ~ Scalar (Needle x) )
+                           , LSpace (Needle x)
+                           , s ~ Scalar (Needle x)
+                           , Num''' s )
 
-type LocalLinear x y = Linear (Scalar (Needle x)) (Needle x) (Needle y)
+type LocalLinear x y = LinearMap (Scalar (Needle x)) (Needle x) (Needle y)
 type LocalAffine x y = (Needle y, LocalLinear x y)
 
 -- | Basically just an &#x201c;updated&#x201d; version of the 'VectorSpace' class.
 --   Every vector space is a manifold, this constraint makes it explicit.
---   
---   (Actually, 'LinearManifold' is stronger than 'VectorSpace' at the moment, since
---   'HasMetric' requires 'FiniteDimensional'. This might be lifted in the future.)
-type LinearManifold x = ( AffineManifold x, Needle x ~ x, HasMetric x )
+type LinearManifold x = ( AffineManifold x, Needle x ~ x, LSpace x )
 
 type LinearManifold' x = ( PseudoAffine x, AffineSpace x, Diff x ~ x
-                         , Interior x ~ x, Needle x ~ x, HasMetric x )
+                         , Interior x ~ x, Needle x ~ x, LSpace x )
 
 -- | Require some constraint on a manifold, and also fix the type of the manifold's
---   underlying field. For example, @WithField &#x211d; 'HilbertSpace' v@ constrains
+--   underlying field. For example, @WithField &#x211d; 'HilbertManifold' v@ constrains
 --   @v@ to be a real (i.e., 'Double'-) Hilbert space.
 --   Note that for this to compile, you will in
 --   general need the @-XLiberalTypeSynonyms@ extension (except if the constraint
@@ -272,9 +267,7 @@ type LinearManifold' x = ( PseudoAffine x, AffineSpace x, Diff x ~ x
 type WithField s c x = ( c x, s ~ Scalar (Needle x) )
 
 -- | The 'RealFloat' class plus manifold constraints.
-type RealDimension r = ( PseudoAffine r, Interior r ~ r, Needle r ~ r
-                       , HasMetric r, DualSpace r ~ r, Scalar r ~ r
-                       , RealFloat r, r ~ ℝ)
+type RealDimension r = ( PseudoAffine r, Interior r ~ r, Needle r ~ r, r ~ ℝ)
 
 -- | The 'AffineSpace' class plus manifold constraints.
 type AffineManifold m = ( PseudoAffine m, Interior m ~ m, AffineSpace m
@@ -286,27 +279,27 @@ type AffineManifold m = ( PseudoAffine m, Interior m ~ m, AffineSpace m
 --   (Stricly speaking, that doesn't have much to do with the completeness criterion;
 --   but since 'Manifold's are at the moment confined to finite dimension, they are in
 --   fact (trivially) complete.)
-type HilbertSpace x = ( LinearManifold x, InnerSpace x
-                      , Interior x ~ x, Needle x ~ x, DualSpace x ~ x
-                      , Floating (Scalar x) )
+type HilbertManifold x = ( LinearManifold x, InnerSpace x
+                         , Interior x ~ x, Needle x ~ x, DualVector x ~ x
+                         , Floating (Scalar x) )
 
 -- | An euclidean space is a real affine space whose tangent space is a Hilbert space.
 type EuclidSpace x = ( AffineManifold x, InnerSpace (Diff x)
-                     , DualSpace (Diff x) ~ Diff x, Floating (Scalar (Diff x)) )
+                     , DualVector (Diff x) ~ Diff x, Floating (Scalar (Diff x)) )
 
 euclideanMetric :: EuclidSpace x => proxy x -> Metric x
-euclideanMetric _ = euclideanMetric'
+euclideanMetric _ = euclideanNorm
 
 
 -- | A co-needle can be understood as a “paper stack”, with which you can measure
 --   the length that a needle reaches in a given direction by counting the number
 --   of holes punched through them.
-type Needle' x = DualSpace (Needle x)
+type Needle' x = DualVector (Needle x)
 
 
 -- | The word &#x201c;metric&#x201d; is used in the sense as in general relativity. Cf. 'HerMetric'.
-type Metric x = HerMetric (Needle x)
-type Metric' x = HerMetric' (Needle x)
+type Metric x = Norm (Needle x)
+type Metric' x = Variance (Needle x)
 
 -- | A Riemannian metric assigns each point on a manifold a scalar product on the tangent space.
 --   Note that this association is /not/ continuous, because the charts/tangent spaces in the bundle
@@ -360,24 +353,6 @@ instance PseudoAffine (t) where {       \
 deriveAffine(Double)
 deriveAffine(Rational)
 
-instance SmoothScalar s => Semimanifold (FinVecArrRep t b s) where
-  type Needle (FinVecArrRep t b s) = FinVecArrRep t b s
-  type Interior (FinVecArrRep t b s) = FinVecArrRep t b s
-  fromInterior = id
-  toInterior = pure
-  translateP = Tagged (.+^)
-  (.+~^) = (.+^)
-instance SmoothScalar s => PseudoAffine (FinVecArrRep t b s) where
-  a.-~.b = pure (a.-.b)
-instance SmoothScalar s => LocallyCoercible (FinVecArrRep t b s) (FinVecArrRep t b s) where
-  locallyTrivialDiffeomorphism = id
-instance (SmoothScalar s, LinearManifold b, Scalar b ~ s)
-           => LocallyCoercible (FinVecArrRep t b s) b where
-  locallyTrivialDiffeomorphism = (concreteArrRep$<-$)
-instance (SmoothScalar s, LinearManifold b, Scalar b ~ s)
-           => LocallyCoercible b (FinVecArrRep t b s) where
-  locallyTrivialDiffeomorphism = (concreteArrRep$->$)
-  
 
 instance Semimanifold (ZeroDim k) where
   type Needle (ZeroDim k) = ZeroDim k
@@ -442,47 +417,28 @@ instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
      => LocallyCoercible (a,(b,c)) (a,b,c) where
   locallyTrivialDiffeomorphism (a,(b,c)) = (a,b,c)
 
-instance (MetricScalar a, KnownNat n) => Semimanifold (FreeVect n a) where
-  type Needle (FreeVect n a) = FreeVect n a
-  fromInterior = id
-  toInterior = pure
-  translateP = Tagged (.+~^)
-  (.+~^) = (.+^)
-instance (MetricScalar a, KnownNat n) => PseudoAffine (FreeVect n a) where
-  a.-~.b = pure (a.-.b)
-instance LocallyCoercible ℝ (ℝ ^ S Z) where
-  locallyTrivialDiffeomorphism = replicVector
-instance LocallyCoercible (ℝ ^ S Z) ℝ where
-  locallyTrivialDiffeomorphism = (<.>^replicVector 1)
 
 
-instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => Semimanifold (a⊗b) where
-  type Needle (a⊗b) = a ⊗ b
+instance (LSpace a, LSpace b, s~Scalar a, s~Scalar b)
+              => Semimanifold (Tensor s a b) where
+  type Needle (Tensor s a b) = Tensor s a b
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
   (.+~^) = (^+^)
-instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => PseudoAffine (a⊗b) where
+instance (LSpace a, LSpace b, s~Scalar a, s~Scalar b)
+              => PseudoAffine (Tensor s a b) where
   a.-~.b = pure (a^-^b)
 
-instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => Semimanifold (a:-*b) where
-  type Needle (a:-*b) = DualSpace a ⊗ b
-  fromInterior = id
-  toInterior = pure
-  translateP = Tagged (.+~^)
-  p.+~^n = p ^+^ linMapFromTensProd n
-instance (HasMetric a, FiniteDimensional b, Scalar a~Scalar b) => PseudoAffine (a:-*b) where
-  a.-~.b = pure . linMapAsTensProd $ a^-^b
-
-instance (HasMetric a, FiniteDimensional b, Scalar a~s, Scalar b~s)
-                          => Semimanifold (Linear s a b) where
-  type Needle (Linear s a b) = Linear s a b
+instance (LSpace a, LSpace b, Scalar a~s, Scalar b~s)
+                          => Semimanifold (LinearMap s a b) where
+  type Needle (LinearMap s a b) = LinearMap s a b
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+^)
   (.+~^) = (^+^)
-instance (HasMetric a, FiniteDimensional b, Scalar a~s, Scalar b~s)
-                          => PseudoAffine (Linear s a b) where
+instance (LSpace a, LSpace b, Scalar a~s, Scalar b~s)
+                          => PseudoAffine (LinearMap s a b) where
   a.-~.b = pure (a^-^b)
 
 instance Semimanifold S⁰ where
@@ -596,23 +552,5 @@ toS¹range φ = (φ+pi)`mod'`tau - pi
 
 
 
-class ImpliesMetric s where
-  {-# MINIMAL inferMetric | inferMetric' #-}
-  type MetricRequirement s x :: Constraint
-  type MetricRequirement s x = Semimanifold x
-  inferMetric :: (MetricRequirement s x, HasMetric (Needle x))
-                     => s x -> Option (Metric x)
-  inferMetric = safeRecipMetric <=< inferMetric'
-  inferMetric' :: (MetricRequirement s x, HasMetric (Needle x))
-                     => s x -> Option (Metric' x)
-  inferMetric' = safeRecipMetric' <=< inferMetric
-
-instance ImpliesMetric HerMetric where
-  type MetricRequirement HerMetric x = x ~ Needle x
-  inferMetric = pure
-
-instance ImpliesMetric HerMetric' where
-  type MetricRequirement HerMetric' x = x ~ Needle x
-  inferMetric' = pure
 
 
