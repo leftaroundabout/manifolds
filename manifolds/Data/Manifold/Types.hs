@@ -72,6 +72,8 @@ import Data.Semigroup
 import qualified Data.Vector.Generic as Arr
 import qualified Data.Vector
 import qualified Data.Vector.Unboxed as UArr
+import Data.List (maximumBy)
+import Data.Ord (comparing)
 
 import Data.Manifold.Types.Primitive
 import Data.Manifold.Types.Stiefel
@@ -272,7 +274,16 @@ cutPosBetween (Cutplane h (Stiefel1 cn)) (x₀,x₁)
     | otherwise   = empty
 
 
-lineAsPlaneIntersection :: WithField ℝ Manifold x => Line x -> [Cutplane x]
-lineAsPlaneIntersection (Line h dir)
-      = undefined -- [Cutplane h nrml | nrml <- orthogonalComplementSpan [dir]]
+lineAsPlaneIntersection ::
+       (WithField ℝ Manifold x, FiniteDimensional (Needle' x))
+           => Line x -> [Cutplane x]
+lineAsPlaneIntersection (Line h (Stiefel1 dir))
+      = [ Cutplane h . Stiefel1
+              $ candidate ^-^ worstCandidate ^* (overlap/worstOvlp)
+        | (i, (candidate, overlap)) <- zip [0..] $ zip candidates overlaps
+        , i /= worstId ]
+ where candidates = enumerateSubBasis entireBasis
+       overlaps = (<.>^dir) <$> candidates
+       (worstId, worstOvlp) = maximumBy (comparing $ abs . snd) $ zip [0..] overlaps
+       worstCandidate = candidates !! worstId
 
