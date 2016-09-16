@@ -1142,30 +1142,6 @@ data TriangBuilder n x where
 
 
 
--- startTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
---         => ISimplex n x -> TriangBuilder n x
--- startTriangulation ispl@(ISimplex emb) = startWith $ fromISimplex ispl
---  where startWith (ZeroSimplex p) = TriangVerticesSt [p]
---        startWith s@(Simplex _ _)
---                      = TriangBuilder (Triangulation [s])
---                                      (splxVertices s)
---                                      [ (s', expandInDir j)
---                                        | j<-[0..n]
---                                        | s' <- getTriangulation $ simplexFaces s ]
---         where expandInDir j xs = case sortBy (comparing snd) $ filter ((> -1) . snd) xs_bc of
---                             ((x, q) : _) | q<0   -> pure x
---                             _                    -> empty
---                where xs_bc = map (\x -> (x, getBaryCoord (emb >-$ x) j)) xs
---        (Tagged n) = theNatN :: Tagged n Int
-
--- extendTriangulation :: forall n x . (KnownNat n, WithField ℝ Manifold x)
---                            => [x] -> TriangBuilder n x -> TriangBuilder n x
--- extendTriangulation xs (TriangBuilder tr tb te) = foldr tryex (TriangBuilder tr tb []) te
---  where tryex (bspl, expd) (TriangBuilder (Triangulation tr') tb' te')
---          | Option (Just fav) <- expd xs
---                     = let snew = Simplex fav bspl
---                       in TriangBuilder (Triangulation $ snew:tr') (fav:tb') undefined
-
               
 bottomExtendSuitability :: (KnownNat n, WithField ℝ Manifold x)
                 => ISimplex (S n) x -> x -> ℝ
@@ -1297,24 +1273,6 @@ splxVertices (x :<| s') = x : splxVertices s'
 
 
 
--- triangulate :: forall x n . (KnownNat n, WithField ℝ Manifold x)
---                  => ShadeTree x -> Triangulation n x
--- triangulate (DisjointBranches _ brs)
---     = Triangulation $ Hask.foldMap (getTriangulation . triangulate) brs
--- triangulate (PlainLeaves xs) = primitiveTriangulation xs
-
--- triangBranches :: WithField ℝ Manifold x
---                  => ShadeTree x -> Branchwise x (Triangulation x) n
--- triangBranches _ = undefined
--- 
--- tringComplete :: WithField ℝ Manifold x
---                  => Triangulation x (n-1) -> Triangulation x n -> Triangulation x n
--- tringComplete (Triangulation trr) (Triangulation tr) = undefined
---  where 
---        bbSimplices = Map.fromList [(i, Left s) | s <- tr | i <- [0::Int ..] ]
---        bbVertices =       [(i, splxVertices s) | s <- tr | i <- [0::Int ..] ]
--- 
- 
 
 
 
