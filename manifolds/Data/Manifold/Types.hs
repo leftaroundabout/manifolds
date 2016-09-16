@@ -88,6 +88,8 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
+import Data.Type.Coercion
+
 #define deriveAffine(c,t)                \
 instance (c) => Semimanifold (t) where {  \
   type Needle (t) = Diff (t);              \
@@ -162,9 +164,53 @@ instance (FiniteFreeSpace v, UArr.Unbox (Scalar v)) => AffineSpace (Stiefel1Need
 
 deriveAffine((FiniteFreeSpace v, UArr.Unbox (Scalar v)), Stiefel1Needle v)
 
-instance (FiniteFreeSpace v, UArr.Unbox (Scalar v))
+instance ∀ v . (FiniteFreeSpace v, UArr.Unbox (Scalar v))
               => TensorSpace (Stiefel1Needle v) where
-  type TensorProduct (Stiefel1Needle v) w = TensorProduct w (Stiefel1Needle v)
+  type TensorProduct (Stiefel1Needle v) w = Array w
+  zeroTensor = Tensor $ Arr.replicate (freeDimension ([]::[v]) - 1) zeroV
+  toFlatTensor = LinearFunction $ Tensor . Arr.convert . getStiefel1Tangent
+  fromFlatTensor = LinearFunction $ Stiefel1Needle . Arr.convert . getTensorProduct
+  addTensors (Tensor a) (Tensor b) = Tensor $ Arr.zipWith (^+^) a b
+  scaleTensor = bilinearFunction $ \μ (Tensor a) -> Tensor $ Arr.map (μ*^) a
+  negateTensor = LinearFunction $ \(Tensor a) -> Tensor $ Arr.map negateV a
+  tensorProduct = bilinearFunction $ \(Stiefel1Needle n) w
+                        -> Tensor $ Arr.map (*^w) $ Arr.convert n
+  transposeTensor = LinearFunction $ \(Tensor a) -> Arr.foldl' (^+^) zeroV
+       $ Arr.imap ( \i w -> (tensorProduct $ w) $ Stiefel1Needle
+                             $ UArr.generate d (\j -> if i==j then 1 else 0) ) a
+   where d = freeDimension ([]::[v]) - 1
+  fmapTensor = bilinearFunction $ \f (Tensor a) -> Tensor $ Arr.map (f$) a
+  fzipTensorWith = bilinearFunction $ \f (Tensor a, Tensor b)
+                     -> Tensor $ Arr.zipWith (curry $ arr f) a b
+  coerceFmapTensorProduct _ Coercion = Coercion
+  
+instance ∀ v . (FiniteFreeSpace v, UArr.Unbox (Scalar v), Num''' (Scalar v))
+              => LinearSpace (Stiefel1Needle v) where
+  type DualVector (Stiefel1Needle v) = Stiefel1Needle v
+  linearId = LinearMap . Arr.generate d $ \i -> Stiefel1Needle . Arr.generate d $
+                                           \j -> if i==j then 1 else 0
+   where d = freeDimension ([]::[v]) - 1
+  coerceDoubleDual = Coercion
+  blockVectSpan = LinearFunction $ \w -> Tensor . Arr.generate d 
+                                  $ \i -> LinearMap . Arr.generate d
+                                   $ \j -> if i==j then w else zeroV
+   where d = freeDimension ([]::[v]) - 1
+  blockVectSpan'= LinearFunction $ \w -> LinearMap . Arr.generate d 
+                                  $ \i -> Tensor . Arr.generate d
+                                   $ \j -> if i==j then w else zeroV
+   where d = freeDimension ([]::[v]) - 1
+  contractTensorMap = LinearFunction $ \(LinearMap m)
+                        -> Arr.ifoldl' (\acc i (Tensor t) -> acc ^+^ t Arr.! i) zeroV m
+  contractMapTensor = LinearFunction $ \(Tensor m)
+                        -> Arr.ifoldl' (\acc i (LinearMap t) -> acc ^+^ t Arr.! i) zeroV m
+  contractLinearMapAgainst = bilinearFunction $ \(LinearMap m) f
+                        -> Arr.ifoldl' (\acc i w -> case f $ w of
+                                          Stiefel1Needle n -> n UArr.! i ) 0 m
+  applyDualVector = bilinearFunction $ \(Stiefel1Needle v) (Stiefel1Needle w)
+                        -> UArr.sum $ UArr.zipWith (*) v w
+  applyLinear = bilinearFunction $ \(LinearMap m) (Stiefel1Needle v)
+                        -> Arr.ifoldl' (\acc i w -> acc ^+^ v UArr.! i *^ w) zeroV m
+  composeLinear = bilinearFunction $ \f (LinearMap g) -> LinearMap $ Arr.map (f$) g
 
 instance ( WithField k LinearManifold v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
          , RealFloat k, UArr.Unbox k
