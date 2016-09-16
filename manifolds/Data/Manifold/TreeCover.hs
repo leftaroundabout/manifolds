@@ -170,6 +170,16 @@ instance IsShade Shade where
   factoriseShade (Shade (x₀,y₀) δxy) = (Shade x₀ δx, Shade y₀ δy)
    where (δx,δy) = summandSpaceNorms δxy
 
+instance ImpliesMetric Shade where
+  type MetricRequirement Shade x = (Manifold x, SimpleSpace (Needle x))
+  inferMetric' (Shade _ e) = e
+  inferMetric (Shade _ e) = dualNorm e
+
+instance ImpliesMetric Shade' where
+  type MetricRequirement Shade' x = (Manifold x, SimpleSpace (Needle x))
+  inferMetric (Shade' _ e) = e
+  inferMetric' (Shade' _ e) = dualNorm e
+
 shadeExpanse :: Lens' (Shade x) (Metric' x)
 shadeExpanse f (Shade c e) = fmap (Shade c) $ f e
 
@@ -680,6 +690,19 @@ nLeaves (PlainLeaves lvs) = length lvs
 nLeaves (DisjointBranches n _) = n
 nLeaves (OverlappingBranches n _ _) = n
 
+
+instance ImpliesMetric ShadeTree where
+  type MetricRequirement ShadeTree x = (WithField ℝ Manifold x, SimpleSpace (Needle x))
+  inferMetric (OverlappingBranches _ (Shade _ e) _) = dualNorm e
+  inferMetric (PlainLeaves lvs) = case pointsShades lvs of
+        (Shade _ sh:_) -> dualNorm sh
+        _ -> mempty
+  inferMetric (DisjointBranches _ (br:|_)) = inferMetric br
+  inferMetric' (OverlappingBranches _ (Shade _ e) _) = e
+  inferMetric' (PlainLeaves lvs) = case pointsShades lvs of
+        (Shade _ sh:_) -> sh
+        _ -> mempty
+  inferMetric' (DisjointBranches _ (br:|_)) = inferMetric' br
 
 
 

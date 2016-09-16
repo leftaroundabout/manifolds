@@ -66,6 +66,7 @@ module Data.Manifold.PseudoAffine (
             , LocalLinear, LocalAffine
             -- * Misc
             , alerpB, palerp, palerpB, LocallyCoercible(..)
+            , ImpliesMetric(..)
             ) where
     
 
@@ -552,5 +553,17 @@ toS¹range φ = (φ+pi)`mod'`tau - pi
 
 
 
+class ImpliesMetric s where
+  type MetricRequirement s x :: Constraint
+  type MetricRequirement s x = Semimanifold x
+  inferMetric :: (MetricRequirement s x, LSpace (Needle x))
+                     => s x -> Metric x
+  inferMetric' :: (MetricRequirement s x, LSpace (Needle x))
+                     => s x -> Metric' x
+
+instance ImpliesMetric Norm where
+  type MetricRequirement Norm x = (SimpleSpace x, x ~ Needle x)
+  inferMetric = id
+  inferMetric' = dualNorm
 
 

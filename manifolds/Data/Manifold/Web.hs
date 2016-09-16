@@ -326,7 +326,7 @@ sampleWebAlongGrid_lin web grid = finalLine =<< splitToGridLines web grid
                         = case break ((<te) . snd) $ iterate ((.+~^dir)***(+1)) xt of
                              (thisRange, xtn:_)
                                  -> ((id***pure.f)<$>thisRange) ++ go xtn fs
-       Option (Just metr) = undefined -- inferMetric $ webNodeRsc web
+       metr = inferMetric $ webNodeRsc web
        
 sampleWeb_2Dcartesian_lin :: (x~ℝ, y~ℝ, Geodesic z)
              => PointsWeb (x,y) z -> ((x,x),Int) -> ((y,y),Int) -> [(y,[(x,Option z)])]
