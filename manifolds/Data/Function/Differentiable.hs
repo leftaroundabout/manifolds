@@ -635,7 +635,7 @@ intervalPreRegion (lb,rb) = PreRegion $ Differentiable prr
 
 
 instance (RealDimension s) => Category (RWDiffable s) where
-  type Object (RWDiffable s) o = LocallyScalable s o
+  type Object (RWDiffable s) o = (LocallyScalable s o, SimpleSpace (Needle o))
   id = RWDiffable $ \x -> (GlobalRegion, pure id)
   RWDiffable f . RWDiffable g = RWDiffable h where
    h x₀ = case g x₀ of
@@ -752,7 +752,9 @@ data RWDfblFuncValue s d c where
   RWDFV_IdVar :: RWDfblFuncValue s c c
   GenericRWDFV :: RWDiffable s d c -> RWDfblFuncValue s d c
 
-genericiseRWDFV :: (RealDimension s, LocallyScalable s c, LocallyScalable s d)
+genericiseRWDFV :: ( RealDimension s
+                   , LocallyScalable s c, SimpleSpace (Needle c)
+                   , LocallyScalable s d, SimpleSpace (Needle d) )
                     => RWDfblFuncValue s d c -> RWDfblFuncValue s d c
 genericiseRWDFV (ConstRWDFV c) = GenericRWDFV $ const c
 genericiseRWDFV RWDFV_IdVar = GenericRWDFV id
@@ -780,6 +782,7 @@ grwDfblFnValsFunc
      :: ( RealDimension s
         , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
         , v ~ Needle c, v' ~ Needle c'
+        , SimpleSpace v, SimpleSpace (Needle d)
         , ε ~ Norm v, ε ~ Norm v' )
              => (c' -> (c, v'+>v, ε->ε)) -> RWDfblFuncValue s d c' -> RWDfblFuncValue s d c
 grwDfblFnValsFunc f = (RWDiffable (\_ -> (GlobalRegion, pure (Differentiable f))) $~)
@@ -788,6 +791,7 @@ grwDfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s.
          ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
          , LocallyScalable s d, RealDimension s
          , v ~ Needle c, v' ~ Needle c', v'' ~ Needle c''
+         , SimpleSpace v, SimpleSpace (Needle d)
          , ε ~ Norm v  , ε' ~ Norm v'  , ε'' ~ Norm v'', ε~ε', ε~ε''  )
        => (  c' -> c'' -> (c, (v',v'')+>v, ε -> (ε',ε''))  )
          -> RWDfblFuncValue s d c' -> RWDfblFuncValue s d c'' -> RWDfblFuncValue s d c
@@ -860,7 +864,8 @@ rwDfbl_negateV (RWDiffable f) = RWDiffable h
                 fneg (AffinDiffable ef af) = AffinDiffable ef $ negateV af
 
 postCompRW :: ( RealDimension s
-              , LocallyScalable s a, LocallyScalable s b, LocallyScalable s c )
+              , LocallyScalable s a, LocallyScalable s b, LocallyScalable s c
+              , SimpleSpace (Needle a), SimpleSpace (Needle b), SimpleSpace (Needle c) )
               => RWDiffable s b c -> RWDfblFuncValue s a b -> RWDfblFuncValue s a c
 postCompRW (RWDiffable f) (ConstRWDFV x) = case f x of
      (_, Option (Just fd)) -> ConstRWDFV $ fd $ x
@@ -868,8 +873,8 @@ postCompRW f RWDFV_IdVar = GenericRWDFV f
 postCompRW f (GenericRWDFV g) = GenericRWDFV $ f . g
 
 
-instance ( WithField s EuclidSpace v, AdditiveGroup v, v ~ Needle (Interior (Needle v))
-         , LocallyScalable s a, RealDimension s)
+instance ( WithField s EuclidSpace v, SimpleSpace v, v ~ Needle (Interior (Needle v))
+         , LocallyScalable s a, SimpleSpace (Needle a), RealDimension s)
     => AdditiveGroup (RWDfblFuncValue s a v) where
   zeroV = point zeroV
   ConstRWDFV c₁ ^+^ ConstRWDFV c₂ = ConstRWDFV (c₁^+^c₂)
@@ -1164,7 +1169,8 @@ infixr 4 ?->
 --   Just _ 'Control.Applicative.*>' a = a
 --   _      'Control.Applicative.*>' a = Nothing
 --   @
-(?->) :: (RealDimension n, LocallyScalable n a, LocallyScalable n b, LocallyScalable n c)
+(?->) :: ( RealDimension n, LocallyScalable n a, LocallyScalable n b, LocallyScalable n c
+         , SimpleSpace (Needle b), SimpleSpace (Needle c) )
       => RWDfblFuncValue n c a -> RWDfblFuncValue n c b -> RWDfblFuncValue n c b
 ConstRWDFV _ ?-> f = f
 RWDFV_IdVar ?-> f = f
@@ -1218,7 +1224,8 @@ infixl 3 ?|:
 --   @
 -- 
 --  Basically a weaker and agent-ised version of 'backupRegions'.
-(?|:) :: (RealDimension n, LocallyScalable n a, LocallyScalable n b)
+(?|:) :: ( RealDimension n, LocallyScalable n a, LocallyScalable n b
+         , SimpleSpace (Needle a), SimpleSpace (Needle b) )
       => RWDfblFuncValue n a b -> RWDfblFuncValue n a b -> RWDfblFuncValue n a b
 ConstRWDFV c ?|: _ = ConstRWDFV c
 RWDFV_IdVar ?|: _ = RWDFV_IdVar

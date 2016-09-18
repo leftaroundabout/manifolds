@@ -82,7 +82,7 @@ class ( Semimanifold m, Semimanifold (Interior (Interior m))
 
 
 
-instance (ConeSemimfd m) => Semimanifold (Cℝay m) where
+instance ∀ m . (ConeSemimfd m) => Semimanifold (Cℝay m) where
   type Needle (Cℝay m) = ConeNeedle m
   type Interior (Cℝay m) = ConeVecArr m
   fromInterior = fromCℝayInterior
@@ -92,6 +92,8 @@ instance (ConeSemimfd m) => Semimanifold (Cℝay m) where
          ctp = Tagged ctp'
           where Tagged ctp' = translateP
                   :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
+  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness (ConeVecArr m) of
+                          SemimanifoldWitness -> SemimanifoldWitness
   
 instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
   type Needle (CD¹ m) = ConeNeedle m
@@ -103,6 +105,8 @@ instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
          ctp = Tagged ctp'
           where Tagged ctp' = translateP
                   :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
+  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness (ConeVecArr m) of
+                          SemimanifoldWitness -> SemimanifoldWitness
 
 
 

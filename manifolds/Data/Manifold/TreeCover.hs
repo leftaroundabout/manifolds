@@ -1122,6 +1122,7 @@ instance (KnownNat n) => Semimanifold (BaryCoords n) where
   toInterior = pure
   translateP = Tagged (.+~^)
   (.+~^) = (.+^)
+  semimanifoldWitness = undefined
 instance (KnownNat n) => PseudoAffine (BaryCoords n) where
   (.-~.) = pure .: (.-.)
 
@@ -1446,7 +1447,7 @@ data x`WithAny`y
 
 instance (NFData x, NFData y) => NFData (WithAny x y)
 
-instance (Semimanifold x) => Semimanifold (x`WithAny`y) where
+instance ∀ x y . (Semimanifold x) => Semimanifold (x`WithAny`y) where
   type Needle (WithAny x y) = Needle x
   type Interior (WithAny x y) = Interior x `WithAny` y
   WithAny y x .+~^ δx = WithAny y $ x.+~^δx
@@ -1457,6 +1458,8 @@ instance (Semimanifold x) => Semimanifold (x`WithAny`y) where
                             (Interior x`WithAny`y -> Needle x -> Interior x`WithAny`y)
          tpWD = Tagged `id` \(WithAny y x) δx -> WithAny y $ tpx x δx
           where Tagged tpx = translateP :: Tagged x (Interior x -> Needle x -> Interior x)
+  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness x of
+                          SemimanifoldWitness -> SemimanifoldWitness
             
 instance (PseudoAffine x) => PseudoAffine (x`WithAny`y) where
   WithAny _ x .-~. WithAny _ ξ = x.-~.ξ

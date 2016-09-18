@@ -37,6 +37,7 @@
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE ConstraintKinds          #-}
+{-# LANGUAGE DefaultSignatures        #-}
 {-# LANGUAGE PatternGuards            #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE UnicodeSyntax            #-}
@@ -56,6 +57,7 @@ module Data.Manifold.PseudoAffine (
             , Metric, Metric', euclideanMetric
             , RieMetric, RieMetric'
             -- ** Constraints
+            , SemimanifoldWitness(..)
             , RealDimension, AffineManifold
             , LinearManifold
             , WithField
@@ -97,11 +99,20 @@ import GHC.Exts (Constraint)
 
 
 
+-- | This is the reified form of the property that the interior of a semimanifold
+--   is a manifold.
+data SemimanifoldWitness x where
+  SemimanifoldWitness ::
+      ( Semimanifold (Interior x), Semimanifold (Needle x)
+      , Interior (Interior x) ~ Interior x, Needle (Interior x) ~ Needle x
+      , Interior (Needle x) ~ Needle x )
+     => SemimanifoldWitness x
+
+
 infix 6 .-~.
 infixl 6 .+~^, .-~^
 
-class ( AdditiveGroup (Needle x), Interior (Interior x) ~ Interior x )
-          => Semimanifold x where
+class AdditiveGroup (Needle x) => Semimanifold x where
   {-# MINIMAL ((.+~^) | fromInterior), toInterior, translateP #-}
   -- | The space of &#x201c;natural&#x201d; ways starting from some reference point
   --   and going to some particular target point. Hence,
@@ -158,6 +169,14 @@ class ( AdditiveGroup (Needle x), Interior (Interior x) ~ Interior x )
   --   instance).
   (.-~^) :: Interior x -> Needle x -> x
   p .-~^ v = p .+~^ negateV v
+  
+  semimanifoldWitness :: SemimanifoldWitness x
+  default semimanifoldWitness ::
+      ( Semimanifold (Interior x), Semimanifold (Needle x)
+      , Interior (Interior x) ~ Interior x, Needle (Interior x) ~ Needle x
+      , Interior (Needle x) ~ Needle x )
+     => SemimanifoldWitness x
+  semimanifoldWitness = SemimanifoldWitness
 
   
 -- | This is the class underlying manifolds. ('Manifold' only precludes boundaries
@@ -226,7 +245,7 @@ instance (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold
 --   /canonically isomorphic/ tangent spaces, so that
 --   @'fromPackedVector' . 'asPackedVector' :: 'Needle' x -> 'Needle' ξ@
 --   defines a meaningful “representational identity“ between these spaces.
-class ( PseudoAffine x, PseudoAffine ξ, LSpace (Needle x), LSpace (Needle ξ)
+class ( Semimanifold x, Semimanifold ξ, LSpace (Needle x), LSpace (Needle ξ)
       , Scalar (Needle x) ~ Scalar (Needle ξ) )
          => LocallyCoercible x ξ where
   -- | Must be compatible with the isomorphism on the tangent spaces, i.e.
@@ -393,27 +412,22 @@ instance Semimanifold (ZeroDim k) where
 instance PseudoAffine (ZeroDim k) where
   Origin .-~. Origin = pure Origin
 
-instance (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
+instance ∀ a b . (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
   type Needle (a,b) = (Needle a, Needle b)
   type Interior (a,b) = (Interior a, Interior b)
   (a,b).+~^(v,w) = (a.+~^v, b.+~^w)
   (a,b).-~^(v,w) = (a.-~^v, b.-~^w)
   fromInterior (i,j) = (fromInterior i, fromInterior j)
   toInterior (a,b) = fzip (toInterior a, toInterior b)
-  translateP = tp
-   where tp :: ∀ a b . (Semimanifold a, Semimanifold b)
-                     => Tagged (a,b) ( (Interior a, Interior b) 
-                                    -> (Needle a, Needle b)
-                                    -> (Interior a, Interior b) )
-         tp = Tagged $ \(a,b) (v,w) -> (ta a v, tb b w)
-          where Tagged ta = translateP :: Tagged a (Interior a -> Needle a -> Interior a)
-                Tagged tb = translateP :: Tagged b (Interior b -> Needle b -> Interior b)
+  translateP = Tagged $ \(a,b) (v,w) -> (ta a v, tb b w)
+   where Tagged ta = translateP :: Tagged a (Interior a -> Needle a -> Interior a)
+         Tagged tb = translateP :: Tagged b (Interior b -> Needle b -> Interior b)
+  semimanifoldWitness = case ( semimanifoldWitness :: SemimanifoldWitness a
+                             , semimanifoldWitness :: SemimanifoldWitness b ) of
+             (SemimanifoldWitness, SemimanifoldWitness) -> SemimanifoldWitness
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   (a,b).-~.(c,d) = liftA2 (,) (a.-~.c) (b.-~.d)
-instance ( PseudoAffine a, PseudoAffine b, PseudoAffine c
-         , PseudoAffine (Interior a), Interior (Interior a) ~ Interior a
-         , PseudoAffine (Interior b), Interior (Interior b) ~ Interior b
-         , PseudoAffine (Interior c), Interior (Interior c) ~ Interior c
+instance ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
          , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c) )
      => LocallyCoercible (a,(b,c)) ((a,b),c) where
@@ -421,11 +435,13 @@ instance ( PseudoAffine a, PseudoAffine b, PseudoAffine c
   coerceNeedle _ = regroup
   coerceNeedle' _ = regroup
   oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion _ = CanonicalDiffeomorphism
-instance ( PseudoAffine a, PseudoAffine b, PseudoAffine c
-         , PseudoAffine (Interior a), Interior (Interior a) ~ Interior a
-         , PseudoAffine (Interior b), Interior (Interior b) ~ Interior b
-         , PseudoAffine (Interior c), Interior (Interior c) ~ Interior c
+  interiorLocalCoercion _ = case ( semimanifoldWitness :: SemimanifoldWitness a
+                                 , semimanifoldWitness :: SemimanifoldWitness b
+                                 , semimanifoldWitness :: SemimanifoldWitness c ) of
+       (SemimanifoldWitness, SemimanifoldWitness, SemimanifoldWitness)
+              -> CanonicalDiffeomorphism
+instance ∀ a b c .
+         ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
          , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c) )
      => LocallyCoercible ((a,b),c) (a,(b,c)) where
@@ -433,24 +449,29 @@ instance ( PseudoAffine a, PseudoAffine b, PseudoAffine c
   coerceNeedle _ = regroup'
   coerceNeedle' _ = regroup'
   oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion _ = CanonicalDiffeomorphism
+  interiorLocalCoercion _ = case ( semimanifoldWitness :: SemimanifoldWitness a
+                                 , semimanifoldWitness :: SemimanifoldWitness b
+                                 , semimanifoldWitness :: SemimanifoldWitness c ) of
+       (SemimanifoldWitness, SemimanifoldWitness, SemimanifoldWitness)
+            -> CanonicalDiffeomorphism
 
-instance (Semimanifold a, Semimanifold b, Semimanifold c) => Semimanifold (a,b,c) where
+instance ∀ a b c . (Semimanifold a, Semimanifold b, Semimanifold c)
+                          => Semimanifold (a,b,c) where
   type Needle (a,b,c) = (Needle a, Needle b, Needle c)
   type Interior (a,b,c) = (Interior a, Interior b, Interior c)
   (a,b,c).+~^(v,w,x) = (a.+~^v, b.+~^w, c.+~^x)
   (a,b,c).-~^(v,w,x) = (a.-~^v, b.-~^w, c.-~^x)
   fromInterior (i,j,k) = (fromInterior i, fromInterior j, fromInterior k)
   toInterior (a,b,c) = liftA3 (,,) (toInterior a) (toInterior b) (toInterior c)
-  translateP = tp
-   where tp :: ∀ a b v . (Semimanifold a, Semimanifold b, Semimanifold c)
-                     => Tagged (a,b,c) ( (Interior a, Interior b, Interior c) 
-                                      -> (Needle a, Needle b, Needle c)
-                                      -> (Interior a, Interior b, Interior c) )
-         tp = Tagged $ \(a,b,c) (v,w,x) -> (ta a v, tb b w, tc c x)
-          where Tagged ta = translateP :: Tagged a (Interior a -> Needle a -> Interior a)
-                Tagged tb = translateP :: Tagged b (Interior b -> Needle b -> Interior b)
-                Tagged tc = translateP :: Tagged c (Interior c -> Needle c -> Interior c)
+  translateP = Tagged $ \(a,b,c) (v,w,x) -> (ta a v, tb b w, tc c x)
+   where Tagged ta = translateP :: Tagged a (Interior a -> Needle a -> Interior a)
+         Tagged tb = translateP :: Tagged b (Interior b -> Needle b -> Interior b)
+         Tagged tc = translateP :: Tagged c (Interior c -> Needle c -> Interior c)
+  semimanifoldWitness = case ( semimanifoldWitness :: SemimanifoldWitness a
+                             , semimanifoldWitness :: SemimanifoldWitness b
+                             , semimanifoldWitness :: SemimanifoldWitness c ) of
+             (SemimanifoldWitness, SemimanifoldWitness, SemimanifoldWitness)
+                   -> SemimanifoldWitness
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
   (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
 
