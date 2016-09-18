@@ -65,7 +65,7 @@ module Data.Manifold.PseudoAffine (
             -- ** Local functions
             , LocalLinear, LocalAffine
             -- * Misc
-            , alerpB, palerp, palerpB, LocallyCoercible(..)
+            , alerpB, palerp, palerpB, LocallyCoercible(..), CanonicalDiffeomorphism(..)
             , ImpliesMetric(..)
             ) where
     
@@ -226,21 +226,49 @@ instance (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold
 --   /canonically isomorphic/ tangent spaces, so that
 --   @'fromPackedVector' . 'asPackedVector' :: 'Needle' x -> 'Needle' ξ@
 --   defines a meaningful “representational identity“ between these spaces.
-class (PseudoAffine x, PseudoAffine ξ, Scalar (Needle x) ~ Scalar (Needle ξ))
+class ( PseudoAffine x, PseudoAffine ξ, LSpace (Needle x), LSpace (Needle ξ)
+      , Scalar (Needle x) ~ Scalar (Needle ξ) )
          => LocallyCoercible x ξ where
-  -- | Must be compatible with the canonical isomorphism on the tangent spaces,
-  --   i.e.
+  -- | Must be compatible with the isomorphism on the tangent spaces, i.e.
   -- @
-  -- locallyTrivialDiffeomorphism (p .+~^ 'fromPackedVector' v)
-  --   ≡ locallyTrivialDiffeomorphism p .+~^ 'fromPackedVector' v
+  -- locallyTrivialDiffeomorphism (p .+~^ v)
+  --   ≡ locallyTrivialDiffeomorphism p .+~^ 'coerceNeedle' v
   -- @
   locallyTrivialDiffeomorphism :: x -> ξ
+  coerceNeedle :: Functor p (->) (->) => p (x,ξ) -> (Needle x -+> Needle ξ)
+  coerceNeedle' :: Functor p (->) (->) => p (x,ξ) -> (Needle' x -+> Needle' ξ)
+  oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x
+  interiorLocalCoercion :: Functor p (->) (->) 
+                  => p (x,ξ) -> CanonicalDiffeomorphism (Interior x) (Interior ξ)
   
-instance LocallyCoercible ℝ ℝ where locallyTrivialDiffeomorphism = id
-instance LocallyCoercible (ℝ,ℝ) (ℝ,ℝ) where locallyTrivialDiffeomorphism = id
-instance LocallyCoercible (ℝ,(ℝ,ℝ)) (ℝ,(ℝ,ℝ)) where locallyTrivialDiffeomorphism = id
-instance LocallyCoercible ((ℝ,ℝ),ℝ) ((ℝ,ℝ),ℝ) where locallyTrivialDiffeomorphism = id
+instance LocallyCoercible ℝ ℝ where
+  locallyTrivialDiffeomorphism = id
+  coerceNeedle _ = id
+  coerceNeedle' _ = id
+  oppositeLocalCoercion = CanonicalDiffeomorphism
+  interiorLocalCoercion _ = CanonicalDiffeomorphism
+instance LocallyCoercible (ℝ,ℝ) (ℝ,ℝ) where
+  locallyTrivialDiffeomorphism = id
+  coerceNeedle _ = id
+  coerceNeedle' _ = id
+  oppositeLocalCoercion = CanonicalDiffeomorphism
+  interiorLocalCoercion _ = CanonicalDiffeomorphism
+instance LocallyCoercible (ℝ,(ℝ,ℝ)) (ℝ,(ℝ,ℝ)) where
+  locallyTrivialDiffeomorphism = id
+  coerceNeedle _ = id
+  coerceNeedle' _ = id
+  oppositeLocalCoercion = CanonicalDiffeomorphism
+  interiorLocalCoercion _ = CanonicalDiffeomorphism
+instance LocallyCoercible ((ℝ,ℝ),ℝ) ((ℝ,ℝ),ℝ) where
+  locallyTrivialDiffeomorphism = id
+  coerceNeedle _ = id
+  coerceNeedle' _ = id
+  oppositeLocalCoercion = CanonicalDiffeomorphism
+  interiorLocalCoercion _ = CanonicalDiffeomorphism
 
+
+data CanonicalDiffeomorphism a b where
+  CanonicalDiffeomorphism :: LocallyCoercible a b => CanonicalDiffeomorphism a b
 
 
 type LocallyScalable s x = ( PseudoAffine x
@@ -299,8 +327,8 @@ type Needle' x = DualVector (Needle x)
 
 
 -- | The word &#x201c;metric&#x201d; is used in the sense as in general relativity. Cf. 'HerMetric'.
-type Metric x = Norm (Needle x)
-type Metric' x = Variance (Needle x)
+type Metric x = Norm (Needle (Interior x))
+type Metric' x = Variance (Needle (Interior x))
 
 -- | A Riemannian metric assigns each point on a manifold a scalar product on the tangent space.
 --   Note that this association is /not/ continuous, because the charts/tangent spaces in the bundle
@@ -382,10 +410,30 @@ instance (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
                 Tagged tb = translateP :: Tagged b (Interior b -> Needle b -> Interior b)
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   (a,b).-~.(c,d) = liftA2 (,) (a.-~.c) (b.-~.d)
-instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
-     => LocallyCoercible (a,(b,c)) ((a,b),c) where locallyTrivialDiffeomorphism = regroup
-instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
-     => LocallyCoercible ((a,b),c) (a,(b,c)) where locallyTrivialDiffeomorphism = regroup'
+instance ( PseudoAffine a, PseudoAffine b, PseudoAffine c
+         , PseudoAffine (Interior a), Interior (Interior a) ~ Interior a
+         , PseudoAffine (Interior b), Interior (Interior b) ~ Interior b
+         , PseudoAffine (Interior c), Interior (Interior c) ~ Interior c
+         , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
+         , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c) )
+     => LocallyCoercible (a,(b,c)) ((a,b),c) where
+  locallyTrivialDiffeomorphism = regroup
+  coerceNeedle _ = regroup
+  coerceNeedle' _ = regroup
+  oppositeLocalCoercion = CanonicalDiffeomorphism
+  interiorLocalCoercion _ = CanonicalDiffeomorphism
+instance ( PseudoAffine a, PseudoAffine b, PseudoAffine c
+         , PseudoAffine (Interior a), Interior (Interior a) ~ Interior a
+         , PseudoAffine (Interior b), Interior (Interior b) ~ Interior b
+         , PseudoAffine (Interior c), Interior (Interior c) ~ Interior c
+         , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
+         , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c) )
+     => LocallyCoercible ((a,b),c) (a,(b,c)) where
+  locallyTrivialDiffeomorphism = regroup'
+  coerceNeedle _ = regroup'
+  coerceNeedle' _ = regroup'
+  oppositeLocalCoercion = CanonicalDiffeomorphism
+  interiorLocalCoercion _ = CanonicalDiffeomorphism
 
 instance (Semimanifold a, Semimanifold b, Semimanifold c) => Semimanifold (a,b,c) where
   type Needle (a,b,c) = (Needle a, Needle b, Needle c)
@@ -405,18 +453,6 @@ instance (Semimanifold a, Semimanifold b, Semimanifold c) => Semimanifold (a,b,c
                 Tagged tc = translateP :: Tagged c (Interior c -> Needle c -> Interior c)
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
   (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
-instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
-     => LocallyCoercible (a,b,c) ((a,b),c) where
-  locallyTrivialDiffeomorphism (a,b,c) = ((a,b),c)
-instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
-     => LocallyCoercible (a,b,c) (a,(b,c)) where
-  locallyTrivialDiffeomorphism (a,b,c) = (a,(b,c))
-instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
-     => LocallyCoercible ((a,b),c) (a,b,c) where
-  locallyTrivialDiffeomorphism ((a,b),c) = (a,b,c)
-instance (PseudoAffine a, PseudoAffine b, PseudoAffine c)
-     => LocallyCoercible (a,(b,c)) (a,b,c) where
-  locallyTrivialDiffeomorphism (a,(b,c)) = (a,b,c)
 
 
 
@@ -562,7 +598,7 @@ class ImpliesMetric s where
                      => s x -> Metric' x
 
 instance ImpliesMetric Norm where
-  type MetricRequirement Norm x = (SimpleSpace x, x ~ Needle x)
+  type MetricRequirement Norm x = (SimpleSpace x, x ~ Needle (Interior x))
   inferMetric = id
   inferMetric' = dualNorm
 
