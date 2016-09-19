@@ -244,7 +244,7 @@ instance (WithField ℝ AffineManifold x, Geodesic x, SimpleSpace (Needle x))
   geodesicBetween (Shade' c e) (Shade' ζ η) = pure interp
    where sharedSpan = sharedNormSpanningSystem e η
          interp t = Shade' (pinterp t)
-                           (spanNorm [ v ^* (alerpB 1 qη t)
+                           (spanNorm [ v ^/ (alerpB 1 (recip qη) t)
                                      | (v,qη) <- sharedSpan ])
          Option (Just pinterp) = geodesicBetween c ζ
 
