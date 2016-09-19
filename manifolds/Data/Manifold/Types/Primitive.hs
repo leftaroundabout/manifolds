@@ -57,6 +57,9 @@ module Data.Manifold.Types.Primitive (
 
 
 import Data.VectorSpace
+import Data.VectorSpace.Free
+import Linear.V2
+import Linear.V3
 import Math.VectorSpace.ZeroDimensional
 import Data.AffineSpace
 import Data.Basis
@@ -180,16 +183,16 @@ instance NaturallyEmbedded S⁰ ℝ where
   coEmbed x | x>=0       = PositiveHalfSphere
             | otherwise  = NegativeHalfSphere
 instance NaturallyEmbedded S¹ ℝ² where
-  embed (S¹ φ) = (cos φ, sin φ)
-  coEmbed (x,y) = S¹ $ atan2 y x
+  embed (S¹ φ) = V2 (cos φ) (sin φ)
+  coEmbed (V2 x y) = S¹ $ atan2 y x
 instance NaturallyEmbedded S² ℝ³ where
-  embed (S² ϑ φ) = ((cos φ * sin ϑ, sin φ * sin ϑ), cos ϑ)
-  coEmbed ((x,y),z) = S² (acos $ z/r) (atan2 y x)
+  embed (S² ϑ φ) = V3 (cos φ * sin ϑ) (sin φ * sin ϑ) (cos ϑ)
+  coEmbed (V3 x y z) = S² (acos $ z/r) (atan2 y x)
    where r = sqrt $ x^2 + y^2 + z^2
  
 instance NaturallyEmbedded ℝP² ℝ³ where
-  embed (ℝP² r φ) = ((r * cos φ, r * sin φ), sqrt $ 1-r^2)
-  coEmbed ((x,y),z) = ℝP² (sqrt $ 1-(z/r)^2) (atan2 (y/r) (x/r))
+  embed (ℝP² r φ) = V3 (r * cos φ) (r * sin φ) (sqrt $ 1-r^2)
+  coEmbed (V3 x y z) = ℝP² (sqrt $ 1-(z/r)^2) (atan2 (y/r) (x/r))
    where r = sqrt $ x^2 + y^2 + z^2
 
 instance NaturallyEmbedded D¹ ℝ where
@@ -207,8 +210,8 @@ type Endomorphism a = a->a
 
 type ℝ⁰ = ZeroDim ℝ
 type ℝ = Double
-type ℝ² = (ℝ,ℝ)
-type ℝ³ = (ℝ²,ℝ)
+type ℝ² = V2 ℝ
+type ℝ³ = V3 ℝ
 
 
 -- | Better known as &#x211d;&#x207a; (which is not a legal Haskell name), the ray

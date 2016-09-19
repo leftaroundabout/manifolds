@@ -41,6 +41,7 @@ Library
                      , transformers
                      , vector-space>=0.8
                      , free-vector-spaces>=0.1.1
+                     , linear
                      , MemoTrie
                      , vector
                      , linearmap-category < 0.2

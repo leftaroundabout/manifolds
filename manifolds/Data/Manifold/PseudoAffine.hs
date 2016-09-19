@@ -78,6 +78,7 @@ import Data.Semigroup
 import Data.Fixed
 
 import Data.VectorSpace
+import Linear.V2
 import Data.Embedding
 import Data.LinearMap
 import Math.LinearMap.Category
@@ -400,6 +401,8 @@ instance PseudoAffine (t) where {       \
 
 deriveAffine(Double)
 deriveAffine(Rational)
+deriveAffine(ℝ²)
+deriveAffine(ℝ³)
 
 
 instance Semimanifold (ZeroDim k) where
@@ -569,7 +572,7 @@ instance Semimanifold ℝP² where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  ℝP² r₀ φ₀ .+~^ (δr, δφ)
+  ℝP² r₀ φ₀ .+~^ V2 δr δφ
    | r₀ > 1/2   = case r₀ + δr of
                    r₁ | r₁ > 1     -> ℝP² (2-r₁) (toS¹range $ φ₀+δφ+pi)
                       | otherwise  -> ℝP²    r₁  (toS¹range $ φ₀+δφ)
@@ -580,11 +583,11 @@ instance Semimanifold ℝP² where
 instance PseudoAffine ℝP² where
   ℝP² r₁ φ₁ .-~. ℝP² r₀ φ₀
    | r₀ > 1/2   = pure `id` case φ₁-φ₀ of
-                          δφ | δφ > 3*pi/2  -> (  r₁ - r₀, δφ - 2*pi)
-                             | δφ < -3*pi/2 -> (  r₁ - r₀, δφ + 2*pi)
-                             | δφ > pi/2    -> (2-r₁ - r₀, δφ - pi  )
-                             | δφ < -pi/2   -> (2-r₁ - r₀, δφ + pi  )
-                             | otherwise    -> (  r₁ - r₀, δφ       )
+                          δφ | δφ > 3*pi/2  -> V2 (  r₁ - r₀) (δφ - 2*pi)
+                             | δφ < -3*pi/2 -> V2 (  r₁ - r₀) (δφ + 2*pi)
+                             | δφ > pi/2    -> V2 (2-r₁ - r₀) (δφ - pi  )
+                             | δφ < -pi/2   -> V2 (2-r₁ - r₀) (δφ + pi  )
+                             | otherwise    -> V2 (  r₁ - r₀) (δφ       )
    | otherwise  = pure ( r₁*^embed(S¹ φ₁) ^-^ r₀*^embed(S¹ φ₀) )
 
 
