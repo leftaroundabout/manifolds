@@ -83,6 +83,7 @@ import Linear.V1
 import Linear.V2
 import Linear.V3
 import Linear.V4
+import qualified Linear.Affine as LinAff
 import Data.Embedding
 import Data.LinearMap
 import Math.LinearMap.Category
@@ -542,6 +543,15 @@ instance ∀ a b c . (Semimanifold a, Semimanifold b, Semimanifold c)
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
   (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
 
+
+instance LinearManifold (a n) => Semimanifold (LinAff.Point a n) where
+  type Needle (LinAff.Point a n) = a n
+  fromInterior = id
+  toInterior = pure
+  LinAff.P v .+~^ w = LinAff.P $ v ^+^ w
+  translateP = Tagged $ \(LinAff.P v) w -> LinAff.P $ v ^+^ w
+instance LinearManifold (a n) => PseudoAffine (LinAff.Point a n) where
+  LinAff.P v .-~. LinAff.P w = return $ v ^-^ w
 
 
 instance (LSpace a, LSpace b, s~Scalar a, s~Scalar b)
