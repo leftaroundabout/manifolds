@@ -68,7 +68,7 @@ module Data.Manifold.PseudoAffine (
             , LocalLinear, LocalAffine
             -- * Misc
             , alerpB, palerp, palerpB, LocallyCoercible(..), CanonicalDiffeomorphism(..)
-            , ImpliesMetric(..)
+            , ImpliesMetric(..), coerceMetric, coerceMetric'
             ) where
     
 
@@ -368,6 +368,23 @@ type Metric' x = Variance (Needle x)
 --   of scalar products from needles between points on the manifold ought to be differentiable.
 type RieMetric x = x -> Metric x
 type RieMetric' x = x -> Metric' x
+
+
+coerceMetric :: ∀ x ξ . (LocallyCoercible x ξ, LSpace (Needle ξ))
+                             => RieMetric ξ -> RieMetric x
+coerceMetric m x = case m $ locallyTrivialDiffeomorphism x of
+              Norm sc -> Norm $ bw . sc . fw
+ where fw = coerceNeedle ([]::[(x,ξ)])
+       bw = case oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x of
+              CanonicalDiffeomorphism -> coerceNeedle' ([]::[(ξ,x)])
+coerceMetric' :: ∀ x ξ . (LocallyCoercible x ξ, LSpace (Needle ξ))
+                             => RieMetric' ξ -> RieMetric' x
+coerceMetric' m x = case m $ locallyTrivialDiffeomorphism x of
+              Norm sc -> Norm $ bw . sc . fw
+ where fw = coerceNeedle' ([]::[(x,ξ)])
+       bw = case oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x of
+              CanonicalDiffeomorphism -> coerceNeedle ([]::[(ξ,x)])
+
 
 -- | Interpolate between points, approximately linearly. For
 --   points that aren't close neighbours (i.e. lie in an almost
