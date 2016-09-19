@@ -78,7 +78,11 @@ import Data.Semigroup
 import Data.Fixed
 
 import Data.VectorSpace
+import Linear.V0
+import Linear.V1
 import Linear.V2
+import Linear.V3
+import Linear.V4
 import Data.Embedding
 import Data.LinearMap
 import Math.LinearMap.Category
@@ -258,33 +262,31 @@ class ( Semimanifold x, Semimanifold ξ, LSpace (Needle x), LSpace (Needle ξ)
   coerceNeedle :: Functor p (->) (->) => p (x,ξ) -> (Needle x -+> Needle ξ)
   coerceNeedle' :: Functor p (->) (->) => p (x,ξ) -> (Needle' x -+> Needle' ξ)
   oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x
+  default oppositeLocalCoercion :: LocallyCoercible ξ x => CanonicalDiffeomorphism ξ x
+  oppositeLocalCoercion = CanonicalDiffeomorphism
   interiorLocalCoercion :: Functor p (->) (->) 
                   => p (x,ξ) -> CanonicalDiffeomorphism (Interior x) (Interior ξ)
-  
-instance LocallyCoercible ℝ ℝ where
-  locallyTrivialDiffeomorphism = id
-  coerceNeedle _ = id
-  coerceNeedle' _ = id
-  oppositeLocalCoercion = CanonicalDiffeomorphism
+  default interiorLocalCoercion :: LocallyCoercible (Interior x) (Interior ξ)
+                  => p (x,ξ) -> CanonicalDiffeomorphism (Interior x) (Interior ξ)
   interiorLocalCoercion _ = CanonicalDiffeomorphism
-instance LocallyCoercible (ℝ,ℝ) (ℝ,ℝ) where
-  locallyTrivialDiffeomorphism = id
-  coerceNeedle _ = id
-  coerceNeedle' _ = id
-  oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion _ = CanonicalDiffeomorphism
-instance LocallyCoercible (ℝ,(ℝ,ℝ)) (ℝ,(ℝ,ℝ)) where
-  locallyTrivialDiffeomorphism = id
-  coerceNeedle _ = id
-  coerceNeedle' _ = id
-  oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion _ = CanonicalDiffeomorphism
-instance LocallyCoercible ((ℝ,ℝ),ℝ) ((ℝ,ℝ),ℝ) where
-  locallyTrivialDiffeomorphism = id
-  coerceNeedle _ = id
-  coerceNeedle' _ = id
-  oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion _ = CanonicalDiffeomorphism
+
+#define identityCoercion(c,t)                   \
+instance (c) => LocallyCoercible (t) (t) where { \
+  locallyTrivialDiffeomorphism = id;              \
+  coerceNeedle _ = id;                             \
+  coerceNeedle' _ = id;                             \
+  oppositeLocalCoercion = CanonicalDiffeomorphism;   \
+  interiorLocalCoercion _ = CanonicalDiffeomorphism }
+identityCoercion(NumberManifold s, ZeroDim s)
+identityCoercion(NumberManifold s, V0 s)
+identityCoercion((), ℝ)
+identityCoercion(NumberManifold s, V1 s)
+identityCoercion((), (ℝ,ℝ))
+identityCoercion(NumberManifold s, V2 s)
+identityCoercion((), (ℝ,(ℝ,ℝ)))
+identityCoercion((), ((ℝ,ℝ),ℝ))
+identityCoercion(NumberManifold s, V3 s)
+identityCoercion(NumberManifold s, V4 s)
 
 
 data CanonicalDiffeomorphism a b where
@@ -335,6 +337,9 @@ type HilbertManifold x = ( LinearManifold x, InnerSpace x
 -- | An euclidean space is a real affine space whose tangent space is a Hilbert space.
 type EuclidSpace x = ( AffineManifold x, InnerSpace (Diff x)
                      , DualVector (Diff x) ~ Diff x, Floating (Scalar (Diff x)) )
+
+type NumberManifold n = ( Num''' n, Manifold n, Interior n ~ n, Needle n ~ n
+                        , LSpace n, DualVector n ~ n, Scalar n ~ n )
 
 euclideanMetric :: EuclidSpace x => proxy x -> Metric x
 euclideanMetric _ = euclideanNorm
@@ -389,21 +394,71 @@ alerpB p1 p2 = case p2 .-. p1 of
 hugeℝVal :: ℝ
 hugeℝVal = 1e+100
 
-#define deriveAffine(t)          \
-instance Semimanifold (t) where { \
-  type Needle (t) = Diff (t);      \
-  fromInterior = id;                \
-  toInterior = pure;                 \
-  translateP = Tagged (.+^);          \
-  (.+~^) = (.+^) };                    \
-instance PseudoAffine (t) where {       \
+#define deriveAffine(c,t)               \
+instance (c) => Semimanifold (t) where { \
+  type Needle (t) = Diff (t);             \
+  fromInterior = id;                       \
+  toInterior = pure;                        \
+  translateP = Tagged (.+^);                 \
+  (.+~^) = (.+^) };                           \
+instance (c) => PseudoAffine (t) where {       \
   a.-~.b = pure (a.-.b);      }
 
-deriveAffine(Double)
-deriveAffine(Rational)
-deriveAffine(ℝ²)
-deriveAffine(ℝ³)
+deriveAffine((),Double)
+deriveAffine((),Rational)
+deriveAffine(NumberManifold s, V1 s)
+deriveAffine(NumberManifold s, V2 s)
+deriveAffine(NumberManifold s, V3 s)
+deriveAffine(NumberManifold s, V4 s)
 
+instance (NumberManifold s) => LocallyCoercible (ZeroDim s) (V0 s) where
+  locallyTrivialDiffeomorphism Origin = V0
+  coerceNeedle _ = LinearFunction $ \Origin -> V0
+  coerceNeedle' _ = LinearFunction $ \Origin -> V0
+instance (NumberManifold s) => LocallyCoercible (V0 s) (ZeroDim s) where
+  locallyTrivialDiffeomorphism V0 = Origin
+  coerceNeedle _ = LinearFunction $ \V0 -> Origin
+  coerceNeedle' _ = LinearFunction $ \V0 -> Origin
+instance LocallyCoercible ℝ (V1 ℝ) where
+  locallyTrivialDiffeomorphism = V1
+  coerceNeedle _ = LinearFunction V1
+  coerceNeedle' _ = LinearFunction V1
+instance LocallyCoercible (V1 ℝ) ℝ where
+  locallyTrivialDiffeomorphism (V1 n) = n
+  coerceNeedle _ = LinearFunction $ \(V1 n) -> n
+  coerceNeedle' _ = LinearFunction $ \(V1 n) -> n
+instance LocallyCoercible (ℝ,ℝ) (V2 ℝ) where
+  locallyTrivialDiffeomorphism = uncurry V2
+  coerceNeedle _ = LinearFunction $ uncurry V2
+  coerceNeedle' _ = LinearFunction $ uncurry V2
+instance LocallyCoercible (V2 ℝ) (ℝ,ℝ) where
+  locallyTrivialDiffeomorphism (V2 x y) = (x,y)
+  coerceNeedle _ = LinearFunction $ \(V2 x y) -> (x,y)
+  coerceNeedle' _ = LinearFunction $ \(V2 x y) -> (x,y)
+instance LocallyCoercible ((ℝ,ℝ),ℝ) (V3 ℝ) where
+  locallyTrivialDiffeomorphism ((x,y),z) = V3 x y z
+  coerceNeedle _ = LinearFunction $ \((x,y),z) -> V3 x y z
+  coerceNeedle' _ = LinearFunction $ \((x,y),z) -> V3 x y z
+instance LocallyCoercible (ℝ,(ℝ,ℝ)) (V3 ℝ) where
+  locallyTrivialDiffeomorphism (x,(y,z)) = V3 x y z
+  coerceNeedle _ = LinearFunction $ \(x,(y,z)) -> V3 x y z
+  coerceNeedle' _ = LinearFunction $ \(x,(y,z)) -> V3 x y z
+instance LocallyCoercible (V3 ℝ) ((ℝ,ℝ),ℝ) where
+  locallyTrivialDiffeomorphism (V3 x y z) = ((x,y),z)
+  coerceNeedle _ = LinearFunction $ \(V3 x y z) -> ((x,y),z)
+  coerceNeedle' _ = LinearFunction $ \(V3 x y z) -> ((x,y),z)
+instance LocallyCoercible (V3 ℝ) (ℝ,(ℝ,ℝ)) where
+  locallyTrivialDiffeomorphism (V3 x y z) = (x,(y,z))
+  coerceNeedle _ = LinearFunction $ \(V3 x y z) -> (x,(y,z))
+  coerceNeedle' _ = LinearFunction $ \(V3 x y z) -> (x,(y,z))
+instance LocallyCoercible ((ℝ,ℝ),(ℝ,ℝ)) (V4 ℝ) where
+  locallyTrivialDiffeomorphism ((x,y),(z,w)) = V4 x y z w
+  coerceNeedle _ = LinearFunction $ \((x,y),(z,w)) -> V4 x y z w
+  coerceNeedle' _ = LinearFunction $ \((x,y),(z,w)) -> V4 x y z w
+instance LocallyCoercible (V4 ℝ) ((ℝ,ℝ),(ℝ,ℝ)) where
+  locallyTrivialDiffeomorphism (V4 x y z w) = ((x,y),(z,w))
+  coerceNeedle _ = LinearFunction $ \(V4 x y z w) -> ((x,y),(z,w))
+  coerceNeedle' _ = LinearFunction $ \(V4 x y z w) -> ((x,y),(z,w))
 
 instance Semimanifold (ZeroDim k) where
   type Needle (ZeroDim k) = ZeroDim k
@@ -414,6 +469,15 @@ instance Semimanifold (ZeroDim k) where
   translateP = Tagged (.+~^)
 instance PseudoAffine (ZeroDim k) where
   Origin .-~. Origin = pure Origin
+instance Num k => Semimanifold (V0 k) where
+  type Needle (V0 k) = V0 k
+  fromInterior = id
+  toInterior = pure
+  V0 .+~^ V0 = V0
+  V0 .-~^ V0 = V0
+  translateP = Tagged (.+~^)
+instance Num k => PseudoAffine (V0 k) where
+  V0 .-~. V0 = pure V0
 
 instance ∀ a b . (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
   type Needle (a,b) = (Needle a, Needle b)

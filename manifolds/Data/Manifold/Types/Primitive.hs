@@ -38,7 +38,7 @@ module Data.Manifold.Types.Primitive (
         , Disk1, Disk2, Cone, OpenCone
         -- * Linear manifolds
         , ZeroDim(..)
-        , ℝ⁰, ℝ, ℝ², ℝ³
+        , ℝ⁰, ℝ, ℝ², ℝ³, ℝ⁴
         -- * Hyperspheres
         , S⁰(..), otherHalfSphere, S¹(..), S²(..)
         -- * Projective spaces
@@ -212,6 +212,7 @@ type ℝ⁰ = ZeroDim ℝ
 type ℝ = Double
 type ℝ² = V2 ℝ
 type ℝ³ = V3 ℝ
+type ℝ⁴ = V4 ℝ
 
 
 -- | Better known as &#x211d;&#x207a; (which is not a legal Haskell name), the ray
