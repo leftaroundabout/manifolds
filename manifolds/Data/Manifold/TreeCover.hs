@@ -171,12 +171,13 @@ instance IsShade Shade where
   factoriseShade (Shade (x₀,y₀) δxy) = (Shade x₀ δx, Shade y₀ δy)
    where (δx,δy) = summandSpaceNorms δxy
   coerceShade = cS
-   where cS :: ∀ x y . (LocallyCoercible (Interior x) (Interior y)) => Shade x -> Shade y
-         cS = \(Shade x δxym) -> Shade (locallyTrivialDiffeomorphism x) (tN δxym)
-          where tN = case oppositeLocalCoercion
-                             :: CanonicalDiffeomorphism (Interior y) (Interior x) of
+   where cS :: ∀ x y . (LocallyCoercible x y) => Shade x -> Shade y
+         cS = \(Shade x δxym) -> Shade (internCoerce x) (tN δxym)
+          where tN = case oppositeLocalCoercion :: CanonicalDiffeomorphism y x of
                       CanonicalDiffeomorphism ->
-                       transformNorm . arr $ coerceNeedle' ([]::[(Interior y,Interior x)])
+                       transformNorm . arr $ coerceNeedle' ([]::[(y,x)])
+                internCoerce = case interiorLocalCoercion ([]::[(x,y)]) of
+                      CanonicalDiffeomorphism -> locallyTrivialDiffeomorphism
 
 instance ImpliesMetric Shade where
   type MetricRequirement Shade x = (Manifold x, SimpleSpace (Needle x))
@@ -202,12 +203,13 @@ instance IsShade Shade' where
   factoriseShade (Shade' (x₀,y₀) δxy) = (Shade' x₀ δx, Shade' y₀ δy)
    where (δx,δy) = summandSpaceNorms δxy
   coerceShade = cS
-   where cS :: ∀ x y . (LocallyCoercible (Interior x) (Interior y)) => Shade' x -> Shade' y
-         cS = \(Shade' x δxym) -> Shade' (locallyTrivialDiffeomorphism x) (tN δxym)
-          where tN = case oppositeLocalCoercion
-                             :: CanonicalDiffeomorphism (Interior y) (Interior x) of
+   where cS :: ∀ x y . (LocallyCoercible x y) => Shade' x -> Shade' y
+         cS = \(Shade' x δxym) -> Shade' (internCoerce x) (tN δxym)
+          where tN = case oppositeLocalCoercion :: CanonicalDiffeomorphism y x of
                       CanonicalDiffeomorphism ->
-                       transformNorm . arr $ coerceNeedle ([]::[(Interior y,Interior x)])
+                       transformNorm . arr $ coerceNeedle ([]::[(y,x)])
+                internCoerce = case interiorLocalCoercion ([]::[(x,y)]) of
+                      CanonicalDiffeomorphism -> locallyTrivialDiffeomorphism
 
 shadeNarrowness :: Lens' (Shade' x) (Metric x)
 shadeNarrowness f (Shade' c e) = fmap (Shade' c) $ f e

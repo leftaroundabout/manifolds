@@ -352,9 +352,15 @@ euclideanMetric _ = euclideanNorm
 type Needle' x = DualVector (Needle x)
 
 
--- | The word &#x201c;metric&#x201d; is used in the sense as in general relativity. Cf. 'HerMetric'.
-type Metric x = Norm (Needle (Interior x))
-type Metric' x = Variance (Needle (Interior x))
+-- | The word &#x201c;metric&#x201d; is used in the sense as in general relativity.
+--   Actually this is just the type of scalar products on the tangent space.
+--   The actual metric is the function @x -> x -> Scalar (Needle x)@ defined by
+--
+-- @
+-- \\p q -> m '|$|' (p.-~!q)
+-- @
+type Metric x = Norm (Needle x)
+type Metric' x = Variance (Needle x)
 
 -- | A Riemannian metric assigns each point on a manifold a scalar product on the tangent space.
 --   Note that this association is /not/ continuous, because the charts/tangent spaces in the bundle
@@ -696,7 +702,7 @@ class ImpliesMetric s where
                      => s x -> Metric' x
 
 instance ImpliesMetric Norm where
-  type MetricRequirement Norm x = (SimpleSpace x, x ~ Needle (Interior x))
+  type MetricRequirement Norm x = (SimpleSpace x, x ~ Needle x)
   inferMetric = id
   inferMetric' = dualNorm
 
