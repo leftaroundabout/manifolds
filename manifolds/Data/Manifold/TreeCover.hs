@@ -972,9 +972,13 @@ applyLinMapNorm n dx
 type Twig x = (Int, ShadeTree x)
 type TwigEnviron x = [Twig x]
 
--- Formerly, this was the signature of what has now become 'traverseTwigsWithEnvirons'.
--- The simple list-yielding version (see rev. b4a427d59ec82889bab2fde39225b14a57b694df
--- may well be more efficient than this version via a traversal.
+-- Formerly, 'twigsWithEnvirons' what has now become 'traverseTwigsWithEnvirons'.
+-- The simple list-yielding version (see rev. b4a427d59ec82889bab2fde39225b14a57b694df)
+-- may well be more efficient than the current traversal-derived version.
+
+-- | Example: https://nbviewer.jupyter.org/github/leftaroundabout/manifolds/blob/master/test/Trees-and-Webs.ipynb#pseudorandomCloudTree
+-- 
+--   <<images/examples/ShadesAndWebs/2D-scatter_twig-environs.png>>
 twigsWithEnvirons :: ∀ x. (WithField ℝ Manifold x, SimpleSpace (Needle x))
     => ShadeTree x -> [(Twig x, TwigEnviron x)]
 twigsWithEnvirons = execWriter . traverseTwigsWithEnvirons (writer . (snd.fst&&&pure))

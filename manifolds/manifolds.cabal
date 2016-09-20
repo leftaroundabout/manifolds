@@ -31,6 +31,7 @@ Build-Type:          Simple
 Cabal-Version:       >=1.10
 Extra-Doc-Files:     images/examples/*.png,
                      images/examples/ShadeCombinations/2Dconvolution-skewed.png
+                     images/examples/TreesAndWebs/*.png
 
 Source-Repository head
     type: git
