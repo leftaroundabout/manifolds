@@ -978,7 +978,7 @@ type TwigEnviron x = [Twig x]
 
 -- | Example: https://nbviewer.jupyter.org/github/leftaroundabout/manifolds/blob/master/test/Trees-and-Webs.ipynb#pseudorandomCloudTree
 -- 
---   <<images/examples/ShadesAndWebs/2D-scatter_twig-environs.png>>
+--   <<images/examples/TreesAndWebs/2D-scatter_twig-environs.png>>
 twigsWithEnvirons :: ∀ x. (WithField ℝ Manifold x, SimpleSpace (Needle x))
     => ShadeTree x -> [(Twig x, TwigEnviron x)]
 twigsWithEnvirons = execWriter . traverseTwigsWithEnvirons (writer . (snd.fst&&&pure))
