@@ -1144,21 +1144,27 @@ instance (RealDimension n, LocallyScalable n a, SimpleSpace (Needle a))
 -- 
 -- However, because this category allows functions to be undefined in some region,
 -- such decisions can be faked quite well: '?->' restricts a function to
--- some region, by simply marking it undefined outside¹, and '?|:' replaces these
+-- some region, by simply marking it undefined outside, and '?|:' replaces these
 -- regions with values from another function.
 -- 
 -- Example: define a function that is compactly supported on the interval ]-1,1[,
 -- i.e. exactly zero everywhere outside.
 --
 -- @
--- Graphics.Dynamic.Plot.R2> plotWindow [diffableFnPlot (\\x -> -1 '?<' x '?<' 1 '?->' exp(1/(x^2 - 1)) '?|:' 0)]
+-- Graphics.Dynamic.Plot.R2> plotWindow [fnPlot (\\x -> -1 '?<' x '?<' 1 '?->' cos (x*pi/2)^2 '?|:' 0)]
 -- @
 -- 
--- <<images/examples/Friedrichs-mollifier.png>>
+-- <<images/examples/DiffableFunction-plots/Hann-window.png>>
 -- 
--- ¹ Note that it may not be necessary to restrict explicitly: for instance if a
+-- Note that it may not be necessary to restrict explicitly: for instance if a
 -- square root appears somewhere in an expression, then the expression is automatically
 -- restricted so that the root has a positive argument!
+-- 
+-- @
+-- Graphics.Dynamic.Plot.R2> plotWindow [fnPlot (\\x -> sqrt x '?|:' -sqrt (-x))]
+-- @
+-- 
+-- <<images/examples/DiffableFunction-plots/safe-sqrt.png>>
   
 infixr 4 ?->
 -- | Require the LHS to be defined before considering the RHS as result.
