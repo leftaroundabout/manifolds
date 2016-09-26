@@ -92,8 +92,8 @@ constLinearDEqn bwt = factoriseShade
 --   approaches 0.
 --   
 --   The idea is that if you consider the ratio of two function values,
---   it will be close to 1 if both arguments on the same side of 1,
---   even if their ratio is large.
+--   it will be close to 1 if either both arguments are much smaller or both
+--   much larger than 1, even if the ratio of these arguments is large.
 --   Only if both arguments are close to 1, or lie on opposite sides
 --   of it, will the ratio of the function values will be significant.
 goalSensitive :: ℝ -> ℝ
@@ -105,7 +105,7 @@ euclideanVolGoal vTgt _ (Shade' _ shy) = goalSensitive η
  where η = euclideanRelativeMetricVolume shy / vTgt
 
 euclideanRelativeMetricVolume :: (SimpleSpace y, HilbertSpace y) => Norm y -> Scalar y
-euclideanRelativeMetricVolume (Norm m) = roughDet . arr $ ue . m
+euclideanRelativeMetricVolume (Norm m) = recip . roughDet . arr $ ue . m
  where Norm ue = euclideanNorm
 
 maxDeviationsGoal :: (WithField ℝ EuclidSpace y, SimpleSpace (Needle y))
