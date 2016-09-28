@@ -549,7 +549,9 @@ filterDEqnSolutions_adaptive mf f badness' oldState
        smallBadnessGradient, largeBadnessGradient :: ℝ
        (smallBadnessGradient, largeBadnessGradient)
            = ( badnessGradRated!!(n`div`4), badnessGradRated!!(n*3`div`4) )
-        where n = length badnessGradRated
+        where n = case length badnessGradRated of
+                    0 -> error "No neighbours available for badness-grading."
+                    l -> l
               badnessGradRated = sort [ ngBad / bad
                                       | ( LocalWebInfo {
                                             _thisNodeData

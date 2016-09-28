@@ -78,7 +78,7 @@ import Data.Traversable.Constrained (Traversable, traverse)
 
 constLinearDEqn :: ( WithField ℝ LinearManifold x, SimpleSpace x
                    , WithField ℝ LinearManifold y, SimpleSpace y )
-              => LinearMap ℝ (DualVector y) (LinearMap ℝ y x) -> DifferentialEqn x y
+              => (DualVector y +> (y +> x)) -> DifferentialEqn x y
 constLinearDEqn bwt = factoriseShade
     >>> \(_x, Shade y δy) -> let j = bwt' \$ y
                                  δj = bwt' `transformNorm` dualNorm δy
