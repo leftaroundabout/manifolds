@@ -42,7 +42,7 @@ module Data.Manifold.TreeCover (
        -- ** Lenses
        , shadeCtr, shadeExpanse, shadeNarrowness
        -- ** Construction
-       , fullShade, fullShade', pointsShades, pointsCovers
+       , fullShade, fullShade', pointsShades, pointsShade's, pointsCovers, pointsCover's
        -- ** Evaluation
        , occlusion
        -- ** Misc
