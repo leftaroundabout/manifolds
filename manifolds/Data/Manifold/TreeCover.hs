@@ -924,6 +924,11 @@ instance Refinable ℝ where
 
 instance (Refinable a, Refinable b) => Refinable (a,b)
   
+instance Refinable ℝ⁰
+instance Refinable ℝ¹
+instance Refinable ℝ²
+instance Refinable ℝ³
+instance Refinable ℝ⁴
                             
 
 intersectShade's :: ∀ y . Refinable y => NonEmpty (Shade' y) -> Option (Shade' y)

@@ -37,7 +37,7 @@ module Data.Manifold.Types (
         , Disk1, Disk2, Cone, OpenCone
         -- * Linear manifolds
         , ZeroDim(..)
-        , ℝ⁰, ℝ, ℝ², ℝ³
+        , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
         -- * Hyperspheres
         -- ** General form: Stiefel manifolds
         , Stiefel1(..), stiefel1Project, stiefel1Embed

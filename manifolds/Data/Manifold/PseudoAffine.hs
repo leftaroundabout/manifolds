@@ -600,7 +600,7 @@ instance (LSpace a, LSpace b, Scalar a~s, Scalar b~s)
   a.-~.b = pure (a^-^b)
 
 instance Semimanifold S⁰ where
-  type Needle S⁰ = ℝ⁰
+  type Needle S⁰ = ZeroDim ℝ
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)

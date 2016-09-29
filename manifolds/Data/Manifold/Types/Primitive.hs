@@ -38,7 +38,7 @@ module Data.Manifold.Types.Primitive (
         , Disk1, Disk2, Cone, OpenCone
         -- * Linear manifolds
         , ZeroDim(..)
-        , ℝ⁰, ℝ, ℝ², ℝ³, ℝ⁴
+        , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
         -- * Hyperspheres
         , S⁰(..), otherHalfSphere, S¹(..), S²(..)
         -- * Projective spaces
@@ -208,8 +208,9 @@ instance (NaturallyEmbedded x p) => NaturallyEmbedded (Cℝay x) (p,ℝ) where
 type Endomorphism a = a->a
 
 
-type ℝ⁰ = ZeroDim ℝ
 type ℝ = Double
+type ℝ⁰ = ZeroDim ℝ
+type ℝ¹ = V1 ℝ
 type ℝ² = V2 ℝ
 type ℝ³ = V3 ℝ
 type ℝ⁴ = V4 ℝ
