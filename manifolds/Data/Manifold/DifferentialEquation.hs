@@ -80,10 +80,11 @@ constLinearDEqn :: ( WithField ℝ LinearManifold x, SimpleSpace x
                    , WithField ℝ LinearManifold y, SimpleSpace y )
               => (DualVector y +> (y +> x)) -> DifferentialEqn x y
 constLinearDEqn bwt = factoriseShade
-    >>> \(_x, Shade y δy) -> let j = bwt' \$ y
+    >>> \(_x, Shade y δy) -> let j = bwt'inv y
                                  δj = bwt' `transformNorm` dualNorm δy
                              in Shade' j δj
  where bwt' = adjoint $ bwt
+       bwt'inv = (bwt'\$)
 
 
 -- | A function that variates, relatively speaking, most strongly
