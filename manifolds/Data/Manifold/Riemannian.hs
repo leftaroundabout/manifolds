@@ -51,13 +51,14 @@ import qualified Data.Vector as Arr
 import Data.Semigroup
 
 import Data.VectorSpace
-import Data.LinearMap.HerMetric
+import Data.VectorSpace.Free
 import Data.AffineSpace
+import Math.LinearMap.Category
 
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty, embed, coEmbed)
+import Data.Manifold.Types.Stiefel
 import Data.Manifold.PseudoAffine
-import Data.VectorSpace.FiniteDimensional
     
 import Data.CoNat
 
@@ -67,8 +68,6 @@ import qualified Control.Monad       as Hask hiding(forM_, sequence)
 import Data.Functor.Identity
 import qualified Data.Foldable       as Hask
 import qualified Data.Traversable as Hask
-
-import qualified Numeric.LinearAlgebra.HMatrix as HMat
 
 import Control.Category.Constrained.Prelude hiding
      ((^), all, elem, sum, forM, Foldable(..), Traversable)
@@ -111,18 +110,12 @@ instance (Geodesic a, Geodesic b, Geodesic c) => Geodesic (a,b,c) where
       = liftA3 (\ia ib ic t -> (ia t, ib t, ic t))
            (geodesicBetween a α) (geodesicBetween b β) (geodesicBetween c γ)
 
-instance (KnownNat n) => Geodesic (FreeVect n ℝ) where
-  geodesicBetween (FreeVect v) (FreeVect w)
-      = return $ \(D¹ t) -> let μv = (1-t)/2; μw = (t+1)/2
-                            in FreeVect $ Arr.zipWith (\vi wi -> μv*vi + μw*wi) v w
+-- instance (KnownNat n) => Geodesic (FreeVect n ℝ) where
+--   geodesicBetween (FreeVect v) (FreeVect w)
+--       = return $ \(D¹ t) -> let μv = (1-t)/2; μw = (t+1)/2
+--                             in FreeVect $ Arr.zipWith (\vi wi -> μv*vi + μw*wi) v w
 
-instance (PseudoAffine v) => Geodesic (FinVecArrRep t v ℝ) where
-  geodesicBetween (FinVecArrRep v) (FinVecArrRep w)
-   | HMat.size v>0 && HMat.size w>0
-      = return $ \(D¹ t) -> let μv = (1-t)/2; μw = (t+1)/2
-                            in FinVecArrRep $ HMat.scale μv v + HMat.scale μw w
-
-instance (Geodesic v, WithField ℝ HilbertSpace v)
+instance (Geodesic v, FiniteFreeSpace v, WithField ℝ HilbertManifold v)
              => Geodesic (Stiefel1 v) where
   geodesicBetween (Stiefel1 p') (Stiefel1 q')
       = (\f -> \(D¹ t) -> Stiefel1 . f . D¹ $ g * tan (ϑ*t))
@@ -147,39 +140,39 @@ instance Geodesic S¹ where
                         <$> geodesicBetween (-pi-φ) (pi-ϕ)
 
 
-instance Geodesic (Cℝay S⁰) where
-  geodesicBetween p q = (>>> fromℝ) <$> geodesicBetween (toℝ p) (toℝ q)
-   where toℝ (Cℝay h PositiveHalfSphere) = h
-         toℝ (Cℝay h NegativeHalfSphere) = -h
-         fromℝ x | x>0        = Cℝay x PositiveHalfSphere
-                 | otherwise  = Cℝay (-x) NegativeHalfSphere
-
-instance Geodesic (CD¹ S⁰) where
-  geodesicBetween p q = (>>> fromI) <$> geodesicBetween (toI p) (toI q)
-   where toI (CD¹ h PositiveHalfSphere) = h
-         toI (CD¹ h NegativeHalfSphere) = -h
-         fromI x | x>0        = CD¹ x PositiveHalfSphere
-                 | otherwise  = CD¹ (-x) NegativeHalfSphere
-
-instance Geodesic (Cℝay S¹) where
-  geodesicBetween p q = (>>> fromP) <$> geodesicBetween (toP p) (toP q)
-   where fromP = fromInterior
-         toP w = case toInterior w of {Option (Just i) -> i}
-
-instance Geodesic (CD¹ S¹) where
-  geodesicBetween p q = (>>> fromI) <$> geodesicBetween (toI p) (toI q)
-   where toI (CD¹ h (S¹ φ)) = (h*cos φ, h*sin φ)
-         fromI (x,y) = CD¹ (sqrt $ x^2+y^2) (S¹ $ atan2 y x)
-
-instance Geodesic (Cℝay S²) where
-  geodesicBetween p q = (>>> fromP) <$> geodesicBetween (toP p) (toP q)
-   where fromP = fromInterior
-         toP w = case toInterior w of {Option (Just i) -> i}
-
-instance Geodesic (CD¹ S²) where
-  geodesicBetween p q = (>>> fromI) <$> geodesicBetween (toI p) (toI q :: ℝ³)
-   where toI (CD¹ h sph) = h *^ embed sph
-         fromI v = CD¹ (magnitude v) (coEmbed v)
+-- instance Geodesic (Cℝay S⁰) where
+--   geodesicBetween p q = (>>> fromℝ) <$> geodesicBetween (toℝ p) (toℝ q)
+--    where toℝ (Cℝay h PositiveHalfSphere) = h
+--          toℝ (Cℝay h NegativeHalfSphere) = -h
+--          fromℝ x | x>0        = Cℝay x PositiveHalfSphere
+--                  | otherwise  = Cℝay (-x) NegativeHalfSphere
+-- 
+-- instance Geodesic (CD¹ S⁰) where
+--   geodesicBetween p q = (>>> fromI) <$> geodesicBetween (toI p) (toI q)
+--    where toI (CD¹ h PositiveHalfSphere) = h
+--          toI (CD¹ h NegativeHalfSphere) = -h
+--          fromI x | x>0        = CD¹ x PositiveHalfSphere
+--                  | otherwise  = CD¹ (-x) NegativeHalfSphere
+-- 
+-- instance Geodesic (Cℝay S¹) where
+--   geodesicBetween p q = (>>> fromP) <$> geodesicBetween (toP p) (toP q)
+--    where fromP = fromInterior
+--          toP w = case toInterior w of {Option (Just i) -> i}
+-- 
+-- instance Geodesic (CD¹ S¹) where
+--   geodesicBetween p q = (>>> fromI) <$> geodesicBetween (toI p) (toI q)
+--    where toI (CD¹ h (S¹ φ)) = (h*cos φ, h*sin φ)
+--          fromI (x,y) = CD¹ (sqrt $ x^2+y^2) (S¹ $ atan2 y x)
+-- 
+-- instance Geodesic (Cℝay S²) where
+--   geodesicBetween p q = (>>> fromP) <$> geodesicBetween (toP p) (toP q)
+--    where fromP = fromInterior
+--          toP w = case toInterior w of {Option (Just i) -> i}
+-- 
+-- instance Geodesic (CD¹ S²) where
+--   geodesicBetween p q = (>>> fromI) <$> geodesicBetween (toI p) (toI q :: ℝ³)
+--    where toI (CD¹ h sph) = h *^ embed sph
+--          fromI v = CD¹ (magnitude v) (coEmbed v)
 
 #define geoVSpCone(c,t)                                               \
 instance (c) => Geodesic (Cℝay (t)) where {                            \
@@ -193,11 +186,11 @@ instance (c) => Geodesic (CD¹ (t)) where {                                  \
          ; fromP (x,h) = CD¹ h (x^/h)                                          \
          ; toP (CD¹ h w) = ( h*^w, h ) } }
 
-geoVSpCone ((), ℝ)
-geoVSpCone ((), ℝ⁰)
-geoVSpCone ((WithField ℝ HilbertSpace a, WithField ℝ HilbertSpace b, Geodesic (a,b)), (a,b))
-geoVSpCone (KnownNat n, FreeVect n ℝ)
-geoVSpCone ((Geodesic v, WithField ℝ HilbertSpace v), FinVecArrRep t v ℝ)
+-- geoVSpCone ((), ℝ)
+-- geoVSpCone ((), ℝ⁰)
+-- geoVSpCone ((WithField ℝ HilbertManifold a, WithField ℝ HilbertManifold b
+--             , Geodesic (a,b)), (a,b))
+-- geoVSpCone (KnownNat n, FreeVect n ℝ)
 
 
 
@@ -208,16 +201,16 @@ class WithField ℝ PseudoAffine i => IntervalLike i where
 
 instance IntervalLike D¹ where
   toClosedInterval = id
-instance IntervalLike (CD¹ S⁰) where
-  toClosedInterval (CD¹ h PositiveHalfSphere) = D¹ h
-  toClosedInterval (CD¹ h NegativeHalfSphere) = D¹ (-h)
-instance IntervalLike (Cℝay S⁰) where
-  toClosedInterval (Cℝay h PositiveHalfSphere) = D¹ $ tanh h
-  toClosedInterval (Cℝay h NegativeHalfSphere) = D¹ $ -tanh h
-instance IntervalLike (CD¹ ℝ⁰) where
-  toClosedInterval (CD¹ h Origin) = D¹ $ h*2 - 1
-instance IntervalLike (Cℝay ℝ⁰) where
-  toClosedInterval (Cℝay h Origin) = D¹ $ 1 - 2/(h+1)
+-- instance IntervalLike (CD¹ S⁰) where
+--   toClosedInterval (CD¹ h PositiveHalfSphere) = D¹ h
+--   toClosedInterval (CD¹ h NegativeHalfSphere) = D¹ (-h)
+-- instance IntervalLike (Cℝay S⁰) where
+--   toClosedInterval (Cℝay h PositiveHalfSphere) = D¹ $ tanh h
+--   toClosedInterval (Cℝay h NegativeHalfSphere) = D¹ $ -tanh h
+-- instance IntervalLike (CD¹ ℝ⁰) where
+--   toClosedInterval (CD¹ h Origin) = D¹ $ h*2 - 1
+-- instance IntervalLike (Cℝay ℝ⁰) where
+--   toClosedInterval (Cℝay h Origin) = D¹ $ 1 - 2/(h+1)
 instance IntervalLike ℝ where
   toClosedInterval x = D¹ $ tanh x
 
@@ -229,4 +222,4 @@ class Geodesic m => Riemannian m where
   rieMetric :: RieMetric m
 
 instance Riemannian ℝ where
-  rieMetric = const m where m = projector 1
+  rieMetric = const euclideanNorm

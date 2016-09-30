@@ -37,8 +37,8 @@ module Data.Manifold.Types.Primitive (
         , Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
         -- * Linear manifolds
-        , ZeroDim(..), isoAttachZeroDim
-        , ℝ⁰, ℝ, ℝ², ℝ³
+        , ZeroDim(..)
+        , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
         -- * Hyperspheres
         , S⁰(..), otherHalfSphere, S¹(..), S²(..)
         -- * Projective spaces
@@ -57,12 +57,15 @@ module Data.Manifold.Types.Primitive (
 
 
 import Data.VectorSpace
+import Data.VectorSpace.Free
+import Linear.V2
+import Linear.V3
+import Math.VectorSpace.ZeroDimensional
 import Data.AffineSpace
 import Data.Basis
 import Data.Void
 import Data.Monoid
-
-import qualified Numeric.LinearAlgebra.HMatrix as HMat
+import Math.LinearMap.Category ((⊗)())
 
 import Control.Applicative (Const(..), Alternative(..))
 
@@ -91,34 +94,6 @@ data GraphWindowSpec = GraphWindowSpec {
 
 
 
--- | A single point. Can be considered a zero-dimensional vector space, WRT any scalar.
-data ZeroDim k = Origin deriving(Eq, Show)
-instance Monoid (ZeroDim k) where
-  mempty = Origin
-  mappend Origin Origin = Origin
-instance AffineSpace (ZeroDim k) where
-  type Diff (ZeroDim k) = ZeroDim k
-  Origin .+^ Origin = Origin
-  Origin .-. Origin = Origin
-instance AdditiveGroup (ZeroDim k) where
-  zeroV = Origin
-  Origin ^+^ Origin = Origin
-  negateV Origin = Origin
-instance VectorSpace (ZeroDim k) where
-  type Scalar (ZeroDim k) = k
-  _ *^ Origin = Origin
-instance HasBasis (ZeroDim k) where
-  type Basis (ZeroDim k) = Void
-  basisValue = absurd
-  decompose Origin = []
-  decompose' Origin = absurd
-
-{-# INLINE isoAttachZeroDim #-}
-isoAttachZeroDim :: ( WellPointed c, UnitObject c ~ (), ObjectPair c a ()
-                    , Object c (ZeroDim k), ObjectPair c a (ZeroDim k)
-                    , PointObject c (ZeroDim k) )
-                       => Isomorphism c a (a, ZeroDim k)
-isoAttachZeroDim = second (Isomorphism (const Origin) terminal) . attachUnit
 
 -- | The zero-dimensional sphere is actually just two points. Implementation might
 --   therefore change to @ℝ⁰ 'Control.Category.Constrained.+' ℝ⁰@: the disjoint sum of two
@@ -188,9 +163,6 @@ data Cℝay x = Cℝay { hParamCℝay :: !Double -- ^ Range @[0, &#x221e;[@
 
 
 
--- | Dense tensor product of two vector spaces.
-newtype x⊗y = DensTensProd { getDensTensProd :: HMat.Matrix (Scalar y) }
-
 
 
 class NaturallyEmbedded m v where
@@ -211,16 +183,16 @@ instance NaturallyEmbedded S⁰ ℝ where
   coEmbed x | x>=0       = PositiveHalfSphere
             | otherwise  = NegativeHalfSphere
 instance NaturallyEmbedded S¹ ℝ² where
-  embed (S¹ φ) = (cos φ, sin φ)
-  coEmbed (x,y) = S¹ $ atan2 y x
+  embed (S¹ φ) = V2 (cos φ) (sin φ)
+  coEmbed (V2 x y) = S¹ $ atan2 y x
 instance NaturallyEmbedded S² ℝ³ where
-  embed (S² ϑ φ) = ((cos φ * sin ϑ, sin φ * sin ϑ), cos ϑ)
-  coEmbed ((x,y),z) = S² (acos $ z/r) (atan2 y x)
+  embed (S² ϑ φ) = V3 (cos φ * sin ϑ) (sin φ * sin ϑ) (cos ϑ)
+  coEmbed (V3 x y z) = S² (acos $ z/r) (atan2 y x)
    where r = sqrt $ x^2 + y^2 + z^2
  
 instance NaturallyEmbedded ℝP² ℝ³ where
-  embed (ℝP² r φ) = ((r * cos φ, r * sin φ), sqrt $ 1-r^2)
-  coEmbed ((x,y),z) = ℝP² (sqrt $ 1-(z/r)^2) (atan2 (y/r) (x/r))
+  embed (ℝP² r φ) = V3 (r * cos φ) (r * sin φ) (sqrt $ 1-r^2)
+  coEmbed (V3 x y z) = ℝP² (sqrt $ 1-(z/r)^2) (atan2 (y/r) (x/r))
    where r = sqrt $ x^2 + y^2 + z^2
 
 instance NaturallyEmbedded D¹ ℝ where
@@ -236,10 +208,12 @@ instance (NaturallyEmbedded x p) => NaturallyEmbedded (Cℝay x) (p,ℝ) where
 type Endomorphism a = a->a
 
 
-type ℝ⁰ = ZeroDim ℝ
 type ℝ = Double
-type ℝ² = (ℝ,ℝ)
-type ℝ³ = (ℝ²,ℝ)
+type ℝ⁰ = ZeroDim ℝ
+type ℝ¹ = V1 ℝ
+type ℝ² = V2 ℝ
+type ℝ³ = V3 ℝ
+type ℝ⁴ = V4 ℝ
 
 
 -- | Better known as &#x211d;&#x207a; (which is not a legal Haskell name), the ray

@@ -1,5 +1,5 @@
 Name:                manifolds
-Version:             0.2.3.0
+Version:             0.3.0.0
 Category:            Math
 Synopsis:            Coordinate-free hypersurfaces
 Description:         Manifolds, a generalisation of the notion of &#x201c;smooth curves&#x201d; or surfaces,
@@ -31,6 +31,8 @@ Build-Type:          Simple
 Cabal-Version:       >=1.10
 Extra-Doc-Files:     images/examples/*.png,
                      images/examples/ShadeCombinations/2Dconvolution-skewed.png
+                     images/examples/TreesAndWebs/*.png
+                     images/examples/DiffableFunction-plots/*.png
 
 Source-Repository head
     type: git
@@ -40,9 +42,11 @@ Library
   Build-Depends:     base>=4.5 && < 6
                      , transformers
                      , vector-space>=0.8
+                     , free-vector-spaces>=0.1.1
+                     , linear
                      , MemoTrie
                      , vector
-                     , hmatrix >= 0.16 && < 0.18
+                     , linearmap-category < 0.2
                      , containers
                      , comonad
                      , semigroups
@@ -51,7 +55,7 @@ Library
                      , deepseq
                      , microlens >= 0.4 && <= 0.5, microlens-th
                      , trivial-constraint >= 0.4
-                     , constrained-categories >= 0.2.3 && < 0.3
+                     , constrained-categories >= 0.2.3 && < 0.3.1
   other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
@@ -69,9 +73,9 @@ Library
                      Data.Manifold.Web
                      Data.Manifold.DifferentialEquation
                      Data.SimplicialComplex
-                     Data.LinearMap.HerMetric
                      Data.Function.Differentiable
                      Data.Manifold.Types
+                     Data.Manifold.Types.Stiefel
                      Data.Manifold.Griddable
                      Data.Manifold.Riemannian
   Other-modules:   Data.List.FastNub
@@ -80,10 +84,8 @@ Library
                    Data.Manifold.Cone
                    Data.CoNat
                    Data.Embedding
-                   Data.LinearMap.Category
                    Data.Function.Differentiable.Data
                    Data.Function.Affine
-                   Data.VectorSpace.FiniteDimensional
                    Control.Monad.Trans.OuterMaybe
                    Util.Associate
                    Util.LtdShow

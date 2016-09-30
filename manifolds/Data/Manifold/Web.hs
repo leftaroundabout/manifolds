@@ -66,7 +66,8 @@ import Data.Semigroup
 import Control.DeepSeq
 
 import Data.VectorSpace
-import Data.LinearMap.HerMetric
+import Math.LinearMap.Category
+
 import Data.Tagged
 import Data.Function (on)
 import Data.Fixed (mod')
@@ -111,7 +112,7 @@ data Neighbourhood x = Neighbourhood {
    }
   deriving (Generic)
 
-instance (NFData x, NFData (HerMetric (Needle x))) => NFData (Neighbourhood x)
+instance (NFData x, NFData (Metric x)) => NFData (Neighbourhood x)
 
 -- | A 'PointsWeb' is almost, but not quite a mesh. It is a stongly connected†
 --   directed graph, backed by a tree for fast nearest-neighbour lookup of points.
@@ -125,7 +126,7 @@ data PointsWeb :: * -> * -> * where
      } -> PointsWeb x y
   deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
 
-instance (NFData x, NFData (HerMetric (Needle x)), NFData (Needle' x), NFData y) => NFData (PointsWeb x y)
+instance (NFData x, NFData (Metric x), NFData (Needle' x), NFData y) => NFData (PointsWeb x y)
 
 instance Foldable (PointsWeb x) (->) (->) where
   ffoldl = uncurry . Hask.foldl' . curry
@@ -141,23 +142,23 @@ instance Traversable (PointsWeb x) (PointsWeb x) (->) (->) where
 type MetricChoice x = Shade x -> Metric x
 
 
-fromWebNodes :: ∀ x y . WithField ℝ Manifold x
+fromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                     => (MetricChoice x) -> [(x,y)] -> PointsWeb x y
 fromWebNodes mf = fromShaded mf . fromLeafPoints . map (uncurry WithAny . swap)
 
-fromTopWebNodes :: ∀ x y . WithField ℝ Manifold x
+fromTopWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                     => (MetricChoice x) -> [((x,[Needle x]),y)] -> PointsWeb x y
 fromTopWebNodes mf = fromTopShaded mf . fromLeafPoints
                    . map (uncurry WithAny . swap . regroup')
 
-fromShadeTree_auto :: ∀ x . WithField ℝ Manifold x => ShadeTree x -> PointsWeb x ()
-fromShadeTree_auto = fromShaded (recipMetric . _shadeExpanse) . constShaded ()
+fromShadeTree_auto :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x)) => ShadeTree x -> PointsWeb x ()
+fromShadeTree_auto = fromShaded (dualNorm . _shadeExpanse) . constShaded ()
 
-fromShadeTree :: ∀ x . WithField ℝ Manifold x
+fromShadeTree :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (Shade x -> Metric x) -> ShadeTree x -> PointsWeb x ()
 fromShadeTree mf = fromShaded mf . constShaded ()
 
-fromShaded :: ∀ x y . WithField ℝ Manifold x
+fromShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (MetricChoice x) -- ^ Local scalar-product generator. You can always
                               --   use @'recipMetric' . '_shadeExpanse'@ (but this
                               --   may give distortions compared to an actual
@@ -166,7 +167,7 @@ fromShaded :: ∀ x y . WithField ℝ Manifold x
      -> PointsWeb x y
 fromShaded metricf = fromTopShaded metricf . fmapShaded ([],)
 
-fromTopShaded :: ∀ x y . WithField ℝ Manifold x
+fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (MetricChoice x)
      -> (x`Shaded`([Needle x], y))  -- ^ Source tree, with a priori topology information
                                     --   (needles pointing to already-known neighbour candidates)
@@ -203,7 +204,7 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                               oldNgbs <- get
                               when (all (\(_,(_,nw)) -> visibleOverlap nw v) oldNgbs) `id`do
                                  let w = w₀ ^/ (w₀<.>^v)
-                                      where w₀ = toDualWith locRieM v
+                                      where w₀ = locRieM<$|v
                                  put $ (iNgb, (v,w))
                                        : [ neighbour
                                          | neighbour@(_,(nv,_))<-oldNgbs
@@ -226,7 +227,8 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                                    ++ Hask.foldMap (onlyLeaves . snd) neighRegions of
                           [sh₀] -> metricf sh₀
 
-indexWeb :: WithField ℝ Manifold x => PointsWeb x y -> WebNodeId -> Option (x,y)
+indexWeb :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
+                => PointsWeb x y -> WebNodeId -> Option (x,y)
 indexWeb (PointsWeb rsc assocD) i
   | i>=0, i<Arr.length assocD
   , Right (_,x) <- indexShadeTree rsc i  = pure (x, fst (assocD Arr.! i))
@@ -235,7 +237,7 @@ indexWeb (PointsWeb rsc assocD) i
 unsafeIndexWebData :: PointsWeb x y -> WebNodeId -> y
 unsafeIndexWebData (PointsWeb _ asd) i = fst (asd Arr.! i)
 
-webEdges :: ∀ x y . WithField ℝ Manifold x
+webEdges :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
             => PointsWeb x y -> [((x,y), (x,y))]
 webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
  where allEdges :: Set.Set (WebNodeId,WebNodeId)
@@ -269,7 +271,8 @@ mkInterpolationSeq_lin _ = []
 -- | Fetch a point between any two neighbouring web nodes on opposite
 --   sides of the plane, and linearly interpolate the values onto the
 --   cut plane.
-sliceWeb_lin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
+sliceWeb_lin :: ∀ x y . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                        , Geodesic x, Geodesic y )
                => PointsWeb x y -> Cutplane x -> [(x,y)]
 sliceWeb_lin web = sliceEdgs
  where edgs = webEdges web
@@ -300,14 +303,16 @@ cartesianGrid2D ((x₀,x₁), nx) ((y₀,y₁), ny)
     = GridSetup (x₀,y₀) [ GridPlanes (0,1) (0, (y₁-y₀)/fromIntegral ny) ny
                         , GridPlanes (1,0) ((x₁-x₀)/fromIntegral nx, 0) ny ]
 
-splitToGridLines :: (WithField ℝ Manifold x, Geodesic x, Geodesic y)
+splitToGridLines :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                    , Geodesic x, Geodesic y )
           => PointsWeb x y -> GridSetup x -> [((x, GridPlanes x), [(x,y)])]
 splitToGridLines web (GridSetup x₀ [GridPlanes dirΩ spcΩ nΩ, linePln])
     = [ ((x₀', linePln), sliceWeb_lin web $ Cutplane x₀' (Stiefel1 dirΩ))
       | k <- [0 .. nΩ-1]
       , let x₀' = x₀.+~^(fromIntegral k *^ spcΩ) ]
 
-sampleWebAlongGrid_lin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
+sampleWebAlongGrid_lin :: ∀ x y . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                                  , Geodesic x, Geodesic y )
                => PointsWeb x y -> GridSetup x -> [(x,Option y)]
 sampleWebAlongGrid_lin web grid = finalLine =<< splitToGridLines web grid
  where finalLine :: ((x, GridPlanes x), [(x,y)]) -> [(x,Option y)]
@@ -315,13 +320,13 @@ sampleWebAlongGrid_lin web grid = finalLine =<< splitToGridLines web grid
           | length verts < 2  = take nSpl $ (,empty)<$>iterate (.+~^dir) x₀
        finalLine ((x₀, GridPlanes _ dir nSpl), verts)  = take nSpl $ go (x₀,0) intpseq 
         where intpseq = mkInterpolationSeq_lin
-                         [ (metric metr $ x.-~!x₀, y) | (x,y) <- verts ]
+                         [ (metr |$| x.-~!x₀, y) | (x,y) <- verts ]
               go (x,_) [] = (,empty)<$>iterate (.+~^dir) x
               go xt (InterpolationIv (_,te) f:fs)
                         = case break ((<te) . snd) $ iterate ((.+~^dir)***(+1)) xt of
                              (thisRange, xtn:_)
                                  -> ((id***pure.f)<$>thisRange) ++ go xtn fs
-       Option (Just metr) = inferMetric $ webNodeRsc web
+       metr = inferMetric $ webNodeRsc web
        
 sampleWeb_2Dcartesian_lin :: (x~ℝ, y~ℝ, Geodesic z)
              => PointsWeb (x,y) z -> ((x,x),Int) -> ((y,y),Int) -> [(y,[(x,Option z)])]
@@ -359,7 +364,7 @@ webLocalInfo origWeb = result
                 }, ngbH )
        anyUnopposed rieM ngbCo = (`any`ngbCo) $ \(v,_)
                          -> not $ (`any`ngbCo) $ \(v',_)
-                              -> toDualWith rieM v <.>^ v' < 0
+                              -> (rieM<$|v) <.>^ v' < 0
 
 localFocusWeb :: WithField ℝ Manifold x
                    => PointsWeb x y -> PointsWeb x ((x,y), [(Needle x, y)])
@@ -376,16 +381,16 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                  ) asd'
 
 
-nearestNeighbour :: WithField ℝ Manifold x
+nearestNeighbour :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
                       => PointsWeb x y -> x -> Option (x,y)
 nearestNeighbour (PointsWeb rsc asd) x = fmap lkBest $ positionIndex empty rsc x
  where lkBest (iEst, (_, xEst)) = (xProx, yProx)
         where (iProx, (xProx, _)) = minimumBy (comparing $ snd . snd)
-                                     $ (iEst, (xEst, metricSq locMetr vEst))
+                                     $ (iEst, (xEst, normSq locMetr vEst))
                                          : neighbours
               (yProx, _) = asd Arr.! iProx
               (_, Neighbourhood neighbourIds locMetr) = asd Arr.! iEst
-              neighbours = [ (i, (xNgb, metricSq locMetr v))
+              neighbours = [ (i, (xNgb, normSq locMetr v))
                            | i <- UArr.toList neighbourIds
                            , let Right (_, xNgb) = indexShadeTree rsc i
                                  Option (Just v) = xNgb.-~.x
@@ -417,7 +422,8 @@ instance WithField ℝ Manifold x => Comonad (WebLocally x) where
 
 
 
-toGraph :: WithField ℝ Manifold x => PointsWeb x y -> (Graph, Vertex -> (x, y))
+toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
+              => PointsWeb x y -> (Graph, Vertex -> (x, y))
 toGraph wb = second (>>> \(i,_,_) -> case indexWeb wb i of {Option (Just xy) -> xy})
                 (graphFromEdges' edgs)
  where edgs :: [(Int, Int, [Int])]
@@ -468,13 +474,15 @@ dupHead :: NonEmpty a -> NonEmpty a
 dupHead (x:|xs) = x:|x:xs
 
 
-iterateFilterDEqn_static :: (WithField ℝ Manifold x, Refinable y)
+iterateFilterDEqn_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                            , Refinable y )
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
 iterateFilterDEqn_static f = map (fmap convexSetHull)
                            . itWhileJust (filterDEqnSolutions_static f)
                            . fmap (`ConvexSet`[])
 
-filterDEqnSolution_static :: (WithField ℝ Manifold x, Refinable y)
+filterDEqnSolution_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                             , Refinable y )
        => DifferentialEqn x y -> PointsWeb x (Shade' y) -> Option (PointsWeb x (Shade' y))
 filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse `id`
                    \((x,shy), ngbs) -> if null ngbs
@@ -483,7 +491,8 @@ filterDEqnSolution_static f = localFocusWeb >>> Hask.traverse `id`
                             =<< intersectShade's
                                   ( propagateDEqnSolution_loc f ((x,shy), NE.fromList ngbs) )
 
-filterDEqnSolutions_static :: (WithField ℝ Manifold x, Refinable y)
+filterDEqnSolutions_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                              , Refinable y )
        => DifferentialEqn x y -> PointsWeb x (ConvexSet y) -> Option (PointsWeb x (ConvexSet y))
 filterDEqnSolutions_static f = localFocusWeb >>> Hask.traverse `id`
             \((x, shy@(ConvexSet hull _)), ngbs) -> if null ngbs
@@ -516,7 +525,7 @@ oldAndNew' (_, l) = (False,) <$> l
 
 
 filterDEqnSolutions_adaptive :: ∀ x y badness
-        . (WithField ℝ Manifold x, Refinable y, badness ~ ℝ)
+        . (WithField ℝ Manifold x, SimpleSpace (Needle x), Refinable y, badness ~ ℝ)
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> DifferentialEqn x y 
        -> (x -> Shade' y -> badness)
@@ -540,7 +549,9 @@ filterDEqnSolutions_adaptive mf f badness' oldState
        smallBadnessGradient, largeBadnessGradient :: ℝ
        (smallBadnessGradient, largeBadnessGradient)
            = ( badnessGradRated!!(n`div`4), badnessGradRated!!(n*3`div`4) )
-        where n = length badnessGradRated
+        where n = case length badnessGradRated of
+                    0 -> error "No neighbours available for badness-grading."
+                    l -> l
               badnessGradRated = sort [ ngBad / bad
                                       | ( LocalWebInfo {
                                             _thisNodeData
@@ -606,7 +617,7 @@ filterDEqnSolutions_adaptive mf f badness' oldState
        
        totalAge = maximum $ _solverNodeAge . _thisNodeData . fst <$> preproc'd
        errTgtModulation = (1-) . (`mod'`1) . negate . sqrt $ fromIntegral totalAge
-       badness x = badness' x . (shadeNarrowness %~ (^* errTgtModulation))
+       badness x = badness' x . (shadeNarrowness %~ (scaleNorm errTgtModulation))
        
        retraceBonds :: WebLocally x (WebLocally x (OldAndNew (x, SolverNodeState y)))
                        -> [((x, [Needle x]), SolverNodeState y)]
@@ -626,7 +637,7 @@ filterDEqnSolutions_adaptive mf f badness' oldState
                                          , (xN,_) <- oldAndNew nnWeb ]
                                    l -> [(xN.-~.x, ngb^.thisNodeId) | (xN,_) <- l]
                        ]
-                    possibleConflicts = [ metricSq locMetr v
+                    possibleConflicts = [ normSq locMetr v
                                         | (v,nnId)<-neighbourCandidates
                                         , nnId > myId ]
               , isOld || null possibleConflicts
@@ -634,14 +645,14 @@ filterDEqnSolutions_adaptive mf f badness' oldState
               ]
         where focused = oldAndNew' $ locWeb^.thisNodeData^.thisNodeData
               knownNgbs = snd <$> locWeb^.nodeNeighbours
-              oldMinDistSq = minimum [ metricSq locMetr vOld
+              oldMinDistSq = minimum [ normSq locMetr vOld
                                      | (_,ngb) <- knownNgbs
                                      , let Option (Just vOld) = ngb^.thisNodeCoord .-~. xOld
                                      ]
                               
 
 
-iterateFilterDEqn_adaptive :: (WithField ℝ Manifold x, Refinable y)
+iterateFilterDEqn_adaptive :: (WithField ℝ Manifold x, SimpleSpace (Needle x), Refinable y)
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> DifferentialEqn x y
        -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.

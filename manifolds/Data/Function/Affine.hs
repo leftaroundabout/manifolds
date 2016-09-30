@@ -40,8 +40,6 @@ module Data.Function.Affine (
 import Data.Semigroup
 
 import Data.VectorSpace
-import Data.LinearMap
-import Data.LinearMap.HerMetric
 import Data.AffineSpace
 import Data.Tagged
 import Data.Manifold.Types.Primitive
@@ -56,13 +54,14 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
+import Math.LinearMap.Category
 
 
 
 data Affine s d c where
    Subtract :: AffineManifold α => Affine s (α,α) (Needle α)
    AddTo :: Affine s (α, Needle α) α
-   ScaleWith :: (LinearManifold α, LinearManifold β) => (α:-*β) -> Affine s α β
+   ScaleWith :: (LinearManifold α, LinearManifold β) => (α+>β) -> Affine s α β
    ReAffine :: ReWellPointed (Affine s) α β -> Affine s α β
 
 reAffine :: ReWellPointed (Affine s) α β -> Affine s α β
@@ -90,8 +89,14 @@ pattern Const c = ReAffine (WellPointedConst c)
 
 toOffsetSlope :: (MetricScalar s, WithField s LinearManifold d
                                  , WithField s AffineManifold c )
-                      => Affine s d c -> (c, Needle d :-* Needle c)
+                      => Affine s d c -> (c, Needle d +> Needle c)
 toOffsetSlope f = toOffset'Slope f zeroV
+
+type MetricScalar s = (Num''' s, LSpace (ZeroDim s))
+
+linear :: (LSpace a, LSpace b, Scalar a ~ Scalar b)
+             => (a -> b) -> (a+>b)
+linear = arr . LinearFunction
 
 -- | Basically evaluates an affine function as a generic differentiable one,
 --   yielding at a given reference point the result and Jacobian. Unlike with
@@ -99,14 +104,14 @@ toOffsetSlope f = toOffset'Slope f zeroV
 --   series is equal to the function!
 toOffset'Slope :: ( MetricScalar s, WithField s AffineManifold d
                                    , WithField s AffineManifold c )
-                      => Affine s d c -> d -> (c, Needle d :-* Needle c)
+                      => Affine s d c -> d -> (c, Needle d +> Needle c)
 toOffset'Slope Subtract (a,b) = (a.-.b, linear $ uncurry(^-^))
 toOffset'Slope AddTo (p,v) = (p.+^v, linear $ uncurry(^+^))
-toOffset'Slope (ScaleWith q) ref = (lapply q ref, q)
+toOffset'Slope (ScaleWith q) ref = (q $ ref, q)
 toOffset'Slope Id ref = (ref, linear id)
 toOffset'Slope (f :>>> g) ref = case toOffset'Slope f ref of
                   (cf,sf) -> case toOffset'Slope g cf of
-                     (cg,sg)     -> (cg, sg*.*sf)
+                     (cg,sg)     -> (cg, sg . sf)
 toOffset'Slope Swap ref = (swap ref, linear swap)
 toOffset'Slope AttachUnit ref = ((ref,Origin), linear (,Origin))
 toOffset'Slope DetachUnit ref = (fst ref, linear fst)
@@ -114,13 +119,13 @@ toOffset'Slope Regroup ref = (regroup ref, linear regroup)
 toOffset'Slope Regroup' ref = (regroup' ref, linear regroup')
 toOffset'Slope (f:***g) ref = case ( toOffset'Slope f (fst ref)
                                  , toOffset'Slope g (snd ref) ) of
-                  ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf *** lapply sg)
+                  ((cf, sf), (cg, sg)) -> ((cf,cg), sf *** sg)
 toOffset'Slope Terminal ref = (Origin, zeroV)
 toOffset'Slope Fst ref = (fst ref, linear fst)
 toOffset'Slope Snd ref = (snd ref, linear snd)
 toOffset'Slope (f:&&&g) ref = case ( toOffset'Slope (arr f) ref
                                   , toOffset'Slope (arr g) ref ) of
-                  ((cf, sf), (cg, sg)) -> ((cf,cg), linear $ lapply sf &&& lapply sg)
+                  ((cf, sf), (cg, sg)) -> ((cf,cg), sf &&& sg)
 toOffset'Slope (Const c) ref = (c, zeroV)
             
 coOffsetForm :: ( MetricScalar s, WithField s AffineManifold d
@@ -263,7 +268,7 @@ instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifo
   Swap .+^ Swap = Swap >>> ScaleWith (linear (^*2))
   
   f .+^ Id = let (c,q) = toOffset'Slope f zeroV
-             in const c&&&ScaleWith (q^+^idL) >>>! AddTo
+             in const c&&&ScaleWith (q^+^id) >>>! AddTo
   f .+^ AttachUnit = let (c,q) = toOffset'Slope f zeroV
                      in postAdd' c $ ScaleWith (q^+^linear(,Origin))
   f .+^ DetachUnit = let (c,q) = toOffset'Slope f zeroV
@@ -343,9 +348,9 @@ instance (MetricScalar s) => Category (Affine s) where
   
   id = ReAffine id
   
-  ScaleWith ϕ . ScaleWith ψ = ScaleWith $ ϕ*.*ψ
+  ScaleWith ϕ . ScaleWith ψ = ScaleWith $ ϕ . ψ
   g . ScaleWith ψ = let (d, ϕ) = toOffsetSlope g
-                    in postAdd' d $ ScaleWith (ϕ*.*ψ)
+                    in postAdd' d $ ScaleWith (ϕ . ψ)
   (f:***g) . (h:***i) = f.h *** g.i
   (f:***g) . (h:&&&i) = f.h &&& g.i
   g . (PostAdd' c f) = let (d, ϕ) = toOffset'Slope g c
@@ -392,7 +397,7 @@ instance (MetricScalar s) => WellPointed (Affine s) where
 
 
 linearAffine :: (MetricScalar s, WithField s LinearManifold α, WithField s LinearManifold β)
-            => (α:-*β) -> Affine s α β
+            => (α+>β) -> Affine s α β
 linearAffine = ScaleWith
 
 
@@ -411,7 +416,7 @@ instance (MetricScalar s)
 
 
 
-instance (WithField s LinearManifold v, WithField s LinearManifold a)
+instance (MetricScalar s, WithField s LinearManifold v, WithField s LinearManifold a)
     => AdditiveGroup (AffinFuncValue s a v) where
   zeroV = GenericAgent zeroV
   GenericAgent f ^+^ GenericAgent g = GenericAgent $ f ^+^ g

@@ -6,8 +6,7 @@ module Data.Function.Differentiable.Data where
 import Data.Semigroup
 import Data.Function.Affine
 import Data.VectorSpace
-import Data.LinearMap
-import Data.LinearMap.HerMetric
+import Math.LinearMap.Category
 
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
@@ -55,7 +54,7 @@ type LinDevPropag d c = Metric c -> Metric d
 --   This makes the category actually work on general manifolds.)
 data Differentiable s d c where
    Differentiable :: ( d -> ( c   -- function value
-                            , Needle d :-* Needle c -- Jacobian
+                            , Needle d +> Needle c -- Jacobian
                             , LinDevPropag d c -- Metric showing how far you can go
                                                -- from x₀ without deviating from the
                                                -- Taylor-1 approximation by more than
