@@ -41,6 +41,8 @@ module Data.Manifold.DifferentialEquation (
             , uncertaintyGoal
             , uncertaintyGoal'
             , euclideanVolGoal
+            -- * Solver configuration
+            , InconsistencyStrategy(..)
             ) where
 
 
