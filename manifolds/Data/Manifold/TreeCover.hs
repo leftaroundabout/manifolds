@@ -57,7 +57,7 @@ module Data.Manifold.TreeCover (
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
        , twigsWithEnvirons, Twig, TwigEnviron
-       , completeTopShading, flexTwigsShading
+       , completeTopShading, flexTwigsShading, coerceShadeTree
        , WithAny(..), Shaded, fmapShaded, stiAsIntervalMapping, spanShading
        , constShaded, stripShadedUntopological
        , DifferentialEqn, propagateDEqnSolution_loc
@@ -749,6 +749,12 @@ unsafeFmapTree f fn fs (OverlappingBranches n sh brs)
                       -> DBranch (fn dir) (unsafeFmapTree f fn fs<$>br)
                       ) brs
       in overlappingBranches (fs sh) brs'
+
+coerceShadeTree :: ∀ x y . (LocallyCoercible x y, Manifold x, Manifold y)
+                       => ShadeTree x -> ShadeTree y
+coerceShadeTree = unsafeFmapTree (fmap locallyTrivialDiffeomorphism)
+                                 (coerceNeedle' ([]::[(x,y)]) $)
+                                 coerceShade
 
 
 -- | Class of manifolds which can use 'Shade'' as a basic set type.

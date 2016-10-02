@@ -51,7 +51,7 @@ module Data.Manifold.Web (
               -- ** Configuration
             , InconsistencyStrategy(..)
               -- * Misc
-            , ConvexSet(..), ellipsoid
+            , ConvexSet(..), ellipsoid, coerceWebDomain
             ) where
 
 
@@ -110,10 +110,11 @@ import GHC.Generics (Generic)
 type WebNodeId = Int
 
 data Neighbourhood x = Neighbourhood {
-     neighbours :: UArr.Vector WebNodeId
-   , localScalarProduct :: Metric x
+     _neighbours :: UArr.Vector WebNodeId
+   , _localScalarProduct :: Metric x
    }
   deriving (Generic)
+makeLenses ''Neighbourhood
 
 instance (NFData x, NFData (Metric x)) => NFData (Neighbourhood x)
 
@@ -251,6 +252,17 @@ webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
        lookId i | Option (Just xy) <- indexWeb web i  = xy
 
 
+coerceWebDomain :: ∀ a b y . (Manifold a, Manifold b, LocallyCoercible a b)
+                                 => PointsWeb a y -> PointsWeb b y
+coerceWebDomain (PointsWeb rsc assoc)
+         = case oppositeLocalCoercion :: CanonicalDiffeomorphism b a of
+   CanonicalDiffeomorphism
+       -> PointsWeb ( coerceShadeTree rsc )
+                    ( fmap (second $ localScalarProduct
+                              %~transformNorm (arr $ coerceNeedle ([]::[(b,a)])))
+                         assoc )
+
+
 data InterpolationIv y = InterpolationIv {
           _interpolationSegRange :: (ℝ,ℝ)
         , _interpolationFunction :: ℝ -> y
@@ -361,9 +373,9 @@ webLocalInfo origWeb = result
                 , _thisNodeData = y
                 , _containingWeb = result
                 , _thisNodeId = i
-                , _nodeNeighbours = zip (UArr.toList $ neighbours ngbH) ngbCo
-                , _nodeLocalScalarProduct = localScalarProduct ngbH
-                , _nodeIsOnBoundary = anyUnopposed (localScalarProduct ngbH) ngbCo
+                , _nodeNeighbours = zip (UArr.toList $ ngbH^.neighbours) ngbCo
+                , _nodeLocalScalarProduct = ngbH^.localScalarProduct
+                , _nodeIsOnBoundary = anyUnopposed (ngbH^.localScalarProduct) ngbCo
                 }, ngbH )
        anyUnopposed rieM ngbCo = (`any`ngbCo) $ \(v,_)
                          -> not $ (`any`ngbCo) $ \(v',_)
@@ -378,7 +390,7 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                        (((x,y), [ ( case x'.-~.x of
                                      Option (Just v) -> v
                                   , y')
-                                | j<-UArr.toList (neighbours n)
+                                | j<-UArr.toList (n^.neighbours)
                                 , let ((x',y'),_) = asd' Arr.! j
                                 ]), n)
                  ) asd'
