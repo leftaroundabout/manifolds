@@ -128,7 +128,7 @@ data ℝP² = ℝP² { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
 -- | The &#x201c;one-dimensional disk&#x201d; &#x2013; really just the line segment between
 --   the two points -1 and 1 of 'S⁰', i.e. this is simply a closed interval.
 newtype D¹ = D¹ { xParamD¹ :: Double -- ^ Range @[-1, 1]@.
-                }
+                } deriving (Show)
 fromIntv0to1 :: ℝ -> D¹
 fromIntv0to1 x | x<0        = D¹ (-1)
                | x>1        = D¹ 1
