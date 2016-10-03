@@ -54,6 +54,7 @@ import Data.VectorSpace
 import Data.VectorSpace.Free
 import Data.AffineSpace
 import Math.LinearMap.Category
+import Linear (V0(..), V1(..), V2(..), V3(..), V4(..))
 
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty, embed, coEmbed)
@@ -192,6 +193,11 @@ instance (c) => Geodesic (CD¹ (t)) where {                                  \
 --             , Geodesic (a,b)), (a,b))
 -- geoVSpCone (KnownNat n, FreeVect n ℝ)
 
+deriveAffineGD ((V0 ℝ))
+deriveAffineGD (ℝ¹)
+deriveAffineGD (ℝ²)
+deriveAffineGD (ℝ³)
+deriveAffineGD (ℝ⁴)
 
 
 
