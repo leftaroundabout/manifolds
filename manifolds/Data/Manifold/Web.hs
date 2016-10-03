@@ -308,15 +308,19 @@ data GridPlanes x = GridPlanes {
       , _gridPlaneSpacing :: Needle x
       , _gridPlanesCount :: Int
       }
+deriving instance (Show x, Show (Needle x), Show (Needle' x)) => Show (GridPlanes x)
 data GridSetup x = GridSetup {
         _gridStartCorner :: x
       , _gridSplitDirs :: [GridPlanes x]
       }
+deriving instance (Show x, Show (Needle x), Show (Needle' x)) => Show (GridSetup x)
 
 cartesianGrid2D :: (x~ℝ, y~ℝ) => ((x,x), Int) -> ((y,y), Int) -> GridSetup (x,y)
 cartesianGrid2D ((x₀,x₁), nx) ((y₀,y₁), ny)
-    = GridSetup (x₀,y₀) [ GridPlanes (0,1) (0, (y₁-y₀)/fromIntegral ny) ny
-                        , GridPlanes (1,0) ((x₁-x₀)/fromIntegral nx, 0) ny ]
+    = GridSetup (x₀+dx/2, y₀+dy/2)
+                [ GridPlanes (0,1) (0, dy) ny, GridPlanes (1,0) (dx, 0) ny ]
+ where dx = (x₁-x₀)/fromIntegral nx
+       dy = (y₁-y₀)/fromIntegral ny
 
 splitToGridLines :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                     , Geodesic x, Geodesic y )
