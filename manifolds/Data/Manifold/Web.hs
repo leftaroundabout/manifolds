@@ -41,6 +41,7 @@ module Data.Manifold.Web (
             , nearestNeighbour, indexWeb, webEdges, toGraph
               -- ** Decomposition
             , sliceWeb_lin -- , sampleWebAlongLine_lin
+            , sampleWeb_2Dcartesian_lin, sampleEntireWeb_2Dcartesian_lin
               -- ** Local environments
             , localFocusWeb
               -- * Differential equations
@@ -318,7 +319,7 @@ deriving instance (Show x, Show (Needle x), Show (Needle' x)) => Show (GridSetup
 cartesianGrid2D :: (x~ℝ, y~ℝ) => ((x,x), Int) -> ((y,y), Int) -> GridSetup (x,y)
 cartesianGrid2D ((x₀,x₁), nx) ((y₀,y₁), ny)
     = GridSetup (x₀+dx/2, y₀+dy/2)
-                [ GridPlanes (0,1) (0, dy) ny, GridPlanes (1,0) (dx, 0) ny ]
+                [ GridPlanes (0,1) (0, dy) ny, GridPlanes (1,0) (dx, 0) nx ]
  where dx = (x₁-x₀)/fromIntegral nx
        dy = (y₁-y₀)/fromIntegral ny
 
@@ -337,15 +338,15 @@ sampleWebAlongGrid_lin web grid = finalLine =<< splitToGridLines web grid
  where finalLine :: ((x, GridPlanes x), [(x,y)]) -> [(x,Option y)]
        finalLine ((x₀, GridPlanes _ dir nSpl), verts)
           | length verts < 2  = take nSpl $ (,empty)<$>iterate (.+~^dir) x₀
-       finalLine ((x₀, GridPlanes _ dir nSpl), verts)  = take nSpl $ go (x₀,0) intpseq 
-        where intpseq = mkInterpolationSeq_lin
-                         [ (metr |$| x.-~!x₀, y) | (x,y) <- verts ]
+       finalLine ((x₀, GridPlanes dx dir nSpl), verts)  = take nSpl $ go (x₀,0) intpseq 
+        where intpseq = mkInterpolationSeq_lin $ sortBy (comparing fst)
+                         [ (dx <.>^ (x.-~!x₀), y) | (x,y) <- verts ]
               go (x,_) [] = (,empty)<$>iterate (.+~^dir) x
               go xt (InterpolationIv (_,te) f:fs)
-                        = case break ((<te) . snd) $ iterate ((.+~^dir)***(+1)) xt of
+                        = case span ((<te) . snd) $ iterate ((.+~^dir)***(+δt)) xt of
                              (thisRange, xtn:_)
                                  -> ((id***pure.f)<$>thisRange) ++ go xtn fs
-       metr = inferMetric $ webNodeRsc web
+              δt = dx<.>^dir
        
 sampleWeb_2Dcartesian_lin :: (x~ℝ, y~ℝ, Geodesic z)
              => PointsWeb (x,y) z -> ((x,x),Int) -> ((y,y),Int) -> [(y,[(x,Option z)])]
