@@ -132,7 +132,7 @@ newtype D¹ = D¹ { xParamD¹ :: Double -- ^ Range @[-1, 1]@.
 fromIntv0to1 :: ℝ -> D¹
 fromIntv0to1 x | x<0        = D¹ (-1)
                | x>1        = D¹ 1
-               | otherwise  = D¹ $ (x+1)/2
+               | otherwise  = D¹ $ x*2 - 1
 
 -- | The standard, closed unit disk. Homeomorphic to the cone over 'S¹', but not in the
 --   the obvious, &#x201c;flat&#x201d; way. (And not at all, despite
