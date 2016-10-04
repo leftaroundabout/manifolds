@@ -32,7 +32,7 @@ import Control.Arrow
 -- @
 -- instance D_S x => 'Distribution' 'Shade' x
 -- @
-type D_S x = (WithField ℝ Manifold x, SimpleSpace (Needle x))
+type D_S x = (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
 
 instance D_S x => Distribution Shade x where
   rvarT (Shade c e) = shadeT' c e
@@ -46,18 +46,19 @@ shadeT' ctr expa = ((ctr.+~^) . sumV) <$> mapM (\v -> (v^*) <$> stdNormalT) eigS
 -- 
 --   If you use 'rvar' to sample a large number of points from a shade @sh@ in a sufficiently
 --   flat space, then 'pointsShades' of that sample will again be approximately @[sh]@.
-shade :: (Distribution Shade x, D_S x) => x -> Variance (Needle x) -> RVar x
+shade :: (Distribution Shade x, D_S x) => Interior x -> Variance (Needle x) -> RVar x
 shade ctr expa = rvar $ fullShade ctr expa
 
-shadeT :: (Distribution Shade x, D_S x) => x -> Variance (Needle x) -> RVarT m x
+shadeT :: (Distribution Shade x, D_S x) => Interior x -> Variance (Needle x) -> RVarT m x
 shadeT = shadeT'
 
 
 
 
 uncertainFunctionSamplesT :: ∀ x y m .
-                       (Distribution Shade x, D_S x, Distribution Shade y, D_S y)
-                => Int -> Shade x -> (x -> Shade y) -> RVarT m (x`Shaded`y)
+        ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+        , WithField ℝ Manifold y, SimpleSpace (Needle y) )
+       => Int -> Shade x -> (x -> Shade y) -> RVarT m (x`Shaded`y)
 uncertainFunctionSamplesT n shx f = do
       domainSpls <- replicateM n $ rvarT shx
       pts <- forM domainSpls $ \x -> do
@@ -83,8 +84,8 @@ uncertainFunctionSamplesT n shx f = do
                        mkControlSample ((x,y):css)
                          $ confidence + occlusion shl (x,y)
              css <- mkControlSample [] 0
-             let [Shade (xCtrl,yCtrl) expaCtrl] = pointsShades css
-                 yCtrl :: y
+             let [Shade (xCtrl,yCtrl) expaCtrl :: Shade (x,y)] = pointsShades css
+                 yCtrl :: Interior y
                  expayCtrl = dualNorm . snd $ summandSpaceNorms expaCtrl
                  jCtrl = dependence expaCtrl
                  jFin = jOrig^*η ^+^ jCtrl^*η'

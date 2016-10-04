@@ -151,7 +151,7 @@ class IsShade shade where
 --  unsafeDualShade :: WithField ℝ Manifold x => shade x -> shade* x
   -- | Check the statistical likelihood-density of a point being within a shade.
   --   This is taken as a normal distribution.
-  occlusion :: ( Manifold x, SimpleSpace (Needle x)
+  occlusion :: ( PseudoAffine x, SimpleSpace (Needle x)
                , s ~ (Scalar (Needle x)), RealDimension s )
                 => shade x -> x -> s
   factoriseShade :: ( Manifold x, SimpleSpace (Needle x)
@@ -215,15 +215,17 @@ instance IsShade Shade' where
 shadeNarrowness :: Lens' (Shade' x) (Metric x)
 shadeNarrowness f (Shade' c e) = fmap (Shade' c) $ f e
 
-instance (AffineManifold x) => Semimanifold (Shade x) where
-  type Needle (Shade x) = Diff x
+instance ∀ x . (PseudoAffine x) => Semimanifold (Shade x) where
+  type Needle (Shade x) = Needle x
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  Shade c e .+~^ v = Shade (c.+^v) e
-  Shade c e .-~^ v = Shade (c.-^v) e
+  Shade c e .+~^ v = Shade (c.+~^v) e
+  Shade c e .-~^ v = Shade (c.-~^v) e
+  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness x of
+                             SemimanifoldWitness -> SemimanifoldWitness
 
-instance (WithField ℝ AffineManifold x, Geodesic x, SimpleSpace (Needle x))
+instance (WithField ℝ PseudoAffine x, Geodesic (Interior x), SimpleSpace (Needle x))
              => Geodesic (Shade x) where
   geodesicBetween (Shade c e) (Shade ζ η) = pure interp
    where sharedSpan = sharedNormSpanningSystem e η
@@ -249,10 +251,10 @@ instance (WithField ℝ AffineManifold x, Geodesic x, SimpleSpace (Needle x))
                                      | (v,qη) <- sharedSpan ])
          Option (Just pinterp) = geodesicBetween c ζ
 
-fullShade :: WithField ℝ Manifold x => x -> Metric' x -> Shade x
+fullShade :: WithField ℝ PseudoAffine x => Interior x -> Metric' x -> Shade x
 fullShade ctr expa = Shade ctr expa
 
-fullShade' :: WithField ℝ Manifold x => x -> Metric x -> Shade' x
+fullShade' :: WithField ℝ PseudoAffine x => Interior x -> Metric x -> Shade' x
 fullShade' ctr expa = Shade' ctr expa
 
 
@@ -298,18 +300,19 @@ subshadeId (Shade c expa) = subshadeId' c . NE.fromList $ normSpanningSystem' ex
 --   For /nonconnected/ manifolds it will be necessary to yield separate shades
 --   for each connected component. And for an empty input list, there is no shade!
 --   Hence the result type is a list.
-pointsShades :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
-                                 => [x] -> [Shade x]
+pointsShades :: (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                                 => [Interior x] -> [Shade x]
 pointsShades = map snd . pointsShades' mempty
 
 -- | Like 'pointsShades', but ensure that all points are actually in
 --   the shade, i.e. if @['Shade' x₀ ex]@ is the result then
 --   @'metric' (recipMetric ex) (p-x₀) ≤ 1@ for all @p@ in the list.
-pointsCovers :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x))
-                          => [x] -> [Shade x]
-pointsCovers = map guaranteeIn . pointsShades' mempty
- where guaranteeIn (ps, Shade x₀ ex) 
-          = case ps >>= \p -> let Option (Just v) = p.-~.x₀
+pointsCovers :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                          => [Interior x] -> [Shade x]
+pointsCovers ps = map guaranteeIn $ pointsShades' mempty ps
+ where guaranteeIn :: ([Interior x], Shade x) -> Shade x
+       guaranteeIn (ps, Shade x₀ ex) 
+          = case ps >>= \p -> let Option (Just v) = (fromInterior p::x).-~.x₀
                               in guard ((ex'|$|v) > 1) >> [(p, spanVariance [v])]
              of []   -> Shade x₀ ex
                 outs -> guaranteeIn ( fst<$>outs
@@ -321,32 +324,35 @@ pointsCovers = map guaranteeIn . pointsShades' mempty
                                     )
         where ex' = dualNorm ex
 
-pointsShade's :: (WithField ℝ Manifold x, SimpleSpace (Needle x)) => [x] -> [Shade' x]
-pointsShade's = map (\(Shade c e) -> Shade' c $ dualNorm e) . pointsShades
+pointsShade's :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                     => [Interior x] -> [Shade' x]
+pointsShade's = map (\(Shade c e :: Shade x) -> Shade' c $ dualNorm e) . pointsShades
 
-pointsCover's :: (WithField ℝ Manifold x, SimpleSpace (Needle x)) => [x] -> [Shade' x]
-pointsCover's = map (\(Shade c e) -> Shade' c $ dualNorm e) . pointsCovers
+pointsCover's :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                     => [Interior x] -> [Shade' x]
+pointsCover's = map (\(Shade c e :: Shade x) -> Shade' c $ dualNorm e) . pointsCovers
 
-pseudoECM :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
-                   => NonEmpty x -> (x, ([x],[x]))
-pseudoECM (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
-                                  -> case p.-~.acc of 
+pseudoECM :: ∀ x p . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x), Hask.Functor p)
+                => p x -> NonEmpty (Interior x)
+                    -> (Interior x, ([Interior x],[Interior x]))
+pseudoECM _ (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
+                                -> case (fromInterior p :: x).-~.acc of 
                                       Option (Just δ) -> (acc .+~^ δ^/i, (p:rb, nr))
                                       _ -> (acc, (rb, p:nr)) )
                              (p₀, mempty)
                              ( zip [1..] $ p₀:psr )
 
-pointsShades' :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
-                                => Metric' x -> [x] -> [([x], Shade x)]
+pointsShades' :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                                => Metric' x -> [Interior x] -> [([Interior x], Shade x)]
 pointsShades' _ [] = []
 pointsShades' minExt ps = case expa of 
                            Option (Just e) -> (ps, fullShade ctr e)
                                               : pointsShades' minExt unreachable
                            _ -> pointsShades' minExt inc'd
                                   ++ pointsShades' minExt unreachable
- where (ctr,(inc'd,unreachable)) = pseudoECM $ NE.fromList ps
+ where (ctr,(inc'd,unreachable)) = pseudoECM ([]::[x]) $ NE.fromList ps
        expa = ( (<>minExt) . spanVariance . map (^/ fromIntegral (length ps)) )
-              <$> mapM (.-~.ctr) ps
+              <$> mapM (.-~.ctr) (fromInterior<$>ps :: [x])
        
 
 -- | Attempt to reduce the number of shades to fewer (ideally, a single one).
@@ -710,17 +716,25 @@ nLeaves (OverlappingBranches n _ _) = n
 
 
 instance ImpliesMetric ShadeTree where
-  type MetricRequirement ShadeTree x = (WithField ℝ Manifold x, SimpleSpace (Needle x))
-  inferMetric (OverlappingBranches _ (Shade _ e) _) = dualNorm e
-  inferMetric (PlainLeaves lvs) = case pointsShades lvs of
-        (Shade _ sh:_) -> dualNorm sh
-        _ -> mempty
-  inferMetric (DisjointBranches _ (br:|_)) = inferMetric br
-  inferMetric' (OverlappingBranches _ (Shade _ e) _) = e
-  inferMetric' (PlainLeaves lvs) = case pointsShades lvs of
-        (Shade _ sh:_) -> sh
-        _ -> mempty
-  inferMetric' (DisjointBranches _ (br:|_)) = inferMetric' br
+  type MetricRequirement ShadeTree x = (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+  inferMetric = stInfMet
+   where stInfMet :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                                => ShadeTree x -> Metric x
+         stInfMet (OverlappingBranches _ (Shade _ e) _) = dualNorm e
+         stInfMet (PlainLeaves lvs)
+               = case pointsShades $ Hask.toList . toInterior =<< lvs :: [Shade x] of
+             (Shade _ sh:_) -> dualNorm sh
+             _ -> mempty
+         stInfMet (DisjointBranches _ (br:|_)) = inferMetric br
+  inferMetric' = stInfMet
+   where stInfMet :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                                => ShadeTree x -> Metric' x
+         stInfMet (OverlappingBranches _ (Shade _ e) _) = e
+         stInfMet (PlainLeaves lvs)
+               = case pointsShades $ Hask.toList . toInterior =<< lvs :: [Shade x] of
+             (Shade _ sh:_) -> sh
+             _ -> mempty
+         stInfMet (DisjointBranches _ (br:|_)) = inferMetric' br
 
 
 
@@ -957,7 +971,8 @@ propagateDEqnSolution_loc f ((x, shy@(Shade' y _)), neighbours) = ycs
                                  <- (x,shy):(first (x.+~^)<$>NE.toList neighbours)
                              , δy <- normSpanningSystem' yse
                              , ys' <- [ys.+~^δy, ys.-~^δy] ]
-       [Shade' _ expax] = pointsCover's $ x : ((x.+~^).fst<$>NE.toList neighbours)
+       [Shade' _ expax :: Shade' x]
+                     = pointsCover's $ x : ((x.+~^).fst<$>NE.toList neighbours)
        marginδs :: NonEmpty (Needle x, (Needle y, Metric y))
        marginδs = [ (δxm, (δym, expany))
                   | (δxm, Shade' yn expany) <- neighbours
@@ -1340,9 +1355,10 @@ instance (Hask.MonadPlus c) => Monoid (GenericTree c b x) where
 deriving instance Show (c (x, GenericTree b b x)) => Show (GenericTree c b x)
 
 -- | Imitate the specialised 'ShadeTree' structure with a simpler, generic tree.
-onlyNodes :: (WithField ℝ Manifold x, SimpleSpace (Needle x)) => ShadeTree x -> Trees x
+onlyNodes :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x))
+                => ShadeTree x -> Trees x
 onlyNodes (PlainLeaves []) = GenericTree []
-onlyNodes (PlainLeaves ps) = let (ctr,_) = pseudoECM $ NE.fromList ps
+onlyNodes (PlainLeaves ps) = let (ctr,_) = pseudoECM ([]::[x]) $ NE.fromList ps
                              in GenericTree [ (ctr, GenericTree $ (,mempty) <$> ps) ]
 onlyNodes (DisjointBranches _ brs) = Hask.foldMap onlyNodes brs
 onlyNodes (OverlappingBranches _ (Shade ctr _) brs)
@@ -1526,11 +1542,11 @@ fmapShaded f = unsafeFmapTree (fmap $ \(WithAny y x) -> WithAny (f y) x)
 -- | This is to 'ShadeTree' as 'Data.Map.Map' is to 'Data.Set.Set'.
 type x`Shaded`y = ShadeTree (x`WithAny`y)
 
-stiWithDensity :: ( WithField ℝ Manifold x, WithField ℝ LinearManifold y
-                  , SimpleSpace (Needle x) )
+stiWithDensity :: ∀ x y . ( WithField ℝ Manifold x, WithField ℝ LinearManifold y
+                          , SimpleSpace (Needle x) )
          => x`Shaded`y -> x -> Cℝay y
 stiWithDensity (PlainLeaves lvs)
-  | [locShape@(Shade baryc expa)] <- pointsShades $ _topological <$> lvs
+  | [Shade baryc expa :: Shade x] <- pointsShades $ _topological <$> lvs
        = let nlvs = fromIntegral $ length lvs :: ℝ
              indiShapes = [(Shade p expa, y) | WithAny y p <- lvs]
          in \x -> let lcCoeffs = [ occlusion psh x | (psh, _) <- indiShapes ]
