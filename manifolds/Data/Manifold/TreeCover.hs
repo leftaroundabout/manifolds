@@ -229,11 +229,11 @@ instance ∀ x . (PseudoAffine x) => Semimanifold (Shade x) where
 
 instance (WithField ℝ PseudoAffine x, Geodesic (Interior x), SimpleSpace (Needle x))
              => Geodesic (Shade x) where
-  geodesicBetween (Shade c e) (Shade ζ η) = pure interp
-   where sharedSpan = sharedNormSpanningSystem e η
-         interp t = Shade (pinterp t)
-                          (spanNorm [ v ^* (alerpB 1 qη t)
-                                    | (v,qη) <- sharedSpan ])
+  geodesicBetween (Shade c (Norm e)) (Shade ζ (Norm η)) = pure interp
+   where interp t@(D¹ q) = Shade (pinterp t)
+                          (Norm . arr . lerp ed ηd $ (q+1)/2)
+         ed@(LinearMap _) = arr e
+         ηd@(LinearMap _) = arr η
          Option (Just pinterp) = geodesicBetween c ζ
 
 instance (AffineManifold x) => Semimanifold (Shade' x) where
