@@ -60,7 +60,7 @@ module Data.Manifold.TreeCover (
        , completeTopShading, flexTwigsShading, coerceShadeTree
        , WithAny(..), Shaded, fmapShaded, stiAsIntervalMapping, spanShading
        , constShaded, stripShadedUntopological
-       , DifferentialEqn, propagateDEqnSolution_loc
+       , DifferentialEqn, propagateDEqnSolution_loc, rangeOnGeodesic
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild
        , AutoTriang, breakdownAutoTriang
@@ -409,7 +409,22 @@ minusLogOcclusion (Shade p₀ δ) = occ
                          -> mSq
          _               -> 1/0
        δinv = dualNorm δ
-  
+
+
+
+
+rangeOnGeodesic :: ∀ i m . 
+      ( WithField ℝ PseudoAffine m, Geodesic m, SimpleSpace (Needle m)
+      , WithField ℝ IntervalLike i, SimpleSpace (Needle i) )
+                     => m -> m -> Shade i -> Shade m
+rangeOnGeodesic p₀ p₁ = case (interpolate p₀ p₁ :: Option (i -> m)) of
+    Option (Just interp) -> \(Shade t₀ et)
+                -> case pointsShades
+                         . mapMaybe (getOption . toInterior . interp)
+                         $ fromInterior <$> t₀ : [ t₀.+~^v
+                                                 | v<-normSpanningSystem et ] of
+             [sh] -> sh
+
 
 
 
