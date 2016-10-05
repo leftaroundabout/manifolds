@@ -149,7 +149,7 @@ data D² = D² { rParamD² :: !Double -- ^ Range @[0, 1]@.
 --   special case @x = 'S¹'@.
 data CD¹ x = CD¹ { hParamCD¹ :: !Double -- ^ Range @[0, 1]@
                  , pParamCD¹ :: !x      -- ^ Irrelevant at @h = 0@.
-                 }
+                 } deriving (Show)
 
 
 -- | An open cone is homeomorphic to a closed cone without the &#x201c;lid&#x201d;,
@@ -158,7 +158,7 @@ data CD¹ x = CD¹ { hParamCD¹ :: !Double -- ^ Range @[0, 1]@
 --   more natural to express it as the entire real ray, hence the name.
 data Cℝay x = Cℝay { hParamCℝay :: !Double -- ^ Range @[0, &#x221e;[@
                    , pParamCℝay :: !x      -- ^ Irrelevant at @h = 0@.
-                   }
+                   } deriving (Show)
 
 
 
