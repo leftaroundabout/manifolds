@@ -342,10 +342,12 @@ sampleWebAlongGrid_lin web grid = finalLine =<< splitToGridLines web grid
         where intpseq = mkInterpolationSeq_lin $ sortBy (comparing fst)
                          [ (dx <.>^ (x.-~!x₀), y) | (x,y) <- verts ]
               go (x,_) [] = (,empty)<$>iterate (.+~^dir) x
-              go xt (InterpolationIv (_,te) f:fs)
+              go xt (InterpolationIv (tb,te) f:fs)
                         = case span ((<te) . snd) $ iterate ((.+~^dir)***(+δt)) xt of
                              (thisRange, xtn:_)
-                                 -> ((id***pure.f)<$>thisRange) ++ go xtn fs
+                                 -> [ (x, if t<tb then empty else return $ f t)
+                                    | (x,t) <- thisRange ]
+                                     ++ go xtn fs
               δt = dx<.>^dir
        
 sampleWeb_2Dcartesian_lin :: (x~ℝ, y~ℝ, Geodesic z)
