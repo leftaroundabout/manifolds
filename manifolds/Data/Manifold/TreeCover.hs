@@ -92,7 +92,7 @@ import Data.Manifold.Riemannian
 import Data.Embedding
 import Data.CoNat
 
-import Lens.Micro (Lens')
+import Control.Lens (Lens')
 
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask

@@ -69,7 +69,7 @@ import Math.LinearMap.Category ((⊗)())
 
 import Control.Applicative (Const(..), Alternative(..))
 
-import Lens.Micro ((^.))
+import Control.Lens ((^.))
 
 import qualified Prelude
 

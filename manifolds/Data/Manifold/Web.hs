@@ -102,8 +102,8 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 import Control.Comonad (Comonad(..))
-import Lens.Micro ((&), (%~), (^.), (.~))
-import Lens.Micro.TH
+import Control.Lens ((&), (%~), (^.), (.~))
+import Control.Lens.TH
 
 import GHC.Generics (Generic)
 
