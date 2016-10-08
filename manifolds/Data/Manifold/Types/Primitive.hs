@@ -16,7 +16,7 @@
 
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE UndecidableInstances     #-}
--- {-# LANGUAGE OverlappingInstances     #-}
+{-# LANGUAGE ExplicitNamespaces       #-}
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE FunctionalDependencies   #-}
 {-# LANGUAGE FlexibleContexts         #-}
@@ -48,7 +48,7 @@ module Data.Manifold.Types.Primitive (
         , ℝay
         , CD¹(..), Cℝay(..)
         -- * Tensor products
-        , (⊗)(..)
+        , type (⊗)(..)
         -- * Utility (deprecated)
         , NaturallyEmbedded(..)
         , GraphWindowSpec(..), Endomorphism, (^), (^.), EqFloating
@@ -65,7 +65,7 @@ import Data.AffineSpace
 import Data.Basis
 import Data.Void
 import Data.Monoid
-import Math.LinearMap.Category ((⊗)())
+import Math.LinearMap.Category (type (⊗)())
 
 import Control.Applicative (Const(..), Alternative(..))
 

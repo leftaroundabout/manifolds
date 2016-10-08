@@ -25,6 +25,7 @@
 {-# LANGUAGE PatternGuards              #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE ExplicitNamespaces         #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE PolyKinds                  #-}
 
@@ -34,7 +35,7 @@ module Data.CoNat ( Nat(..), natToInt, fromNat
                   , ftorTryToMatch, ftorTryToMatchT, ftorTryToMatchTT
                   , KnownNat(..)
                   , Range(..)
-                  , FreeVect(..), (^)(), freeVector, freeCons, freeSnoc
+                  , FreeVect(..), type (^)(), freeVector, freeCons, freeSnoc
                   , replicVector, indices, perfectZipWith, freeRotate
                   , ) where
 

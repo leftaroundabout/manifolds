@@ -261,7 +261,8 @@ fullShade' ctr expa = Shade' ctr expa
 
 
 -- | Span a 'Shade' from a center point and multiple deviation-vectors.
-pattern (:±) :: () => (WithField ℝ Manifold x, SimpleSpace (Needle x))
+pattern (:±) :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
+             => (WithField ℝ Manifold x, SimpleSpace (Needle x))
                          => x -> [Needle x] -> Shade x
 pattern x :± shs <- Shade x (normSpanningSystem -> shs)
  where x :± shs = fullShade x $ spanVariance shs
@@ -1229,15 +1230,6 @@ optimalBottomExtension s xs
 leavesBarycenter :: WithField ℝ Manifold x => NonEmpty x -> x
 leavesBarycenter (x :| xs) = x .+~^ sumV [x'–x | x'<-xs] ^/ (n+1)
  where n = fromIntegral $ length xs
-       x' – x = case x'.-~.x of {Option(Just v)->v}
-
--- simplexShade :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-simplexBarycenter :: forall x n . (KnownNat n, WithField ℝ Manifold x) => Simplex n x -> x
-simplexBarycenter = bc 
- where bc (ZS x) = x
-       bc (x :<| xs') = x .+~^ sumV [x'–x | x'<-splxVertices xs'] ^/ (n+1)
-       
-       Tagged n = theNatN :: Tagged n ℝ
        x' – x = case x'.-~.x of {Option(Just v)->v}
 
 
