@@ -417,9 +417,9 @@ minusLogOcclusion (Shade p₀ δ) = occ
 rangeOnGeodesic :: ∀ i m . 
       ( WithField ℝ PseudoAffine m, Geodesic m, SimpleSpace (Needle m)
       , WithField ℝ IntervalLike i, SimpleSpace (Needle i) )
-                     => m -> m -> Shade i -> Shade m
-rangeOnGeodesic p₀ p₁ = case (interpolate p₀ p₁ :: Option (i -> m)) of
-    Option (Just interp) -> \(Shade t₀ et)
+                     => m -> m -> Option (Shade i -> Shade m)
+rangeOnGeodesic p₀ p₁ = (`fmap`(interpolate p₀ p₁ :: Option (i -> m)))
+    $ \interp -> \(Shade t₀ et)
                 -> case pointsShades
                          . mapMaybe (getOption . toInterior . interp)
                          $ fromInterior <$> t₀ : [ t₀.+~^v
