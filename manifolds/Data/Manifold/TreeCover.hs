@@ -30,6 +30,7 @@
 {-# LANGUAGE ViewPatterns               #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE LiberalTypeSynonyms        #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -261,7 +262,11 @@ fullShade' ctr expa = Shade' ctr expa
 
 
 -- | Span a 'Shade' from a center point and multiple deviation-vectors.
+#if GLASGOW_HASKELL < 800
+pattern (:±) :: ()
+#else
 pattern (:±) :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
+#endif
              => (WithField ℝ Manifold x, SimpleSpace (Needle x))
                          => x -> [Needle x] -> Shade x
 pattern x :± shs <- Shade x (normSpanningSystem -> shs)
