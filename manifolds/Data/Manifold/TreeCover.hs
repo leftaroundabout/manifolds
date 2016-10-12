@@ -928,11 +928,9 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
   convolveShade' (Shade' y₀ ey) (Shade' δ₀ eδ)
           = Shade' (y₀.+~^δ₀)
                    ( spanNorm [ f ^* ζ crl
-                              | (f,_) <- eδsp
-                              | crl <- corelap ] )
-   where eδsp = sharedNormSpanningSystem ey eδ
-         corelap = map snd eδsp
-         ζ = case filter (>0) corelap of
+                              | (f,crl) <- eδsp ] )
+   where eδsp = sharedSeminormSpanningSystem ey eδ
+         ζ = case filter (>0) . catMaybes $ snd<$>eδsp of
             [] -> const 0
             nzrelap
                -> let cre₁ = 1/minimum nzrelap
@@ -940,8 +938,9 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
                       edgeFactor = sqrt ( (1 + cre₁)^2 + (1 + cre₂)^2 )
                                 / (sqrt (1 + cre₁^2) + sqrt (1 + cre₂^2))
                   in \case
-                        0  -> 0
-                        sq -> edgeFactor / (recip sq + 1)
+                        Nothing -> 0
+                        Just 0  -> 0
+                        Just sq -> edgeFactor / (recip sq + 1)
   
 
 instance Refinable ℝ where
