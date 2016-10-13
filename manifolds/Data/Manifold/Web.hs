@@ -524,7 +524,8 @@ filterDEqnSolution_static AbortOnInconsistency f = localFocusWeb >>> Hask.traver
                      then pure shy
                      else refineShade' shy
                             =<< intersectShade's
-                                  ( propagateDEqnSolution_loc f ((x,shy), NE.fromList ngbs) )
+                            =<< Option ( NE.nonEmpty $
+                                  propagateDEqnSolution_loc f ((x,shy), NE.fromList ngbs) )
 
 filterDEqnSolutions_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                               , Refinable y
@@ -535,10 +536,11 @@ filterDEqnSolutions_static strategy f = localFocusWeb >>> Hask.traverse `id`
             \((x, shy@(ConvexSet hull _)), ngbs) -> if null ngbs
               then pure shy
               else handleInconsistency strategy shy $
-                   ((shy<>) . ellipsoid)
-                      <$> intersectShade's 
-                            ( propagateDEqnSolution_loc f
+                    Option ( NE.nonEmpty $
+                      propagateDEqnSolution_loc f
                                ((x,hull), second convexSetHull<$>NE.fromList ngbs) )
+                     >>= intersectShade's 
+                     >>= pure . ((shy<>) . ellipsoid)
                      >>= \case EmptyConvex -> empty
                                c           -> pure c
 
@@ -584,7 +586,7 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
         where addPropagation wl
                  | null neighbourHulls = (wl, [])
                  | otherwise           = (wl, map (id&&&badness undefined) propFromNgbs)
-               where propFromNgbs = NE.toList $ propagateDEqnSolution_loc f
+               where propFromNgbs = propagateDEqnSolution_loc f
                                      ( (thisPos, thisShy), NE.fromList neighbourHulls )
                      thisPos = _thisNodeCoord wl :: x
                      thisShy = convexSetHull . _solverNodeStatus $ _thisNodeData wl
@@ -645,13 +647,13 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                            , badnessGrad > largeBadnessGradient -> do
                                  let stepV = vN^/2
                                      xStep = x .+~^ stepV
-                                 case intersectShade's $
+                                 case intersectShade's =<< Option ( NE.nonEmpty $
                                             propagateDEqnSolution_loc f
                                             ( (xStep, hull)
                                             , NE.cons (negateV stepV, hull)
                                                 $ fmap (\(vN',hullN')
                                                          -> (vN'^-^stepV, hullN') )
-                                                    neighbourHulls ) of
+                                                    neighbourHulls ) ) of
                                   Option (Just shyStep) -> return
                                         [( xStep
                                          , SolverNodeInfo (ellipsoid shyStep)

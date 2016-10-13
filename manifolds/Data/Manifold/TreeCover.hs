@@ -1007,9 +1007,15 @@ type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
 propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
                                      , SimpleSpace (Needle x) )
            => DifferentialEqn x y -> ((x, Shade' y), NonEmpty (Needle x, Shade' y))
-                   -> NonEmpty (Shade' y)
-propagateDEqnSolution_loc f ((x, shy@(Shade' y _)), neighbours) = ycs
- where jShade@(Shade' j₀ jExpa) = f shxy
+                   -> [Shade' y]
+propagateDEqnSolution_loc f ((x, shy@(Shade' y _)), neighbours)
+          | Option Nothing <- jacobian
+                       = []
+          | otherwise  = toList ycs
+ where jacobian = intersectShade's . (:|[f shxy])
+                    =<< estimateLocalJacobian expax
+                          (first Local <$> toList neighbours :: [(Local x, Shade' y)])
+       Option (Just (Shade' j₀ jExpa)) = jacobian
        [shxy] = pointsCovers [ (xs, ys')
                              | (xs, Shade' ys yse)
                                  <- (x,shy):(first (x.+~^)<$>NE.toList neighbours)
