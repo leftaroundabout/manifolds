@@ -976,11 +976,28 @@ instance Refinable ℝ²
 instance Refinable ℝ³
 instance Refinable ℝ⁴
                             
+instance (SimpleSpace a, SimpleSpace b, Scalar a ~ ℝ, Scalar b ~ ℝ)
+            => Refinable (LinearMap ℝ a b)
 
 intersectShade's :: ∀ y . Refinable y => NonEmpty (Shade' y) -> Option (Shade' y)
 intersectShade's (sh:|shs) = Hask.foldrM refineShade' sh shs
 
 
+estimateLocalJacobian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
+                                   , SimpleSpace (Needle x), SimpleSpace (Needle y) )
+            => Metric x -> [(Local x, Shade' y)]
+                             -> Option (Shade' (LocalLinear x y))
+estimateLocalJacobian mex [(Local x₁, Shade' y₁ ey₁),(Local x₀, Shade' y₀ ey₀)]
+        = return $ Shade' (dx-+|>δy)
+                          (Norm . LinearFunction $ \δj -> (σey<$|δj$δx)-+|>δx)
+ where Option (Just δx) = x₁.-~.x₀
+       δx' = (mex<$|δx)
+       dx = δx'^/(δx'<.>^δx)
+       Option (Just δy) = y₁.-~.y₀
+       σey = convolveMetric ([]::[y]) ey₀ ey₁
+estimateLocalJacobian mex (po:ps)
+      = intersectShade's =<< (:|) <$> estimateLocalJacobian mex ps 
+                    <*> sequenceA [estimateLocalJacobian mex [po,pi] | pi<-ps]
 
 
 type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
