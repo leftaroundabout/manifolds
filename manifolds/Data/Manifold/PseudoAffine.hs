@@ -34,6 +34,7 @@
 {-# LANGUAGE LiberalTypeSynonyms      #-}
 {-# LANGUAGE DataKinds                #-}
 {-# LANGUAGE GADTs                    #-}
+{-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE ConstraintKinds          #-}
@@ -53,6 +54,8 @@ module Data.Manifold.PseudoAffine (
             , Semimanifold(..), Needle'
             , PseudoAffine(..)
             -- * Type definitions
+            -- ** Needles
+            , Local(..)
             -- ** Metrics
             , Metric, Metric', euclideanMetric
             , RieMetric, RieMetric'
@@ -293,6 +296,9 @@ identityCoercion(NumberManifold s, V4 s)
 data CanonicalDiffeomorphism a b where
   CanonicalDiffeomorphism :: LocallyCoercible a b => CanonicalDiffeomorphism a b
 
+-- | A point on a manifold, as seen from a nearby reference point.
+newtype Local x = Local { getLocalOffset :: Needle x }
+deriving instance (Show (Needle x)) => Show (Local x)
 
 type LocallyScalable s x = ( PseudoAffine x
                            , LSpace (Needle x)
