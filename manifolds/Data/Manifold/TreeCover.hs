@@ -924,11 +924,9 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
 --   Example: https://nbviewer.jupyter.org/github/leftaroundabout/manifolds/blob/master/test/ShadeCombinations.ipynb#shadeConvolutions
 -- 
 -- <<images/examples/ShadeCombinations/2Dconvolution-skewed.png>>
-  convolveShade' :: Shade' y -> Shade' (Needle y) -> Shade' y
-  convolveShade' (Shade' y₀ ey) (Shade' δ₀ eδ)
-          = Shade' (y₀.+~^δ₀)
-                   ( spanNorm [ f ^* ζ crl
-                              | (f,crl) <- eδsp ] )
+  convolveMetric :: Hask.Functor p => p y -> Metric y -> Metric y -> Metric y
+  convolveMetric _ ey eδ = spanNorm [ f ^* ζ crl
+                                    | (f,crl) <- eδsp ]
    where eδsp = sharedSeminormSpanningSystem ey eδ
          ζ = case filter (>0) . catMaybes $ snd<$>eδsp of
             [] -> const 0
@@ -942,6 +940,12 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
                         Just 0  -> 0
                         Just sq -> edgeFactor / (recip sq + 1)
   
+  convolveShade' :: Shade' y -> Shade' (Needle y) -> Shade' y
+  convolveShade' = defaultConvolveShade'
+  
+defaultConvolveShade' :: ∀ y . Refinable y => Shade' y -> Shade' (Needle y) -> Shade' y
+defaultConvolveShade' (Shade' y₀ ey) (Shade' δ₀ eδ)
+      = Shade' (y₀.+~^δ₀) $ convolveMetric ([]::[y]) ey eδ
 
 instance Refinable ℝ where
   refineShade' (Shade' cl el) (Shade' cr er)
