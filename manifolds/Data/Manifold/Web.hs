@@ -463,6 +463,8 @@ data ConvexSet x
       -- ^ If @p@ is in all intersectors, it must also be in the hull.
     , convexSetIntersectors :: [Shade' x]
     }
+deriving instance ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                  , Show x, Show (Needle' x) ) => Show (ConvexSet x)
 
 ellipsoid :: Shade' x -> ConvexSet x
 ellipsoid s = ConvexSet s [s]
