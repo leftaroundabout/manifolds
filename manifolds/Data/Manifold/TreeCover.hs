@@ -800,9 +800,21 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
   -- | @a `subShade'` b ≡ True@ means @a@ is fully contained in @b@, i.e. from
   --   @'minusLogOcclusion'' a p < 1@ follows also @minusLogOcclusion' b p < 1@.
   subShade' :: Shade' y -> Shade' y -> Bool
-  subShade' (Shade' ac ae) tsh = all ((<1) . minusLogOcclusion' tsh)
-                                  [ ac.+~^σ*^v | σ<-[-1,1], v<-normSpanningSystem' ae ]
+  subShade' (Shade' ac ae) (Shade' tc te)
+   | Option (Just v) <- tc.-~.ac
+   , v² <- normSq te v
+   , v² <= 1
+   = all (\(y',μ) -> case μ of
+            Nothing -> True  -- 'te' has infinite extension in this direction
+            Just ξ
+              | ξ<1 -> False -- 'ae' would be vaster than 'te' in this direction
+              | ω <- abs $ y'<.>^v
+                    -> (ω + 1/ξ)^2 <= 1 - v² + ω^2
+                 -- See @images/constructions/subellipse-check-heuristic.svg@
+         ) $ sharedSeminormSpanningSystem te ae
+   | otherwise  = False
   
+  -- | Intersection between two shades.
   refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
   refineShade' (Shade' c₀ (Norm e₁)) 
                (Shade' c₀₂ (Norm e₂))
