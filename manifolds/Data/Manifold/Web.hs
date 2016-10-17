@@ -378,9 +378,12 @@ webLocalInfo origWeb = result
             = ( LocalWebInfo {
                   _thisNodeCoord = x
                 , _thisNodeData = y
-                , _containingWeb = result
                 , _thisNodeId = i
-                , _nodeNeighbours = zip (UArr.toList $ ngbH^.neighbours) ngbCo
+                , _nodeNeighbours = [ (iNgb, (δx, neighbour))
+                                    | iNgb <- UArr.toList $ ngbH^.neighbours
+                                    , let neighbour = unsafeIndexWebData result iNgb
+                                          Option (Just δx) = _thisNodeCoord neighbour.-~.x
+                                    ]
                 , _nodeLocalScalarProduct = ngbH^.localScalarProduct
                 , _nodeIsOnBoundary = anyUnopposed (ngbH^.localScalarProduct) ngbCo
                 }, ngbH )
@@ -424,21 +427,22 @@ nearestNeighbour (PointsWeb rsc asd) x = fmap lkBest $ positionIndex empty rsc x
 data WebLocally x y = LocalWebInfo {
       _thisNodeCoord :: x
     , _thisNodeData :: y
-    , _containingWeb :: PointsWeb x (WebLocally x y)
     , _thisNodeId :: WebNodeId
-    , _nodeNeighbours :: [(WebNodeId, (Needle x, y))]
+    , _nodeNeighbours :: [(WebNodeId, (Needle x, WebLocally x y))]
     , _nodeLocalScalarProduct :: Metric x
     , _nodeIsOnBoundary :: Bool
     } deriving (Generic)
 makeLenses ''WebLocally
 
 instance Hask.Functor (WebLocally x) where
-  fmap f (LocalWebInfo co dt wb id ng sp bn)
-       = LocalWebInfo co (f dt) (fmap (fmap f) wb) id (map (second $ second f) ng) sp bn
+  fmap f (LocalWebInfo co dt id ng sp bn)
+       = LocalWebInfo co (f dt) id (map (second . second $ fmap f) ng) sp bn
 instance WithField ℝ Manifold x => Comonad (WebLocally x) where
   extract = _thisNodeData
-  duplicate lweb = unsafeIndexWebData deepened $ _thisNodeId lweb
-   where deepened = webLocalInfo $ _containingWeb lweb
+  extend f this@(LocalWebInfo co _ id ng sp bn)
+      = LocalWebInfo co (f this) id (map (second . second $ extend f) ng) sp bn
+  duplicate this@(LocalWebInfo co _ id ng sp bn)
+      = LocalWebInfo co this id (map (second $ second duplicate) ng) sp bn
 
 
 
@@ -592,7 +596,9 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                      ( (thisPos, thisShy), NE.fromList neighbourHulls )
                      thisPos = _thisNodeCoord wl :: x
                      thisShy = convexSetHull . _solverNodeStatus $ _thisNodeData wl
-                     neighbourHulls = second (convexSetHull . _solverNodeStatus) . snd
+                     neighbourHulls = second (convexSetHull
+                                              . _solverNodeStatus
+                                              . _thisNodeData ) . snd
                                         <$> _nodeNeighbours wl
        smallBadnessGradient, largeBadnessGradient :: ℝ
        (smallBadnessGradient, largeBadnessGradient)
@@ -619,10 +625,12 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                    ngbProps
         | null ngbs  = return (pure (x, SolverNodeInfo shy prevBadness (age+1)), [])
         | otherwise  = do
-               let neighbourHulls = second (convexSetHull . _solverNodeStatus) . snd
+               let neighbourHulls = second ( convexSetHull . _solverNodeStatus
+                                                           . _thisNodeData ) . snd
                                        <$> NE.fromList ngbs
                    (environAge, unfreshness)
-                      = maximum&&&minimum $ age : (_solverNodeAge . snd . snd <$> ngbs)
+                      = maximum&&&minimum $ age : (_solverNodeAge . _thisNodeData
+                                                        . snd . snd <$> ngbs)
                case find (\(_, badnessN)
                                -> badnessN / prevBadness > smallBadnessGradient)
                               $ ngbProps of
@@ -639,7 +647,8 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                    stepStones <-
                      if unfreshness < 3
                       then return []
-                      else fmap concat . forM (zip (snd<$>ngbs) ngbProps)
+                      else fmap concat . forM (zip (second _thisNodeData.snd<$>ngbs)
+                                                   ngbProps)
                                    $ \( (vN, SolverNodeInfo (ConvexSet hullN _)
                                                           _ ageN)
                                         , (_, nBadnessProp'd) ) -> do
@@ -685,7 +694,7 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                    [] -> [ (xN.-~.x, nnId)
                                          | (nnId, (_,nnWeb)) <- ngb^.nodeNeighbours
                                          , nnId /= myId
-                                         , (xN,_) <- oldAndNew nnWeb ]
+                                         , (xN,_) <- oldAndNew $ nnWeb^.thisNodeData ]
                                    l -> [(xN.-~.x, ngb^.thisNodeId) | (xN,_) <- l]
                        ]
                     possibleConflicts = [ normSq locMetr v
@@ -695,7 +704,7 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                   || minimum possibleConflicts > oldMinDistSq / 4
               ]
         where focused = oldAndNew' $ locWeb^.thisNodeData^.thisNodeData
-              knownNgbs = snd <$> locWeb^.nodeNeighbours
+              knownNgbs = second _thisNodeData . snd <$> locWeb^.nodeNeighbours
               oldMinDistSq = minimum [ normSq locMetr vOld
                                      | (_,ngb) <- knownNgbs
                                      , let Option (Just vOld) = ngb^.thisNodeCoord .-~. xOld
