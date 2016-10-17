@@ -35,6 +35,8 @@ module Data.Manifold.DifferentialEquation (
             -- * Formulating simple differential eqns.
               DifferentialEqn
             , constLinearDEqn
+            , constLinearODE
+            , constLinearPDE
             , filterDEqnSolution_static, iterateFilterDEqn_static
             -- * Cost functions for error bounds
             , maxDeviationsGoal
@@ -51,6 +53,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
 
 import Data.VectorSpace
+import Data.VectorSpace.Free
 import Math.LinearMap.Category
 import Data.AffineSpace
 import Data.Basis
@@ -78,6 +81,7 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 
+{-# DEPRECATED constLinearDEqn "Use 'constLinearODE' or 'constLinearPDE`" #-}
 constLinearDEqn :: ( WithField ℝ LinearManifold x, SimpleSpace x
                    , WithField ℝ LinearManifold y, SimpleSpace y )
               => (DualVector y +> (y +> x)) -> DifferentialEqn x y
@@ -88,6 +92,30 @@ constLinearDEqn bwt = factoriseShade
  where bwt' = adjoint $ bwt
        bwt'inv = (bwt'\$)
 
+constLinearODE :: ( WithField ℝ LinearManifold x, SimpleSpace x
+                   , WithField ℝ LinearManifold y, SimpleSpace y )
+              => ((x +> y) +> y) -> DifferentialEqn x y
+constLinearODE bwt' = factoriseShade
+    >>> \(_x, Shade y δy) -> let j = bwt'inv y
+                                 δj = bwt' `transformNorm` dualNorm δy
+                             in Shade' j δj
+ where bwt'inv = (bwt'\$)
+
+constLinearPDE :: ∀ x y z .
+                  ( WithField ℝ LinearManifold x, SimpleSpace x
+                  , WithField ℝ LinearManifold y, SimpleSpace y
+                  , SimpleSpace z, FiniteFreeSpace z, Scalar z ~ ℝ )
+              => ((x +> y) +> (y, z)) -> DifferentialEqn x y
+constLinearPDE bwt' = factoriseShade
+    >>> \(_x, Shade y δy) -> let j = bwt'inv y
+                                 δj = bwt' `transformNorm`
+                                       (sumSubspaceNorms (dualNorm δy) (almostExactlyZero))
+                             in Shade' j δj
+ where bwt'inv = (fst . bwt'\$)
+       almostExactlyZero :: Norm z
+       almostExactlyZero = spanNorm [ v^*1e+10
+                                    | v <- enumerateSubBasis
+                                             (entireBasis :: SubBasis (DualVector z)) ]
 
 -- | A function that variates, relatively speaking, most strongly
 --   for arguments around 1. In the zero-limit it approaches a constant
