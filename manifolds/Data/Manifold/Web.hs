@@ -440,7 +440,24 @@ instance WithField ℝ Manifold x => Comonad (WebLocally x) where
   duplicate lweb = unsafeIndexWebData deepened $ _thisNodeId lweb
    where deepened = webLocalInfo $ _containingWeb lweb
 
+-- ^ 'fmap' from the co-Kleisli category of 'WebLocally'.
+localFmapWeb :: WithField ℝ Manifold x
+                => (WebLocally x y -> z) -> PointsWeb x y -> PointsWeb x z
+localFmapWeb f = webLocalInfo >>> fmap f
 
+differentiateUncertainWebLocally :: ∀ x d y
+   . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+     , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
+            => (d -> Shade' y)
+             -> PointsWeb x d
+             -> PointsWeb x (d, Shade' (LocalLinear x y))
+differentiateUncertainWebLocally f = webLocalInfo >>> fmap`id`\info
+        -> let Option (Just j) = estimateLocalJacobian (info^.nodeLocalScalarProduct)
+                                                       [ ( Local δx :: Local x
+                                                         , f dat )
+                                                       | (_,(δx,dat))<-info^.nodeNeighbours
+                                                       ]
+           in (info^.thisNodeData, j)
 
 
 
@@ -521,13 +538,16 @@ filterDEqnSolution_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                              , Refinable y )
        => InconsistencyStrategy m -> DifferentialEqn x y
             -> PointsWeb x (Shade' y) -> m (PointsWeb x (Shade' y))
-filterDEqnSolution_static AbortOnInconsistency f = localFocusWeb >>> Hask.traverse `id`
-                   \((x,shy), ngbs) -> if null ngbs
-                     then pure shy
-                     else refineShade' shy
+filterDEqnSolution_static AbortOnInconsistency f
+       = differentiateUncertainWebFunction id >>> localFocusWeb >>> localFocusWeb
+           >>> Hask.traverse `id`\(((x,(shy,_)), _), ngbs) -> case ngbs of
+                  [] -> pure shy
+                  [n:ns] -> refineShade' shy
                             =<< intersectShade's
-                            =<< Option ( NE.nonEmpty $
-                                  propagateDEqnSolution_loc f ((x,shy), NE.fromList ngbs) )
+                            =<< Option ( sequenceA
+                                  [ propagateDEqnSolution_loc f _ _
+                                  | foo <- undefined
+                                  ] )
 
 filterDEqnSolutions_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                               , Refinable y
