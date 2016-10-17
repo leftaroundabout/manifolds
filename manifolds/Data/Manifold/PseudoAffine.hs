@@ -61,6 +61,7 @@ module Data.Manifold.PseudoAffine (
             , RieMetric, RieMetric'
             -- ** Constraints
             , SemimanifoldWitness(..)
+            , PseudoAffineWitness(..)
             , RealDimension, AffineManifold
             , LinearManifold
             , WithField
@@ -109,7 +110,13 @@ import GHC.Exts (Constraint)
 
 
 -- | This is the reified form of the property that the interior of a semimanifold
---   is a manifold.
+--   is a manifold. These constraints would ideally be expressed directly as
+--   superclass constraints, but that would require the @UndecidableSuperclasses@
+--   extension, which is not reliable yet.
+-- 
+-- Also, if all those equality constraints are in scope, GHC tends to infer needlessly
+-- complicated types like @'Interior' ('Interior' ('Needle' ('Interior' x)))@, which is
+-- the same as just @'Needle' x@.
 data SemimanifoldWitness x where
   SemimanifoldWitness ::
       ( Semimanifold (Interior x), Semimanifold (Needle x)
@@ -117,6 +124,10 @@ data SemimanifoldWitness x where
       , Interior (Needle x) ~ Needle x )
      => SemimanifoldWitness x
 
+data PseudoAffineWitness x where
+  PseudoAffineWitness ::
+      ( PseudoAffine (Interior x), PseudoAffine (Needle x) )
+     => PseudoAffineWitness x
 
 infix 6 .-~.
 infixl 6 .+~^, .-~^
@@ -206,9 +217,7 @@ class AdditiveGroup (Needle x) => Semimanifold x where
 --   manifolds in their usual maths definition (with an atlas of charts: a family of
 --   overlapping regions of the topological space, each homeomorphic to the 'Needle'
 --   vector space or some simply-connected subset thereof).
-class ( Semimanifold x, Semimanifold (Interior x)
-      , Needle (Interior x) ~ Needle x, Interior (Interior x) ~ Interior x)
-        => PseudoAffine x where
+class Semimanifold x => PseudoAffine x where
   {-# MINIMAL (.-~.) | (.-~!) #-}
   -- | The path reaching from one point to another.
   --   Should only yield 'Nothing' if
@@ -238,6 +247,12 @@ class ( Semimanifold x, Semimanifold (Interior x)
   (.-~!) :: x -> Interior x -> Needle x
   p.-~!q = case p.-~.q of
       Option (Just v) -> v
+  
+  pseudoAffineWitness :: PseudoAffineWitness x
+  default pseudoAffineWitness ::
+      ( PseudoAffine (Interior x), PseudoAffine (Needle x) )
+     => PseudoAffineWitness x
+  pseudoAffineWitness = PseudoAffineWitness
   
 
   
@@ -440,6 +455,7 @@ deriveAffine(NumberManifold s, V1 s)
 deriveAffine(NumberManifold s, V2 s)
 deriveAffine(NumberManifold s, V3 s)
 deriveAffine(NumberManifold s, V4 s)
+deriveAffine(KnownNat n, FreeVect n ℝ)
 
 instance (NumberManifold s) => LocallyCoercible (ZeroDim s) (V0 s) where
   locallyTrivialDiffeomorphism Origin = V0
@@ -524,6 +540,9 @@ instance ∀ a b . (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
              (SemimanifoldWitness, SemimanifoldWitness) -> SemimanifoldWitness
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   (a,b).-~.(c,d) = liftA2 (,) (a.-~.c) (b.-~.d)
+  pseudoAffineWitness = case ( pseudoAffineWitness :: PseudoAffineWitness a
+                             , pseudoAffineWitness :: PseudoAffineWitness b ) of
+             (PseudoAffineWitness, PseudoAffineWitness) -> PseudoAffineWitness
 instance ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
          , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c) )
@@ -571,6 +590,11 @@ instance ∀ a b c . (Semimanifold a, Semimanifold b, Semimanifold c)
                    -> SemimanifoldWitness
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
   (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
+  pseudoAffineWitness = case ( pseudoAffineWitness :: PseudoAffineWitness a
+                             , pseudoAffineWitness :: PseudoAffineWitness b
+                             , pseudoAffineWitness :: PseudoAffineWitness c ) of
+             (PseudoAffineWitness, PseudoAffineWitness, PseudoAffineWitness)
+                   -> PseudoAffineWitness
 
 
 instance LinearManifold (a n) => Semimanifold (LinAff.Point a n) where

@@ -223,8 +223,10 @@ instance ∀ x . (PseudoAffine x) => Semimanifold (Shade x) where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  Shade c e .+~^ v = Shade (c.+~^v) e
-  Shade c e .-~^ v = Shade (c.-~^v) e
+  (.+~^) = case semimanifoldWitness :: SemimanifoldWitness x of
+             SemimanifoldWitness -> \(Shade c e) v -> Shade (c.+~^v) e
+  (.-~^) = case semimanifoldWitness :: SemimanifoldWitness x of
+             SemimanifoldWitness -> \(Shade c e) v -> Shade (c.-~^v) e
   semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness x of
                              SemimanifoldWitness -> SemimanifoldWitness
 
@@ -312,25 +314,35 @@ pointsShades :: (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                                  => [Interior x] -> [Shade x]
 pointsShades = map snd . pointsShades' mempty
 
+coverAllAround :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                  => Interior x -> [Needle x] -> Shade x
+coverAllAround x₀ offs = Shade x₀
+         $ guaranteeIn offs (scaleNorm (1/fromIntegral (length offs)) $ spanVariance offs)
+ where guaranteeIn :: [Needle x] -> Metric' x -> Metric' x
+       guaranteeIn offs ex
+          = case offs >>= \v -> guard ((ex'|$|v) > 1) >> [(v, spanVariance [v])] of
+             []   -> ex
+             outs -> guaranteeIn (fst<$>outs)
+                                 ( densifyNorm $
+                                    ex <> scaleNorm
+                                                (sqrt . recip . fromIntegral
+                                                            $ 2 * length outs)
+                                                (mconcat $ snd<$>outs)
+                                 )
+        where ex' = dualNorm ex
+
 -- | Like 'pointsShades', but ensure that all points are actually in
 --   the shade, i.e. if @['Shade' x₀ ex]@ is the result then
 --   @'metric' (recipMetric ex) (p-x₀) ≤ 1@ for all @p@ in the list.
 pointsCovers :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                           => [Interior x] -> [Shade x]
-pointsCovers ps = map guaranteeIn $ pointsShades' mempty ps
- where guaranteeIn :: ([Interior x], Shade x) -> Shade x
-       guaranteeIn (ps, Shade x₀ ex) 
-          = case ps >>= \p -> let Option (Just v) = (fromInterior p::x).-~.x₀
-                              in guard ((ex'|$|v) > 1) >> [(p, spanVariance [v])]
-             of []   -> Shade x₀ ex
-                outs -> guaranteeIn ( fst<$>outs
-                                    , Shade x₀
-                                         $ ex <> scaleNorm
-                                                   (sqrt . recip . fromIntegral
-                                                               $ 2 * length outs)
-                                                   (mconcat $ snd<$>outs)
-                                    )
-        where ex' = dualNorm ex
+pointsCovers = case ( semimanifoldWitness :: SemimanifoldWitness x
+                    , pseudoAffineWitness :: PseudoAffineWitness x ) of
+                 (SemimanifoldWitness, PseudoAffineWitness) ->
+                  \ps -> map (\(ps', Shade x₀ _)
+                                -> coverAllAround x₀ [v | p<-ps'
+                                                        , let Option (Just v) = p.-~.x₀])
+                             (pointsShades' mempty ps :: [([Interior x], Shade x)])
 
 pointsShade's :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                      => [Interior x] -> [Shade' x]
@@ -343,7 +355,9 @@ pointsCover's = map (\(Shade c e :: Shade x) -> Shade' c $ dualNorm e) . pointsC
 pseudoECM :: ∀ x p . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x), Hask.Functor p)
                 => p x -> NonEmpty (Interior x)
                     -> (Interior x, ([Interior x],[Interior x]))
-pseudoECM _ (p₀ NE.:| psr) = foldl' ( \(acc, (rb,nr)) (i,p)
+pseudoECM = case semimanifoldWitness :: SemimanifoldWitness x of
+ SemimanifoldWitness ->
+   \_ (p₀ NE.:| psr) -> foldl' ( \(acc, (rb,nr)) (i,p)
                                 -> case (fromInterior p :: x).-~.acc of 
                                       Option (Just δ) -> (acc .+~^ δ^/i, (p:rb, nr))
                                       _ -> (acc, (rb, p:nr)) )
@@ -423,7 +437,9 @@ rangeOnGeodesic :: ∀ i m .
       ( WithField ℝ PseudoAffine m, Geodesic m, SimpleSpace (Needle m)
       , WithField ℝ IntervalLike i, SimpleSpace (Needle i) )
                      => m -> m -> Option (Shade i -> Shade m)
-rangeOnGeodesic p₀ p₁ = (`fmap`(interpolate p₀ p₁ :: Option (i -> m)))
+rangeOnGeodesic = case semimanifoldWitness :: SemimanifoldWitness i of
+ SemimanifoldWitness ->
+  \p₀ p₁ -> (`fmap`(interpolate p₀ p₁ :: Option (i -> m)))
     $ \interp -> \(Shade t₀ et)
                 -> case pointsShades
                          . mapMaybe (getOption . toInterior . interp)
@@ -1551,6 +1567,8 @@ instance ∀ x y . (Semimanifold x) => Semimanifold (x`WithAny`y) where
             
 instance (PseudoAffine x) => PseudoAffine (x`WithAny`y) where
   WithAny _ x .-~. WithAny _ ξ = x.-~.ξ
+  pseudoAffineWitness = case pseudoAffineWitness :: PseudoAffineWitness x of
+                          PseudoAffineWitness -> PseudoAffineWitness
 
 instance (AffineSpace x) => AffineSpace (x`WithAny`y) where
   type Diff (WithAny x y) = Diff x
