@@ -93,12 +93,13 @@ constLinearDEqn bwt = factoriseShade
        bwt'inv = (bwt'\$)
 
 constLinearODE :: ( WithField ℝ LinearManifold x, SimpleSpace x
-                   , WithField ℝ LinearManifold y, SimpleSpace y )
+                  , WithField ℝ LinearManifold y, SimpleSpace y )
               => ((x +> y) +> y) -> DifferentialEqn x y
-constLinearODE bwt' = factoriseShade
-    >>> \(_x, Shade y δy) -> let j = bwt'inv y
-                                 δj = bwt' `transformNorm` dualNorm δy
-                             in Shade' j δj
+constLinearODE bwt'
+      = \(Shade (_x,y) δxy) -> let j = bwt'inv y
+                                   δj = bwt' `transformNorm`
+                                         (dualNorm $ transformNorm (zeroV&&&id) δxy)
+                               in Shade' j δj
  where bwt'inv = (bwt'\$)
 
 constLinearPDE :: ∀ x y z .
