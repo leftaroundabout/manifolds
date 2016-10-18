@@ -62,7 +62,9 @@ module Data.Manifold.TreeCover (
        , completeTopShading, flexTwigsShading, coerceShadeTree
        , WithAny(..), Shaded, fmapShaded, stiAsIntervalMapping, spanShading
        , constShaded, stripShadedUntopological
-       , DifferentialEqn, propagateDEqnSolution_loc, rangeOnGeodesic
+       , estimateLocalJacobian
+       , DifferentialEqn, propagateDEqnSolution_loc, LocalDataPropPlan(..)
+       , rangeOnGeodesic
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild
        , AutoTriang, breakdownAutoTriang
@@ -1046,41 +1048,39 @@ estimateLocalJacobian _ _ = return $ Shade' zeroV mempty
 
 
 
-
-propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
+propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x
+                                     , Refinable y, Geodesic y
                                      , SimpleSpace (Needle x) )
-           => DifferentialEqn x y -> ((x, Shade' y), NonEmpty (Needle x, Shade' y))
-                   -> [Shade' y]
-propagateDEqnSolution_loc f ((x, shy@(Shade' y _)), neighbours)
-          | Option Nothing <- jacobian
-                       = []
-          | otherwise  = toList ycs
- where jacobian = intersectShade's . (:|[f shxy])
-                    =<< estimateLocalJacobian expax
-                          (first Local <$> toList neighbours :: [(Local x, Shade' y)])
+           => DifferentialEqn x y
+               -> LocalDataPropPlan x (Shade' y)
+               -> Shade' (LocalLinear x y) -- ^ A-priori Jacobian at the source
+               -> Maybe (Shade' y)
+propagateDEqnSolution_loc f propPlan aprioriJacobian
+          | Option Nothing <- jacobian  = Nothing
+          | otherwise                   = Just result
+ where jacobian = intersectShade's $ aprioriJacobian:|[f shxy]
        Option (Just (Shade' j₀ jExpa)) = jacobian
-       [shxy] = pointsCovers [ (xs, ys')
-                             | (xs, Shade' ys yse)
-                                 <- (x,shy):(first (x.+~^)<$>NE.toList neighbours)
-                             , δy <- normSpanningSystem' yse
-                             , ys' <- [ys.+~^δy, ys.-~^δy] ]
-       [Shade' _ expax :: Shade' x]
-                     = pointsCover's $ x : ((x.+~^).fst<$>NE.toList neighbours)
-       marginδs :: NonEmpty (Needle x, (Needle y, Metric y))
-       marginδs = [ (δxm, (δym, expany))
-                  | (δxm, Shade' yn expany) <- neighbours
-                  , let (Option (Just δym)) = yn.-~.y
-                  ]
-       back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y
-       back2Centre (δx, (δym, expany))
-            = convolveShade'
-                (Shade' y expany)
+       mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2
+       Option (Just my) = ($ D¹ 0) <$>
+                    geodesicBetween (propPlan^.sourceData.shadeCtr)
+                                    (propPlan^.targetAPrioriData.shadeCtr)
+       shxy = coverAllAround (mx, my)
+                             [ (δx ^-^ propPlan^.targetPosOffset ^/ 2, py ^+^ v)
+                             | (δx,ney) <- propPlan^.relatedData
+                             , let Option (Just py) = ney^.shadeCtr .-~. my
+                             , v <- normSpanningSystem' (ney^.shadeNarrowness)
+                             ]
+       (Shade _ expax' :: Shade x)
+            = coverAllAround (propPlan^.sourcePosition)
+                             [δx | (δx,_) <- propPlan^.relatedData]
+       expax = dualNorm expax'
+       result :: Shade' y
+       result = convolveShade'
+                (propPlan^.sourceData)
                 (Shade' δyb $ applyLinMapNorm jExpa (δx'^/(δx'<.>^δx)))
-        where δyb = δym ^-^ (j₀ $ δx)
+        where δyb = j₀ $ δx
+              δx = propPlan^.targetPosOffset
               δx' = expax<$|δx
-       ycs :: NonEmpty (Shade' y)
-       ycs = back2Centre <$> marginδs
-       xSpan = normSpanningSystem expax
 
 applyLinMapNorm :: (LSpace x, LSpace y, Scalar x ~ Scalar y)
            => Norm (x+>y) -> DualVector x -> Norm y

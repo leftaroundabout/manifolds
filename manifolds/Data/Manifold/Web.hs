@@ -47,8 +47,8 @@ module Data.Manifold.Web (
               -- * Differential equations
               -- ** Fixed resolution
             , filterDEqnSolution_static, iterateFilterDEqn_static
-              -- ** Automatic resolution
-            , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
+--               -- ** Automatic resolution
+--             , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- ** Configuration
             , InconsistencyStrategy(..)
               -- * Misc
@@ -444,7 +444,22 @@ instance WithField ℝ Manifold x => Comonad (WebLocally x) where
   duplicate this@(LocalWebInfo co _ id ng sp bn)
       = LocalWebInfo co this id (map (second $ second duplicate) ng) sp bn
 
+-- ^ 'fmap' from the co-Kleisli category of 'WebLocally'.
+localFmapWeb :: WithField ℝ Manifold x
+                => (WebLocally x y -> z) -> PointsWeb x y -> PointsWeb x z
+localFmapWeb f = webLocalInfo >>> fmap f
 
+differentiateUncertainWebLocally :: ∀ x y
+   . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+     , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
+            => WebLocally x (Shade' y)
+             -> Shade' (LocalLinear x y)
+differentiateUncertainWebLocally info = j
+ where Option (Just j) = estimateLocalJacobian
+                          (info^.nodeLocalScalarProduct)
+                          [ ( Local δx :: Local x, ngb^.thisNodeData )
+                          | (_,(δx,ngb))<-info^.nodeNeighbours
+                          ]
 
 
 
@@ -512,7 +527,7 @@ data InconsistencyStrategy m where
 
 
 iterateFilterDEqn_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                            , Refinable y
+                            , Refinable y, Geodesic y
                             , Hask.Applicative m )
        => InconsistencyStrategy m -> DifferentialEqn x y
                  -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
@@ -522,41 +537,68 @@ iterateFilterDEqn_static strategy f
                            . fmap (`ConvexSet`[])
 
 filterDEqnSolution_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                             , Refinable y )
+                             , Refinable y, Geodesic y )
        => InconsistencyStrategy m -> DifferentialEqn x y
             -> PointsWeb x (Shade' y) -> m (PointsWeb x (Shade' y))
-filterDEqnSolution_static AbortOnInconsistency f = localFocusWeb >>> Hask.traverse `id`
-                   \((x,shy), ngbs) -> if null ngbs
-                     then pure shy
-                     else refineShade' shy
+filterDEqnSolution_static AbortOnInconsistency f
+       = webLocalInfo >>> fmap (id &&& differentiateUncertainWebLocally) >>> localFocusWeb
+           >>> Hask.traverse `id`\((_,(me,_)), ngbs) -> case ngbs of
+                  []  -> return $ me^.thisNodeData
+                  _:_ -> refineShade' (me^.thisNodeData)
                             =<< intersectShade's
-                            =<< Option ( NE.nonEmpty $
-                                  propagateDEqnSolution_loc f ((x,shy), NE.fromList ngbs) )
+                            =<< Option ( sequenceA $ NE.fromList
+                                  [ propagateDEqnSolution_loc
+                                       f (LocalDataPropPlan
+                                             (ngbInfo^.thisNodeCoord)
+                                             (negateV δx)
+                                             (ngbInfo^.thisNodeData)
+                                             (me^.thisNodeData)
+                                             (fmap (second _thisNodeData . snd)
+                                                       $ ngbInfo^.nodeNeighbours)
+                                          ) sj
+                                  | (δx, (ngbInfo,sj)) <- ngbs
+                                  ] )
 
-filterDEqnSolutions_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                              , Refinable y
+filterDEqnSolutions_static :: ∀ x y m .
+                              ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                              , Refinable y, Geodesic y
                               , Hask.Applicative m )
        => InconsistencyStrategy m -> DifferentialEqn x y
             -> PointsWeb x (ConvexSet y) -> m (PointsWeb x (ConvexSet y))
-filterDEqnSolutions_static strategy f = localFocusWeb >>> Hask.traverse `id`
-            \((x, shy@(ConvexSet hull _)), ngbs) -> if null ngbs
-              then pure shy
-              else handleInconsistency strategy shy $
-                    Option ( NE.nonEmpty $
-                      propagateDEqnSolution_loc f
-                               ((x,hull), second convexSetHull<$>NE.fromList ngbs) )
-                     >>= intersectShade's 
-                     >>= pure . ((shy<>) . ellipsoid)
-                     >>= \case EmptyConvex -> empty
-                               c           -> pure c
+filterDEqnSolutions_static strategy f
+       = webLocalInfo
+           >>> fmap (id &&& differentiateUncertainWebLocally . fmap convexSetHull)
+           >>> localFocusWeb >>> Hask.traverse `id`\((_,(me,_)), ngbs)
+             -> let oldValue = me^.thisNodeData :: ConvexSet y
+                in case ngbs of
+                  []  -> pure oldValue
+                  _:_ -> handleInconsistency strategy oldValue
+                          $ Option ( sequenceA $ NE.fromList
+                                  [ propagateDEqnSolution_loc
+                                       f (LocalDataPropPlan
+                                             (ngbInfo^.thisNodeCoord)
+                                             (negateV δx)
+                                             (convexSetHull $ ngbInfo^.thisNodeData)
+                                             (convexSetHull $ me^.thisNodeData)
+                                             (fmap (second (convexSetHull . _thisNodeData)
+                                                             . snd)
+                                                       $ ngbInfo^.nodeNeighbours)
+                                          ) sj
+                                  | (δx, (ngbInfo,sj)) <- ngbs
+                                  ] )
+                            >>= intersectShade's
+                            >>= pure . ((oldValue<>) . ellipsoid)
+                            >>= \case EmptyConvex -> empty
+                                      c           -> pure c
 
 handleInconsistency :: InconsistencyStrategy m -> a -> Option a -> m a
 handleInconsistency AbortOnInconsistency _ i = i
 handleInconsistency IgnoreInconsistencies _ (Option (Just v)) = Identity v
 handleInconsistency IgnoreInconsistencies b _ = Identity b
 
-data SolverNodeState y = SolverNodeInfo {
+data SolverNodeState x y = SolverNodeInfo {
       _solverNodeStatus :: ConvexSet y
+    , _solverNodeJacobian :: Shade' (LocalLinear x y)
     , _solverNodeBadness :: ℝ
     , _solverNodeAge :: Int
     }
@@ -575,145 +617,184 @@ oldAndNew' (_, l) = (False,) <$> l
 
 
 filterDEqnSolutions_adaptive :: ∀ x y badness m
-        . ( WithField ℝ Manifold x, SimpleSpace (Needle x), Refinable y
+        . ( WithField ℝ Manifold x, SimpleSpace (Needle x), Refinable y, Geodesic y
           , badness ~ ℝ, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m
        -> DifferentialEqn x y 
        -> (x -> Shade' y -> badness)
-             -> PointsWeb x (SolverNodeState y)
-                        -> m (PointsWeb x (SolverNodeState y))
+             -> PointsWeb x (SolverNodeState x y)
+                        -> m (PointsWeb x (SolverNodeState x y))
 filterDEqnSolutions_adaptive mf strategy f badness' oldState
-         = fmap (fromTopWebNodes mf . concat . fmap retraceBonds
-                                        . Hask.toList . webLocalInfo . webLocalInfo)
-             $ Hask.traverse (uncurry localChange) preproc'd
- where preproc'd :: PointsWeb x ((WebLocally x (SolverNodeState y), [(Shade' y, badness)]))
-       preproc'd = fmap addPropagation $ webLocalInfo oldState
+            = fmap recomputeJacobian $ filterGo =<< tryPreproc
+ where tryPreproc :: m (PointsWeb x ( (WebLocally x (SolverNodeState x y)
+                                    , [(Shade' y, badness)]) ))
+       tryPreproc = traverse addPropagation $ webLocalInfo oldState
         where addPropagation wl
-                 | null neighbourHulls = (wl, [])
-                 | otherwise           = (wl, map (id&&&badness undefined) propFromNgbs)
-               where propFromNgbs = propagateDEqnSolution_loc f
-                                     ( (thisPos, thisShy), NE.fromList neighbourHulls )
+                 | null neighbourInfo = pure (wl, [])
+                 | otherwise           = (wl,) . map (id&&&badness undefined)
+                                           <$> propFromNgbs
+               where propFromNgbs :: m [Shade' y]
+                     propFromNgbs = mapM (handleInconsistency strategy thisShy . Option) [
+                                       propagateDEqnSolution_loc f
+                                        (LocalDataPropPlan
+                                           (neigh^.thisNodeCoord)
+                                           (negateV δx)
+                                           (convexSetHull $ neigh^.thisNodeData
+                                                                  .solverNodeStatus)
+                                           (thisShy)
+                                           [ second (convexSetHull
+                                                     . _solverNodeStatus . _thisNodeData) nn
+                                           | (_,nn)<-neigh^.nodeNeighbours ] )
+                                        (wl^.thisNodeData.solverNodeJacobian)
+                                     | (δx, neigh) <- neighbourInfo ]  -- ( (thisPos, thisShy), NE.fromList neighbourHulls )
                      thisPos = _thisNodeCoord wl :: x
                      thisShy = convexSetHull . _solverNodeStatus $ _thisNodeData wl
-                     neighbourHulls = second (convexSetHull
-                                              . _solverNodeStatus
-                                              . _thisNodeData ) . snd
-                                        <$> _nodeNeighbours wl
-       smallBadnessGradient, largeBadnessGradient :: ℝ
-       (smallBadnessGradient, largeBadnessGradient)
-           = ( badnessGradRated!!(n`div`4), badnessGradRated!!(n*3`div`4) )
-        where n = case length badnessGradRated of
-                    0 -> error "No statistics available for badness-grading."
-                    l -> l
-              badnessGradRated = sort [ ngBad / bad
-                                      | ( LocalWebInfo {
-                                            _thisNodeData
-                                              = SolverNodeInfo _ bad _
-                                          , _nodeNeighbours=ngbs        }
-                                        , ngbProps) <- Hask.toList preproc'd
-                                      , (_, ngBad) <- ngbProps
-                                      , ngBad>bad ]
-       localChange :: WebLocally x (SolverNodeState y) -> [(Shade' y, badness)]
-                             -> m (OldAndNew (x, SolverNodeState y))
-       localChange localInfo@LocalWebInfo{
-                         _thisNodeCoord = x
-                       , _thisNodeData = SolverNodeInfo
-                                            shy@(ConvexSet hull _) prevBadness age
-                       , _nodeNeighbours = ngbs
-                       }
-                   ngbProps
-        | null ngbs  = return (pure (x, SolverNodeInfo shy prevBadness (age+1)), [])
-        | otherwise  = do
-               let neighbourHulls = second ( convexSetHull . _solverNodeStatus
-                                                           . _thisNodeData ) . snd
-                                       <$> NE.fromList ngbs
-                   (environAge, unfreshness)
-                      = maximum&&&minimum $ age : (_solverNodeAge . _thisNodeData
-                                                        . snd . snd <$> ngbs)
-               case find (\(_, badnessN)
-                               -> badnessN / prevBadness > smallBadnessGradient)
-                              $ ngbProps of
-                 Nothing | age < environAge   -- point is an obsolete step-stone;
-                   -> return (empty,empty)    -- do not further use it.
-                 _otherwise -> do
-                   shy' <- handleInconsistency strategy shy
-                           $ ((shy<>) . ellipsoid)
-                            <$> intersectShade's (fst <$> NE.fromList ngbProps)
-                   newBadness <- handleInconsistency strategy prevBadness $ case shy' of
-                      EmptyConvex        -> empty
-                      ConvexSet hull' _  -> return $ badness x hull'
-                   let updatedNode = SolverNodeInfo shy' newBadness (age+1)
-                   stepStones <-
-                     if unfreshness < 3
-                      then return []
-                      else fmap concat . forM (zip (second _thisNodeData.snd<$>ngbs)
-                                                   ngbProps)
-                                   $ \( (vN, SolverNodeInfo (ConvexSet hullN _)
-                                                          _ ageN)
-                                        , (_, nBadnessProp'd) ) -> do
-                       case ageN of
-                        _  | ageN > 0
-                           , badnessGrad <- nBadnessProp'd / prevBadness
-                           , badnessGrad > largeBadnessGradient -> do
-                                 let stepV = vN^/2
-                                     xStep = x .+~^ stepV
-                                 case intersectShade's =<< Option ( NE.nonEmpty $
-                                            propagateDEqnSolution_loc f
-                                            ( (xStep, hull)
-                                            , NE.cons (negateV stepV, hull)
-                                                $ fmap (\(vN',hullN')
-                                                         -> (vN'^-^stepV, hullN') )
-                                                    neighbourHulls ) ) of
-                                  Option (Just shyStep) -> return
-                                        [( xStep
-                                         , SolverNodeInfo (ellipsoid shyStep)
-                                                 (badness xStep shyStep) 1
-                                         )]
-                                  _ -> return []
-                        _otherwise -> return []
-                   let updated = (x, updatedNode)
-                   return $ (pure updated, stepStones)
-       
-       totalAge = maximum $ _solverNodeAge . _thisNodeData . fst <$> preproc'd
+                     neighbourInfo = snd <$> _nodeNeighbours wl
+
+       totalAge = maximum $ _solverNodeAge <$> oldState
        errTgtModulation = (1-) . (`mod'`1) . negate . sqrt $ fromIntegral totalAge
        badness x = badness' x . (shadeNarrowness %~ (scaleNorm errTgtModulation))
-       
-       retraceBonds :: WebLocally x (WebLocally x (OldAndNew (x, SolverNodeState y)))
-                       -> [((x, [Needle x]), SolverNodeState y)]
-       retraceBonds locWeb@LocalWebInfo{ _thisNodeId = myId
-                                       , _thisNodeCoord = xOld
-                                       , _nodeLocalScalarProduct = locMetr }
-            = [ ( (x, fst<$>neighbourCandidates), snsy)
-              | (isOld, (x, snsy)) <- focused
-              , let neighbourCandidates
-                     = [ (v,nnId)
-                       | (_,ngb) <- knownNgbs
-                       , (Option (Just v), nnId)
-                          <- case oldAndNew $ ngb^.thisNodeData of
-                                   [] -> [ (xN.-~.x, nnId)
-                                         | (nnId, (_,nnWeb)) <- ngb^.nodeNeighbours
-                                         , nnId /= myId
-                                         , (xN,_) <- oldAndNew $ nnWeb^.thisNodeData ]
-                                   l -> [(xN.-~.x, ngb^.thisNodeId) | (xN,_) <- l]
-                       ]
-                    possibleConflicts = [ normSq locMetr v
-                                        | (v,nnId)<-neighbourCandidates
-                                        , nnId > myId ]
-              , isOld || null possibleConflicts
-                  || minimum possibleConflicts > oldMinDistSq / 4
-              ]
-        where focused = oldAndNew' $ locWeb^.thisNodeData^.thisNodeData
-              knownNgbs = second _thisNodeData . snd <$> locWeb^.nodeNeighbours
-              oldMinDistSq = minimum [ normSq locMetr vOld
-                                     | (_,ngb) <- knownNgbs
-                                     , let Option (Just vOld) = ngb^.thisNodeCoord .-~. xOld
-                                     ]
+              
+       filterGo :: (PointsWeb x ( (WebLocally x (SolverNodeState x y)
+                                   , [(Shade' y, badness)]) ))
+                      -> m (PointsWeb x (SolverNodeState x y))
+       filterGo preproc'd   = fmap (fromTopWebNodes mf . concat . fmap retraceBonds
+                                        . Hask.toList . webLocalInfo . webLocalInfo)
+             $ Hask.traverse (uncurry localChange) preproc'd
+        where smallBadnessGradient, largeBadnessGradient :: ℝ
+              (smallBadnessGradient, largeBadnessGradient)
+                  = ( badnessGradRated!!(n`div`4), badnessGradRated!!(n*3`div`4) )
+               where n = case length badnessGradRated of
+                           0 -> error "No statistics available for badness-grading."
+                           l -> l
+                     badnessGradRated :: [badness]
+                     badnessGradRated = sort [ ngBad / bad
+                                             | ( LocalWebInfo {
+                                                   _thisNodeData
+                                                     = SolverNodeInfo _ _ bad _
+                                                 , _nodeNeighbours=ngbs        }
+                                               , ngbProps) <- Hask.toList preproc'd
+                                             , (_, ngBad) <- ngbProps
+                                             , ngBad>bad ]
+              localChange :: WebLocally x (SolverNodeState x y) -> [(Shade' y, badness)]
+                                    -> m (OldAndNew (x, SolverNodeState x y))
+              localChange localInfo@LocalWebInfo{
+                                _thisNodeCoord = x
+                              , _thisNodeData = SolverNodeInfo
+                                                   shy@(ConvexSet hull _) prevJacobi
+                                                   prevBadness age
+                              , _nodeNeighbours = ngbs
+                              }
+                          ngbProps
+               | null ngbs  = return ( pure (x, SolverNodeInfo shy prevJacobi
+                                                           prevBadness (age+1))
+                                     , [] )
+               | otherwise  = do
+                      let (environAge, unfreshness)
+                             = maximum&&&minimum $ age : (_solverNodeAge . _thisNodeData
+                                                               . snd . snd <$> ngbs)
+                      case find (\(_, badnessN)
+                                      -> badnessN / prevBadness > smallBadnessGradient)
+                                     $ ngbProps of
+                        Nothing | age < environAge   -- point is an obsolete step-stone;
+                          -> return (empty,empty)    -- do not further use it.
+                        _otherwise -> do
+                          shy' <- handleInconsistency strategy shy
+                                  $ ((shy<>) . ellipsoid)
+                                   <$> intersectShade's (fst <$> NE.fromList ngbProps)
+                          newBadness <- handleInconsistency strategy prevBadness $ case shy' of
+                             EmptyConvex        -> empty
+                             ConvexSet hull' _  -> return $ badness x hull'
+                          let updatedNode = SolverNodeInfo shy' prevJacobi
+                                                     newBadness (age+1)
+                          stepStones <-
+                            if unfreshness < 3
+                             then return []
+                             else fmap concat . forM (zip (second _thisNodeData.snd<$>ngbs)
+                                                          ngbProps)
+                                          $ \( (vN, SolverNodeInfo (ConvexSet hullN _)
+                                                               _ _ ageN)
+                                               , (_, nBadnessProp'd) ) -> do
+                              case ageN of
+                               _  | ageN > 0
+                                  , badnessGrad <- nBadnessProp'd / prevBadness
+                                  , badnessGrad > largeBadnessGradient -> do
+                                        let stepV = vN^/2
+                                            xStep = x .+~^ stepV
+                                            aprioriInterpolate :: Shade' y
+                                            aprioriInterpolate = undefined
+                                        case intersectShade's =<<
+                                               (Option . sequenceA $ NE.fromList
+                                               [ propagateDEqnSolution_loc f
+                                                   (LocalDataPropPlan
+                                                      (n^.thisNodeCoord)
+                                                      (stepV ^-^ δx)
+                                                      (convexSetHull $
+                                                        n^.thisNodeData.solverNodeStatus)
+                                                      (aprioriInterpolate)
+                                                      (second (convexSetHull
+                                                               ._solverNodeStatus
+                                                               ._thisNodeData)
+                                                              . snd
+                                                              <$> n^.nodeNeighbours) )
+                                                   (n^.thisNodeData.solverNodeJacobian)
+                                                -- ( (xStep, hull)
+                                                -- , NE.cons (negateV stepV, hull)
+                                                --     $ fmap (\(vN',hullN')
+                                                --              -> (vN'^-^stepV, hullN') ) )
+                                                | (_, (δx, n)) <- ngbs ]) of
+                                         Option (Just shyStep) -> return
+                                               [( xStep
+                                                , SolverNodeInfo (ellipsoid shyStep)
+                                                       prevJacobi (badness xStep shyStep) 1
+                                                )]
+                                         _ -> return []
+                               _otherwise -> return []
+                          let updated = (x, updatedNode)
+                          return $ (pure updated, stepStones)
+              
+              retraceBonds :: WebLocally x (WebLocally x (OldAndNew (x, SolverNodeState x y)))
+                              -> [((x, [Needle x]), SolverNodeState x y)]
+              retraceBonds locWeb@LocalWebInfo{ _thisNodeId = myId
+                                              , _thisNodeCoord = xOld
+                                              , _nodeLocalScalarProduct = locMetr }
+                   = [ ( (x, fst<$>neighbourCandidates), snsy)
+                     | (isOld, (x, snsy)) <- focused
+                     , let neighbourCandidates
+                            = [ (v,nnId)
+                              | (_,ngb) <- knownNgbs
+                              , (Option (Just v), nnId)
+                                 <- case oldAndNew $ ngb^.thisNodeData of
+                                          [] -> [ (xN.-~.x, nnId)
+                                                | (nnId, (_,nnWeb)) <- ngb^.nodeNeighbours
+                                                , nnId /= myId
+                                                , (xN,_) <- oldAndNew $ nnWeb^.thisNodeData ]
+                                          l -> [(xN.-~.x, ngb^.thisNodeId) | (xN,_) <- l]
+                              ]
+                           possibleConflicts = [ normSq locMetr v
+                                               | (v,nnId)<-neighbourCandidates
+                                               , nnId > myId ]
+                     , isOld || null possibleConflicts
+                         || minimum possibleConflicts > oldMinDistSq / 4
+                     ]
+               where focused = oldAndNew' $ locWeb^.thisNodeData^.thisNodeData
+                     knownNgbs = second _thisNodeData . snd <$> locWeb^.nodeNeighbours
+                     oldMinDistSq = minimum [ normSq locMetr vOld
+                                            | (_,ngb) <- knownNgbs
+                                            , let Option (Just vOld) = ngb^.thisNodeCoord .-~. xOld
+                                            ]
                               
+recomputeJacobian :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                     , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
+             => PointsWeb x (SolverNodeState x y)
+             -> PointsWeb x (SolverNodeState x y)
+recomputeJacobian = undefined
 
 
 iterateFilterDEqn_adaptive
-     :: ( WithField ℝ Manifold x, SimpleSpace (Needle x), Refinable y, Hask.Monad m )
+     :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+        , Refinable y, Geodesic y, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m
        -> DifferentialEqn x y
@@ -722,7 +803,9 @@ iterateFilterDEqn_adaptive
 iterateFilterDEqn_adaptive mf strategy f badness
     = map (fmap (convexSetHull . _solverNodeStatus))
     . itWhileJust strategy (filterDEqnSolutions_adaptive mf strategy f badness)
+    . recomputeJacobian
     . fmap (\((x,shy),_) -> SolverNodeInfo (ellipsoid shy)
+                                           (Shade' zeroV mempty)
                                            (badness x shy)
                                            1
            )
