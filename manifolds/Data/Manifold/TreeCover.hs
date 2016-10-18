@@ -35,6 +35,7 @@
 {-# LANGUAGE LiberalTypeSynonyms        #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 
 module Data.Manifold.TreeCover (
@@ -61,7 +62,9 @@ module Data.Manifold.TreeCover (
        , completeTopShading, flexTwigsShading, coerceShadeTree
        , WithAny(..), Shaded, fmapShaded, stiAsIntervalMapping, spanShading
        , constShaded, stripShadedUntopological
-       , DifferentialEqn, propagateDEqnSolution_loc, rangeOnGeodesic
+       , estimateLocalJacobian
+       , DifferentialEqn, propagateDEqnSolution_loc, LocalDataPropPlan(..)
+       , rangeOnGeodesic
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild
        , AutoTriang, breakdownAutoTriang
@@ -93,7 +96,8 @@ import Data.Manifold.Riemannian
 import Data.Embedding
 import Data.CoNat
 
-import Control.Lens (Lens')
+import Control.Lens (Lens', (^.))
+import Control.Lens.TH
 
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
@@ -145,6 +149,20 @@ data Shade' x = Shade' { _shade'Ctr :: !(Interior x)
                        , _shade'Narrowness :: !(Metric x) }
 deriving instance (Show (Interior x), Show (Metric x), WithField ℝ PseudoAffine x)
                 => Show (Shade' x)
+
+type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
+
+data LocalDataPropPlan x y = LocalDataPropPlan
+       { _sourcePosition :: !(Interior x)
+       , _targetPosOffset :: !(Needle x)
+       , _sourceData, _targetAPrioriData :: !y
+       , _relatedData :: [(Needle x, y)]
+       }
+deriving instance (Show (Interior x), Show y, Show (Needle x)) => Show (LocalDataPropPlan x y)
+
+makeLenses ''LocalDataPropPlan
+
+
 
 class IsShade shade where
 --  type (*) shade :: *->*
@@ -1017,7 +1035,7 @@ estimateLocalJacobian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
                              -> Option (Shade' (LocalLinear x y))
 estimateLocalJacobian mex [(Local x₁, Shade' y₁ ey₁),(Local x₀, Shade' y₀ ey₀)]
         = return $ Shade' (dx-+|>δy)
-                          (Norm . LinearFunction $ \δj -> (σey<$|δj$δx)-+|>δx)
+                          (Norm . LinearFunction $ \δj -> (σey<$|δj $ δx)-+|>δx)
  where Option (Just δx) = x₁.-~.x₀
        δx' = (mex<$|δx)
        dx = δx'^/(δx'<.>^δx)
@@ -1029,43 +1047,40 @@ estimateLocalJacobian mex (po:ps) | length ps > 1
 estimateLocalJacobian _ _ = return $ Shade' zeroV mempty
 
 
-type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
 
-
-propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
+propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x
+                                     , Refinable y, Geodesic y
                                      , SimpleSpace (Needle x) )
-           => DifferentialEqn x y -> ((x, Shade' y), NonEmpty (Needle x, Shade' y))
-                   -> [Shade' y]
-propagateDEqnSolution_loc f ((x, shy@(Shade' y _)), neighbours)
-          | Option Nothing <- jacobian
-                       = []
-          | otherwise  = toList ycs
- where jacobian = intersectShade's . (:|[f shxy])
-                    =<< estimateLocalJacobian expax
-                          (first Local <$> toList neighbours :: [(Local x, Shade' y)])
+           => DifferentialEqn x y
+               -> LocalDataPropPlan x (Shade' y)
+               -> Shade' (LocalLinear x y) -- ^ A-priori Jacobian at the source
+               -> Maybe (Shade' y)
+propagateDEqnSolution_loc f propPlan aprioriJacobian
+          | Option Nothing <- jacobian  = Nothing
+          | otherwise                   = Just result
+ where jacobian = intersectShade's $ aprioriJacobian:|[f shxy]
        Option (Just (Shade' j₀ jExpa)) = jacobian
-       [shxy] = pointsCovers [ (xs, ys')
-                             | (xs, Shade' ys yse)
-                                 <- (x,shy):(first (x.+~^)<$>NE.toList neighbours)
-                             , δy <- normSpanningSystem' yse
-                             , ys' <- [ys.+~^δy, ys.-~^δy] ]
-       [Shade' _ expax :: Shade' x]
-                     = pointsCover's $ x : ((x.+~^).fst<$>NE.toList neighbours)
-       marginδs :: NonEmpty (Needle x, (Needle y, Metric y))
-       marginδs = [ (δxm, (δym, expany))
-                  | (δxm, Shade' yn expany) <- neighbours
-                  , let (Option (Just δym)) = yn.-~.y
-                  ]
-       back2Centre :: (Needle x, (Needle y, Metric y)) -> Shade' y
-       back2Centre (δx, (δym, expany))
-            = convolveShade'
-                (Shade' y expany)
+       mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2
+       Option (Just my) = ($ D¹ 0) <$>
+                    geodesicBetween (propPlan^.sourceData.shadeCtr)
+                                    (propPlan^.targetAPrioriData.shadeCtr)
+       shxy = coverAllAround (mx, my)
+                             [ (δx ^-^ propPlan^.targetPosOffset ^/ 2, py ^+^ v)
+                             | (δx,ney) <- propPlan^.relatedData
+                             , let Option (Just py) = ney^.shadeCtr .-~. my
+                             , v <- normSpanningSystem' (ney^.shadeNarrowness)
+                             ]
+       (Shade _ expax' :: Shade x)
+            = coverAllAround (propPlan^.sourcePosition)
+                             [δx | (δx,_) <- propPlan^.relatedData]
+       expax = dualNorm expax'
+       result :: Shade' y
+       result = convolveShade'
+                (propPlan^.sourceData)
                 (Shade' δyb $ applyLinMapNorm jExpa (δx'^/(δx'<.>^δx)))
-        where δyb = δym ^-^ (j₀ $ δx)
+        where δyb = j₀ $ δx
+              δx = propPlan^.targetPosOffset
               δx' = expax<$|δx
-       ycs :: NonEmpty (Shade' y)
-       ycs = back2Centre <$> marginδs
-       xSpan = normSpanningSystem expax
 
 applyLinMapNorm :: (LSpace x, LSpace y, Scalar x ~ Scalar y)
            => Norm (x+>y) -> DualVector x -> Norm y
@@ -1185,9 +1200,9 @@ flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
                where Option (Just δyc) = yc.-~.yc₀
                      tfm = transferAsNormsDo expay₀ (dualNorm expay)
                      applδj (WithAny y x)
-                           = WithAny (yc₀ .+~^ ((tfm$δy) ^+^ (jtg$δx) ^+^ δyc)) x
+                           = WithAny (yc₀ .+~^ ((tfm $ δy) ^+^ (jtg $ δx) ^+^ δyc)) x
                       where Option (Just δx) = x.-~.xc
-                            Option (Just δy) = y.-~.(yc₀.+~^(j₀$δx))
+                            Option (Just δy) = y.-~.(yc₀.+~^(j₀ $ δx))
        
        assert_onlyToplevDisjoint, assert_connected :: x`Shaded`y -> ()
        assert_onlyToplevDisjoint (DisjointBranches _ dp) = rnf (assert_connected<$>dp)
@@ -1634,7 +1649,7 @@ stiWithDensity (OverlappingBranches n (Shade (WithAny _ bc) extend) brs) = ovbSW
              | dist² <- normSq ε v
              , dist² < 9
              , att <- exp(1/(dist²-9)+1/9)
-               -> qGather att $ fmap ($x) downPrepared
+               -> qGather att $ fmap ($ x) downPrepared
            _ -> coneTip
        ε = dualNorm extend
        downPrepared = dp =<< brs
