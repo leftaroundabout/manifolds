@@ -229,3 +229,9 @@ class Geodesic m => Riemannian m where
 
 instance Riemannian ℝ where
   rieMetric = const euclideanNorm
+
+
+
+
+middleBetween :: Geodesic m => m -> m -> Option m
+middleBetween p₀ p₁ = ($ D¹ 0) <$> geodesicBetween p₀ p₁

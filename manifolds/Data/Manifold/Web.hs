@@ -47,8 +47,8 @@ module Data.Manifold.Web (
               -- * Differential equations
               -- ** Fixed resolution
             , filterDEqnSolution_static, iterateFilterDEqn_static
---               -- ** Automatic resolution
---             , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
+              -- ** Automatic resolution
+            , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- ** Configuration
             , InconsistencyStrategy(..)
               -- * Misc
@@ -617,7 +617,8 @@ oldAndNew' (_, l) = (False,) <$> l
 
 
 filterDEqnSolutions_adaptive :: ∀ x y badness m
-        . ( WithField ℝ Manifold x, SimpleSpace (Needle x), Refinable y, Geodesic y
+        . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+          , WithField ℝ AffineManifold y, Refinable y, Geodesic y
           , badness ~ ℝ, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m
@@ -723,7 +724,8 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                         let stepV = vN^/2
                                             xStep = x .+~^ stepV
                                             aprioriInterpolate :: Shade' y
-                                            aprioriInterpolate = undefined
+                                            Option (Just aprioriInterpolate)
+                                               = middleBetween hull hullN
                                         case intersectShade's =<<
                                                (Option . sequenceA $ NE.fromList
                                                [ propagateDEqnSolution_loc f
@@ -789,12 +791,16 @@ recomputeJacobian :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                      , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
              => PointsWeb x (SolverNodeState x y)
              -> PointsWeb x (SolverNodeState x y)
-recomputeJacobian = undefined
+recomputeJacobian = webLocalInfo
+                >>> fmap ((_thisNodeData
+                           &&& differentiateUncertainWebLocally
+                                   . fmap (convexSetHull . _solverNodeStatus))
+                          >>> \(nst, shj) -> nst & solverNodeJacobian .~ shj )
 
 
 iterateFilterDEqn_adaptive
      :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-        , Refinable y, Geodesic y, Hask.Monad m )
+        , WithField ℝ AffineManifold y, Refinable y, Geodesic y, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m
        -> DifferentialEqn x y

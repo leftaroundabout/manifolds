@@ -1061,9 +1061,8 @@ propagateDEqnSolution_loc f propPlan aprioriJacobian
  where jacobian = intersectShade's $ aprioriJacobian:|[f shxy]
        Option (Just (Shade' j₀ jExpa)) = jacobian
        mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2
-       Option (Just my) = ($ D¹ 0) <$>
-                    geodesicBetween (propPlan^.sourceData.shadeCtr)
-                                    (propPlan^.targetAPrioriData.shadeCtr)
+       Option (Just my) = middleBetween (propPlan^.sourceData.shadeCtr)
+                                        (propPlan^.targetAPrioriData.shadeCtr)
        shxy = coverAllAround (mx, my)
                              [ (δx ^-^ propPlan^.targetPosOffset ^/ 2, py ^+^ v)
                              | (δx,ney) <- propPlan^.relatedData
