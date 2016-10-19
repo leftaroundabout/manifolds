@@ -880,9 +880,11 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
                            (Norm (arr ee) <> spanNorm [ee $ c₂^*η])
    where σe = arr $ e₁^+^e₂
          quadraticEqnSol a b c
-             | a /= 0 && disc > 0  = [ (σ * sqrt disc - b) / (2*a)
-                                     | σ <- [-1, 1] ]
-             | otherwise           = [0]
+             | a == 0, b /= 0       = [c/b]
+             | a /= 0 && disc == 0  = [- b / (2*a)]
+             | a /= 0 && disc > 0   = [ (σ * sqrt disc - b) / (2*a)
+                                      | σ <- [-1, 1] ]
+             | otherwise            = []
           where disc = b^2 - 4*a*c
          middle (_:x:y:_) = [x,y]
          middle l = l
