@@ -850,37 +850,34 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
   
   -- | Intersection between two shades.
   refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
-  refineShade' (Shade' c₀ (Norm e₁)) 
-               (Shade' c₀₂ (Norm e₂))
-           | Option (Just c₂) <- c₀₂.-~.c₀
-           , e₁c₂ <- e₁ $ c₂
-           , e₂c₂ <- e₂ $ c₂
-           , cc <- σe \$ e₂c₂
-           , cc₂ <- cc ^-^ c₂
-           , e₁cc <- e₁ $ cc
-           , e₂cc <- e₂ $ cc
-           , α <- 2 + cc₂<.>^e₂c₂
-           , α > 0
-           , ee <- σe ^/ α
-           , c₂e₁c₂ <- c₂<.>^e₁c₂
-           , c₂e₂c₂ <- c₂<.>^e₂c₂
-           , c₂eec₂ <- (c₂e₁c₂ + c₂e₂c₂) / α
-           , [γ₁,γ₂] <- middle . sort
+  refineShade' (Shade' c₀ (Norm e₁)) (Shade' c₀₂ (Norm e₂)) = do
+           c₂ <- c₀₂.-~.c₀
+           let e₁c₂ = e₁ $ c₂
+               e₂c₂ = e₂ $ c₂
+               cc = σe \$ e₂c₂
+               cc₂ = cc ^-^ c₂
+               e₁cc = e₁ $ cc
+               e₂cc = e₂ $ cc
+               α = 2 + cc₂<.>^e₂c₂
+           guard (α > 0)
+           let ee = σe ^/ α
+               c₂e₁c₂ = c₂<.>^e₁c₂
+               c₂e₂c₂ = c₂<.>^e₂c₂
+               c₂eec₂ = (c₂e₁c₂ + c₂e₂c₂) / α
+               [γ₁,γ₂] = middle . sort
                 $ quadraticEqnSol c₂e₁c₂
                                   (2 * (c₂<.>^e₁cc))
                                   (cc<.>^e₁cc - 1)
-               ++ quadraticEqnSol c₂e₂c₂
+                ++quadraticEqnSol c₂e₂c₂
                                   (2 * (c₂<.>^e₂cc - c₂e₂c₂))
                                   (cc<.>^e₂cc - 2 * (cc<.>^e₂c₂) + c₂e₂c₂ - 1)
-           , cc' <- cc ^+^ ((γ₁+γ₂)/2)*^c₂
-           , rγ <- abs (γ₁ - γ₂) / 2
-           , η <- if rγ * c₂eec₂ /= 0 && 1 - rγ^2 * c₂eec₂ > 0
+               cc' = cc ^+^ ((γ₁+γ₂)/2)*^c₂
+               rγ = abs (γ₁ - γ₂) / 2
+               η = if rγ * c₂eec₂ /= 0 && 1 - rγ^2 * c₂eec₂ > 0
                    then sqrt (1 - rγ^2 * c₂eec₂) / (rγ * c₂eec₂)
                    else 0
-                  = return $
-                 Shade' (c₀.+~^cc')
-                        (Norm (arr ee) <> spanNorm [ee $ c₂^*η])
-           | otherwise          = empty
+           return $ Shade' (c₀.+~^cc')
+                           (Norm (arr ee) <> spanNorm [ee $ c₂^*η])
    where σe = arr $ e₁^+^e₂
          quadraticEqnSol a b c
              | a /= 0 && disc > 0  = [ (σ * sqrt disc - b) / (2*a)
