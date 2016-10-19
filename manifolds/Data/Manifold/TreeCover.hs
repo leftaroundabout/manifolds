@@ -864,20 +864,22 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
                c₂e₁c₂ = c₂<.>^e₁c₂
                c₂e₂c₂ = c₂<.>^e₂c₂
                c₂eec₂ = (c₂e₁c₂ + c₂e₂c₂) / α
-               [γ₁,γ₂] = middle . sort
+           return $ case middle . sort
                 $ quadraticEqnSol c₂e₁c₂
                                   (2 * (c₂<.>^e₁cc))
                                   (cc<.>^e₁cc - 1)
                 ++quadraticEqnSol c₂e₂c₂
                                   (2 * (c₂<.>^e₂cc - c₂e₂c₂))
-                                  (cc<.>^e₂cc - 2 * (cc<.>^e₂c₂) + c₂e₂c₂ - 1)
+                                  (cc<.>^e₂cc - 2 * (cc<.>^e₂c₂) + c₂e₂c₂ - 1) of
+            [γ₁,γ₂] -> let
                cc' = cc ^+^ ((γ₁+γ₂)/2)*^c₂
                rγ = abs (γ₁ - γ₂) / 2
                η = if rγ * c₂eec₂ /= 0 && 1 - rγ^2 * c₂eec₂ > 0
                    then sqrt (1 - rγ^2 * c₂eec₂) / (rγ * c₂eec₂)
                    else 0
-           return $ Shade' (c₀.+~^cc')
-                           (Norm (arr ee) <> spanNorm [ee $ c₂^*η])
+             in Shade' (c₀.+~^cc')
+                       (Norm (arr ee) <> spanNorm [ee $ c₂^*η])
+            _ -> Shade' (c₀.+~^cc) (Norm $ arr ee)
    where σe = arr $ e₁^+^e₂
          quadraticEqnSol a b c
              | a == 0, b /= 0       = [c/b]
