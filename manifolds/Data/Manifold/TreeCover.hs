@@ -96,7 +96,7 @@ import Data.Manifold.Riemannian
 import Data.Embedding
 import Data.CoNat
 
-import Control.Lens (Lens', (^.))
+import Control.Lens (Lens', (^.), (%~), (&))
 import Control.Lens.TH
 
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
@@ -1056,10 +1056,12 @@ propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x
                -> LocalDataPropPlan x (Shade' y)
                -> Shade' (LocalLinear x y) -- ^ A-priori Jacobian at the source
                -> Maybe (Shade' y)
-propagateDEqnSolution_loc f propPlan aprioriJacobian
+propagateDEqnSolution_loc f propPlan aPrioriJacobian
           | Option Nothing <- jacobian  = Nothing
           | otherwise                   = Just result
- where jacobian = intersectShade's $ aprioriJacobian:|[f shxy]
+ where jacobian = intersectShade's $ cleanedJAPriori:|[f shxy]
+       cleanedJAPriori = aPrioriJacobian
+           & shadeNarrowness %~ ignoreDirectionalDependence (δx, dx)
        Option (Just (Shade' j₀ jExpa)) = jacobian
        mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2
        Option (Just my) = middleBetween (propPlan^.sourceData.shadeCtr)
@@ -1077,16 +1079,22 @@ propagateDEqnSolution_loc f propPlan aprioriJacobian
        result :: Shade' y
        result = convolveShade'
                 (propPlan^.sourceData)
-                (Shade' δyb $ applyLinMapNorm jExpa (δx'^/(δx'<.>^δx)))
+                (Shade' δyb $ applyLinMapNorm jExpa dx)
         where δyb = j₀ $ δx
-              δx = propPlan^.targetPosOffset
-              δx' = expax<$|δx
+       δx = propPlan^.targetPosOffset
+       dx = δx'^/(δx'<.>^δx)
+        where δx' = expax<$|δx
 
 applyLinMapNorm :: (LSpace x, LSpace y, Scalar x ~ Scalar y)
            => Norm (x+>y) -> DualVector x -> Norm y
 applyLinMapNorm n dx
    = transformNorm (fmap (arr Coercion . transposeTensor) . blockVectSpan' $ dx) n
 
+ignoreDirectionalDependence :: (LSpace x, LSpace y, Scalar x ~ Scalar y)
+           => (x, DualVector x) -> Norm (x+>y) -> Norm (x+>y)
+ignoreDirectionalDependence (v,v')
+    = transformNorm . arr . LinearFunction $
+         \j -> j . arr (LinearFunction $ \x -> x ^-^ v^*(v'<.>^x))
 
 type Twig x = (Int, ShadeTree x)
 type TwigEnviron x = [Twig x]
