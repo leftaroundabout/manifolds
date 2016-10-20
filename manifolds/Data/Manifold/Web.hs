@@ -581,8 +581,7 @@ filterDEqnSolutions_static strategy f
                                              (convexSetHull $ ngbInfo^.thisNodeData)
                                              (convexSetHull $ me^.thisNodeData)
                                              (fmap (second (convexSetHull . _thisNodeData)
-                                                             . snd)
-                                                       $ ngbInfo^.nodeNeighbours)
+                                                    . snd) $ ngbInfo^.nodeNeighbours)
                                           ) sj
                                   | (δx, (ngbInfo,sj)) <- ngbs
                                   ] )

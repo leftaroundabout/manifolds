@@ -1068,7 +1068,8 @@ propagateDEqnSolution_loc f propPlan aPrioriJacobian
                                         (propPlan^.targetAPrioriData.shadeCtr)
        shxy = coverAllAround (mx, my)
                              [ (δx ^-^ propPlan^.targetPosOffset ^/ 2, py ^+^ v)
-                             | (δx,ney) <- propPlan^.relatedData
+                             | (δx,ney) <- (zeroV, propPlan^.sourceData)
+                                          : (propPlan^.relatedData)
                              , let Option (Just py) = ney^.shadeCtr .-~. my
                              , v <- normSpanningSystem' (ney^.shadeNarrowness)
                              ]

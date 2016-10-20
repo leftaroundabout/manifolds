@@ -97,8 +97,7 @@ constLinearODE :: ( WithField ℝ LinearManifold x, SimpleSpace x
               => ((x +> y) +> y) -> DifferentialEqn x y
 constLinearODE bwt'
       = \(Shade (_x,y) δxy) -> let j = bwt'inv y
-                                   δj = bwt' `transformNorm`
-                                         (dualNorm $ transformNorm (zeroV&&&id) δxy)
+                                   δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
                                in Shade' j δj
  where bwt'inv = (bwt'\$)
 
@@ -107,10 +106,12 @@ constLinearPDE :: ∀ x y z .
                   , WithField ℝ LinearManifold y, SimpleSpace y
                   , SimpleSpace z, FiniteFreeSpace z, Scalar z ~ ℝ )
               => ((x +> y) +> (y, z)) -> DifferentialEqn x y
-constLinearPDE bwt' = factoriseShade
-    >>> \(_x, Shade y δy) -> let j = bwt'inv y
-                                 δj = bwt' `transformNorm`
-                                       (sumSubspaceNorms (dualNorm δy) (almostExactlyZero))
+constLinearPDE bwt'
+      = \(Shade (_x,y) δxy) -> let j = bwt'inv y
+                                   δj = bwt' `transformNorm`
+                                       (sumSubspaceNorms
+                                           ((zeroV&&&id)`transformNorm`dualNorm δxy)
+                                           almostExactlyZero)
                              in Shade' j δj
  where bwt'inv = (fst . bwt'\$)
        almostExactlyZero :: Norm z
