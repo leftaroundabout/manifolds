@@ -871,7 +871,7 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
                 ++quadraticEqnSol c₂e₂c₂
                                   (2 * (c₂<.>^e₂cc - c₂e₂c₂))
                                   (cc<.>^e₂cc - 2 * (cc<.>^e₂c₂) + c₂e₂c₂ - 1) of
-            [γ₁,γ₂] -> let
+            [γ₁,γ₂] | abs (γ₁+γ₂) < 2 -> let
                cc' = cc ^+^ ((γ₁+γ₂)/2)*^c₂
                rγ = abs (γ₁ - γ₂) / 2
                η = if rγ * c₂eec₂ /= 0 && 1 - rγ^2 * c₂eec₂ > 0
