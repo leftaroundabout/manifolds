@@ -882,7 +882,7 @@ class (WithField ℝ Manifold y, SimpleSpace (Needle y)) => Refinable y where
             _ -> Shade' (c₀.+~^cc) (Norm $ arr ee)
    where σe = arr $ e₁^+^e₂
          quadraticEqnSol a b c
-             | a == 0, b /= 0       = [c/b]
+             | a == 0, b /= 0       = [-c/b]
              | a /= 0 && disc == 0  = [- b / (2*a)]
              | a /= 0 && disc > 0   = [ (σ * sqrt disc - b) / (2*a)
                                       | σ <- [-1, 1] ]
