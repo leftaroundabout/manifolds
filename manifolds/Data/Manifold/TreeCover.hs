@@ -464,13 +464,17 @@ rangeOnGeodesic :: ∀ i m .
                      => m -> m -> Option (Shade i -> Shade m)
 rangeOnGeodesic = case semimanifoldWitness :: SemimanifoldWitness i of
  SemimanifoldWitness ->
-  \p₀ p₁ -> (`fmap`(interpolate p₀ p₁ :: Option (i -> m)))
+  \p₀ p₁ -> (`fmap`(geodesicBetween p₀ p₁))
     $ \interp -> \(Shade t₀ et)
                 -> case pointsShades
-                         . mapMaybe (getOption . toInterior . interp)
+                         . mapMaybe (getOption . toInterior
+                               . interp . (toClosedInterval :: i -> D¹))
                          $ fromInterior <$> t₀ : [ t₀.+~^v
                                                  | v<-normSpanningSystem et ] of
              [sh] -> sh
+             _ -> case pointsShades $ mapMaybe (getOption . toInterior . interp . D¹)
+                        [-0.999, 0.999] of
+                [sh] -> sh
 
 
 

@@ -453,12 +453,14 @@ differentiateUncertainWebLocally :: ∀ x y
      , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
             => WebLocally x (Shade' y)
              -> Shade' (LocalLinear x y)
-differentiateUncertainWebLocally info = j
- where Option (Just j) = estimateLocalJacobian
+differentiateUncertainWebLocally info
+          = case estimateLocalJacobian
                           (info^.nodeLocalScalarProduct)
                           [ ( Local δx :: Local x, ngb^.thisNodeData )
                           | (_,(δx,ngb))<-info^.nodeNeighbours
-                          ]
+                          ] of
+               Option (Just j) -> j
+               _               -> Shade' zeroV mempty
 
 differentiateUncertainWebFunction :: ∀ x y
    . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
