@@ -48,7 +48,7 @@ module Data.Manifold.TreeCover (
        -- ** Evaluation
        , occlusion
        -- ** Misc
-       , factoriseShade, intersectShade's
+       , factoriseShade, intersectShade's, linIsoTransformShade
        , Refinable, subShade', refineShade', convolveShade', coerceShade
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree, positionIndex
@@ -180,6 +180,9 @@ class IsShade shade where
                     , Scalar (Needle x) ~ Scalar (Needle y) )
                 => shade (x,y) -> (shade x, shade y)
   coerceShade :: (Manifold x, Manifold y, LocallyCoercible x y) => shade x -> shade y
+  linIsoTransformShade :: ( LinearManifold x, LinearManifold y
+                          , SimpleSpace x, SimpleSpace y, Scalar x ~ Scalar y )
+                          => (x+>y) -> shade x -> shade y
 
 instance IsShade Shade where
   shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
@@ -200,6 +203,8 @@ instance IsShade Shade where
                        transformNorm . arr $ coerceNeedle' ([]::[(y,x)])
                 internCoerce = case interiorLocalCoercion ([]::[(x,y)]) of
                       CanonicalDiffeomorphism -> locallyTrivialDiffeomorphism
+  linIsoTransformShade f (Shade x δx)
+          = Shade (f $ x) (transformNorm (adjoint $ f) δx)
 
 instance ImpliesMetric Shade where
   type MetricRequirement Shade x = (Manifold x, SimpleSpace (Needle x))
@@ -232,6 +237,8 @@ instance IsShade Shade' where
                        transformNorm . arr $ coerceNeedle ([]::[(y,x)])
                 internCoerce = case interiorLocalCoercion ([]::[(x,y)]) of
                       CanonicalDiffeomorphism -> locallyTrivialDiffeomorphism
+  linIsoTransformShade f (Shade' x δx)
+          = Shade' (f $ x) (transformNorm (pseudoInverse f) δx)
 
 shadeNarrowness :: Lens' (Shade' x) (Metric x)
 shadeNarrowness f (Shade' c e) = fmap (Shade' c) $ f e

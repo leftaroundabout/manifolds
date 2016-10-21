@@ -44,6 +44,8 @@ module Data.Manifold.Web (
             , sampleWeb_2Dcartesian_lin, sampleEntireWeb_2Dcartesian_lin
               -- ** Local environments
             , localFocusWeb
+              -- * Uncertain functions
+            , differentiateUncertainWebFunction
               -- * Differential equations
               -- ** Fixed resolution
             , filterDEqnSolution_static, iterateFilterDEqn_static
@@ -299,9 +301,6 @@ sliceWeb_lin web = sliceEdgs
                       , Option (Just yi) <- [geodesicBetween y₀ y₁]
                       ]
 
--- sampleWebAlongLine_lin :: ∀ x y . (WithField ℝ Manifold x, Geodesic x, Geodesic y)
---                => PointsWeb x y -> x -> Needle x -> [(x,y)]
--- sampleWebAlongLine_lin web x₀ dir = sampleWebAlongLines_lin web x₀ [(dir, maxBound)]
 
 
 data GridPlanes x = GridPlanes {
@@ -461,6 +460,12 @@ differentiateUncertainWebLocally info = j
                           | (_,(δx,ngb))<-info^.nodeNeighbours
                           ]
 
+differentiateUncertainWebFunction :: ∀ x y
+   . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+     , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
+            => PointsWeb x (Shade' y)
+             -> PointsWeb x (Shade' (LocalLinear x y))
+differentiateUncertainWebFunction = localFmapWeb differentiateUncertainWebLocally
 
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
