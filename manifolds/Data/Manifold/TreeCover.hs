@@ -482,7 +482,7 @@ rangeOnGeodesic = case semimanifoldWitness :: SemimanifoldWitness i of
 -- | Hourglass as the geometric shape (two opposing ~conical volumes, sharing
 --   only a single point in the middle); has nothing to do with time.
 data Hourglass s = Hourglass { upperBulb, lowerBulb :: !s }
-            deriving (Generic, Hask.Functor, Hask.Foldable)
+            deriving (Generic, Hask.Functor, Hask.Foldable, Show)
 instance (NFData s) => NFData (Hourglass s)
 instance (Semigroup s) => Semigroup (Hourglass s) where
   Hourglass u l <> Hourglass u' l' = Hourglass (u<>u') (l<>l')
@@ -513,14 +513,21 @@ data ShadeTree x = PlainLeaves [x]
                  | DisjointBranches !Int (NonEmpty (ShadeTree x))
                  | OverlappingBranches !Int !(Shade x) (NonEmpty (DBranch x))
   deriving (Generic)
+deriving instance ( WithField ℝ PseudoAffine x, Show x
+                  , Show (Interior x), Show (Needle' x), Show (Metric' x) )
+             => Show (ShadeTree x)
            
 data DBranch' x c = DBranch { boughDirection :: !(Needle' x)
                             , boughContents :: !(Hourglass c) }
   deriving (Generic, Hask.Functor, Hask.Foldable)
 type DBranch x = DBranch' x (ShadeTree x)
+deriving instance ( WithField ℝ PseudoAffine x, Show (Needle' x), Show c )
+             => Show (DBranch' x c)
 
 newtype DBranches' x c = DBranches (NonEmpty (DBranch' x c))
   deriving (Generic, Hask.Functor, Hask.Foldable)
+deriving instance ( WithField ℝ PseudoAffine x, Show (Needle' x), Show c )
+             => Show (DBranches' x c)
 
 -- ^ /Unsafe/: this assumes the direction information of both containers to be equivalent.
 instance (Semigroup c) => Semigroup (DBranches' x c) where
