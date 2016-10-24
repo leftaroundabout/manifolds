@@ -234,7 +234,7 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
 cullNeighbours :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
       => Metric x -> (Int, x`WithAny`[(Int,Needle x)]) -> Neighbourhood x
 cullNeighbours locRieM (i, WithAny vns x)
-           = Neighbourhood (UArr.fromList $ fst<$>execState seek mempty)
+           = Neighbourhood (UArr.fromList . sort $ fst<$>execState seek mempty)
                            locRieM
  where seek :: State [(Int, (Needle x, Needle' x))] ()
        seek = do
@@ -257,23 +257,42 @@ cullNeighbours locRieM (i, WithAny vns x)
 
 -- | Re-calculate the links in a web, so as to give each point a satisfyingly
 --   “complete-spanning” environment.
--- 
--- This implementation is rather hackish with its hard-coded four next neighbours;
--- ideally, we should here search a /fixpoint/ of the shortcut-chasing action.
 smoothenWebTopology :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
-smoothenWebTopology mc
-    = webLocalInfo >>> fmap nextNearestN >>> toShaded >>> fromTopShaded mc
- where nextNearestN wl = ( Left<$>fastNub [ i
-                                          | let i₀ = wl^.thisNodeId
-                                          , (i₁,(_,wl₁))<-wl^.nodeNeighbours
-                                          , (i₂,(_,wl₂))<-wl₁^.nodeNeighbours
-                                          , i₂/=i₀
-                                          , (i₃,(_,wl₃))<-wl₂^.nodeNeighbours
-                                          , not $ i₃`elem`(i₀:i₁:(fst<$>wl^.nodeNeighbours))
-                                          , i <- i₁:i₂:i₃:(fst<$>wl₃^.nodeNeighbours)
-                                          ]
-                         , wl^.thisNodeData )
+smoothenWebTopology mc = swt
+ where swt (PointsWeb shd net) = PointsWeb shd $ go allNodes Set.empty net
+        where allNodes = Arr.toList $ fst <$> Arr.indexed net
+              go activeSet pastLinks asd
+                 | all (isNothing.fst) refined  = asd'
+                 | otherwise           = go [ j | (Just i, (_,Neighbourhood ngbs' _))
+                                                      <-refined
+                                                , j <- i : UArr.toList ngbs' ]
+                                            updtLinks
+                                            asd'
+               where refined = reseek<$>fastNub activeSet
+                      where reseek i = ( guard isNews >> pure i
+                                       , (y, Neighbourhood newNgbs locRieM) )
+                             where isNews = newNgbs /= oldNgbs
+                                             && or [ not $ Set.member (i,j) pastLinks
+                                                   | j <- UArr.toList newNgbs ]
+                                   (y,Neighbourhood oldNgbs locRieM) = asd Arr.! i
+                                   nextNeighbours = fastNub
+                                     $ UArr.toList oldNgbs
+                                     ++ (UArr.toList._neighbours.snd.(asd Arr.!)
+                                             =<< UArr.toList oldNgbs)
+                                   x = xLookup Arr.! i
+                                   Neighbourhood newNgbs _
+                                     = cullNeighbours locRieM
+                                        ( i, WithAny [ (j,v)
+                                                     | j <- nextNeighbours
+                                                     , Option (Just v)
+                                                         <- [x .-~. xLookup Arr.! j] ]
+                                                     x )
+                     asd' = asd Arr.// [(i,n) | (Just i,n) <- refined]
+                     updtLinks = Set.union pastLinks $ Set.fromList
+                                      [ (i,j) | (Just i,(_,Neighbourhood n _)) <- refined
+                                              , j<-UArr.toList n ]
+              xLookup = Arr.fromList $ onlyLeaves shd
 
 indexWeb :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
                 => PointsWeb x y -> WebNodeId -> Option (x,y)
