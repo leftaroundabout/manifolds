@@ -154,7 +154,7 @@ fromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
 fromWebNodes mf = fromShaded mf . fromLeafPoints . map (uncurry WithAny . swap)
 
 fromTopWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
-                    => (MetricChoice x) -> [((x,[Needle x]),y)] -> PointsWeb x y
+                    => (MetricChoice x) -> [((x,[Int+Needle x]),y)] -> PointsWeb x y
 fromTopWebNodes mf = fromTopShaded mf . fromLeafPoints
                    . map (uncurry WithAny . swap . regroup')
 
@@ -172,30 +172,25 @@ fromShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                               --   Riemannian metric).
      -> (x`Shaded`y)          -- ^ Source tree.
      -> PointsWeb x y
-fromShaded metricf = fromTopShaded metricf . fmapShaded ([],)
+fromShaded metricf = fromTopShaded metricf . fmapShaded (first (map Left) . swap)
+                       . joinShaded . seekPotentialNeighbours
 
 fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (MetricChoice x)
-     -> (x`Shaded`([Needle x], y))  -- ^ Source tree, with a priori topology information
-                                    --   (needles pointing to already-known neighbour candidates)
+     -> (x`Shaded`([Int+Needle x], y))
+                      -- ^ Source tree, with topology information
+                      --   (IDs of neighbour-candidates, or needles pointing to them)
      -> PointsWeb x y
 fromTopShaded metricf shd = PointsWeb shd' assocData 
  where shd' = stripShadedUntopological shd
-       assocData = Hask.foldMap locMesh $ twigsWithEnvirons shd
+       assocData = Hask.foldMap locMesh $ allTwigs shd
        
-       locMesh :: ( (Int, ShadeTree (x`WithAny`([Needle x], y)))
-                  , [(Int, ShadeTree (x`WithAny`([Needle x], y)))])
+       locMesh :: (Int, ShadeTree (x`WithAny`([Int+Needle x], y)))
                    -> Arr.Vector (y, Neighbourhood x)
-       locMesh ((i₀, locT), neighRegions) = Arr.map findNeighbours $ Arr.fromList locLeaves
-        where locLeaves :: [ (Int, x`WithAny`([Needle x], y)) ]
+       locMesh (i₀, locT) = Arr.map findNeighbours $ Arr.fromList locLeaves
+        where locLeaves :: [ (Int, x`WithAny`([Int+Needle x], y)) ]
               locLeaves = map (first (+i₀)) . zip [0..] $ onlyLeaves locT
-              vicinityLeaves :: [(Int, x)]
-              vicinityLeaves = Hask.foldMap
-                                (\(i₀n, ngbR) -> map ((+i₀n) *** _topological)
-                                               . zip [0..]
-                                               $ onlyLeaves ngbR
-                                ) neighRegions
-              findNeighbours :: (Int, x`WithAny`([Needle x], y)) -> (y, Neighbourhood x)
+              findNeighbours :: (Int, x`WithAny`([Int+Needle x], y)) -> (y, Neighbourhood x)
               findNeighbours (i, WithAny (vns,y) x)
                          = (y, Neighbourhood
                                  (UArr.fromList $ fst<$>execState seek mempty)
@@ -204,7 +199,7 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                      seek = do
                         Hask.forM_ ( fastNubBy (comparing fst)
                                       $ map (second _topological) locLeaves
-                                           ++ vicinityLeaves ++ aprioriNgbs )
+                                           ++ aprioriNgbs )
                                   $ \(iNgb, xNgb) ->
                            when (iNgb/=i) `id`do
                               let (Option (Just v)) = xNgb.-~.x
@@ -221,8 +216,10 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                      aprioriNgbs = catMaybes
                                     [ getOption $ (second $ const xN) <$>
                                           positionIndex (pure locRieM) shd' xN
-                                    | v <- vns
+                                    | Right v <- vns
                                     , let xN = x.+~^v :: x ]
+                                 ++ [ (i,x) | Left i <- vns
+                                            , Right (_,x) <- [indexShadeTree shd' i] ]
               
               visibleOverlap :: Needle' x -> Needle x -> Bool
               visibleOverlap w v = o < 1
@@ -230,8 +227,7 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
               
               locRieM :: Metric x
               locRieM = case pointsCovers . map _topological
-                                  $ onlyLeaves locT
-                                   ++ Hask.foldMap (onlyLeaves . snd) neighRegions of
+                                  $ onlyLeaves locT of
                           [sh₀] -> metricf sh₀
 
 indexWeb :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
@@ -763,11 +759,11 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                           return $ (pure updated, stepStones)
               
               retraceBonds :: WebLocally x (WebLocally x (OldAndNew (x, SolverNodeState x y)))
-                              -> [((x, [Needle x]), SolverNodeState x y)]
+                              -> [((x, [Int+Needle x]), SolverNodeState x y)]
               retraceBonds locWeb@LocalWebInfo{ _thisNodeId = myId
                                               , _thisNodeCoord = xOld
                                               , _nodeLocalScalarProduct = locMetr }
-                   = [ ( (x, fst<$>neighbourCandidates), snsy)
+                   = [ ( (x, Right . fst<$>neighbourCandidates), snsy)
                      | (isOld, (x, snsy)) <- focused
                      , let neighbourCandidates
                             = [ (v,nnId)
