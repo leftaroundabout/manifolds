@@ -96,7 +96,7 @@ import Data.Manifold.Riemannian
 import Data.Embedding
 import Data.CoNat
 
-import Control.Lens (Lens', (^.), (%~), (&))
+import Control.Lens (Lens', (^.), (.~), (%~), (&), _2, swapped)
 import Control.Lens.TH
 
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
@@ -162,6 +162,13 @@ deriving instance (Show (Interior x), Show y, Show (Needle x)) => Show (LocalDat
 
 makeLenses ''LocalDataPropPlan
 
+type Depth = Int
+data Wall x = Wall { _wallID :: (Depth,(Int,Int))
+                   , _wallAnchor :: Interior x
+                   , _wallNormal :: Needle' x
+                   , _wallDistance :: Scalar (Needle x)
+                   }
+makeLenses ''Wall
 
 
 class IsShade shade where
@@ -1275,46 +1282,55 @@ seekPotentialNeighbours tree = zipTreeWithList tree
 
 leavesWithPotentialNeighbours :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                 => ShadeTree x -> [(x, [Int])]
-leavesWithPotentialNeighbours = map (second $ Hask.concatMap snd) . go 0
- where go :: Int -> ShadeTree x -> [(x, [(ℝ,[Int])])]
-       go n₀ (PlainLeaves lvs) = (,[]) <$> lvs
-        where n = length lvs - 1
-       go n₀ (DisjointBranches _ dp)
-         = snd (foldl' (\(n₀',prev) br -> (n₀'+nLeaves br, prev . (go n₀' br++)))
+leavesWithPotentialNeighbours = map (second snd) . go 0 0 []
+ where go :: Depth -> Int -> [Wall x] -> ShadeTree x
+                -> [(x, ([Wall x], [Int]))]
+       go depth n₀ walls (PlainLeaves lvs)
+               = [ (x, ( [ wall & wallDistance .~ d
+                         | wall <- walls
+                         , Option (Just vw) <- [x .-~. wall^.wallAnchor]
+                         , let d = (wall^.wallNormal)<.>^vw
+                         , d < wall^.wallDistance ]
+                       , [] ))
+                 | x <- lvs ]
+       go depth n₀ walls (DisjointBranches _ dp)
+         = snd (foldl' (\(n₀',prev) br -> ( n₀'+nLeaves br
+                                          , prev . (go depth n₀' walls br++)))
                         (n₀,id) dp) []
-       go n₀ (OverlappingBranches _ (Shade brCtr _) dp)
+       go depth n₀ walls (OverlappingBranches _ (Shade brCtr _) dp)
          = reassemble $ snd
              (foldl' assignWalls (n₀,id) . directionIChoices 0 $ NE.toList dp) []
-        where assignWalls :: (Int, DList (x, [(ℝ, (Int,Int) + [Int])]))
+        where assignWalls :: (Int, DList (x, ([Wall x],[Int])))
                      -> ((Int,(Needle' x, ShadeTree x)), [(Int,(Needle' x, ShadeTree x))])
-                     -> (Int, DList (x, [(ℝ, (Int,Int) + [Int])]))
+                     -> (Int, DList (x, ([Wall x], [Int])))
               assignWalls (n₀',prev) ((iDir,(thisDir,br)),otherDirs)
                     = ( n₀'+nLeaves br
-                      , prev . (map forThisBranch (go n₀' br)++) )
-               where forThisBranch (x, deeperGroups)
-                      | Option (Just δx) <- x.-~.brCtr
-                          = ( x, take (d*2) $ mergeGroups (sortBy (comparing fst)
-                                                            $ newGroup δx <$> otherDirs)
-                                                          (sortBy (comparing fst)
-                                                              deeperGroups) )
-                     d = subbasisDimension (entireBasis :: SubBasis (Needle x))
-                     mergeGroups [] grs = ((/2)***Right) <$> grs
-                     mergeGroups gls [] = second Left <$> gls
-                     mergeGroups ((nuDist,gl):gls) ((oldDist,gr):grs)
-                       | nuDist < oldDist  = (nuDist,Left gl)
-                                            : mergeGroups gls ((oldDist,gr):grs)
-                       | otherwise         = (oldDist/2,Right gr)
-                                            : mergeGroups ((nuDist,gl):gls) grs
-                     newGroup δx (iDir',(otherDir,_))
-                            = ((thisDir^-^otherDir)<.>^δx, (iDir,iDir'))
-              reassemble :: [(x, [(ℝ, (Int,Int) + [Int])])] -> [(x, [(ℝ, [Int])])]
-              reassemble pts = second ( map . second $
-                                             flip (Map.findWithDefault []) groups . swap
-                                         ||| id
-                                      ) <$> pts
+                      , prev . (go (depth+1) n₀'
+                                   (newWalls ++ (updWall<$>walls))
+                                   br ++) )
+               where newWalls = [ Wall (depth,(iDir,iDir'))
+                                       brCtr
+                                       (thisDir^-^otherDir)
+                                       (1/0)
+                                | (iDir',(otherDir,_)) <- otherDirs ]
+                     updWall wall = wall & wallDistance %~ min bcDist
+                      where Option (Just vbw) = (fromInterior brCtr::x)
+                                                             .-~.wall^.wallAnchor
+                            bcDist = (wall^.wallNormal)<.>^vbw
+              reassemble :: [(x, ([Wall x],[Int]))] -> [(x, ([Wall x],[Int]))]
+              reassemble pts = [ (x, (higherWalls, newGroups++deeperGroups))
+                               | (x, (allWalls, deeperGroups)) <- pts
+                               , let (levelWalls,higherWalls)
+                                      = break ((<depth) . fst . _wallID) allWalls
+                                     newGroups = concat
+                                         [ Map.findWithDefault []
+                                              (wall^.wallID._2.swapped) groups
+                                         | wall <- levelWalls ]
+                               ]
                where groups = ($[]) <$> Map.fromListWith (.)
-                               [ (wall,(i:)) | (i,(_, gsc)) <- zip [n₀..] pts
-                                             , (_, Left wall) <- gsc ]
+                               [ (wall^.wallID._2, (i:))
+                               | (i,(_, (gsc,_))) <- zip [n₀..] pts
+                               , wall <- takeWhile ((==depth) . fst . _wallID) gsc ]
 
 
 
