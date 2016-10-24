@@ -206,34 +206,21 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
               locLeaves = map (first (+i₀)) . zip [0..] $ onlyLeaves locT
               findNeighbours :: (Int, x`WithAny`([Int+Needle x], y)) -> (y, Neighbourhood x)
               findNeighbours (i, WithAny (vns,y) x)
-                         = (y, Neighbourhood
-                                 (UArr.fromList $ fst<$>execState seek mempty)
-                                 locRieM )
-               where seek :: State [(Int, (Needle x, Needle' x))] ()
-                     seek = do
-                        Hask.forM_ ( fastNubBy (comparing fst)
-                                      $ map (second _topological) locLeaves
-                                           ++ aprioriNgbs )
-                                  $ \(iNgb, xNgb) ->
-                           when (iNgb/=i) `id`do
-                              let (Option (Just v)) = xNgb.-~.x
-                              oldNgbs <- get
-                              when (all (\(_,(_,nw)) -> visibleOverlap nw v) oldNgbs) `id`do
-                                 let w = w₀ ^/ (w₀<.>^v)
-                                      where w₀ = locRieM<$|v
-                                 put $ (iNgb, (v,w))
-                                       : [ neighbour
-                                         | neighbour@(_,(nv,_))<-oldNgbs
-                                         , visibleOverlap w nv
-                                         ]
-                     aprioriNgbs :: [(Int, x)]
+                         = (y, cullNeighbours locRieM
+                                 (i, WithAny([ (i,v)
+                                             | (i,WithAny _ xN) <- locLeaves
+                                             , Option (Just v) <- [xN.-~.x] ]
+                                                ++ aprioriNgbs)
+                                             x))
+               where aprioriNgbs :: [(Int, Needle x)]
                      aprioriNgbs = catMaybes
-                                    [ getOption $ (second $ const xN) <$>
+                                    [ getOption $ (second $ const v) <$>
                                           positionIndex (pure locRieM) shd' xN
                                     | Right v <- vns
                                     , let xN = x.+~^v :: x ]
-                                 ++ [ (i,x) | Left i <- vns
-                                            , Right (_,x) <- [indexShadeTree shd' i] ]
+                                 ++ [ (i,v) | Left i <- vns
+                                            , Right (_,xN) <- [indexShadeTree shd' i]
+                                            , Option (Just v) <- [xN.-~.x] ]
               
               visibleOverlap :: Needle' x -> Needle x -> Bool
               visibleOverlap w v = o < 1
@@ -243,6 +230,30 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
               locRieM = case pointsCovers . map _topological
                                   $ onlyLeaves locT of
                           [sh₀] -> metricf sh₀
+
+cullNeighbours :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+      => Metric x -> (Int, x`WithAny`[(Int,Needle x)]) -> Neighbourhood x
+cullNeighbours locRieM (i, WithAny vns x)
+           = Neighbourhood (UArr.fromList $ fst<$>execState seek mempty)
+                           locRieM
+ where seek :: State [(Int, (Needle x, Needle' x))] ()
+       seek = do
+          Hask.forM_ ( fastNubBy (comparing fst) $ vns )
+                    $ \(iNgb, v) ->
+             when (iNgb/=i) `id`do
+                oldNgbs <- get
+                when (all (\(_,(_,nw)) -> visibleOverlap nw v) oldNgbs) `id`do
+                   let w = w₀ ^/ (w₀<.>^v)
+                        where w₀ = locRieM<$|v
+                   put $ (iNgb, (v,w))
+                         : [ neighbour
+                           | neighbour@(_,(nv,_))<-oldNgbs
+                           , visibleOverlap w nv
+                           ]
+       visibleOverlap :: Needle' x -> Needle x -> Bool
+       visibleOverlap w v = o < 1
+        where o = w<.>^v
+              
 
 -- | Re-calculate the links in a web, so as to give each point a satisfyingly
 --   “complete-spanning” environment.
