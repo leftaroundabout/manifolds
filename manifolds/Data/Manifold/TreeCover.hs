@@ -58,9 +58,9 @@ module Data.Manifold.TreeCover (
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
-       , twigsWithEnvirons, Twig, TwigEnviron
+       , allTwigs, twigsWithEnvirons, Twig, TwigEnviron, seekPotentialNeighbours
        , completeTopShading, flexTwigsShading, coerceShadeTree
-       , WithAny(..), Shaded, fmapShaded, stiAsIntervalMapping, spanShading
+       , WithAny(..), Shaded, fmapShaded, joinShaded, stiAsIntervalMapping, spanShading
        , constShaded, stripShadedUntopological
        , estimateLocalJacobian
        , DifferentialEqn, propagateDEqnSolution_loc, LocalDataPropPlan(..)
@@ -1126,6 +1126,17 @@ ignoreDirectionalDependence (v,v')
 type Twig x = (Int, ShadeTree x)
 type TwigEnviron x = [Twig x]
 
+allTwigs :: ∀ x . WithField ℝ PseudoAffine x => ShadeTree x -> [Twig x]
+allTwigs tree = go 0 tree []
+ where go n₀ (DisjointBranches _ dp)
+         = snd (foldl' (\(n₀',prev) br -> (n₀'+nLeaves br, prev . go n₀' br)) (n₀,id) dp)
+       go n₀ (OverlappingBranches _ _ dp)
+         = snd (foldl' (\(n₀',prev) (DBranch _ (Hourglass top bot))
+                          -> ( n₀'+nLeaves top+nLeaves bot
+                             , prev . go n₀' top . go (n₀'+nLeaves top) bot) )
+                        (n₀,id) $ NE.toList dp)
+       go n₀ twig = ((n₀,twig):)
+
 -- Formerly, 'twigsWithEnvirons' what has now become 'traverseTwigsWithEnvirons'.
 -- The simple list-yielding version (see rev. b4a427d59ec82889bab2fde39225b14a57b694df)
 -- may well be more efficient than the current traversal-derived version.
@@ -1697,6 +1708,30 @@ fmapShaded :: (y -> υ) -> (x`Shaded`y) -> (x`Shaded`υ)
 fmapShaded f = unsafeFmapTree (fmap $ \(WithAny y x) -> WithAny (f y) x)
                               id
                               (\(Shade yx shx) -> Shade (fmap f yx) shx)
+
+joinShaded :: (x`WithAny`y)`Shaded`z -> x`Shaded`(y,z)
+joinShaded = unsafeFmapTree (fmap $ \(WithAny z (WithAny y x)) -> WithAny (y,z) x)
+                            id
+                            (\(Shade (WithAny z (WithAny y x)) shx)
+                                  -> Shade (WithAny (y,z) x) shx )
+
+zipTreeWithList :: ShadeTree x -> [y] -> (x`Shaded`y)
+zipTreeWithList tree = go tree . cycle
+ where go (PlainLeaves lvs) ys = PlainLeaves $ zipWith WithAny ys lvs
+       go (DisjointBranches n brs) ys
+             = DisjointBranches n . NE.fromList
+                  $ snd (foldl (\(ys',prev) br -> 
+                                    (drop (nLeaves br) ys', prev . (go br ys':)) )
+                           (ys,id) $ NE.toList brs) []
+       go (OverlappingBranches n (Shade xoc shx) brs) ys
+             = OverlappingBranches n (Shade (WithAny (head ys) xoc) shx) . NE.fromList
+                  $ snd (foldl (\(ys',prev) (DBranch dir (Hourglass top bot))
+                        -> case drop (nLeaves top) ys' of
+                              ys'' -> ( drop (nLeaves bot) ys''
+                                      , prev . (DBranch dir (Hourglass (go top ys')
+                                                                       (go bot ys'')):)
+                                      ) )
+                           (ys,id) $ NE.toList brs) []
 
 -- | This is to 'ShadeTree' as 'Data.Map.Map' is to 'Data.Set.Set'.
 type x`Shaded`y = ShadeTree (x`WithAny`y)
