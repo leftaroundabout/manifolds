@@ -58,14 +58,14 @@ module Data.Manifold.Web (
             ) where
 
 
-import Data.List hiding (filter, all, elem, sum, foldr1)
+import Data.List hiding (filter, all, sum, foldr1)
 import Data.Maybe
 import qualified Data.Set as Set
 import qualified Data.Vector as Arr
 import qualified Data.Vector.Unboxed as UArr
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
-import Data.List.FastNub (fastNubBy)
+import Data.List.FastNub (fastNub,fastNubBy)
 import Data.Ord (comparing)
 import Data.Semigroup
 import Control.DeepSeq
@@ -182,8 +182,12 @@ fromShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                               --   Riemannian metric).
      -> (x`Shaded`y)          -- ^ Source tree.
      -> PointsWeb x y
-fromShaded metricf = fromTopShaded metricf . fmapShaded (first (map Left) . swap)
+fromShaded metricf = smoothenWebTopology metricf
+                   . fromTopShaded metricf . fmapShaded (first (map Left) . swap)
                        . joinShaded . seekPotentialNeighbours
+
+toShaded :: WithField ℝ PseudoAffine x => PointsWeb x y -> (x`Shaded`y)
+toShaded (PointsWeb shd asd) = zipTreeWithList shd $ Arr.toList (fst<$>asd)
 
 fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (MetricChoice x)
@@ -239,6 +243,26 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
               locRieM = case pointsCovers . map _topological
                                   $ onlyLeaves locT of
                           [sh₀] -> metricf sh₀
+
+-- | Re-calculate the links in a web, so as to give each point a satisfyingly
+--   “complete-spanning” environment.
+-- 
+-- This implementation is rather hackish with its hard-coded four next neighbours;
+-- ideally, we should here search a /fixpoint/ of the shortcut-chasing action.
+smoothenWebTopology :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
+             => MetricChoice x -> PointsWeb x y -> PointsWeb x y
+smoothenWebTopology mc
+    = webLocalInfo >>> fmap nextNearestN >>> toShaded >>> fromTopShaded mc
+ where nextNearestN wl = ( Left<$>fastNub [ i
+                                          | let i₀ = wl^.thisNodeId
+                                          , (i₁,(_,wl₁))<-wl^.nodeNeighbours
+                                          , (i₂,(_,wl₂))<-wl₁^.nodeNeighbours
+                                          , i₂/=i₀
+                                          , (i₃,(_,wl₃))<-wl₂^.nodeNeighbours
+                                          , not $ i₃`elem`(i₀:i₁:(fst<$>wl^.nodeNeighbours))
+                                          , i <- i₁:i₂:i₃:(fst<$>wl₃^.nodeNeighbours)
+                                          ]
+                         , wl^.thisNodeData )
 
 indexWeb :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
                 => PointsWeb x y -> WebNodeId -> Option (x,y)

@@ -60,8 +60,9 @@ module Data.Manifold.TreeCover (
        , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
        , allTwigs, twigsWithEnvirons, Twig, TwigEnviron, seekPotentialNeighbours
        , completeTopShading, flexTwigsShading, coerceShadeTree
-       , WithAny(..), Shaded, fmapShaded, joinShaded, stiAsIntervalMapping, spanShading
-       , constShaded, stripShadedUntopological
+       , WithAny(..), Shaded, fmapShaded, joinShaded
+       , constShaded, zipTreeWithList, stripShadedUntopological
+       , stiAsIntervalMapping, spanShading
        , estimateLocalJacobian
        , DifferentialEqn, propagateDEqnSolution_loc, LocalDataPropPlan(..)
        , rangeOnGeodesic
