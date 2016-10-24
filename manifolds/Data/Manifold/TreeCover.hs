@@ -533,18 +533,26 @@ deriving instance ( WithField ℝ PseudoAffine x, Show (Needle' x), Show c )
 instance (Semigroup c) => Semigroup (DBranches' x c) where
   DBranches b1 <> DBranches b2 = DBranches $ NE.zipWith (\(DBranch d1 c1) (DBranch _ c2)
                                                               -> DBranch d1 $ c1<>c2 ) b1 b2
+
   
 directionChoices :: WithField ℝ Manifold x
                => [DBranch x]
                  -> [ ( (Needle' x, ShadeTree x)
                       ,[(Needle' x, ShadeTree x)] ) ]
-directionChoices [] = []
-directionChoices (DBranch ѧ (Hourglass t b) : hs)
-       =  ( (ѧ,t), (v,b) : map fst uds)
-          : ((v,b), (ѧ,t) : map fst uds)
-          : map (second $ ((ѧ,t):) . ((v,b):)) uds
- where v = negateV ѧ
-       uds = directionChoices hs
+directionChoices = map (snd *** map snd) . directionIChoices 0
+
+directionIChoices :: (WithField ℝ PseudoAffine x, AdditiveGroup (Needle' x))
+               => Int -> [DBranch x]
+                 -> [ ( (Int, (Needle' x, ShadeTree x))
+                      ,[(Int, (Needle' x, ShadeTree x))] ) ]
+directionIChoices _ [] = []
+directionIChoices i₀ (DBranch ѧ (Hourglass t b) : hs)
+         =  ( top, bot : map fst uds )
+          : ( bot, top : map fst uds )
+          : map (second $ (top:) . (bot:)) uds
+ where top = (i₀,(ѧ,t))
+       bot = (i₀+1,(negateV ѧ,b))
+       uds = directionIChoices (i₀+2) hs
 
 traverseDirectionChoices :: (WithField ℝ Manifold x, Hask.Applicative f)
                => (    (Int, (Needle' x, ShadeTree x))
@@ -1249,17 +1257,55 @@ flexTwigsShading f = traverseTwigsWithEnvirons locFlex
                 
 
 
+seekPotentialNeighbours :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                => ShadeTree x -> x`Shaded`[Int]
+seekPotentialNeighbours tree = zipTreeWithList tree
+                     $ snd<$>leavesWithPotentialNeighbours tree
+
+leavesWithPotentialNeighbours :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                => ShadeTree x -> [(x, [Int])]
+leavesWithPotentialNeighbours = map (second $ Hask.concatMap snd) . go 0
+ where go :: Int -> ShadeTree x -> [(x, [(ℝ,[Int])])]
+       go n₀ (PlainLeaves lvs) = (,[]) <$> lvs
+        where n = length lvs - 1
+       go n₀ (DisjointBranches _ dp)
+         = snd (foldl' (\(n₀',prev) br -> (n₀'+nLeaves br, prev . (go n₀' br++)))
+                        (n₀,id) dp) []
+       go n₀ (OverlappingBranches _ (Shade brCtr _) dp)
+         = reassemble $ snd
+             (foldl' assignWalls (n₀,id) . directionIChoices 0 $ NE.toList dp) []
+        where assignWalls :: (Int, DList (x, [(ℝ, (Int,Int) + [Int])]))
+                     -> ((Int,(Needle' x, ShadeTree x)), [(Int,(Needle' x, ShadeTree x))])
+                     -> (Int, DList (x, [(ℝ, (Int,Int) + [Int])]))
+              assignWalls (n₀',prev) ((iDir,(thisDir,br)),otherDirs)
+                    = ( n₀'+nLeaves br
+                      , prev . (map forThisBranch (go n₀' br)++) )
+               where forThisBranch (x, deeperGroups)
+                      | Option (Just δx) <- x.-~.brCtr
+                          = ( x, take (d*2) $ mergeGroups (sortBy (comparing fst)
+                                                            $ newGroup δx <$> otherDirs)
+                                                          (sortBy (comparing fst)
+                                                              deeperGroups) )
+                     d = subbasisDimension (entireBasis :: SubBasis (Needle x))
+                     mergeGroups [] grs = ((/2)***Right) <$> grs
+                     mergeGroups gls [] = second Left <$> gls
+                     mergeGroups ((nuDist,gl):gls) ((oldDist,gr):grs)
+                       | nuDist < oldDist  = (nuDist,Left gl)
+                                            : mergeGroups gls ((oldDist,gr):grs)
+                       | otherwise         = (oldDist/2,Right gr)
+                                            : mergeGroups ((nuDist,gl):gls) grs
+                     newGroup δx (iDir',(otherDir,_))
+                            = ((thisDir^-^otherDir)<.>^δx, (iDir,iDir'))
+              reassemble :: [(x, [(ℝ, (Int,Int) + [Int])])] -> [(x, [(ℝ, [Int])])]
+              reassemble pts = second ( map . second $
+                                             flip (Map.findWithDefault []) groups . swap
+                                         ||| id
+                                      ) <$> pts
+               where groups = ($[]) <$> Map.fromListWith (.)
+                               [ (wall,(i:)) | (i,(_, gsc)) <- zip [n₀..] pts
+                                             , (_, Left wall) <- gsc ]
 
 
-
-
-
--- simplexFaces :: forall n x . Simplex (S n) x -> Triangulation n x
--- simplexFaces (Simplex p (ZeroSimplex q))    = TriangVertices $ Arr.fromList [p, q]
--- simplexFaces splx = carpent splx $ TriangVertices ps
---  where ps = Arr.fromList $ p : splxVertices qs
---        where carpent (ZeroSimplex (Simplex p qs@(Simplex _ _))
---      | Triangulation es <- simplexFaces qs  = TriangSkeleton $ Simplex p <$> es
 
 
 
