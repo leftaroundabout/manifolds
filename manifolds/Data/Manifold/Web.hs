@@ -119,6 +119,16 @@ data Neighbourhood x = Neighbourhood {
   deriving (Generic)
 makeLenses ''Neighbourhood
 
+data WebLocally x y = LocalWebInfo {
+      _thisNodeCoord :: x
+    , _thisNodeData :: y
+    , _thisNodeId :: WebNodeId
+    , _nodeNeighbours :: [(WebNodeId, (Needle x, WebLocally x y))]
+    , _nodeLocalScalarProduct :: Metric x
+    , _nodeIsOnBoundary :: Bool
+    } deriving (Generic)
+makeLenses ''WebLocally
+
 instance (NFData x, NFData (Metric x)) => NFData (Neighbourhood x)
 
 -- | A 'PointsWeb' is almost, but not quite a mesh. It is a stongly connected†
@@ -418,16 +428,6 @@ nearestNeighbour (PointsWeb rsc asd) x = fmap lkBest $ positionIndex empty rsc x
               Option (Just vEst) = xEst.-~.x
 
 
-
-data WebLocally x y = LocalWebInfo {
-      _thisNodeCoord :: x
-    , _thisNodeData :: y
-    , _thisNodeId :: WebNodeId
-    , _nodeNeighbours :: [(WebNodeId, (Needle x, WebLocally x y))]
-    , _nodeLocalScalarProduct :: Metric x
-    , _nodeIsOnBoundary :: Bool
-    } deriving (Generic)
-makeLenses ''WebLocally
 
 instance Hask.Functor (WebLocally x) where
   fmap f (LocalWebInfo co dt id ng sp bn)
