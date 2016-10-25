@@ -62,6 +62,7 @@ import Data.List hiding (filter, all, foldr1)
 import Data.Maybe
 import qualified Data.Set as Set
 import qualified Data.Vector as Arr
+import qualified Data.Vector.Mutable as MArr
 import qualified Data.Vector.Unboxed as UArr
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
@@ -316,11 +317,24 @@ smoothenWebTopology mc = swt
                                                      , Option (Just v)
                                                          <- [x .-~. xLookup Arr.! j] ]
                                                      x )
-                     asd' = asd Arr.// [(i,n) | (Just i,n) <- refined]
+                     asd' = makeIndexLinksSymmetric
+                              $ asd Arr.// [(i,n) | (Just i,n) <- refined]
                      updtLinks = Set.union pastLinks $ Set.fromList
                                       [ (i,j) | (Just i,(_,Neighbourhood n _)) <- refined
                                               , j<-UArr.toList n ]
               xLookup = Arr.fromList $ onlyLeaves shd
+
+makeIndexLinksSymmetric
+       :: Arr.Vector (y, Neighbourhood x) -> Arr.Vector (y, Neighbourhood x)
+makeIndexLinksSymmetric orig = Arr.create (do
+    result <- Arr.thaw orig
+    (`Arr.imapM_`orig) $ \i (_,Neighbourhood ngbs _) -> do
+       UArr.forM_ ngbs $ \j -> do
+          (yn, Neighbourhood nngbs lsc) <- MArr.read result j
+          when (not $ i`UArr.elem`nngbs) `id`
+             MArr.write result j (yn, Neighbourhood (UArr.snoc nngbs i) lsc)
+    return result
+  )
 
 indexWeb :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
                 => PointsWeb x y -> WebNodeId -> Option (x,y)
