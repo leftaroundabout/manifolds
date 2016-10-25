@@ -58,7 +58,7 @@ module Data.Manifold.Web (
             ) where
 
 
-import Data.List hiding (filter, all, sum, foldr1)
+import Data.List hiding (filter, all, foldr1)
 import Data.Maybe
 import qualified Data.Set as Set
 import qualified Data.Vector as Arr
@@ -104,7 +104,7 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 import Control.Comonad (Comonad(..))
-import Control.Lens ((&), (%~), (^.), (.~))
+import Control.Lens ((&), (%~), (^.), (.~), (+~))
 import Control.Lens.TH
 
 import GHC.Generics (Generic)
@@ -128,6 +128,16 @@ data WebLocally x y = LocalWebInfo {
     , _nodeIsOnBoundary :: Bool
     } deriving (Generic)
 makeLenses ''WebLocally
+
+data NeighbourhoodVector x = NeighbourhoodVector
+          { _nvectId :: Int
+          , _theNVect :: Needle x
+          , _nvectNormal :: Needle' x
+          , _nvectLength :: Scalar (Needle x)
+          , _otherNeighboursOverlap :: Scalar (Needle x)
+          }
+makeLenses ''NeighbourhoodVector
+
 
 instance (NFData x, NFData (Metric x)) => NFData (Neighbourhood x)
 
@@ -234,25 +244,43 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
 cullNeighbours :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
       => Metric x -> (Int, x`WithAny`[(Int,Needle x)]) -> Neighbourhood x
 cullNeighbours locRieM (i, WithAny vns x)
-           = Neighbourhood (UArr.fromList . sort $ fst<$>execState seek mempty)
+           = Neighbourhood (UArr.fromList . sort $ _nvectId<$>execState seek mempty)
                            locRieM
- where seek :: State [(Int, (Needle x, Needle' x))] ()
+ where seek :: State [NeighbourhoodVector x] ()
        seek = do
           Hask.forM_ ( fastNubBy (comparing fst) $ vns )
                     $ \(iNgb, v) ->
              when (iNgb/=i) `id`do
                 oldNgbs <- get
-                when (all (\(_,(_,nw)) -> visibleOverlap nw v) oldNgbs) `id`do
-                   let w = w₀ ^/ (w₀<.>^v)
-                        where w₀ = locRieM<$|v
-                   put $ (iNgb, (v,w))
-                         : [ neighbour
-                           | neighbour@(_,(nv,_))<-oldNgbs
-                           , visibleOverlap w nv
-                           ]
+                let w₀ = locRieM<$|v
+                    l = sqrt $ w₀<.>^v
+                    onOverlap = sum [ o^2 | nw<-oldNgbs
+                                          , let o = (nw^.nvectNormal)<.>^v
+                                          , o > 0 ]
+                when (l > onOverlap) `id`do
+                   let w = w₀^/sqrt l^3
+                       newCandidates
+                          = NeighbourhoodVector iNgb v w l 0
+                          : [ ongb & otherNeighboursOverlap .~ newOverlap
+                            | ongb <- oldNgbs
+                            , let o = w<.>^(ongb^.theNVect)
+                                  newOverlap = (if o > 0 then (o^2+) else id)
+                                                $ ongb^.otherNeighboursOverlap
+                            , newOverlap < ongb^.nvectLength ]
+                   put $ recalcOverlaps newCandidates
        visibleOverlap :: Needle' x -> Needle x -> Bool
        visibleOverlap w v = o < 1
         where o = w<.>^v
+       recalcOverlaps [] = []
+       recalcOverlaps (ngb:ngbs)
+             = (ngb & otherNeighboursOverlap +~ furtherOvl)
+             : recalcOverlaps [ ngb' & otherNeighboursOverlap +~ newOverlap
+                              | ngb' <- ngbs
+                              , let o = (ngb^.nvectNormal)<.>^(ngb'^.theNVect)
+                                    newOverlap = (max 0 o)^2 ]
+        where furtherOvl = sum [ o^2 | nw<-ngbs
+                                     , let o = (nw^.nvectNormal)<.>^(ngb^.theNVect)
+                                     , o > 0 ]
               
 
 -- | Re-calculate the links in a web, so as to give each point a satisfyingly
