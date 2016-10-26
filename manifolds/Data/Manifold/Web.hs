@@ -776,7 +776,8 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
        filterGo :: (PointsWeb x ( (WebLocally x (SolverNodeState x y)
                                    , [(Shade' y, badness)]) ))
                       -> m (PointsWeb x (SolverNodeState x y))
-       filterGo preproc'd   = fmap (fromTopWebNodes mf . concat . fmap retraceBonds
+       filterGo preproc'd   = fmap (smoothenWebTopology mf
+                                     . fromTopWebNodes mf . concat . fmap retraceBonds
                                         . Hask.toList . webLocalInfo . webLocalInfo)
              $ Hask.traverse (uncurry localChange) preproc'd
         where smallBadnessGradient, largeBadnessGradient :: ℝ
