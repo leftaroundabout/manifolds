@@ -88,6 +88,8 @@ import Data.Manifold.Riemannian
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask hiding(forM_, sequence)
+import Control.Monad.ST (runST)
+import Data.STRef (newSTRef, modifySTRef, readSTRef)
 import Control.Monad.Trans.State
 import Control.Monad.Trans.List
 import Data.Functor.Identity (Identity(..))
@@ -119,6 +121,10 @@ data Neighbourhood x = Neighbourhood {
    }
   deriving (Generic)
 makeLenses ''Neighbourhood
+
+deriving instance ( WithField ℝ PseudoAffine x
+                  , SimpleSpace (Needle x), Show (Needle' x) )
+             => Show (Neighbourhood x)
 
 data WebLocally x y = LocalWebInfo {
       _thisNodeCoord :: x
@@ -233,10 +239,6 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                                             , Right (_,xN) <- [indexShadeTree shd' i]
                                             , Option (Just v) <- [xN.-~.x] ]
               
-              visibleOverlap :: Needle' x -> Needle x -> Bool
-              visibleOverlap w v = o < 1
-               where o = w<.>^v
-              
               locRieM :: Metric x
               locRieM = case pointsCovers . map _topological
                                   $ onlyLeaves locT of
@@ -262,23 +264,19 @@ cullNeighbours locRieM (i, WithAny vns x)
                    let w = w₀^/sqrt l^3
                        newCandidates
                           = NeighbourhoodVector iNgb v w l 0
-                          : [ ongb & otherNeighboursOverlap .~ newOverlap
+                          : [ ongb & otherNeighboursOverlap .~ 0
                             | ongb <- oldNgbs
                             , let o = w<.>^(ongb^.theNVect)
                                   newOverlap = (if o > 0 then (o^2+) else id)
                                                 $ ongb^.otherNeighboursOverlap
                             , newOverlap < ongb^.nvectLength ]
                    put $ recalcOverlaps newCandidates
-       visibleOverlap :: Needle' x -> Needle x -> Bool
-       visibleOverlap w v = o < 1
-        where o = w<.>^v
        recalcOverlaps [] = []
        recalcOverlaps (ngb:ngbs)
              = (ngb & otherNeighboursOverlap +~ furtherOvl)
-             : recalcOverlaps [ ngb' & otherNeighboursOverlap +~ newOverlap
+             : recalcOverlaps [ ngb' & otherNeighboursOverlap +~ max 0 o ^ 2
                               | ngb' <- ngbs
-                              , let o = (ngb^.nvectNormal)<.>^(ngb'^.theNVect)
-                                    newOverlap = (max 0 o)^2 ]
+                              , let o = (ngb^.nvectNormal)<.>^(ngb'^.theNVect) ]
         where furtherOvl = sum [ o^2 | nw<-ngbs
                                      , let o = (nw^.nvectNormal)<.>^(ngb^.theNVect)
                                      , o > 0 ]
@@ -289,16 +287,21 @@ cullNeighbours locRieM (i, WithAny vns x)
 smoothenWebTopology :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
 smoothenWebTopology mc = swt
- where swt (PointsWeb shd net) = PointsWeb shd $ go allNodes Set.empty net
-        where allNodes = Arr.toList $ fst <$> Arr.indexed net
+ where swt (PointsWeb shd net) = PointsWeb shd . go allNodes Set.empty
+                                                   . fst $ makeIndexLinksSymmetric net
+        where allNodes = Set.fromList . Arr.toList $ fst <$> Arr.indexed net
               go activeSet pastLinks asd
-                 | all (isNothing.fst) refined  = asd'
-                 | otherwise           = go [ j | (Just i, (_,Neighbourhood ngbs' _))
-                                                      <-refined
-                                                , j <- i : UArr.toList ngbs' ]
-                                            updtLinks
-                                            asd'
-               where refined = reseek<$>fastNub activeSet
+                 | all (isNothing.fst) refined
+                 , Set.null (Set.difference symmetryTouched pastLinks)
+                               = Arr.imap finalise asd'
+                 | otherwise   = go (Set.fromList
+                                         [ j | (Just i, (_,Neighbourhood ngbs' _))
+                                               <-refined
+                                         , j <- i : UArr.toList ngbs' ]
+                                      `Set.union` (Set.map fst symmetryTouched))
+                                    updtLinks
+                                    asd'
+               where refined = reseek<$>Set.toList activeSet
                       where reseek i = ( guard isNews >> pure i
                                        , (y, Neighbourhood newNgbs locRieM) )
                              where isNews = newNgbs /= oldNgbs
@@ -317,23 +320,38 @@ smoothenWebTopology mc = swt
                                                      , Option (Just v)
                                                          <- [x .-~. xLookup Arr.! j] ]
                                                      x )
-                     asd' = makeIndexLinksSymmetric
+                     (asd', symmetryTouched) = makeIndexLinksSymmetric
                               $ asd Arr.// [(i,n) | (Just i,n) <- refined]
-                     updtLinks = Set.union pastLinks $ Set.fromList
+                     updtLinks = Set.unions
+                                   [ pastLinks
+                                   , Set.fromList
                                       [ (i,j) | (Just i,(_,Neighbourhood n _)) <- refined
                                               , j<-UArr.toList n ]
+                                   , symmetryTouched ]
+              finalise i (y, Neighbourhood n em)
+                  = (y, cullNeighbours em (i, WithAny [ (j,v)
+                                                      | j<-UArr.toList n
+                                                      , let xN = xLookup Arr.! j
+                                                      , Option (Just v) <- [xN.-~.x] ]
+                                                      x ))
+               where x = xLookup Arr.! i
               xLookup = Arr.fromList $ onlyLeaves shd
 
 makeIndexLinksSymmetric
-       :: Arr.Vector (y, Neighbourhood x) -> Arr.Vector (y, Neighbourhood x)
-makeIndexLinksSymmetric orig = Arr.create (do
+       :: Arr.Vector (y, Neighbourhood x)
+       -> (Arr.Vector (y, Neighbourhood x), Set.Set (WebNodeId,WebNodeId))
+makeIndexLinksSymmetric orig = runST (do
     result <- Arr.thaw orig
+    touched <- newSTRef $ Set.empty
     (`Arr.imapM_`orig) $ \i (_,Neighbourhood ngbs _) -> do
        UArr.forM_ ngbs $ \j -> do
           (yn, Neighbourhood nngbs lsc) <- MArr.read result j
-          when (not $ i`UArr.elem`nngbs) `id`
+          when (not $ i`UArr.elem`nngbs) `id`do
              MArr.write result j (yn, Neighbourhood (UArr.snoc nngbs i) lsc)
-    return result
+             modifySTRef touched $ Set.insert (j,i)
+    final <- Arr.freeze result
+    allTouched <- readSTRef touched
+    return (final, allTouched)
   )
 
 indexWeb :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
