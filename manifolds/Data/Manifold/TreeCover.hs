@@ -50,6 +50,7 @@ module Data.Manifold.TreeCover (
        -- ** Misc
        , factoriseShade, intersectShade's, linIsoTransformShade
        , Refinable, subShade', refineShade', convolveShade', coerceShade
+       , mixShade's
        -- * Shade trees
        , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree, positionIndex
        -- * View helpers
@@ -437,6 +438,58 @@ shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs) = case extractJust tryMerge shs
                            in Shade cc $ e₁ <> e₂ <> spanVariance [cv₁, cv₂]
            | otherwise  = Nothing
 shadesMerge _ shs = shs
+
+-- | Weakened version of 'intersectShade's'. What this function calculates is
+--   rather the /union/ / convex hull of ellipsoid regions, but not quite.
+--   The idea is essentially to combine location-information, like different physical
+--   measurements of the same quantity. If both measurements disagree then this is
+--   accounted for by a larger result uncertainty (so that both measurements are
+--   contained). If one measurement has overall a vaster span
+--   (uncertainty) in some heading (in /both/ directions from the other shade) then
+--   this is ignored however and only the more precise information kept.
+mixShade's :: ∀ y . (WithField ℝ Manifold y, SimpleSpace (Needle y))
+                 => NonEmpty (Shade' y) -> Option (Shade' y)
+mixShade's (sh:|shs) = Hask.foldrM goMix sh shs
+ where goMix (Shade' c₀ (Norm e₁)) (Shade' c₀₂ (Norm e₂)) = do
+           c₂ <- c₀₂.-~.c₀
+           let e₁c₂ = e₁ $ c₂
+               e₂c₂ = e₂ $ c₂
+               cc = σe \$ e₂c₂
+               cc₂ = cc ^-^ c₂
+               e₁cc = e₁ $ cc
+               e₂cc = e₂ $ cc
+           let ee = σe ^/ 2
+               c₂e₁c₂ = c₂<.>^e₁c₂
+               c₂e₂c₂ = c₂<.>^e₂c₂
+               eec₂ = (e₁c₂ ^+^ e₂c₂)^/2
+               c₂eec₂ = (c₂e₁c₂ + c₂e₂c₂) / 2
+           return $ case (take 2&&&last) . sort
+                $ quadraticEqnSol c₂e₁c₂
+                                  (2 * (c₂<.>^e₁cc))
+                                  (cc<.>^e₁cc - 1)
+                ++quadraticEqnSol c₂e₂c₂
+                                  (2 * (c₂<.>^e₂cc - c₂e₂c₂))
+                                  (cc<.>^e₂cc - 2 * (cc<.>^e₂c₂) + c₂e₂c₂ - 1) of
+            (γ₁:_:_,γ₂) -> let
+               cc' = cc ^+^ ((γ₁+γ₂)/2)*^c₂
+               rγ = abs (γ₁ - γ₂) / 2
+               η = if rγ * c₂eec₂ /= 0
+                   then (1 - rγ^2 * c₂eec₂) / (rγ * c₂eec₂)^2
+                   else 0
+             in Shade' (c₀.+~^cc')
+                       (Norm . arr $ ee ^+^ arr (LinearFunction $ \δx
+                                               -> eec₂^*(δx<.>^eec₂*η)))
+            _ -> Shade' (c₀.+~^cc) (Norm $ arr ee)
+        where σe = arr $ e₁^+^e₂
+              quadraticEqnSol a b c
+                  | a == 0, b /= 0       = [-c/b]
+                  | a /= 0 && disc == 0  = [- b / (2*a)]
+                  | a /= 0 && disc > 0   = [ (σ * sqrt disc - b) / (2*a)
+                                           | σ <- [-1, 1] ]
+                  | otherwise            = []
+               where disc = b^2 - 4*a*c
+              middle (_:x:y:_) = [x,y]
+              middle l = l
 
 -- | Evaluate the shade as a quadratic form; essentially
 -- @
