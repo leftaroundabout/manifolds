@@ -482,14 +482,11 @@ mixShade's (sh:|shs) = Hask.foldrM goMix sh shs
             _ -> Shade' (c₀.+~^cc) (Norm $ arr ee)
         where σe = arr $ e₁^+^e₂
               quadraticEqnSol a b c
-                  | a == 0, b /= 0       = [-c/b]
                   | a /= 0 && disc == 0  = [- b / (2*a)]
                   | a /= 0 && disc > 0   = [ (σ * sqrt disc - b) / (2*a)
                                            | σ <- [-1, 1] ]
                   | otherwise            = []
                where disc = b^2 - 4*a*c
-              middle (_:x:y:_) = [x,y]
-              middle l = l
 
 -- | Evaluate the shade as a quadratic form; essentially
 -- @
