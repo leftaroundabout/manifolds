@@ -440,53 +440,42 @@ shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs) = case extractJust tryMerge shs
 shadesMerge _ shs = shs
 
 -- | Weakened version of 'intersectShade's'. What this function calculates is
---   rather the /union/ / convex hull of ellipsoid regions, but not quite.
---   The idea is essentially to combine location-information, like different physical
---   measurements of the same quantity. If both measurements disagree then this is
---   accounted for by a larger result uncertainty (so that both measurements are
---   contained). If one measurement has overall a vaster span
---   (uncertainty) in some heading (in /both/ directions from the other shade) then
---   this is ignored however and only the more precise information kept.
+--   rather the /weighted mean/ of ellipsoid regions. If you interpret the
+--   shades as uncertain physical measurements with normal distribution,
+--   it gives the maximum-likelyhood result for multiple measurements of the
+--   same quantity.
 mixShade's :: ∀ y . (WithField ℝ Manifold y, SimpleSpace (Needle y))
                  => NonEmpty (Shade' y) -> Option (Shade' y)
-mixShade's (sh:|shs) = Hask.foldrM goMix sh shs
- where goMix (Shade' c₀ (Norm e₁)) (Shade' c₀₂ (Norm e₂)) = do
-           c₂ <- c₀₂.-~.c₀
-           let e₁c₂ = e₁ $ c₂
-               e₂c₂ = e₂ $ c₂
-               cc = σe \$ e₂c₂
-               cc₂ = cc ^-^ c₂
-               e₁cc = e₁ $ cc
-               e₂cc = e₂ $ cc
-           let ee = σe ^/ 2
-               c₂e₁c₂ = c₂<.>^e₁c₂
-               c₂e₂c₂ = c₂<.>^e₂c₂
-               eec₂ = (e₁c₂ ^+^ e₂c₂)^/2
-               c₂eec₂ = (c₂e₁c₂ + c₂e₂c₂) / 2
-           return $ case (take 2&&&last) . sort
-                $ quadraticEqnSol c₂e₁c₂
-                                  (2 * (c₂<.>^e₁cc))
-                                  (cc<.>^e₁cc - 1)
-                ++quadraticEqnSol c₂e₂c₂
-                                  (2 * (c₂<.>^e₂cc - c₂e₂c₂))
-                                  (cc<.>^e₂cc - 2 * (cc<.>^e₂c₂) + c₂e₂c₂ - 1) of
-            (γ₁:_:_,γ₂) -> let
-               cc' = cc ^+^ ((γ₁+γ₂)/2)*^c₂
-               rγ = abs (γ₁ - γ₂) / 2
-               η = if rγ * c₂eec₂ /= 0
-                   then (1 - rγ^2 * c₂eec₂) / (rγ * c₂eec₂)^2
-                   else 0
-             in Shade' (c₀.+~^cc')
-                       (Norm . arr $ ee ^+^ arr (LinearFunction $ \δx
-                                               -> eec₂^*(δx<.>^eec₂*η)))
-            _ -> Shade' (c₀.+~^cc) (Norm $ arr ee)
-        where σe = arr $ e₁^+^e₂
-              quadraticEqnSol a b c
-                  | a /= 0 && disc == 0  = [- b / (2*a)]
-                  | a /= 0 && disc > 0   = [ (σ * sqrt disc - b) / (2*a)
-                                           | σ <- [-1, 1] ]
-                  | otherwise            = []
-               where disc = b^2 - 4*a*c
+mixShade's (Shade' c₀ (Norm e₁):|shs) = sequenceA ciso >> pure mixed
+ where ciso = [ci.-~.c₀ | Shade' ci shi <- shs]
+       cis = [v | Option (Just v) <- ciso]
+       σe = arr . sumV $ applyNorm . _shade'Narrowness<$>shs
+       cc = σe \$ sumV [ei $ ci | ci <- cis
+                                | Shade' _ (Norm ei) <- shs]
+       mixed = Shade' (c₀.+~^cc) $ densifyNorm ( mconcat
+                      [ Norm $ ei ^/ (1+(normSq ni $ ci^-^cc))
+                      | Shade' _ ni@(Norm ei) <- shs
+                      | ci <- cis
+                      ] )
+  -- cc should minimise the quadratic form
+  -- β(cc) = ∑ᵢ ⟨cc−cᵢ|eᵢ|cc−cᵢ⟩
+  -- = ⟨cc|e₁|cc⟩ + ∑ᵢ₌₁… ⟨cc−c₂|e₂|cc−c₂⟩
+  -- = ⟨cc|e₁|cc⟩ + ∑ᵢ₌₁…( ⟨cc|eᵢ|cc⟩ − 2⋅⟨cᵢ|eᵢ|cc⟩ + ⟨cᵢ|eᵢ|cᵢ⟩ )
+  -- It is thus
+  -- β(cc + δ⋅v) − β cc
+  -- = ⟨cc + δ⋅v|e₁|cc + δ⋅v⟩
+  --     + ∑ᵢ₌₁…( ⟨cc + δ⋅v|eᵢ|cc + δ⋅v⟩ − 2⋅⟨cᵢ|eᵢ|cc + δ⋅v⟩ + ⟨cᵢ|eᵢ|cᵢ⟩ )
+  --     − ⟨cc|e₁|cc⟩
+  --     − ∑ᵢ₌₁…( ⟨cc|eᵢ|cc⟩ + 2⋅⟨cᵢ|eᵢ|cc⟩ − ⟨cᵢ|eᵢ|cᵢ⟩ )
+  -- = ⟨cc + δ⋅v|e₁|cc + δ⋅v⟩
+  --     + ∑ᵢ₌₁…( ⟨cc + δ⋅v|eᵢ|cc + δ⋅v⟩ − 2⋅⟨cᵢ|eᵢ|δ⋅v⟩ )
+  --     − ⟨cc|e₁|cc⟩
+  --     − ∑ᵢ₌₁…( ⟨cc|eᵢ|cc⟩ )
+  -- = 2⋅⟨δ⋅v|e₁|cc⟩ + ⟨δ⋅v|e₁|δ⋅v⟩
+  --     + ∑ᵢ₌₁…( 2⋅⟨δ⋅v|eᵢ|cc⟩ + ⟨δ⋅v|eᵢ|δ⋅v⟩ − 2⋅⟨cᵢ|eᵢ|δ⋅v⟩ )
+  -- = 2⋅⟨δ⋅v|∑ᵢeᵢ|cc⟩ − 2⋅∑ᵢ₌₁… ⟨cᵢ|eᵢ|δ⋅v⟩ + 𝓞(δ²)
+  -- This should vanish for all v, which is fulfilled by
+  -- (∑ᵢeᵢ)|cc⟩ = ∑ᵢ₌₁… eᵢ|cᵢ⟩.
 
 -- | Evaluate the shade as a quadratic form; essentially
 -- @
