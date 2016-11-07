@@ -627,11 +627,13 @@ instance Refinable x => Semigroup (ConvexSet x) where
 
 
 
-itWhileJust :: InconsistencyStrategy m -> (a -> m a) -> a -> [a]
+itWhileJust :: InconsistencyStrategy m x y -> (a -> m a) -> a -> [a]
 itWhileJust AbortOnInconsistency f x
  | Option (Just y) <- f x  = x : itWhileJust AbortOnInconsistency f y
 itWhileJust IgnoreInconsistencies f x
  | Identity y <- f x  = x : itWhileJust IgnoreInconsistencies f y
+itWhileJust (HighlightInconsistencies yh) f x
+ | Identity y <- f x  = x : itWhileJust (HighlightInconsistencies yh) f y
 itWhileJust _ _ x = [x]
 
 dupHead :: NonEmpty a -> NonEmpty a
@@ -639,24 +641,27 @@ dupHead (x:|xs) = x:|x:xs
 
 
 
-data InconsistencyStrategy m where
-    AbortOnInconsistency :: InconsistencyStrategy Option
-    IgnoreInconsistencies :: InconsistencyStrategy Identity
+data InconsistencyStrategy m x y where
+    AbortOnInconsistency :: InconsistencyStrategy Option x y
+    IgnoreInconsistencies :: InconsistencyStrategy Identity x y
+    HighlightInconsistencies :: y -> InconsistencyStrategy Identity x y
+deriving instance Hask.Functor (InconsistencyStrategy m x)
 
 
 iterateFilterDEqn_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                             , Refinable y, Geodesic y
                             , Hask.Applicative m )
-       => InconsistencyStrategy m -> DifferentialEqn x y
+       => InconsistencyStrategy m x (Shade' y) -> DifferentialEqn x y
                  -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
 iterateFilterDEqn_static strategy f
                            = map (fmap convexSetHull)
-                           . itWhileJust strategy (filterDEqnSolutions_static strategy f)
+                           . itWhileJust strategy
+                                (filterDEqnSolutions_static (ellipsoid<$>strategy) f)
                            . fmap (`ConvexSet`[])
 
 filterDEqnSolution_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                              , Refinable y, Geodesic y )
-       => InconsistencyStrategy m -> DifferentialEqn x y
+       => InconsistencyStrategy m x (Shade' y) -> DifferentialEqn x y
             -> PointsWeb x (Shade' y) -> m (PointsWeb x (Shade' y))
 filterDEqnSolution_static AbortOnInconsistency f
        = webLocalInfo >>> fmap (id &&& differentiateUncertainWebLocally) >>> localFocusWeb
@@ -681,7 +686,7 @@ filterDEqnSolutions_static :: ∀ x y m .
                               ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                               , Refinable y, Geodesic y
                               , Hask.Applicative m )
-       => InconsistencyStrategy m -> DifferentialEqn x y
+       => InconsistencyStrategy m x (ConvexSet y) -> DifferentialEqn x y
             -> PointsWeb x (ConvexSet y) -> m (PointsWeb x (ConvexSet y))
 filterDEqnSolutions_static strategy f
        = webLocalInfo
@@ -708,10 +713,12 @@ filterDEqnSolutions_static strategy f
                             >>= \case EmptyConvex -> empty
                                       c           -> pure c
 
-handleInconsistency :: InconsistencyStrategy m -> a -> Option a -> m a
+handleInconsistency :: InconsistencyStrategy m x a -> a -> Option a -> m a
 handleInconsistency AbortOnInconsistency _ i = i
 handleInconsistency IgnoreInconsistencies _ (Option (Just v)) = Identity v
 handleInconsistency IgnoreInconsistencies b _ = Identity b
+handleInconsistency (HighlightInconsistencies _) _ (Option (Just v)) = Identity v
+handleInconsistency (HighlightInconsistencies b) _ _ = Identity b
 
 data SolverNodeState x y = SolverNodeInfo {
       _solverNodeStatus :: ConvexSet y
@@ -738,7 +745,7 @@ filterDEqnSolutions_adaptive :: ∀ x y badness m
           , WithField ℝ AffineManifold y, Refinable y, Geodesic y
           , badness ~ ℝ, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
-       -> InconsistencyStrategy m
+       -> InconsistencyStrategy m x (Shade' y)
        -> DifferentialEqn x y 
        -> (x -> Shade' y -> badness)
              -> PointsWeb x (SolverNodeState x y)
@@ -819,10 +826,12 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                         Nothing | age < environAge   -- point is an obsolete step-stone;
                           -> return (empty,empty)    -- do not further use it.
                         _otherwise -> do
-                          shy' <- handleInconsistency strategy shy
+                          shy' <- handleInconsistency (ellipsoid<$>strategy) shy
                                   $ ((shy<>) . ellipsoid)
                                    <$> intersectShade's (fst <$> NE.fromList ngbProps)
-                          newBadness <- handleInconsistency strategy prevBadness $ case shy' of
+                          newBadness
+                               <- handleInconsistency (badness x<$>strategy) prevBadness
+                                      $ case shy' of
                              EmptyConvex        -> empty
                              ConvexSet hull' _  -> return $ badness x hull'
                           let updatedNode = SolverNodeInfo shy' prevJacobi
@@ -920,7 +929,7 @@ iterateFilterDEqn_adaptive
      :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
         , WithField ℝ AffineManifold y, Refinable y, Geodesic y, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
-       -> InconsistencyStrategy m
+       -> InconsistencyStrategy m x (Shade' y)
        -> DifferentialEqn x y
        -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
              -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
