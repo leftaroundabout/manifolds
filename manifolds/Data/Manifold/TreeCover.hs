@@ -153,6 +153,7 @@ deriving instance (Show (Interior x), Show (Metric x), WithField ℝ PseudoAffin
                 => Show (Shade' x)
 
 type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
+                              -> Option (Shade' (LocalLinear x y))
 
 data LocalDataPropPlan x y = LocalDataPropPlan
        { _sourcePosition :: !(Interior x)
@@ -1132,10 +1133,9 @@ propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x
 propagateDEqnSolution_loc f propPlan aPrioriJacobian
           | Option Nothing <- jacobian  = Nothing
           | otherwise                   = Just result
- where jacobian = intersectShade's $ cleanedJAPriori:|[f shxy]
-       cleanedJAPriori = aPrioriJacobian
-           & shadeNarrowness %~ ignoreDirectionalDependence (δx, dx)
+ where jacobian = f shxy aPrioriJacobian
        Option (Just (Shade' j₀ jExpa)) = jacobian
+
        mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2
        Option (Just my) = middleBetween (propPlan^.sourceData.shadeCtr)
                                         (propPlan^.targetAPrioriData.shadeCtr)

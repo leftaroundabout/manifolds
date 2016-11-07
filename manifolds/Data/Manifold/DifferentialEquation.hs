@@ -88,7 +88,7 @@ constLinearDEqn :: ( WithField ℝ LinearManifold x, SimpleSpace x
 constLinearDEqn bwt = factoriseShade
     >>> \(_x, Shade y δy) -> let j = bwt'inv y
                                  δj = bwt' `transformNorm` dualNorm δy
-                             in Shade' j δj
+                             in const . pure $ Shade' j δj
  where bwt' = adjoint $ bwt
        bwt'inv = (bwt'\$)
 
@@ -96,9 +96,9 @@ constLinearODE :: ( WithField ℝ LinearManifold x, SimpleSpace x
                   , WithField ℝ LinearManifold y, SimpleSpace y )
               => ((x +> y) +> y) -> DifferentialEqn x y
 constLinearODE bwt'
-      = \(Shade (_x,y) δxy) -> let j = bwt'inv y
-                                   δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
-                               in Shade' j δj
+      = \(Shade (_x,y) δxy) _ -> let j = bwt'inv y
+                                     δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
+                                 in pure (Shade' j δj)
  where bwt'inv = (bwt'\$)
 
 constLinearPDE :: ∀ x y z .
@@ -106,13 +106,13 @@ constLinearPDE :: ∀ x y z .
                   , WithField ℝ LinearManifold y, SimpleSpace y
                   , SimpleSpace z, FiniteFreeSpace z, Scalar z ~ ℝ )
               => ((x +> y) +> (y, z)) -> DifferentialEqn x y
-constLinearPDE bwt'
-      = \(Shade (_x,y) δxy) -> let j = bwt'inv y
+constLinearPDE bwt' = \(Shade (_x,y) δxy) jApriori
+                            -> let j = bwt'inv y
                                    δj = bwt' `transformNorm`
                                        (sumSubspaceNorms
                                            ((zeroV&&&id)`transformNorm`dualNorm δxy)
                                            almostExactlyZero)
-                             in Shade' j δj
+                             in refineShade' jApriori $ Shade' j δj
  where bwt'inv = (fst . bwt'\$)
        almostExactlyZero :: Norm z
        almostExactlyZero = spanNorm [ v^*1e+10
