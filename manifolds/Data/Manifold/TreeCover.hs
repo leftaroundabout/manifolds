@@ -1116,7 +1116,7 @@ estimateLocalJacobian mex [(Local x₁, Shade' y₁ ey₁),(Local x₀, Shade' y
        Option (Just δy) = y₁.-~.y₀
        σey = convolveMetric ([]::[y]) ey₀ ey₁
 estimateLocalJacobian mex (po:ps) | length ps > 1
-      = intersectShade's =<< (:|) <$> estimateLocalJacobian mex ps 
+      = mixShade's =<< (:|) <$> estimateLocalJacobian mex ps 
                     <*> sequenceA [estimateLocalJacobian mex [po,pi] | pi<-ps]
 estimateLocalJacobian _ _ = return $ Shade' zeroV mempty
 
