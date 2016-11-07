@@ -567,7 +567,8 @@ differentiateUncertainWebLocally info
           = case estimateLocalJacobian
                           (info^.nodeLocalScalarProduct)
                           [ ( Local δx :: Local x, ngb^.thisNodeData )
-                          | (_,(δx,ngb))<-info^.nodeNeighbours
+                          | (δx,ngb) <- (zeroV, info)
+                                      : (snd<$>info^.nodeNeighbours)
                           ] of
                Option (Just j) -> j
                _               -> Shade' zeroV mempty
