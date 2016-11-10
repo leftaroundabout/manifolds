@@ -450,13 +450,13 @@ mixShade's :: ∀ y . (WithField ℝ Manifold y, SimpleSpace (Needle y))
 mixShade's (Shade' c₀ (Norm e₁):|shs) = sequenceA ciso >> pure mixed
  where ciso = [ci.-~.c₀ | Shade' ci shi <- shs]
        cis = [v | Option (Just v) <- ciso]
-       σe = arr . sumV $ applyNorm . _shade'Narrowness<$>shs
+       σe = arr . sumV $ e₁ : (applyNorm . _shade'Narrowness<$>shs)
        cc = σe \$ sumV [ei $ ci | ci <- cis
                                 | Shade' _ (Norm ei) <- shs]
        mixed = Shade' (c₀.+~^cc) $ densifyNorm ( mconcat
                       [ Norm $ ei ^/ (1+(normSq ni $ ci^-^cc))
-                      | Shade' _ ni@(Norm ei) <- shs
-                      | ci <- cis
+                      | ni@(Norm ei) <- Norm e₁ : (_shade'Narrowness<$>shs)
+                      | ci <- zeroV : cis
                       ] )
   -- cc should minimise the quadratic form
   -- β(cc) = ∑ᵢ ⟨cc−cᵢ|eᵢ|cc−cᵢ⟩
