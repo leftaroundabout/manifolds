@@ -110,7 +110,7 @@ instance Griddable ℝ String where
                 | n < 0      = floor $ lg (-n)
 
 
-instance ( SimpleSpace (Needle m), SimpleSpace (Needle n), SimpleSpace (Needle a)
+instance ∀ m n a . ( SimpleSpace (Needle m), SimpleSpace (Needle n), SimpleSpace (Needle a)
          , Griddable m a, Griddable n a ) => Griddable (m,n) a where
   data GriddingParameters (m,n) a = PairGriddingParameters {
                fstGriddingParams :: GriddingParameters m a
@@ -124,7 +124,9 @@ instance ( SimpleSpace (Needle m), SimpleSpace (Needle n), SimpleSpace (Needle a
               <$> g₂s )
    where g₁s = mkGridding p₁ n $ fullShade c₁ e₁
          g₂s = mkGridding p₂ n $ fullShade c₂ e₂
-         (e₁,e₂) = summandSpaceNorms e₁e₂ 
+         (e₁,e₂) = case ( dualSpaceWitness :: DualNeedleWitness m
+                        , dualSpaceWitness :: DualNeedleWitness n ) of
+                (DualSpaceWitness, DualSpaceWitness) -> summandSpaceNorms e₁e₂ 
 
 prettyFloatShow :: Int -> Double -> String
 prettyFloatShow _ 0 = "0"

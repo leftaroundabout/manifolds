@@ -62,6 +62,7 @@ module Data.Manifold.PseudoAffine (
             -- ** Constraints
             , SemimanifoldWitness(..)
             , PseudoAffineWitness(..)
+            , DualNeedleWitness 
             , RealDimension, AffineManifold
             , LinearManifold
             , WithField
@@ -318,7 +319,8 @@ deriving instance (Show (Needle x)) => Show (Local x)
 type LocallyScalable s x = ( PseudoAffine x
                            , LSpace (Needle x)
                            , s ~ Scalar (Needle x)
-                           , Num''' s )
+                           , s ~ Scalar (Needle' x)
+                           , Num' s )
 
 type LocalLinear x y = LinearMap (Scalar (Needle x)) (Needle x) (Needle y)
 type LocalAffine x y = (Needle y, LocalLinear x y)
@@ -337,7 +339,7 @@ type LinearManifold' x = ( PseudoAffine x, AffineSpace x, Diff x ~ x
 --   general need the @-XLiberalTypeSynonyms@ extension (except if the constraint
 --   is an actual type class (like 'Manifold'): only those can always be partially
 --   applied, for @type@ constraints this is by default not allowed).
-type WithField s c x = ( c x, s ~ Scalar (Needle x) )
+type WithField s c x = ( c x, s ~ Scalar (Needle x), s ~ Scalar (Needle' x) )
 
 -- | The 'RealFloat' class plus manifold constraints.
 type RealDimension r = ( PseudoAffine r, Interior r ~ r, Needle r ~ r, r ~ ℝ)
@@ -360,7 +362,7 @@ type HilbertManifold x = ( LinearManifold x, InnerSpace x
 type EuclidSpace x = ( AffineManifold x, InnerSpace (Diff x)
                      , DualVector (Diff x) ~ Diff x, Floating (Scalar (Diff x)) )
 
-type NumberManifold n = ( Num''' n, Manifold n, Interior n ~ n, Needle n ~ n
+type NumberManifold n = ( Num' n, Manifold n, Interior n ~ n, Needle n ~ n
                         , LSpace n, DualVector n ~ n, Scalar n ~ n )
 
 euclideanMetric :: EuclidSpace x => proxy x -> Metric x
@@ -393,14 +395,20 @@ type RieMetric' x = x -> Metric' x
 
 coerceMetric :: ∀ x ξ . (LocallyCoercible x ξ, LSpace (Needle ξ))
                              => RieMetric ξ -> RieMetric x
-coerceMetric m x = case m $ locallyTrivialDiffeomorphism x of
+coerceMetric = case ( dualSpaceWitness :: DualNeedleWitness x
+                    , dualSpaceWitness :: DualNeedleWitness ξ ) of
+   (DualSpaceWitness, DualSpaceWitness)
+       -> \m x -> case m $ locallyTrivialDiffeomorphism x of
               Norm sc -> Norm $ bw . sc . fw
  where fw = coerceNeedle ([]::[(x,ξ)])
        bw = case oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x of
               CanonicalDiffeomorphism -> coerceNeedle' ([]::[(ξ,x)])
 coerceMetric' :: ∀ x ξ . (LocallyCoercible x ξ, LSpace (Needle ξ))
                              => RieMetric' ξ -> RieMetric' x
-coerceMetric' m x = case m $ locallyTrivialDiffeomorphism x of
+coerceMetric' = case ( dualSpaceWitness :: DualNeedleWitness x
+                     , dualSpaceWitness :: DualNeedleWitness ξ ) of
+   (DualSpaceWitness, DualSpaceWitness)
+       -> \m x -> case m $ locallyTrivialDiffeomorphism x of
               Norm sc -> Norm $ bw . sc . fw
  where fw = coerceNeedle' ([]::[(x,ξ)])
        bw = case oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x of
@@ -545,7 +553,9 @@ instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
              (PseudoAffineWitness, PseudoAffineWitness) -> PseudoAffineWitness
 instance ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
-         , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c) )
+         , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c)
+         , Scalar (Needle' a) ~ Scalar (Needle a), Scalar (Needle' b) ~ Scalar (Needle b)
+         , Scalar (Needle' c) ~ Scalar (Needle c) )
      => LocallyCoercible (a,(b,c)) ((a,b),c) where
   locallyTrivialDiffeomorphism = regroup
   coerceNeedle _ = regroup
@@ -559,7 +569,9 @@ instance ( Semimanifold a, Semimanifold b, Semimanifold c
 instance ∀ a b c .
          ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
-         , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c) )
+         , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c)
+         , Scalar (Needle' a) ~ Scalar (Needle a), Scalar (Needle' b) ~ Scalar (Needle b)
+         , Scalar (Needle' c) ~ Scalar (Needle c)  )
      => LocallyCoercible ((a,b),c) (a,(b,c)) where
   locallyTrivialDiffeomorphism = regroup'
   coerceNeedle _ = regroup'
@@ -753,4 +765,7 @@ instance ImpliesMetric Norm where
   inferMetric = id
   inferMetric' = dualNorm
 
+
+
+type DualNeedleWitness x = DualSpaceWitness (Needle x)
 

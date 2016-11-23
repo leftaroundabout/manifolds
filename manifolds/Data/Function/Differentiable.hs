@@ -371,10 +371,29 @@ type DfblFuncValue s = GenericAgent (Differentiable s)
 instance (RealFrac' s) => HasAgent (Differentiable s) where
   alg = genericAlg
   ($~) = genericAgentMap
-instance (RealFrac' s) => CartesianAgent (Differentiable s) where
+instance ∀ s . (RealFrac' s) => CartesianAgent (Differentiable s) where
   alg1to2 = genericAlg1to2
-  alg2to1 = genericAlg2to1
-  alg2to2 = genericAlg2to2
+  alg2to1 = a2t1
+   where a2t1 :: ∀ α β γ . (LocallyScalable s α, LocallyScalable s β)
+           => (∀ q . LocallyScalable s q
+               => DfblFuncValue s q α -> DfblFuncValue s q β -> DfblFuncValue s q γ )
+           -> Differentiable s (α,β) γ
+         a2t1 = case ( dualSpaceWitness :: DualSpaceWitness (Needle α)
+                     , dualSpaceWitness :: DualSpaceWitness (Needle β) ) of
+            (DualSpaceWitness, DualSpaceWitness) -> genericAlg2to1
+  alg2to2 = a2t1
+   where a2t1 :: ∀ α β γ δ . ( LocallyScalable s α, LocallyScalable s β
+                             , LocallyScalable s γ, LocallyScalable s δ )
+           => (∀ q . LocallyScalable s q
+               => DfblFuncValue s q α -> DfblFuncValue s q β
+                     -> (DfblFuncValue s q γ, DfblFuncValue s q δ) )
+           -> Differentiable s (α,β) (γ,δ)
+         a2t1 = case ( dualSpaceWitness :: DualSpaceWitness (Needle α)
+                     , dualSpaceWitness :: DualSpaceWitness (Needle β)
+                     , dualSpaceWitness :: DualSpaceWitness (Needle γ)
+                     , dualSpaceWitness :: DualSpaceWitness (Needle δ) ) of
+            (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness, DualSpaceWitness)
+                  -> genericAlg2to2
 instance (RealFrac' s)
       => PointAgent (DfblFuncValue s) (Differentiable s) a x where
   point = genericPoint
@@ -443,7 +462,7 @@ dfblFnValsCombine cmb (GenericAgent fa) (GenericAgent ga)
 
 
 
-instance (WithField s LinearManifold v, LocallyScalable s a, RealFloat' s)
+instance (LocallyScalable s v, LinearManifold v, LocallyScalable s a, RealFloat' s)
     => AdditiveGroup (DfblFuncValue s a v) where
   zeroV = point zeroV
   GenericAgent (AffinDiffable ef f) ^+^ GenericAgent (AffinDiffable eg g)
@@ -896,14 +915,15 @@ dualCoCoProduct :: ∀ v w s .
                    ( SimpleSpace v, HilbertSpace v
                    , SimpleSpace w, Scalar v ~ s, Scalar w ~ s )
            => LinearMap s w v -> LinearMap s w v -> Norm w
-dualCoCoProduct s t = Norm $ (tSpread*sSpread) *^ t²Ps²M
- where t' = adjoint $ t :: LinearMap s v (DualVector w)
-       s' = adjoint $ s :: LinearMap s v (DualVector w)
-       tSpread = sum . map recip_t²PLUSs² $ snd (decomposeLinMap t') []
-       sSpread = sum . map recip_t²PLUSs² $ snd (decomposeLinMap s') []
-       t²PLUSs²@(Norm t²Ps²M)
-            = transformNorm t euclideanNorm <> transformNorm s euclideanNorm :: Norm w
-       recip_t²PLUSs² = normSq (dualNorm t²PLUSs²) :: DualVector w -> s
+dualCoCoProduct = dccp (dualSpaceWitness::DualSpaceWitness w)
+ where dccp DualSpaceWitness s t = Norm $ (tSpread*sSpread) *^ t²Ps²M
+        where t' = adjoint $ t :: LinearMap s v (DualVector w)
+              s' = adjoint $ s :: LinearMap s v (DualVector w)
+              tSpread = sum . map recip_t²PLUSs² $ snd (decomposeLinMap t') []
+              sSpread = sum . map recip_t²PLUSs² $ snd (decomposeLinMap s') []
+              t²PLUSs²@(Norm t²Ps²M)
+                = transformNorm t euclideanNorm <> transformNorm s euclideanNorm :: Norm w
+              recip_t²PLUSs² = normSq (dualNorm t²PLUSs²) :: DualVector w -> s
 
 instance (RealDimension n, LocallyScalable n a, SimpleSpace (Needle a))
             => Num (RWDfblFuncValue n a n) where

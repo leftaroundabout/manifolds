@@ -92,7 +92,7 @@ toOffsetSlope :: (MetricScalar s, WithField s LinearManifold d
                       => Affine s d c -> (c, Needle d +> Needle c)
 toOffsetSlope f = toOffset'Slope f zeroV
 
-type MetricScalar s = (Num''' s, LSpace (ZeroDim s))
+type MetricScalar s = (Num' s, LSpace (ZeroDim s))
 
 linear :: (LSpace a, LSpace b, Scalar a ~ Scalar b)
              => (a -> b) -> (a+>b)
@@ -406,10 +406,29 @@ type AffinFuncValue s = GenericAgent (Affine s)
 instance (MetricScalar s) => HasAgent (Affine s) where
   alg = genericAlg
   ($~) = genericAgentMap
-instance (MetricScalar s) => CartesianAgent (Affine s) where
+instance ∀ s . (MetricScalar s) => CartesianAgent (Affine s) where
   alg1to2 = genericAlg1to2
-  alg2to1 = genericAlg2to1
-  alg2to2 = genericAlg2to2
+  alg2to1 = a2t1
+   where a2t1 :: ∀ α β γ . (WithField s AffineManifold α, WithField s AffineManifold β)
+           => (∀ q . WithField s AffineManifold q
+               => AffinFuncValue s q α -> AffinFuncValue s q β -> AffinFuncValue s q γ )
+           -> Affine s (α,β) γ
+         a2t1 = case ( dualSpaceWitness :: DualSpaceWitness (Diff α)
+                     , dualSpaceWitness :: DualSpaceWitness (Diff β) ) of
+            (DualSpaceWitness, DualSpaceWitness) -> genericAlg2to1
+  alg2to2 = a2t2
+   where a2t2 :: ∀ α β γ δ . ( WithField s AffineManifold α, WithField s AffineManifold β
+                             , WithField s AffineManifold γ, WithField s AffineManifold δ )
+           => (∀ q . WithField s AffineManifold q
+               => AffinFuncValue s q α -> AffinFuncValue s q β
+                           -> (AffinFuncValue s q γ, AffinFuncValue s q δ) )
+           -> Affine s (α,β) (γ,δ)
+         a2t2 = case ( dualSpaceWitness :: DualSpaceWitness (Diff α)
+                     , dualSpaceWitness :: DualSpaceWitness (Diff β)
+                     , dualSpaceWitness :: DualSpaceWitness (Diff γ)
+                     , dualSpaceWitness :: DualSpaceWitness (Diff δ) ) of
+            (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness, DualSpaceWitness)
+                -> genericAlg2to2
 instance (MetricScalar s)
       => PointAgent (AffinFuncValue s) (Affine s) a x where
   point = genericPoint

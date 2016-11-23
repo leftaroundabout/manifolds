@@ -186,7 +186,7 @@ fromTopWebNodes mf = fromTopShaded mf . fromLeafPoints
                    . map (uncurry WithAny . swap . regroup')
 
 fromShadeTree_auto :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x)) => ShadeTree x -> PointsWeb x ()
-fromShadeTree_auto = fromShaded (dualNorm . _shadeExpanse) . constShaded ()
+fromShadeTree_auto = fromShaded (dualNorm' . _shadeExpanse) . constShaded ()
 
 fromShadeTree :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (Shade x -> Metric x) -> ShadeTree x -> PointsWeb x ()

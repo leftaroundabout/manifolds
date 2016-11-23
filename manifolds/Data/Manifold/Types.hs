@@ -164,7 +164,7 @@ instance (FiniteFreeSpace v, UArr.Unbox (Scalar v)) => AffineSpace (Stiefel1Need
 
 deriveAffine((FiniteFreeSpace v, UArr.Unbox (Scalar v)), Stiefel1Needle v)
 
-instance ∀ v . (FiniteFreeSpace v, UArr.Unbox (Scalar v))
+instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
               => TensorSpace (Stiefel1Needle v) where
   type TensorProduct (Stiefel1Needle v) w = Array w
   zeroTensor = Tensor $ Arr.replicate (freeDimension ([]::[v]) - 1) zeroV
@@ -176,7 +176,7 @@ instance ∀ v . (FiniteFreeSpace v, UArr.Unbox (Scalar v))
   tensorProduct = bilinearFunction $ \(Stiefel1Needle n) w
                         -> Tensor $ Arr.map (*^w) $ Arr.convert n
   transposeTensor = LinearFunction $ \(Tensor a) -> Arr.foldl' (^+^) zeroV
-       $ Arr.imap ( \i w -> (tensorProduct $ w) $ Stiefel1Needle
+       $ Arr.imap ( \i w -> (getLinearFunction tensorProduct w) $ Stiefel1Needle
                              $ UArr.generate d (\j -> if i==j then 1 else 0) ) a
    where d = freeDimension ([]::[v]) - 1
   fmapTensor = bilinearFunction $ \f (Tensor a) -> Tensor $ Arr.map (f$) a
@@ -184,21 +184,13 @@ instance ∀ v . (FiniteFreeSpace v, UArr.Unbox (Scalar v))
                      -> Tensor $ Arr.zipWith (curry $ arr f) a b
   coerceFmapTensorProduct _ Coercion = Coercion
   
-instance ∀ v . (FiniteFreeSpace v, UArr.Unbox (Scalar v), Num''' (Scalar v))
+instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
               => LinearSpace (Stiefel1Needle v) where
   type DualVector (Stiefel1Needle v) = Stiefel1Needle v
   linearId = LinearMap . Arr.generate d $ \i -> Stiefel1Needle . Arr.generate d $
                                            \j -> if i==j then 1 else 0
    where d = freeDimension ([]::[v]) - 1
   coerceDoubleDual = Coercion
-  blockVectSpan = LinearFunction $ \w -> Tensor . Arr.generate d 
-                                  $ \i -> LinearMap . Arr.generate d
-                                   $ \j -> if i==j then w else zeroV
-   where d = freeDimension ([]::[v]) - 1
-  blockVectSpan'= LinearFunction $ \w -> LinearMap . Arr.generate d 
-                                  $ \i -> Tensor . Arr.generate d
-                                   $ \j -> if i==j then w else zeroV
-   where d = freeDimension ([]::[v]) - 1
   contractTensorMap = LinearFunction $ \(LinearMap m)
                         -> Arr.ifoldl' (\acc i (Tensor t) -> acc ^+^ t Arr.! i) zeroV m
   contractMapTensor = LinearFunction $ \(Tensor m)
@@ -210,56 +202,66 @@ instance ∀ v . (FiniteFreeSpace v, UArr.Unbox (Scalar v), Num''' (Scalar v))
                         -> UArr.sum $ UArr.zipWith (*) v w
   applyLinear = bilinearFunction $ \(LinearMap m) (Stiefel1Needle v)
                         -> Arr.ifoldl' (\acc i w -> acc ^+^ v UArr.! i *^ w) zeroV m
-  composeLinear = bilinearFunction $ \f (LinearMap g) -> LinearMap $ Arr.map (f$) g
+  composeLinear = bilinearFunction $ \f (LinearMap g)
+                     -> LinearMap $ Arr.map (getLinearFunction applyLinear f$) g
 
-instance ( WithField k LinearManifold v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
-         , RealFloat k, UArr.Unbox k
-         ) => Semimanifold (Stiefel1 v) where 
+instance ∀ k v .
+   ( WithField k LinearManifold v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
+   , RealFloat k, UArr.Unbox k ) => Semimanifold (Stiefel1 v) where 
   type Needle (Stiefel1 v) = Stiefel1Needle v
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  Stiefel1 s .+~^ Stiefel1Needle n = Stiefel1 . unsafeFromFullUnboxVect . uarrScale (signum s'i)
-   $ if| ν==0      -> s' -- ν'≡0 is a special case of this, so we can otherwise assume ν'>0.
-       | ν<=2      -> let m = uarrScale ιmν spro `uarrAdd` uarrScale ((1-abs ιmν)/ν') n
-                          ιmν = 1-ν 
-                      in insi ιmν m
-       | otherwise -> let m = uarrScale ιmν spro `uarrAdd` uarrScale ((abs ιmν-1)/ν') n
-                          ιmν = ν-3
-                      in insi ιmν m
-   where d = UArr.length s'
-         s'= toFullUnboxVect s
-         ν' = l2norm n
-         quop = signum s'i / ν'
-         ν = ν' `mod'` 4
-         im = UArr.maxIndex $ UArr.map abs s'
-         s'i = s' UArr.! im
-         spro = let v = deli s' in uarrScale (recip s'i) v
-         deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
-         insi ti v = Arr.generate d $ \i -> if | i<im      -> v Arr.! i
-                                               | i>im      -> v Arr.! (i-1) 
-                                               | otherwise -> ti
-instance ( WithField k LinearManifold v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
-         , RealFloat k, UArr.Unbox k
-         ) => PseudoAffine (Stiefel1 v) where 
-  Stiefel1 s .-~. Stiefel1 t = pure . Stiefel1Needle $ case s' UArr.! im of
-            0 -> uarrScale (recip $ l2norm delis) delis
-            s'i | v <- uarrScale (recip s'i) delis `uarrSubtract` tpro
-                , absv <- l2norm v
-                , absv > 0
-                       -> let μ = (signum (t'i/s'i) - recip(absv + 1)) / absv
-                          in uarrScale μ v
-                | t'i/s'i > 0  -> samePoint
-                | otherwise    -> antipode
-   where d = UArr.length t'
-         s'= toFullUnboxVect s; t' = toFullUnboxVect t
-         im = UArr.maxIndex $ UArr.map abs t'
-         t'i = t' UArr.! im
-         tpro = let v = deli t' in uarrScale (recip t'i) v
-         delis = deli s'
-         deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
-         samePoint = UArr.replicate (d-1) 0
-         antipode = (d-1) `UArr.fromListN` (2 : repeat 0)
+  (.+~^) = tpst dualSpaceWitness
+   where tpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1Needle v -> Stiefel1 v
+         tpst DualSpaceWitness (Stiefel1 s) (Stiefel1Needle n)
+             = Stiefel1 . unsafeFromFullUnboxVect . uarrScale (signum s'i)
+          $ if| ν==0      -> s' -- ν'≡0 is a special case of this, so if not ν=0
+                                --  we can otherwise assume ν'>0.
+              | ν<=2      -> let m = uarrScale ιmν spro
+                                       `uarrAdd` uarrScale ((1-abs ιmν)/ν') n
+                                 ιmν = 1-ν 
+                             in insi ιmν m
+              | otherwise -> let m = uarrScale ιmν spro
+                                       `uarrAdd` uarrScale ((abs ιmν-1)/ν') n
+                                 ιmν = ν-3
+                             in insi ιmν m
+          where d = UArr.length s'
+                s'= toFullUnboxVect s
+                ν' = l2norm n
+                quop = signum s'i / ν'
+                ν = ν' `mod'` 4
+                im = UArr.maxIndex $ UArr.map abs s'
+                s'i = s' UArr.! im
+                spro = let v = deli s' in uarrScale (recip s'i) v
+                deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
+                insi ti v = Arr.generate d $ \i -> if | i<im      -> v Arr.! i
+                                                      | i>im      -> v Arr.! (i-1) 
+                                                      | otherwise -> ti
+instance ∀ k v .
+   ( WithField k LinearManifold v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
+   , RealFloat k, UArr.Unbox k ) => PseudoAffine (Stiefel1 v) where 
+  (.-~.) = dpst dualSpaceWitness
+   where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Option (Stiefel1Needle v)
+         dpst DualSpaceWitness (Stiefel1 s) (Stiefel1 t)
+             = pure . Stiefel1Needle $ case s' UArr.! im of
+                   0 -> uarrScale (recip $ l2norm delis) delis
+                   s'i | v <- uarrScale (recip s'i) delis `uarrSubtract` tpro
+                       , absv <- l2norm v
+                       , absv > 0
+                              -> let μ = (signum (t'i/s'i) - recip(absv + 1)) / absv
+                                 in uarrScale μ v
+                       | t'i/s'i > 0  -> samePoint
+                       | otherwise    -> antipode
+          where d = UArr.length t'
+                s'= toFullUnboxVect s; t' = toFullUnboxVect t
+                im = UArr.maxIndex $ UArr.map abs t'
+                t'i = t' UArr.! im
+                tpro = let v = deli t' in uarrScale (recip t'i) v
+                delis = deli s'
+                deli v = Arr.take im v Arr.++ Arr.drop (im+1) v
+                samePoint = UArr.replicate (d-1) 0
+                antipode = (d-1) `UArr.fromListN` (2 : repeat 0)
 
 
 -- instance ( WithField ℝ HilbertManifold x ) => ConeSemimfd (Stiefel1 x) where
@@ -295,7 +297,7 @@ sideOfCut (Cutplane sh (Stiefel1 cn)) p = decideSide . (cn<.>^) =<< p .-~. sh
                     | otherwise  = pure NegativeHalfSphere
 
 
-fathomCutDistance :: WithField ℝ Manifold x
+fathomCutDistance :: ∀ x . WithField ℝ Manifold x
         => Cutplane x            -- ^ Hyperplane to measure the distance from.
          -> Metric' x            -- ^ Metric to use for measuring that distance.
                                  --   This can only be accurate if the metric
@@ -307,9 +309,11 @@ fathomCutDistance :: WithField ℝ Manifold x
          -> Option ℝ             -- ^ A signed number, giving the distance from plane
                                  --   to point with indication on which side the point lies.
                                  --   'Nothing' if the point isn't reachable from the plane.
-fathomCutDistance (Cutplane sh (Stiefel1 cn)) met = \x -> fmap fathom $ x .-~. sh
- where fathom v = (cn <.>^ v) / scaleDist
-       scaleDist = met|$|cn
+fathomCutDistance = fcd dualSpaceWitness
+ where fcd (DualSpaceWitness :: DualSpaceWitness (Needle x)) (Cutplane sh (Stiefel1 cn)) met
+               = \x -> fmap fathom $ x .-~. sh
+        where fathom v = (cn <.>^ v) / scaleDist
+              scaleDist = met|$|cn
           
 
 cutPosBetween :: WithField ℝ Manifold x => Cutplane x -> (x,x) -> Option D¹
@@ -319,16 +323,17 @@ cutPosBetween (Cutplane h (Stiefel1 cn)) (x₀,x₁)
     | otherwise  = empty
 
 
-lineAsPlaneIntersection ::
+lineAsPlaneIntersection :: ∀ x .
        (WithField ℝ Manifold x, FiniteDimensional (Needle' x))
            => Line x -> [Cutplane x]
-lineAsPlaneIntersection (Line h (Stiefel1 dir))
-      = [ Cutplane h . Stiefel1
-              $ candidate ^-^ worstCandidate ^* (overlap/worstOvlp)
-        | (i, (candidate, overlap)) <- zip [0..] $ zip candidates overlaps
-        , i /= worstId ]
- where candidates = enumerateSubBasis entireBasis
-       overlaps = (<.>^dir) <$> candidates
-       (worstId, worstOvlp) = maximumBy (comparing $ abs . snd) $ zip [0..] overlaps
-       worstCandidate = candidates !! worstId
+lineAsPlaneIntersection = lapi dualSpaceWitness
+ where lapi (DualSpaceWitness :: DualSpaceWitness (Needle x)) (Line h (Stiefel1 dir))
+             = [ Cutplane h . Stiefel1
+                     $ candidate ^-^ worstCandidate ^* (overlap/worstOvlp)
+               | (i, (candidate, overlap)) <- zip [0..] $ zip candidates overlaps
+               , i /= worstId ]
+        where candidates = enumerateSubBasis entireBasis
+              overlaps = (<.>^dir) <$> candidates
+              (worstId, worstOvlp) = maximumBy (comparing $ abs . snd) $ zip [0..] overlaps
+              worstCandidate = candidates !! worstId
 

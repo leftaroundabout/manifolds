@@ -46,7 +46,7 @@ Library
                      , linear
                      , MemoTrie
                      , vector
-                     , linearmap-category > 0.1 && < 0.2
+                     , linearmap-category > 0.2 && < 0.3
                      , containers
                      , comonad
                      , semigroups

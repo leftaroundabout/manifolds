@@ -34,7 +34,6 @@
 module Data.Manifold.DifferentialEquation (
             -- * Formulating simple differential eqns.
               DifferentialEqn
-            , constLinearDEqn
             , constLinearODE
             , constLinearPDE
             , filterDEqnSolution_static, iterateFilterDEqn_static
@@ -81,43 +80,39 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 
-{-# DEPRECATED constLinearDEqn "Use 'constLinearODE' or 'constLinearPDE`" #-}
-constLinearDEqn :: ( WithField ℝ LinearManifold x, SimpleSpace x
-                   , WithField ℝ LinearManifold y, SimpleSpace y )
-              => (DualVector y +> (y +> x)) -> DifferentialEqn x y
-constLinearDEqn bwt = factoriseShade
-    >>> \(_x, Shade y δy) -> let j = bwt'inv y
-                                 δj = bwt' `transformNorm` dualNorm δy
-                             in const . pure $ Shade' j δj
- where bwt' = adjoint $ bwt
-       bwt'inv = (bwt'\$)
 
-constLinearODE :: ( WithField ℝ LinearManifold x, SimpleSpace x
-                  , WithField ℝ LinearManifold y, SimpleSpace y )
+constLinearODE :: ∀ x y . ( WithField ℝ LinearManifold x, SimpleSpace x
+                          , WithField ℝ LinearManifold y, SimpleSpace y )
               => ((x +> y) +> y) -> DifferentialEqn x y
-constLinearODE bwt'
-      = \(Shade (_x,y) δxy) _ -> let j = bwt'inv y
+constLinearODE = case ( dualSpaceWitness :: DualNeedleWitness x
+                      , dualSpaceWitness :: DualNeedleWitness y ) of
+   (DualSpaceWitness, DualSpaceWitness) -> \bwt' ->
+    let bwt'inv = (bwt'\$)
+    in  \(Shade (_x,y) δxy) _ -> let j = bwt'inv y
                                      δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
                                  in pure (Shade' j δj)
- where bwt'inv = (bwt'\$)
 
 constLinearPDE :: ∀ x y z .
                   ( WithField ℝ LinearManifold x, SimpleSpace x
                   , WithField ℝ LinearManifold y, SimpleSpace y
                   , SimpleSpace z, FiniteFreeSpace z, Scalar z ~ ℝ )
               => ((x +> y) +> (y, z)) -> DifferentialEqn x y
-constLinearPDE bwt' = \(Shade (_x,y) δxy) jApriori
+constLinearPDE = case ( dualSpaceWitness :: DualNeedleWitness x
+                      , dualSpaceWitness :: DualNeedleWitness y
+                      , dualSpaceWitness :: DualSpaceWitness z ) of
+   (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness) -> \bwt' ->
+    let bwt'inv = (fst . bwt'\$)
+        almostExactlyZero :: Norm z
+        almostExactlyZero = spanNorm [ v^*1e+10
+                                     | v <- enumerateSubBasis
+                                              (entireBasis :: SubBasis (DualVector z)) ]
+    in  \(Shade (_x,y) δxy) jApriori
                             -> let j = bwt'inv y
                                    δj = bwt' `transformNorm`
                                        (sumSubspaceNorms
                                            ((zeroV&&&id)`transformNorm`dualNorm δxy)
                                            almostExactlyZero)
                              in refineShade' jApriori $ Shade' j δj
- where bwt'inv = (fst . bwt'\$)
-       almostExactlyZero :: Norm z
-       almostExactlyZero = spanNorm [ v^*1e+10
-                                    | v <- enumerateSubBasis
-                                             (entireBasis :: SubBasis (DualVector z)) ]
 
 -- | A function that variates, relatively speaking, most strongly
 --   for arguments around 1. In the zero-limit it approaches a constant
