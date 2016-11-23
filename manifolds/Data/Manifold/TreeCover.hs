@@ -58,7 +58,7 @@ module Data.Manifold.TreeCover (
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
-       , sShSaw, chainsaw, HasFlatView(..), shadesMerge, smoothInterpolate
+       , HasFlatView(..), shadesMerge, smoothInterpolate
        , allTwigs, twigsWithEnvirons, Twig, TwigEnviron, seekPotentialNeighbours
        , completeTopShading, flexTwigsShading, coerceShadeTree
        , WithAny(..), Shaded, fmapShaded, joinShaded
@@ -1512,28 +1512,11 @@ breakdownAutoTriang :: ∀ n n' x . (KnownNat n', n ~ S n') => AutoTriang n x ->
 breakdownAutoTriang (AutoTriang t) = doTriangBuild t
          
                     
---  where tr :: Triangulation n x
---        outfc :: Map.Map (SimplexIT t n' x) (Metric x, ISimplex n x)
---        (((), tr), outfc) = runState (doTriangT tb') mempty
---        tb' :: ∀ t' . TriangT t' n x 
---                         ( State ( Map.Map (SimplexIT t' n' x)
---                              (Metric x, ISimplex n x) ) ) ()
---        tb' = tb
    
    
    
        
 
--- primitiveTriangulation :: forall x n . (KnownNat n,WithField ℝ Manifold x)
---                              => [x] -> Triangulation n x
--- primitiveTriangulation xs = head $ build <$> buildOpts
---  where build :: ([x], [x]) -> Triangulation n x
---        build (mainVerts, sideVerts) = Triangulation [mainSplx]
---         where (Option (Just mainSplx)) = makeSimplex mainVerts
--- --              mainFaces = Map.fromAscList . zip [0..] . getTriangulation
--- --                                 $ simplexFaces mainSplx
---        buildOpts = partitionsOfFstLength n xs
---        (Tagged n) = theNatN :: Tagged n Int
  
 partitionsOfFstLength :: Int -> [a] -> [([a],[a])]
 partitionsOfFstLength 0 l = [([],l)]
@@ -1614,25 +1597,6 @@ instance Monoid (Sawbones x) where
   mappend = (<>)
 
 
-chainsaw :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
-               => Cutplane x -> ShadeTree x -> Sawbones x
-chainsaw cpln (PlainLeaves xs) = Sawbones (sd1++) (sd2++) sd2 sd1
- where (sd1,sd2) = partition (\x -> sideOfCut cpln x == Option(Just PositiveHalfSphere)) xs
-chainsaw cpln (DisjointBranches _ brs) = Hask.foldMap (chainsaw cpln) brs
-chainsaw cpln (OverlappingBranches _ (Shade _ bexpa) brs) = Sawbones t1 t2 d1 d2
- where (Sawbones t1 t2 subD1 subD2)
-             = Hask.foldMap (Hask.foldMap (chainsaw cpln) . boughContents) brs
-       [d1,d2] = map (foldl' go [] . foci) [subD1, subD2]
-        where go d' (dp,dqs) = case fathomCD dp of
-                 Option (Just dpCD) | not $ any (shelter dpCD) dqs
-                    -> dp:d' -- dp is close enough to cut plane to make dust.
-                 _  -> d'    -- some dq is actually closer than the cut plane => discard dp.
-               where shelter dpCutDist dq = case ptsDist dp dq of
-                        Option (Just d) -> d < abs dpCutDist
-                        _               -> False
-                     ptsDist = fmap (dualNorm bexpa|$|) .: (.-~.)
-       fathomCD = fathomCutDistance cpln bexpa
-       
 
 type DList x = [x]->[x]
     
@@ -1649,51 +1613,6 @@ instance Semigroup (Sawboneses x) where
 
 
 
--- | Saw a tree into the domains covered by the respective branches of another tree.
-sShSaw :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
-          => ShadeTree x   -- ^ &#x201c;Reference tree&#x201d;, defines the cut regions.
-                           --   Must be at least one level of 'OverlappingBranches' deep.
-          -> ShadeTree x   -- ^ Tree to take the actual contents from.
-          -> Sawboneses x  -- ^ All points within each region, plus those from the
-                           --   boundaries of each neighbouring region.
-sShSaw (OverlappingBranches _ (Shade sh _) (DBranch dir _ :| [])) src
-          = SingleCut $ chainsaw (Cutplane sh $ stiefel1Project dir) src
-sShSaw (OverlappingBranches _ (Shade cctr _) cbrs) (PlainLeaves xs)
-          = Sawboneses . DBranches $ NE.fromList ngbsAdded
- where brsEmpty = fmap (\(DBranch dir _)-> DBranch dir mempty) cbrs
-       srcDistrib = sShIdPartition' cctr xs brsEmpty
-       ngbsAdded = fmap (\(DBranch dir (Hourglass u l), othrs)
-                             -> let [allOthr,allOthr']
-                                        = map (DBranches . NE.fromList)
-                                            [othrs, fmap (\(DBranch d' o)
-                                                          ->DBranch(negateV d') o) othrs]
-                                in DBranch dir $ Hourglass (DustyEdges (u++) allOthr)
-                                                           (DustyEdges (l++) allOthr')
-                        ) $ foci (NE.toList srcDistrib)
-sShSaw cuts@(OverlappingBranches _ (Shade sh _) cbrs)
-        (OverlappingBranches _ (Shade _ bexpa) brs)
-          = Sawboneses . DBranches $ ftr'd
- where Option (Just (Sawboneses (DBranches recursed)))
-             = Hask.foldMap (Hask.foldMap (pure . sShSaw cuts) . boughContents) brs
-       ftr'd = fmap (\(DBranch dir1 ds) -> DBranch dir1 $ fmap (
-                         \(DustyEdges bk (DBranches dds))
-                                -> DustyEdges bk . DBranches $ fmap (obsFilter dir1) dds
-                                                               ) ds ) recursed
-       obsFilter dir1 (DBranch dir2 (Hourglass pd2 md2))
-                         = DBranch dir2 $ Hourglass pd2' md2'
-        where cpln cpSgn = Cutplane sh . stiefel1Project $ dir1 ^+^ cpSgn*^dir2
-              [pd2', md2'] = zipWith (occl . cpln) [-1, 1] [pd2, md2] 
-              occl cpl = foldl' go [] . foci
-               where go d' (dp,dqs) = case fathomCD dp of
-                           Option (Just dpCD) | not $ any (shelter dpCD) dqs
-                                     -> dp:d'
-                           _         -> d'
-                      where shelter dpCutDist dq = case ptsDist dp dq of
-                             Option (Just d) -> d < abs dpCutDist
-                             _               -> False
-                            ptsDist = fmap (dualNorm bexpa|$|) .: (.-~.)
-                     fathomCD = fathomCutDistance cpl bexpa
-sShSaw _ _ = error "`sShSaw` is not supposed to cut anything else but `OverlappingBranches`"
 
 
 
