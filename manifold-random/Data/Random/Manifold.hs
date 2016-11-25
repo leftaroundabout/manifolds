@@ -40,7 +40,7 @@ instance D_S x => Distribution Shade x where
 shadeT' :: (PseudoAffine x, SimpleSpace (Needle x), Scalar (Needle x) ~ ℝ)
                       => Interior x -> Variance (Needle x) -> RVarT m x
 shadeT' ctr expa = ((ctr.+~^) . sumV) <$> mapM (\v -> (v^*) <$> stdNormalT) eigSpan
-   where eigSpan = normSpanningSystem expa
+   where eigSpan = varianceSpanningSystem expa
 
 -- | A shade can be considered a specification for a generalised normal distribution.
 -- 
@@ -59,7 +59,9 @@ uncertainFunctionSamplesT :: ∀ x y m .
         ( WithField ℝ Manifold x, SimpleSpace (Needle x)
         , WithField ℝ Manifold y, SimpleSpace (Needle y) )
        => Int -> Shade x -> (x -> Shade y) -> RVarT m (x`Shaded`y)
-uncertainFunctionSamplesT n shx f = do
+uncertainFunctionSamplesT n shx f = case ( dualSpaceWitness :: DualNeedleWitness x
+                                         , dualSpaceWitness :: DualNeedleWitness y ) of
+    (DualSpaceWitness, DualSpaceWitness) -> do
       domainSpls <- replicateM n $ rvarT shx
       pts <- forM domainSpls $ \x -> do
          y <- rvarT $ f x
