@@ -92,27 +92,22 @@ constLinearODE = case ( dualSpaceWitness :: DualNeedleWitness x
                                      δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
                                  in pure (Shade' j δj)
 
-constLinearPDE :: ∀ x y z .
+constLinearPDE :: ∀ x y y' .
                   ( WithField ℝ LinearManifold x, SimpleSpace x
-                  , WithField ℝ LinearManifold y, SimpleSpace y
-                  , SimpleSpace z, FiniteFreeSpace z, Scalar z ~ ℝ )
-              => ((x +> y) +> (y, z)) -> DifferentialEqn x y
+                  , WithField ℝ LinearManifold y, SimpleSpace y, FiniteFreeSpace y
+                  , WithField ℝ LinearManifold y', SimpleSpace y' )
+              => ((x +> (y,y')) +> (y, y')) -> DifferentialEqn x (y,y')
 constLinearPDE = case ( dualSpaceWitness :: DualNeedleWitness x
                       , dualSpaceWitness :: DualNeedleWitness y
-                      , dualSpaceWitness :: DualSpaceWitness z ) of
+                      , dualSpaceWitness :: DualSpaceWitness y' ) of
    (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness) -> \bwt' ->
-    let bwt'inv = (fst . bwt'\$)
-        almostExactlyZero :: Norm z
-        almostExactlyZero = spanNorm [ v^*1e+10
-                                     | v <- enumerateSubBasis
-                                              (entireBasis :: SubBasis (DualVector z)) ]
-    in  \(Shade (_x,y) δxy) jApriori
-                            -> let j = bwt'inv y
-                                   δj = bwt' `transformNorm`
-                                       (sumSubspaceNorms
-                                           ((zeroV&&&id)`transformNorm`dualNorm δxy)
-                                           almostExactlyZero)
-                             in refineShade' jApriori $ Shade' j δj
+    let bwt'inv = (bwt'\$)
+    in  \(Shade (_x,(y,y')) δxy) (Shade' jApriori σjApriori)
+                            -> let j = bwt'inv $ (zeroV,y')
+                                   δj = (bwt'>>>zeroV&&&id)
+                                         `transformNorm` dualNorm δxy
+                             in mixShade's $ Shade' jApriori σjApriori
+                                          :| [Shade' j δj]
 
 -- | A function that variates, relatively speaking, most strongly
 --   for arguments around 1. In the zero-limit it approaches a constant
