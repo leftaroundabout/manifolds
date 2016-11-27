@@ -90,7 +90,7 @@ constLinearODE = case ( dualSpaceWitness :: DualNeedleWitness x
     let bwt'inv = (bwt'\$)
     in  \(Shade (_x,y) δxy) _ -> let j = bwt'inv y
                                      δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
-                                 in pure (Shade' j δj)
+                                 in pure (Shade' y mempty, Shade' j δj)
 
 constLinearPDE :: ∀ x y y' .
                   ( WithField ℝ LinearManifold x, SimpleSpace x
@@ -106,8 +106,11 @@ constLinearPDE = case ( dualSpaceWitness :: DualNeedleWitness x
                             -> let j = bwt'inv $ (zeroV,y')
                                    δj = (bwt'>>>zeroV&&&id)
                                          `transformNorm` dualNorm δxy
-                             in mixShade's $ Shade' jApriori σjApriori
-                                          :| [Shade' j δj]
+                                   (_,y'Apriori) = bwt' $ jApriori
+                                   Norm δy' = (arr $ LinearFunction bwt'inv . (zeroV&&&id))
+                                         `transformNorm` σjApriori
+                             in (Shade' (y,y'Apriori) . Norm $ zeroV *** δy' , )
+                              <$> mixShade's (Shade' jApriori σjApriori :| [Shade' j δj])
 
 -- | A function that variates, relatively speaking, most strongly
 --   for arguments around 1. In the zero-limit it approaches a constant

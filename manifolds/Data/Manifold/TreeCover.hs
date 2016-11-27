@@ -153,7 +153,7 @@ deriving instance (Show (Interior x), Show (Metric x), WithField ℝ PseudoAffin
                 => Show (Shade' x)
 
 type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
-                              -> Option (Shade' (LocalLinear x y))
+                              -> Option (Shade' y, Shade' (LocalLinear x y))
 
 data LocalDataPropPlan x y = LocalDataPropPlan
        { _sourcePosition :: !(Interior x)
@@ -1178,9 +1178,10 @@ propagateDEqnSolution_loc f propPlan aPrioriJacobian
                           (dualSpaceWitness :: DualNeedleWitness y)
  where pdesl DualSpaceWitness DualSpaceWitness
           | Option Nothing <- jacobian  = Nothing
-          | otherwise                   = Just result
+          | otherwise         = getOption . mixShade's -- should be `refineShade's`?
+                                                  $ shy₀:|[result]
          where jacobian =f shxy aPrioriJacobian
-               Option (Just (Shade' j₀ jExpa)) = jacobian
+               Option (Just (shy₀, Shade' j₀ jExpa)) = jacobian
 
                mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2
                Option (Just my) = middleBetween (propPlan^.sourceData.shadeCtr)
