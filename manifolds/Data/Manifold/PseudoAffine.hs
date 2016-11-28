@@ -130,7 +130,7 @@ data PseudoAffineWitness x where
       ( PseudoAffine (Interior x), PseudoAffine (Needle x) )
      => PseudoAffineWitness x
 
-infix 6 .-~.
+infix 6 .-~., .-~!
 infixl 6 .+~^, .-~^
 
 class AdditiveGroup (Needle x) => Semimanifold x where
