@@ -44,7 +44,8 @@ module Data.Manifold.TreeCover (
        -- ** Lenses
        , shadeCtr, shadeExpanse, shadeNarrowness
        -- ** Construction
-       , fullShade, fullShade', pointsShades, pointsShade's, pointsCovers, pointsCover's
+       , fullShade, fullShade', pointsShades, pointsShade's
+       , pointsCovers, pointsCover's, coverAllAround
        -- ** Evaluation
        , occlusion
        -- ** Misc
@@ -65,7 +66,8 @@ module Data.Manifold.TreeCover (
        , constShaded, zipTreeWithList, stripShadedUntopological
        , stiAsIntervalMapping, spanShading
        , estimateLocalJacobian
-       , DifferentialEqn, propagateDEqnSolution_loc, LocalDataPropPlan(..)
+       , DifferentialEqn, LocalDifferentialEqn(..)
+       , propagateDEqnSolution_loc, LocalDataPropPlan(..)
        , rangeOnGeodesic
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild
@@ -152,8 +154,13 @@ data Shade' x = Shade' { _shade'Ctr :: !(Interior x)
 deriving instance (Show (Interior x), Show (Metric x), WithField ℝ PseudoAffine x)
                 => Show (Shade' x)
 
-type DifferentialEqn x y = Shade (x,y) -> Shade' (LocalLinear x y)
-                              -> Option (Shade' y, Shade' (LocalLinear x y))
+data LocalDifferentialEqn x y = LocalDifferentialEqn {
+      _predictDerivatives :: Option (Shade' (LocalLinear x y))
+    , _rescanDerivatives :: Shade' (LocalLinear x y) -> Option (Shade' y)
+    }
+makeLenses ''LocalDifferentialEqn
+
+type DifferentialEqn x y = Shade (x,y) -> LocalDifferentialEqn x y
 
 data LocalDataPropPlan x y = LocalDataPropPlan
        { _sourcePosition :: !(Interior x)
@@ -1171,17 +1178,15 @@ propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x
                                      , SimpleSpace (Needle x) )
            => DifferentialEqn x y
                -> LocalDataPropPlan x (Shade' y)
-               -> Shade' (LocalLinear x y) -- ^ A-priori Jacobian at the source
                -> Maybe (Shade' y)
-propagateDEqnSolution_loc f propPlan aPrioriJacobian
+propagateDEqnSolution_loc f propPlan
                   = pdesl (dualSpaceWitness :: DualNeedleWitness x)
                           (dualSpaceWitness :: DualNeedleWitness y)
  where pdesl DualSpaceWitness DualSpaceWitness
           | Option Nothing <- jacobian  = Nothing
-          | otherwise         = getOption . mixShade's -- should be `refineShade's`?
-                                                  $ shy₀:|[result]
-         where jacobian =f shxy aPrioriJacobian
-               Option (Just (shy₀, Shade' j₀ jExpa)) = jacobian
+          | otherwise                   = pure result
+         where jacobian = f shxy ^. predictDerivatives
+               Option (Just (Shade' j₀ jExpa)) = jacobian
 
                mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2
                Option (Just my) = middleBetween (propPlan^.sourceData.shadeCtr)

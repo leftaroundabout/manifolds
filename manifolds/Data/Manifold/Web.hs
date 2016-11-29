@@ -580,6 +580,24 @@ differentiateUncertainWebFunction :: ∀ x y
              -> PointsWeb x (Shade' (LocalLinear x y))
 differentiateUncertainWebFunction = localFmapWeb differentiateUncertainWebLocally
 
+rescanPDELocally :: ∀ x y .
+     ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+     , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
+         => DifferentialEqn x y -> WebLocally x (Shade' y)
+                                -> Option (Shade' y)
+rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
+                        , dualSpaceWitness :: DualNeedleWitness y ) of
+   (DualSpaceWitness,DualSpaceWitness)
+     -> \f info -> let xc = info^.thisNodeCoord
+                       yc = info^.thisNodeData.shadeCtr
+                   in case f $ coverAllAround (xc, yc)
+                                     [ (δx, (ngb^.thisNodeData.shadeCtr.-~!yc) ^+^ v)
+                                     | (_,(δx,ngb))<-info^.nodeNeighbours
+                                     , v <- normSpanningSystem'
+                                              (ngb^.thisNodeData.shadeNarrowness)] of
+                        LocalDifferentialEqn _ rescan
+                            -> rescan $ differentiateUncertainWebLocally info
+
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
@@ -664,7 +682,7 @@ filterDEqnSolution_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
        => InconsistencyStrategy m x (Shade' y) -> DifferentialEqn x y
             -> PointsWeb x (Shade' y) -> m (PointsWeb x (Shade' y))
 filterDEqnSolution_static AbortOnInconsistency f
-       = webLocalInfo >>> fmap (id &&& differentiateUncertainWebLocally) >>> localFocusWeb
+       = webLocalInfo >>> fmap (id &&& rescanPDELocally f) >>> localFocusWeb
            >>> Hask.traverse `id`\((_,(me,_)), ngbs) -> case ngbs of
                   []  -> return $ me^.thisNodeData
                   _:_ -> refineShade' (me^.thisNodeData)
@@ -678,7 +696,7 @@ filterDEqnSolution_static AbortOnInconsistency f
                                              (me^.thisNodeData)
                                              (fmap (second _thisNodeData . snd)
                                                        $ ngbInfo^.nodeNeighbours)
-                                          ) sj
+                                          )
                                   | (δx, (ngbInfo,sj)) <- ngbs
                                   ] )
 
@@ -705,7 +723,7 @@ filterDEqnSolutions_static strategy f
                                              (convexSetHull $ me^.thisNodeData)
                                              (fmap (second (convexSetHull . _thisNodeData)
                                                     . snd) $ ngbInfo^.nodeNeighbours)
-                                          ) sj
+                                          )
                                   | (δx, (ngbInfo,sj)) <- ngbs
                                   ] )
                             >>= intersectShade's
@@ -771,7 +789,6 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                            [ second (convexSetHull
                                                      . _solverNodeStatus . _thisNodeData) nn
                                            | (_,nn)<-neigh^.nodeNeighbours ] )
-                                        (wl^.thisNodeData.solverNodeJacobian)
                                      | (δx, neigh) <- neighbourInfo ]  -- ( (thisPos, thisShy), NE.fromList neighbourHulls )
                      thisPos = _thisNodeCoord wl :: x
                      thisShy = convexSetHull . _solverNodeStatus $ _thisNodeData wl
@@ -867,7 +884,6 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                                                ._thisNodeData)
                                                               . snd
                                                               <$> n^.nodeNeighbours) )
-                                                   (n^.thisNodeData.solverNodeJacobian)
                                                 -- ( (xStep, hull)
                                                 -- , NE.cons (negateV stepV, hull)
                                                 --     $ fmap (\(vN',hullN')

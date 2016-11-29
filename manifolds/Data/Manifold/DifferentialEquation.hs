@@ -88,16 +88,18 @@ constLinearODE = case ( dualSpaceWitness :: DualNeedleWitness x
                       , dualSpaceWitness :: DualNeedleWitness y ) of
    (DualSpaceWitness, DualSpaceWitness) -> \bwt' ->
     let bwt'inv = (bwt'\$)
-    in  \(Shade (_x,y) δxy) _ -> let j = bwt'inv y
-                                     δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
-                                 in pure (Shade' y mempty, Shade' j δj)
+    in \(Shade (_x,y) δxy) -> LocalDifferentialEqn
+            (let j = bwt'inv y
+                 δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
+             in return $ Shade' j δj )
+            (\_ -> return . Shade' y . dualNorm $ (zeroV&&&id) `transformNorm` δxy )
 
 constLinearPDE :: ∀ x y y' .
                   ( WithField ℝ LinearManifold x, SimpleSpace x
                   , WithField ℝ LinearManifold y, SimpleSpace y, FiniteFreeSpace y
                   , WithField ℝ LinearManifold y', SimpleSpace y' )
               => ((x +> (y,y')) +> (y, y')) -> DifferentialEqn x (y,y')
-constLinearPDE = case ( dualSpaceWitness :: DualNeedleWitness x
+constLinearPDE = undefined{-case ( dualSpaceWitness :: DualNeedleWitness x
                       , dualSpaceWitness :: DualNeedleWitness y
                       , dualSpaceWitness :: DualSpaceWitness y' ) of
    (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness) -> \bwt' ->
@@ -110,7 +112,7 @@ constLinearPDE = case ( dualSpaceWitness :: DualNeedleWitness x
                                    Norm δy' = (arr $ LinearFunction bwt'inv . (zeroV&&&id))
                                          `transformNorm` σjApriori
                              in (Shade' (y,y'Apriori) . Norm $ zeroV *** δy' , )
-                              <$> mixShade's (Shade' jApriori σjApriori :| [Shade' j δj])
+                              <$> mixShade's (Shade' jApriori σjApriori :| [Shade' j δj])-}
 
 -- | A function that variates, relatively speaking, most strongly
 --   for arguments around 1. In the zero-limit it approaches a constant
