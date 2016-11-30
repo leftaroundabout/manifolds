@@ -92,7 +92,7 @@ constLinearODE = case ( dualSpaceWitness :: DualNeedleWitness x
             (let j = bwt'inv y
                  δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
              in return $ Shade' j δj )
-            (\_ -> return . Shade' y . dualNorm $ (zeroV&&&id) `transformNorm` δxy )
+            (\_ -> pure )
 
 constLinearPDE :: ∀ x y y' .
                   ( WithField ℝ LinearManifold x, SimpleSpace x

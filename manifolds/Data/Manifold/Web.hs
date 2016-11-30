@@ -558,6 +558,13 @@ localFmapWeb :: WithField ℝ Manifold x
                 => (WebLocally x y -> z) -> PointsWeb x y -> PointsWeb x z
 localFmapWeb f = webLocalInfo >>> fmap f
 
+traverseWebWithStrategy :: ( WithField ℝ Manifold x, Hask.Applicative m )
+               => InconsistencyStrategy m x y -> (WebLocally x y -> Option y)
+                     -> PointsWeb x y -> m (PointsWeb x y)
+traverseWebWithStrategy strat f = webLocalInfo
+               >>> traverse (\info -> handleInconsistency strat
+                                       (info^.thisNodeData) (f info))
+
 differentiateUncertainWebLocally :: ∀ x y
    . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
      , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
@@ -596,8 +603,16 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                      , v <- normSpanningSystem'
                                               (ngb^.thisNodeData.shadeNarrowness)] of
                         LocalDifferentialEqn _ rescan
-                            -> rescan $ differentiateUncertainWebLocally info
+                            -> rescan (differentiateUncertainWebLocally info)
+                                      (info^.thisNodeData)
 
+rescanPDEOnWeb :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                  , WithField ℝ Manifold y, Refinable y, SimpleSpace (Needle y)
+                  , Hask.Applicative m )
+                => InconsistencyStrategy m x (Shade' y)
+                  -> DifferentialEqn x y -> PointsWeb x (Shade' y)
+                                   -> m (PointsWeb x (Shade' y))
+rescanPDEOnWeb strat = traverseWebWithStrategy strat . rescanPDELocally
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
@@ -681,11 +696,11 @@ filterDEqnSolution_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                              , Refinable y, Geodesic y )
        => InconsistencyStrategy m x (Shade' y) -> DifferentialEqn x y
             -> PointsWeb x (Shade' y) -> m (PointsWeb x (Shade' y))
-filterDEqnSolution_static AbortOnInconsistency f
-       = webLocalInfo >>> fmap (id &&& rescanPDELocally f) >>> localFocusWeb
-           >>> Hask.traverse `id`\((_,(me,_)), ngbs) -> case ngbs of
-                  []  -> return $ me^.thisNodeData
-                  _:_ -> refineShade' (me^.thisNodeData)
+filterDEqnSolution_static strat@AbortOnInconsistency f
+       = rescanPDEOnWeb strat f >=> webLocalInfo
+           >>> Hask.traverse `id`\me -> case me^.nodeNeighbours of
+                  []   -> return $ me^.thisNodeData
+                  ngbs -> refineShade' (me^.thisNodeData)
                             =<< intersectShade's
                             =<< Option ( sequenceA $ NE.fromList
                                   [ propagateDEqnSolution_loc
@@ -697,7 +712,7 @@ filterDEqnSolution_static AbortOnInconsistency f
                                              (fmap (second _thisNodeData . snd)
                                                        $ ngbInfo^.nodeNeighbours)
                                           )
-                                  | (δx, (ngbInfo,sj)) <- ngbs
+                                  | (_, (δx, ngbInfo)) <- ngbs
                                   ] )
 
 filterDEqnSolutions_static :: ∀ x y m .
@@ -708,19 +723,21 @@ filterDEqnSolutions_static :: ∀ x y m .
             -> PointsWeb x (ConvexSet y) -> m (PointsWeb x (ConvexSet y))
 filterDEqnSolutions_static strategy f
        = webLocalInfo
-           >>> fmap (id &&& differentiateUncertainWebLocally . fmap convexSetHull)
-           >>> localFocusWeb >>> Hask.traverse `id`\((_,(me,_)), ngbs)
-             -> let oldValue = me^.thisNodeData :: ConvexSet y
-                in case ngbs of
+           >>> fmap (id &&& rescanPDELocally f . fmap convexSetHull)
+           >>> localFocusWeb >>> Hask.traverse `id`\((_,(me,updShy)), ngbs)
+          -> let oldValue = me^.thisNodeData :: ConvexSet y
+             in  case updShy of
+              Option (Just shy) -> case ngbs of
                   []  -> pure oldValue
                   _:_ -> handleInconsistency strategy oldValue
-                          $ Option ( sequenceA $ NE.fromList
-                                  [ propagateDEqnSolution_loc
+                          $ ( sequenceA $ NE.fromList
+                                  [ sj >>= Option . \ngbShy ->
+                                     propagateDEqnSolution_loc
                                        f (LocalDataPropPlan
                                              (ngbInfo^.thisNodeCoord)
                                              (negateV δx)
-                                             (convexSetHull $ ngbInfo^.thisNodeData)
-                                             (convexSetHull $ me^.thisNodeData)
+                                             ngbShy
+                                             shy
                                              (fmap (second (convexSetHull . _thisNodeData)
                                                     . snd) $ ngbInfo^.nodeNeighbours)
                                           )
@@ -730,6 +747,7 @@ filterDEqnSolutions_static strategy f
                             >>= pure . ((oldValue<>) . ellipsoid)
                             >>= \case EmptyConvex -> empty
                                       c           -> pure c
+              _ -> handleInconsistency strategy oldValue empty
 
 handleInconsistency :: InconsistencyStrategy m x a -> a -> Option a -> m a
 handleInconsistency AbortOnInconsistency _ i = i

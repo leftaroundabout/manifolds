@@ -156,7 +156,7 @@ deriving instance (Show (Interior x), Show (Metric x), WithField ℝ PseudoAffin
 
 data LocalDifferentialEqn x y = LocalDifferentialEqn {
       _predictDerivatives :: Option (Shade' (LocalLinear x y))
-    , _rescanDerivatives :: Shade' (LocalLinear x y) -> Option (Shade' y)
+    , _rescanDerivatives :: Shade' (LocalLinear x y) -> Shade' y -> Option (Shade' y)
     }
 makeLenses ''LocalDifferentialEqn
 
