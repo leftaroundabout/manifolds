@@ -459,10 +459,10 @@ instance (c) => PseudoAffine (t) where {       \
 
 deriveAffine((),Double)
 deriveAffine((),Rational)
-deriveAffine(NumberManifold s, V1 s)
-deriveAffine(NumberManifold s, V2 s)
-deriveAffine(NumberManifold s, V3 s)
-deriveAffine(NumberManifold s, V4 s)
+deriveAffine(Num s, V1 s)
+deriveAffine(Num s, V2 s)
+deriveAffine(Num s, V3 s)
+deriveAffine(Num s, V4 s)
 deriveAffine(KnownNat n, FreeVect n ℝ)
 
 instance (NumberManifold s) => LocallyCoercible (ZeroDim s) (V0 s) where
