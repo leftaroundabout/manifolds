@@ -76,6 +76,7 @@ Library
                      Data.Manifold.Types
                      Data.Manifold.Types.Stiefel
                      Data.Manifold.Griddable
+                     Data.Manifold.Atlas
                      Data.Manifold.Riemannian
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive
