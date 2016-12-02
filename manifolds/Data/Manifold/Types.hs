@@ -167,6 +167,8 @@ deriveAffine((FiniteFreeSpace v, UArr.Unbox (Scalar v)), Stiefel1Needle v)
 instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
               => TensorSpace (Stiefel1Needle v) where
   type TensorProduct (Stiefel1Needle v) w = Array w
+  scalarSpaceWitness = case scalarSpaceWitness :: ScalarSpaceWitness v of
+         ScalarSpaceWitness -> ScalarSpaceWitness
   zeroTensor = Tensor $ Arr.replicate (freeDimension ([]::[v]) - 1) zeroV
   toFlatTensor = LinearFunction $ Tensor . Arr.convert . getStiefel1Tangent
   fromFlatTensor = LinearFunction $ Stiefel1Needle . Arr.convert . getTensorProduct
@@ -183,6 +185,15 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
   fzipTensorWith = bilinearFunction $ \f (Tensor a, Tensor b)
                      -> Tensor $ Arr.zipWith (curry $ arr f) a b
   coerceFmapTensorProduct _ Coercion = Coercion
+
+asTensor :: Coercion (LinearMap s a b) (Tensor s (DualVector a) b)
+asTensor = Coercion
+asLinearMap :: Coercion (Tensor s (DualVector a) b) (LinearMap s a b)
+asLinearMap = Coercion
+infixr 0 +$>
+(+$>) :: (LinearSpace a, TensorSpace b, Scalar a ~ s, Scalar b ~ s)
+            => LinearMap s a b -> a -> b
+(+$>) = getLinearFunction . getLinearFunction applyLinear
   
 instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
               => LinearSpace (Stiefel1Needle v) where
@@ -190,6 +201,15 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
   linearId = LinearMap . Arr.generate d $ \i -> Stiefel1Needle . Arr.generate d $
                                            \j -> if i==j then 1 else 0
    where d = freeDimension ([]::[v]) - 1
+  tensorId = ti dualSpaceWitness
+   where ti :: ∀ w . (LinearSpace w, Scalar w ~ Scalar v)
+           => DualSpaceWitness w -> (Stiefel1Needle v ⊗ w) +> (Stiefel1Needle v ⊗ w)
+         ti DualSpaceWitness = LinearMap . Arr.generate d
+           $ \i -> fmap (LinearFunction $ \w -> Tensor . Arr.generate d $
+              \j -> if i==j then w else zeroV) $ asTensor $ id
+         d = freeDimension ([]::[v]) - 1
+  dualSpaceWitness = case dualSpaceWitness :: DualSpaceWitness v of
+         DualSpaceWitness -> DualSpaceWitness
   coerceDoubleDual = Coercion
   contractTensorMap = LinearFunction $ \(LinearMap m)
                         -> Arr.ifoldl' (\acc i (Tensor t) -> acc ^+^ t Arr.! i) zeroV m
@@ -202,6 +222,10 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
                         -> UArr.sum $ UArr.zipWith (*) v w
   applyLinear = bilinearFunction $ \(LinearMap m) (Stiefel1Needle v)
                         -> Arr.ifoldl' (\acc i w -> acc ^+^ v UArr.! i *^ w) zeroV m
+  applyTensorFunctional = bilinearFunction $ \(LinearMap f) (Tensor t)
+                           -> Arr.ifoldl' (\acc i u -> acc + u <.>^ t Arr.! i) 0 f
+  applyTensorLinMap = bilinearFunction $ \(LinearMap f) (Tensor t)
+         -> Arr.ifoldl' (\w i u -> w ^+^ ((asLinearMap $ f Arr.! i) +$> u)) zeroV t
   composeLinear = bilinearFunction $ \f (LinearMap g)
                      -> LinearMap $ Arr.map (getLinearFunction applyLinear f$) g
 
