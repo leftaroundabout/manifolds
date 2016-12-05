@@ -295,7 +295,7 @@ as_devεδ ldp ε | ε>0
 
 genericiseDifferentiable :: (LocallyScalable s d, LocallyScalable s c)
                     => Differentiable s d c -> Differentiable s d c
-genericiseDifferentiable (AffinDiffable _ af)
+genericiseDifferentiable (AffinDiffable af)
      = Differentiable $ \x -> let (y₀, ϕ) = toOffset'Slope af x
                               in (y₀, ϕ, const mempty)
 genericiseDifferentiable f = f
@@ -311,7 +311,7 @@ instance RealFrac' s => Category (Differentiable s) where
                               εy = devf δz
                           in transformNorm g' εy <> devg δy <> devg εy
            in (z, f' . g', devfg)
-  AffinDiffable ef f . AffinDiffable eg g = AffinDiffable (ef . eg) (f . g)
+  AffinDiffable f . AffinDiffable g = AffinDiffable $ f . g
   f . g = genericiseDifferentiable f . genericiseDifferentiable g
 
 
@@ -320,7 +320,7 @@ instance RealFrac' s => Category (Differentiable s) where
   
 instance (RealDimension s) => EnhancedCat (->) (Differentiable s) where
   arr (Differentiable f) x = let (y,_,_) = f x in y
-  arr (AffinDiffable _ f) x = f $ x
+  arr (AffinDiffable f) x = f $ x
 
 instance (RealFrac' s) => Cartesian (Differentiable s) where
   type UnitObject (Differentiable s) = ZeroDim s
@@ -340,9 +340,7 @@ instance (RealFrac' s) => Morphism (Differentiable s) where
                            <> transformNorm snd δy
                   where δx = devf $ transformNorm (id&&&zeroV) δs
                         δy = devg $ transformNorm (zeroV&&&id) δs
-  AffinDiffable IsDiffableEndo f *** AffinDiffable IsDiffableEndo g
-         = AffinDiffable IsDiffableEndo $ f *** g
-  AffinDiffable _ f *** AffinDiffable _ g = AffinDiffable NotDiffableEndo $ f *** g
+  AffinDiffable f *** AffinDiffable g = AffinDiffable $ f *** g
   f *** g = genericiseDifferentiable f *** genericiseDifferentiable g
 
 
@@ -402,20 +400,20 @@ instance (RealFrac' s)
 
 actuallyLinearEndo :: WithField s LinearManifold x
             => (x+>x) -> Differentiable s x x
-actuallyLinearEndo = AffinDiffable IsDiffableEndo . linearAffine
+actuallyLinearEndo = AffinDiffable . linearAffine
 
 actuallyAffineEndo :: WithField s LinearManifold x
             => x -> (x+>x) -> Differentiable s x x
-actuallyAffineEndo y₀ f = AffinDiffable IsDiffableEndo $ const y₀ .+^ linearAffine f
+actuallyAffineEndo y₀ f = AffinDiffable $ const y₀ .+^ linearAffine f
 
 actuallyLinear :: ( WithField s LinearManifold x, WithField s LinearManifold y )
             => (x+>y) -> Differentiable s x y
-actuallyLinear = AffinDiffable NotDiffableEndo . linearAffine
+actuallyLinear = AffinDiffable . linearAffine
 
 actuallyAffine :: ( WithField s LinearManifold x
                   , WithField s AffineManifold y )
             => y -> (x+>Diff y) -> Differentiable s x y
-actuallyAffine y₀ f = AffinDiffable NotDiffableEndo $ const y₀ .+^ linearAffine f
+actuallyAffine y₀ f = AffinDiffable $ const y₀ .+^ linearAffine f
 
 
 -- affinPoint :: (WithField s LinearManifold c, WithField s LinearManifold d)
@@ -658,7 +656,7 @@ instance (RealDimension s) => Category (RWDiffable s) where
   id = RWDiffable $ \x -> (GlobalRegion, pure id)
   RWDiffable f . RWDiffable g = RWDiffable h where
    h x₀ = case g x₀ of
-           ( rg, Option (Just gr'@(AffinDiffable IsDiffableEndo gr)) )
+           ( rg, Option (Just gr'@(AffinDiffable gr)) )
             -> let (y₀, ϕg) = toOffset'Slope gr x₀
                in case f y₀ of
                    (GlobalRegion, Option (Just (AffinDiffable fe fr)))
@@ -947,20 +945,6 @@ instance (RealDimension n, LocallyScalable n a, SimpleSpace (Needle a))
                           (rc₂,gmay) = gpcs d₀
                       in (unsafePreRegionIntersect rc₁ rc₂, mulDi <$> fmay <*> gmay)
           where mulDi :: Differentiable n a n -> Differentiable n a n -> Differentiable n a n
-                mulDi f@(AffinDiffable ef af) g@(AffinDiffable eg ag) = case ef<>eg of
-                   IsDiffableEndo ->
-                  {- let f' = lapply slf 1; g' = lapply slg 1
-                     in case f'*g' of
-                          0 -> AffinDiffableEndo $ const (aof*aog)
-                          f'g' -> -} Differentiable $
-                           \d -> let (fd,ϕf) = toOffset'Slope af d
-                                     (gd,ϕg) = toOffset'Slope ag d
-                                     jf = ϕf $ 1; jg = ϕg $ 1
-                                     invf'g' = recip $ jf*jg
-                                 in ( fd*gd
-                                    , arr $ scale $ fd*jg + gd*jf
-                                    , unsafe_dev_ε_δ "*" $ sqrt . (*invf'g') )
-                   _ -> mulDi (genericiseDifferentiable f) (genericiseDifferentiable g)
                 mulDi (Differentiable f) (Differentiable g)
                    = Differentiable $
                        \d -> let (c₁, jf, devf) = f d
@@ -1213,7 +1197,7 @@ c ?-> f = c ?-> genericiseRWDFV f
 
 positiveRegionalId :: RealDimension n => RWDiffable n n n
 positiveRegionalId = RWDiffable $ \x₀ ->
-       if x₀ > 0 then (positivePreRegion, pure . AffinDiffable IsDiffableEndo $ id)
+       if x₀ > 0 then (positivePreRegion, pure . AffinDiffable id)
                  else (negativePreRegion, notDefinedHere)
 
 infixl 5 ?> , ?<
@@ -1231,11 +1215,11 @@ a ?> b = (positiveRegionalId $~ a-b) ?-> b
            => RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n
 ConstRWDFV a ?< RWDFV_IdVar = GenericRWDFV . RWDiffable $
        \x₀ -> if a < x₀ then ( preRegionToInfFrom a
-                             , pure . AffinDiffable IsDiffableEndo $ id)
+                             , pure . AffinDiffable $ id)
                         else (preRegionFromMinInfTo a, notDefinedHere)
 RWDFV_IdVar ?< ConstRWDFV a = GenericRWDFV . RWDiffable $
        \x₀ -> if x₀ < a then ( preRegionFromMinInfTo a
-                             , pure . AffinDiffable IsDiffableEndo $ const a)
+                             , pure . AffinDiffable $ const a)
                         else (preRegionToInfFrom a, notDefinedHere)
 a ?< b = (positiveRegionalId $~ b-a) ?-> b
 
