@@ -62,6 +62,8 @@ module Data.Manifold.PseudoAffine (
             -- ** Constraints
             , SemimanifoldWitness(..)
             , PseudoAffineWitness(..)
+            , BoundarylessWitness(..)
+            , boundarylessWitness
             , DualNeedleWitness 
             , RealDimension, AffineManifold
             , LinearManifold
@@ -109,6 +111,9 @@ import Data.Foldable.Constrained
 import GHC.Exts (Constraint)
 
 
+data BoundarylessWitness m where
+  BoundarylessWitness :: (Semimanifold m, Interior m ~ m)
+                 => BoundarylessWitness m
 
 -- | This is the reified form of the property that the interior of a semimanifold
 --   is a manifold. These constraints would ideally be expressed directly as
@@ -120,15 +125,15 @@ import GHC.Exts (Constraint)
 -- the same as just @'Needle' x@.
 data SemimanifoldWitness x where
   SemimanifoldWitness ::
-      ( Semimanifold (Interior x), Semimanifold (Needle x)
-      , Interior (Interior x) ~ Interior x, Needle (Interior x) ~ Needle x
+      ( Semimanifold (Needle x), Needle (Interior x) ~ Needle x
+      , Needle (Needle x) ~ Needle x
       , Interior (Needle x) ~ Needle x )
-     => SemimanifoldWitness x
+     => BoundarylessWitness (Interior x) -> SemimanifoldWitness x
 
 data PseudoAffineWitness x where
   PseudoAffineWitness ::
       ( PseudoAffine (Interior x), PseudoAffine (Needle x) )
-     => PseudoAffineWitness x
+     => SemimanifoldWitness x -> PseudoAffineWitness x
 
 infix 6 .-~., .-~!
 infixl 6 .+~^, .-~^
@@ -195,9 +200,10 @@ class AdditiveGroup (Needle x) => Semimanifold x where
   default semimanifoldWitness ::
       ( Semimanifold (Interior x), Semimanifold (Needle x)
       , Interior (Interior x) ~ Interior x, Needle (Interior x) ~ Needle x
+      , Needle (Needle x) ~ Needle x
       , Interior (Needle x) ~ Needle x )
      => SemimanifoldWitness x
-  semimanifoldWitness = SemimanifoldWitness
+  semimanifoldWitness = SemimanifoldWitness BoundarylessWitness
 
   
 -- | This is the class underlying manifolds. ('Manifold' only precludes boundaries
@@ -240,12 +246,12 @@ class Semimanifold x => PseudoAffine x where
   --   be possible to scale this path any longer – it would have to reach “out of the
   --   manifold”. To adress this problem, these functions basically consider only the
   --   /interior/ of the space.
-  (.-~.) :: x -> Interior x -> Option (Needle x)
+  (.-~.) :: x -> x -> Option (Needle x)
   p.-~.q = return $ p.-~!q
   
   -- | Unsafe version of '.-~.'. If the two points lie in disjoint regions,
   --   the behaviour is undefined.
-  (.-~!) :: x -> Interior x -> Needle x
+  (.-~!) :: x -> x -> Needle x
   p.-~!q = case p.-~.q of
       Option (Just v) -> v
   
@@ -253,7 +259,7 @@ class Semimanifold x => PseudoAffine x where
   default pseudoAffineWitness ::
       ( PseudoAffine (Interior x), PseudoAffine (Needle x) )
      => PseudoAffineWitness x
-  pseudoAffineWitness = PseudoAffineWitness
+  pseudoAffineWitness = PseudoAffineWitness semimanifoldWitness
   
 
   
@@ -261,8 +267,11 @@ class Semimanifold x => PseudoAffine x where
   
 
 -- | See 'Semimanifold' and 'PseudoAffine' for the methods.
-class (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold m
-instance (PseudoAffine m, LinearManifold (Needle m), Interior m ~ m) => Manifold m
+class (PseudoAffine m, LSpace (Needle m)) => Manifold m where
+  boundarylessWitness :: BoundarylessWitness m
+  default boundarylessWitness :: (m ~ Interior m) => BoundarylessWitness m
+  boundarylessWitness = BoundarylessWitness
+instance (PseudoAffine m, LSpace (Needle m), Interior m ~ m) => Manifold m
 
 
 
@@ -423,17 +432,17 @@ coerceMetric' = case ( dualSpaceWitness :: DualNeedleWitness x
 --   A proper, really well-defined (on global scales) interpolation
 --   only makes sense on a Riemannian manifold, as 'Data.Manifold.Riemannian.Geodesic'.
 palerp :: ∀ x. Manifold x
-    => Interior x -> Interior x -> Option (Scalar (Needle x) -> x)
-palerp p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
-  Option (Just v) -> return $ \t -> p1 .+~^ t *^ v
+    => x -> x -> Option (Scalar (Needle x) -> x)
+palerp p₀ p₁ = case (toInterior p₀, p₁.-~.p₀) of
+  (Option (Just b), Option (Just v)) -> return $ \t -> b .+~^ t *^ v
   _ -> empty
 
 -- | Like 'palerp', but actually restricted to the interval between the points,
 --   with a signature like 'Data.Manifold.Riemannian.geodesicBetween'
 --   rather than 'Data.AffineSpace.alerp'.
-palerpB :: ∀ x. WithField ℝ Manifold x => Interior x -> Interior x -> Option (D¹ -> x)
-palerpB p1 p2 = case (fromInterior p2 :: x) .-~. p1 of
-  Option (Just v) -> return $ \(D¹ t) -> p1 .+~^ ((t+1)/2) *^ v
+palerpB :: ∀ x. WithField ℝ Manifold x => x -> x -> Option (D¹ -> x)
+palerpB p₀ p₁ = case (toInterior p₀, p₁.-~.p₀) of
+  (Option (Just b), Option (Just v)) -> return $ \(D¹ t) -> b .+~^ ((t+1)/2) *^ v
   _ -> empty
 
 -- | Like 'alerp', but actually restricted to the interval between the points.
@@ -545,12 +554,15 @@ instance ∀ a b . (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
          Tagged tb = translateP :: Tagged b (Interior b -> Needle b -> Interior b)
   semimanifoldWitness = case ( semimanifoldWitness :: SemimanifoldWitness a
                              , semimanifoldWitness :: SemimanifoldWitness b ) of
-             (SemimanifoldWitness, SemimanifoldWitness) -> SemimanifoldWitness
+     (SemimanifoldWitness BoundarylessWitness, SemimanifoldWitness BoundarylessWitness)
+         -> SemimanifoldWitness BoundarylessWitness
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   (a,b).-~.(c,d) = liftA2 (,) (a.-~.c) (b.-~.d)
   pseudoAffineWitness = case ( pseudoAffineWitness :: PseudoAffineWitness a
                              , pseudoAffineWitness :: PseudoAffineWitness b ) of
-             (PseudoAffineWitness, PseudoAffineWitness) -> PseudoAffineWitness
+             (  PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+              , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
+              ->PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
 instance ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
          , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c)
@@ -564,7 +576,9 @@ instance ( Semimanifold a, Semimanifold b, Semimanifold c
   interiorLocalCoercion _ = case ( semimanifoldWitness :: SemimanifoldWitness a
                                  , semimanifoldWitness :: SemimanifoldWitness b
                                  , semimanifoldWitness :: SemimanifoldWitness c ) of
-       (SemimanifoldWitness, SemimanifoldWitness, SemimanifoldWitness)
+       ( SemimanifoldWitness BoundarylessWitness
+        ,SemimanifoldWitness BoundarylessWitness
+        ,SemimanifoldWitness BoundarylessWitness )
               -> CanonicalDiffeomorphism
 instance ∀ a b c .
          ( Semimanifold a, Semimanifold b, Semimanifold c
@@ -580,7 +594,9 @@ instance ∀ a b c .
   interiorLocalCoercion _ = case ( semimanifoldWitness :: SemimanifoldWitness a
                                  , semimanifoldWitness :: SemimanifoldWitness b
                                  , semimanifoldWitness :: SemimanifoldWitness c ) of
-       (SemimanifoldWitness, SemimanifoldWitness, SemimanifoldWitness)
+       ( SemimanifoldWitness BoundarylessWitness
+        ,SemimanifoldWitness BoundarylessWitness
+        ,SemimanifoldWitness BoundarylessWitness )
             -> CanonicalDiffeomorphism
 
 instance ∀ a b c . (Semimanifold a, Semimanifold b, Semimanifold c)
@@ -598,15 +614,19 @@ instance ∀ a b c . (Semimanifold a, Semimanifold b, Semimanifold c)
   semimanifoldWitness = case ( semimanifoldWitness :: SemimanifoldWitness a
                              , semimanifoldWitness :: SemimanifoldWitness b
                              , semimanifoldWitness :: SemimanifoldWitness c ) of
-             (SemimanifoldWitness, SemimanifoldWitness, SemimanifoldWitness)
-                   -> SemimanifoldWitness
+             ( SemimanifoldWitness BoundarylessWitness
+              ,SemimanifoldWitness BoundarylessWitness
+              ,SemimanifoldWitness BoundarylessWitness )
+                   -> SemimanifoldWitness BoundarylessWitness
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
   (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
   pseudoAffineWitness = case ( pseudoAffineWitness :: PseudoAffineWitness a
                              , pseudoAffineWitness :: PseudoAffineWitness b
                              , pseudoAffineWitness :: PseudoAffineWitness c ) of
-             (PseudoAffineWitness, PseudoAffineWitness, PseudoAffineWitness)
-                   -> PseudoAffineWitness
+             (  PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+              , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+              , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
+              ->PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
 
 
 instance LinearManifold (a n) => Semimanifold (LinAff.Point a n) where
@@ -679,9 +699,9 @@ instance Semimanifold D¹ where
 instance PseudoAffine D¹ where
   D¹ 1 .-~. _ = empty
   D¹ (-1) .-~. _ = empty
-  D¹ x .-~. y
-    | abs x < 1  = return $ atanh x - y
-    | otherwise  = empty
+  D¹ x .-~. D¹ y
+    | abs x < 1, abs y < 1  = return $ atanh x - atanh y
+    | otherwise             = empty
 
 instance Semimanifold S² where
   type Needle S² = ℝ²

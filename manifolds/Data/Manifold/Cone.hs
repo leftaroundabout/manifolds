@@ -93,7 +93,7 @@ instance ∀ m . (ConeSemimfd m) => Semimanifold (Cℝay m) where
           where Tagged ctp' = translateP
                   :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
   semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness (ConeVecArr m) of
-                          SemimanifoldWitness -> SemimanifoldWitness
+       SemimanifoldWitness BoundarylessWitness -> SemimanifoldWitness BoundarylessWitness
   
 instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
   type Needle (CD¹ m) = ConeNeedle m
@@ -106,7 +106,7 @@ instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
           where Tagged ctp' = translateP
                   :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
   semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness (ConeVecArr m) of
-                          SemimanifoldWitness -> SemimanifoldWitness
+       SemimanifoldWitness BoundarylessWitness -> SemimanifoldWitness BoundarylessWitness
 
 
 

@@ -178,11 +178,15 @@ type MetricChoice x = Shade x -> Metric x
 
 fromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                     => (MetricChoice x) -> [(x,y)] -> PointsWeb x y
-fromWebNodes mf = fromShaded mf . fromLeafPoints . map (uncurry WithAny . swap)
+fromWebNodes = case boundarylessWitness :: BoundarylessWitness x of
+   BoundarylessWitness ->
+       \mf -> fromShaded mf . fromLeafPoints . map (uncurry WithAny . swap)
 
 fromTopWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                     => (MetricChoice x) -> [((x,[Int+Needle x]),y)] -> PointsWeb x y
-fromTopWebNodes mf = fromTopShaded mf . fromLeafPoints
+fromTopWebNodes = case boundarylessWitness :: BoundarylessWitness x of
+   BoundarylessWitness ->
+       \mf -> fromTopShaded mf . fromLeafPoints
                    . map (uncurry WithAny . swap . regroup')
 
 fromShadeTree_auto :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x)) => ShadeTree x -> PointsWeb x ()
@@ -234,13 +238,14 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                                     [ getOption $ (second $ const v) <$>
                                           positionIndex (pure locRieM) shd' xN
                                     | Right v <- vns
-                                    , let xN = x.+~^v :: x ]
+                                    , let xN = xi.+~^v :: x ]
                                  ++ [ (i,v) | Left i <- vns
                                             , Right (_,xN) <- [indexShadeTree shd' i]
                                             , Option (Just v) <- [xN.-~.x] ]
+                     Option (Just xi) = toInterior x
               
               locRieM :: Metric x
-              locRieM = case pointsCovers . map _topological
+              locRieM = case pointsCovers . catOptions . map (toInterior . _topological)
                                   $ onlyLeaves locT of
                           [sh₀] -> metricf sh₀
 
@@ -448,16 +453,19 @@ splitToGridLines :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
 splitToGridLines web (GridSetup x₀ [GridPlanes dirΩ spcΩ nΩ, linePln])
     = [ ((x₀', linePln), sliceWeb_lin web $ Cutplane x₀' (Stiefel1 dirΩ))
       | k <- [0 .. nΩ-1]
-      , let x₀' = x₀.+~^(fromIntegral k *^ spcΩ) ]
+      , let x₀' = x₀i.+~^(fromIntegral k *^ spcΩ) ]
+ where Option (Just x₀i) = toInterior x₀
 
 sampleWebAlongGrid_lin :: ∀ x y . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                                   , Geodesic x, Geodesic y )
                => PointsWeb x y -> GridSetup x -> [(x,Option y)]
-sampleWebAlongGrid_lin web grid = finalLine =<< splitToGridLines web grid
- where finalLine :: ((x, GridPlanes x), [(x,y)]) -> [(x,Option y)]
-       finalLine ((x₀, GridPlanes _ dir nSpl), verts)
+sampleWebAlongGrid_lin web grid = finalLine boundarylessWitness
+                                      =<< splitToGridLines web grid
+ where finalLine :: BoundarylessWitness x -> ((x, GridPlanes x), [(x,y)]) -> [(x,Option y)]
+       finalLine BoundarylessWitness ((x₀, GridPlanes _ dir nSpl), verts)
           | length verts < 2  = take nSpl $ (,empty)<$>iterate (.+~^dir) x₀
-       finalLine ((x₀, GridPlanes dx dir nSpl), verts)  = take nSpl $ go (x₀,0) intpseq 
+       finalLine BoundarylessWitness ((x₀, GridPlanes dx dir nSpl), verts)
+                     = take nSpl $ go (x₀,0) intpseq 
         where intpseq = mkInterpolationSeq_lin $ sortBy (comparing fst)
                          [ (dx <.>^ (x.-~!x₀), y) | (x,y) <- verts ]
               go (x,_) [] = (,empty)<$>iterate (.+~^dir) x
@@ -567,7 +575,7 @@ traverseWebWithStrategy strat f = webLocalInfo
 
 differentiateUncertainWebLocally :: ∀ x y
    . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-     , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
+     , WithField ℝ Refinable y, SimpleSpace (Needle y) )
             => WebLocally x (Shade' y)
              -> Shade' (LocalLinear x y)
 differentiateUncertainWebLocally info
@@ -589,12 +597,15 @@ differentiateUncertainWebFunction = localFmapWeb differentiateUncertainWebLocall
 
 rescanPDELocally :: ∀ x y .
      ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-     , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
+     , WithField ℝ Refinable y, SimpleSpace (Needle y) )
          => DifferentialEqn x y -> WebLocally x (Shade' y)
                                 -> Option (Shade' y)
 rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
-                        , dualSpaceWitness :: DualNeedleWitness y ) of
-   (DualSpaceWitness,DualSpaceWitness)
+                        , dualSpaceWitness :: DualNeedleWitness y
+                        , boundarylessWitness :: BoundarylessWitness x
+                        , pseudoAffineWitness :: PseudoAffineWitness y ) of
+   ( DualSpaceWitness,DualSpaceWitness,BoundarylessWitness
+    , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
      -> \f info -> let xc = info^.thisNodeCoord
                        yc = info^.thisNodeData.shadeCtr
                    in case f $ coverAllAround (xc, yc)
@@ -607,7 +618,7 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                       (info^.thisNodeData)
 
 rescanPDEOnWeb :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                  , WithField ℝ Manifold y, Refinable y, SimpleSpace (Needle y)
+                  , WithField ℝ Refinable y, SimpleSpace (Needle y)
                   , Hask.Applicative m )
                 => InconsistencyStrategy m x (Shade' y)
                   -> DifferentialEqn x y -> PointsWeb x (Shade' y)
@@ -634,7 +645,7 @@ data ConvexSet x
     , convexSetIntersectors :: [Shade' x]
     }
 deriving instance ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                  , Show x, Show (Needle' x) ) => Show (ConvexSet x)
+                  , Show (Interior x), Show (Needle' x) ) => Show (ConvexSet x)
 
 ellipsoid :: Shade' x -> ConvexSet x
 ellipsoid s = ConvexSet s [s]
@@ -682,7 +693,7 @@ deriving instance Hask.Functor (InconsistencyStrategy m x)
 
 
 iterateFilterDEqn_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                            , Refinable y, Geodesic y
+                            , Refinable y, Geodesic (Interior y)
                             , Hask.Applicative m )
        => InconsistencyStrategy m x (Shade' y) -> DifferentialEqn x y
                  -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
@@ -692,12 +703,14 @@ iterateFilterDEqn_static strategy f
                                 (filterDEqnSolutions_static (ellipsoid<$>strategy) f)
                            . fmap (`ConvexSet`[])
 
-filterDEqnSolution_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                             , Refinable y, Geodesic y )
+filterDEqnSolution_static :: ∀ x y m . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                                       , Refinable y, Geodesic (Interior y) )
        => InconsistencyStrategy m x (Shade' y) -> DifferentialEqn x y
             -> PointsWeb x (Shade' y) -> m (PointsWeb x (Shade' y))
 filterDEqnSolution_static strat@AbortOnInconsistency f
-       = rescanPDEOnWeb strat f >=> webLocalInfo
+    = case boundarylessWitness :: BoundarylessWitness x of
+     BoundarylessWitness ->
+        rescanPDEOnWeb strat f >=> webLocalInfo
            >>> Hask.traverse `id`\me -> case me^.nodeNeighbours of
                   []   -> return $ me^.thisNodeData
                   ngbs -> refineShade' (me^.thisNodeData)
@@ -717,7 +730,7 @@ filterDEqnSolution_static strat@AbortOnInconsistency f
 
 filterDEqnSolutions_static :: ∀ x y m .
                               ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                              , Refinable y, Geodesic y
+                              , Refinable y, Geodesic (Interior y)
                               , Hask.Applicative m )
        => InconsistencyStrategy m x (ConvexSet y) -> DifferentialEqn x y
             -> PointsWeb x (ConvexSet y) -> m (PointsWeb x (ConvexSet y))
@@ -729,7 +742,8 @@ filterDEqnSolutions_static strategy f
              in  case updShy of
               Option (Just shy) -> case ngbs of
                   []  -> pure oldValue
-                  _:_ -> handleInconsistency strategy oldValue
+                  _:_ | BoundarylessWitness <- (boundarylessWitness::BoundarylessWitness x)
+                    -> handleInconsistency strategy oldValue
                           $ ( sequenceA $ NE.fromList
                                   [ sj >>= Option . \ngbShy ->
                                      propagateDEqnSolution_loc
@@ -787,10 +801,12 @@ filterDEqnSolutions_adaptive :: ∀ x y badness m
              -> PointsWeb x (SolverNodeState x y)
                         -> m (PointsWeb x (SolverNodeState x y))
 filterDEqnSolutions_adaptive mf strategy f badness' oldState
-            = fmap recomputeJacobian $ filterGo =<< tryPreproc
- where tryPreproc :: m (PointsWeb x ( (WebLocally x (SolverNodeState x y)
-                                    , [(Shade' y, badness)]) ))
-       tryPreproc = traverse addPropagation $ webLocalInfo oldState
+            = fmap recomputeJacobian $ filterGo boundarylessWitness
+                                         =<< tryPreproc boundarylessWitness
+ where tryPreproc :: BoundarylessWitness x
+                      -> m (PointsWeb x ( (WebLocally x (SolverNodeState x y)
+                                        , [(Shade' y, badness)]) ))
+       tryPreproc BoundarylessWitness = traverse addPropagation $ webLocalInfo oldState
         where addPropagation wl
                  | null neighbourInfo = pure (wl, [])
                  | otherwise           = (wl,) . map (id&&&badness undefined)
@@ -816,10 +832,11 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
        errTgtModulation = (1-) . (`mod'`1) . negate . sqrt $ fromIntegral totalAge
        badness x = badness' x . (shadeNarrowness %~ (scaleNorm errTgtModulation))
               
-       filterGo :: (PointsWeb x ( (WebLocally x (SolverNodeState x y)
+       filterGo :: BoundarylessWitness x
+                   -> (PointsWeb x ( (WebLocally x (SolverNodeState x y)
                                    , [(Shade' y, badness)]) ))
-                      -> m (PointsWeb x (SolverNodeState x y))
-       filterGo preproc'd   = fmap (smoothenWebTopology mf
+                   -> m (PointsWeb x (SolverNodeState x y))
+       filterGo BoundarylessWitness preproc'd   = fmap (smoothenWebTopology mf
                                      . fromTopWebNodes mf . concat . fmap retraceBonds
                                         . Hask.toList . webLocalInfo . webLocalInfo)
              $ Hask.traverse (uncurry localChange) preproc'd
