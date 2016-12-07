@@ -266,7 +266,7 @@ instance ∀ k v .
    ( WithField k LinearManifold v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
    , RealFloat k, UArr.Unbox k ) => PseudoAffine (Stiefel1 v) where 
   (.-~.) = dpst dualSpaceWitness
-   where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Option (Stiefel1Needle v)
+   where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (Stiefel1Needle v)
          dpst DualSpaceWitness (Stiefel1 s) (Stiefel1 t)
              = pure . Stiefel1Needle $ case s' UArr.! im of
                    0 -> uarrScale (recip $ l2norm delis) delis
@@ -315,7 +315,7 @@ data Cutplane x = Cutplane { sawHandle :: x
 
 
 sideOfCut :: (WithField ℝ PseudoAffine x, LinearSpace (Needle x))
-                   => Cutplane x -> x -> Option S⁰
+                   => Cutplane x -> x -> Maybe S⁰
 sideOfCut (Cutplane sh (Stiefel1 cn)) p
               = decideSide . (cn<.>^) =<< p.-~.sh
  where decideSide 0 = mzero
@@ -332,7 +332,7 @@ fathomCutDistance :: ∀ x . (WithField ℝ PseudoAffine x, LinearSpace (Needle 
                              --   (Strictly speaking, we would need /parallel transport/
                              --   to ensure this).
          -> x                -- ^ Point to measure the distance to.
-         -> Option ℝ         -- ^ A signed number, giving the distance from plane
+         -> Maybe ℝ          -- ^ A signed number, giving the distance from plane
                              --   to point with indication on which side the point lies.
                              --   'Nothing' if the point isn't reachable from the plane.
 fathomCutDistance = fcd dualSpaceWitness
@@ -343,9 +343,9 @@ fathomCutDistance = fcd dualSpaceWitness
               scaleDist = met|$|cn
           
 
-cutPosBetween :: WithField ℝ Manifold x => Cutplane x -> (x,x) -> Option D¹
+cutPosBetween :: WithField ℝ Manifold x => Cutplane x -> (x,x) -> Maybe D¹
 cutPosBetween (Cutplane h (Stiefel1 cn)) (x₀,x₁)
-    | Option (Just [d₀,d₁]) <- map (cn<.>^) <$> sequenceA [x₀.-~.h, x₁.-~.h]
+    | Just [d₀,d₁] <- map (cn<.>^) <$> sequenceA [x₀.-~.h, x₁.-~.h]
     , d₀*d₁ < 0  = pure . D¹ $ 2 * d₀ / (d₀ - d₁) - 1
     | otherwise  = empty
 

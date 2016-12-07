@@ -84,10 +84,10 @@ class Semimanifold x => Geodesic x where
        -> x -- ^ End point, for +1.
             -- 
             --   If the two points are actually connected by a path...
-       -> Option (D¹ -> x) -- ^ ...then this is the interpolation function. Attention: 
-                           --   the type will change to 'Differentiable' in the future.
+       -> Maybe (D¹ -> x) -- ^ ...then this is the interpolation function. Attention: 
+                          --   the type will change to 'Differentiable' in the future.
 
-interpolate :: (Geodesic x, IntervalLike i) => x -> x -> Option (i -> x)
+interpolate :: (Geodesic x, IntervalLike i) => x -> x -> Maybe (i -> x)
 interpolate a b = (. toClosedInterval) <$> geodesicBetween a b
 
 
@@ -233,5 +233,5 @@ instance Riemannian ℝ where
 
 
 
-middleBetween :: Geodesic m => m -> m -> Option m
+middleBetween :: Geodesic m => m -> m -> Maybe m
 middleBetween p₀ p₁ = ($ D¹ 0) <$> geodesicBetween p₀ p₁

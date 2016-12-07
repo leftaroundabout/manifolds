@@ -230,22 +230,22 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                          = (y, cullNeighbours locRieM
                                  (i, WithAny([ (i,v)
                                              | (i,WithAny _ xN) <- locLeaves
-                                             , Option (Just v) <- [xN.-~.x] ]
+                                             , Just v <- [xN.-~.x] ]
                                                 ++ aprioriNgbs)
                                              x))
                where aprioriNgbs :: [(Int, Needle x)]
                      aprioriNgbs = catMaybes
-                                    [ getOption $ (second $ const v) <$>
+                                    [ (second $ const v) <$>
                                           positionIndex (pure locRieM) shd' xN
                                     | Right v <- vns
                                     , let xN = xi.+~^v :: x ]
                                  ++ [ (i,v) | Left i <- vns
                                             , Right (_,xN) <- [indexShadeTree shd' i]
-                                            , Option (Just v) <- [xN.-~.x] ]
-                     Option (Just xi) = toInterior x
+                                            , Just v <- [xN.-~.x] ]
+                     Just xi = toInterior x
               
               locRieM :: Metric x
-              locRieM = case pointsCovers . catOptions . map (toInterior . _topological)
+              locRieM = case pointsCovers . catMaybes . map (toInterior . _topological)
                                   $ onlyLeaves locT of
                           [sh₀] -> metricf sh₀
 
@@ -322,7 +322,7 @@ smoothenWebTopology mc = swt
                                      = cullNeighbours locRieM
                                         ( i, WithAny [ (j,v)
                                                      | j <- nextNeighbours
-                                                     , Option (Just v)
+                                                     , Just v
                                                          <- [x .-~. xLookup Arr.! j] ]
                                                      x )
                      (asd', symmetryTouched) = makeIndexLinksSymmetric
@@ -337,7 +337,7 @@ smoothenWebTopology mc = swt
                   = (y, cullNeighbours em (i, WithAny [ (j,v)
                                                       | j<-UArr.toList n
                                                       , let xN = xLookup Arr.! j
-                                                      , Option (Just v) <- [xN.-~.x] ]
+                                                      , Just v <- [xN.-~.x] ]
                                                       x ))
                where x = xLookup Arr.! i
               xLookup = Arr.fromList $ onlyLeaves shd
@@ -405,7 +405,7 @@ mkInterpolationSeq_lin [(xψ,yψ), (xω,yω)]
            (xψ,xω)
            (\x -> let drel = fromIntv0to1 $ (x-xψ)/(xω-xψ)
                   in yio drel )
- where Option (Just yio) = geodesicBetween yψ yω
+ where Just yio = geodesicBetween yψ yω
 mkInterpolationSeq_lin (p₀:p₁:ps)
     = mkInterpolationSeq_lin [p₀,p₁] <> mkInterpolationSeq_lin (p₁:ps)
 mkInterpolationSeq_lin _ = []
@@ -421,9 +421,9 @@ sliceWeb_lin web = sliceEdgs
  where edgs = webEdges web
        sliceEdgs cp = [ (xi d, yi d)  -- Brute-force search through all edges
                       | ((x₀,y₀), (x₁,y₁)) <- edgs
-                      , Option (Just d) <- [cutPosBetween cp (x₀,x₁)]
-                      , Option (Just xi) <- [geodesicBetween x₀ x₁]
-                      , Option (Just yi) <- [geodesicBetween y₀ y₁]
+                      , Just d <- [cutPosBetween cp (x₀,x₁)]
+                      , Just xi <- [geodesicBetween x₀ x₁]
+                      , Just yi <- [geodesicBetween y₀ y₁]
                       ]
 
 
@@ -454,7 +454,7 @@ splitToGridLines web (GridSetup x₀ [GridPlanes dirΩ spcΩ nΩ, linePln])
     = [ ((x₀', linePln), sliceWeb_lin web $ Cutplane x₀' (Stiefel1 dirΩ))
       | k <- [0 .. nΩ-1]
       , let x₀' = x₀i.+~^(fromIntegral k *^ spcΩ) ]
- where Option (Just x₀i) = toInterior x₀
+ where Just x₀i = toInterior x₀
 
 sampleWebAlongGrid_lin :: ∀ x y . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                                   , Geodesic x, Geodesic y )
@@ -509,7 +509,7 @@ webLocalInfo origWeb = result
                 , _nodeNeighbours = [ (iNgb, (δx, neighbour))
                                     | iNgb <- UArr.toList $ ngbH^.neighbours
                                     , let neighbour = unsafeIndexWebData result iNgb
-                                          Option (Just δx) = _thisNodeCoord neighbour.-~.x
+                                          Just δx = _thisNodeCoord neighbour.-~.x
                                     ]
                 , _nodeLocalScalarProduct = ngbH^.localScalarProduct
                 , _nodeIsOnBoundary = anyUnopposed (ngbH^.localScalarProduct) ngbCo
