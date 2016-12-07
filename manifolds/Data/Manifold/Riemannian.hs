@@ -48,7 +48,6 @@ module Data.Manifold.Riemannian  where
 
 import Data.Maybe
 import qualified Data.Vector as Arr
-import Data.Semigroup
 
 import Data.VectorSpace
 import Data.VectorSpace.Free
@@ -84,10 +83,10 @@ class Semimanifold x => Geodesic x where
        -> x -- ^ End point, for +1.
             -- 
             --   If the two points are actually connected by a path...
-       -> Option (D¹ -> x) -- ^ ...then this is the interpolation function. Attention: 
-                           --   the type will change to 'Differentiable' in the future.
+       -> Maybe (D¹ -> x) -- ^ ...then this is the interpolation function. Attention: 
+                          --   the type will change to 'Differentiable' in the future.
 
-interpolate :: (Geodesic x, IntervalLike i) => x -> x -> Option (i -> x)
+interpolate :: (Geodesic x, IntervalLike i) => x -> x -> Maybe (i -> x)
 interpolate a b = (. toClosedInterval) <$> geodesicBetween a b
 
 
@@ -158,7 +157,7 @@ instance Geodesic S¹ where
 -- instance Geodesic (Cℝay S¹) where
 --   geodesicBetween p q = (>>> fromP) <$> geodesicBetween (toP p) (toP q)
 --    where fromP = fromInterior
---          toP w = case toInterior w of {Option (Just i) -> i}
+--          toP w = case toInterior w of {Just i -> i}
 -- 
 -- instance Geodesic (CD¹ S¹) where
 --   geodesicBetween p q = (>>> fromI) <$> geodesicBetween (toI p) (toI q)
@@ -168,7 +167,7 @@ instance Geodesic S¹ where
 -- instance Geodesic (Cℝay S²) where
 --   geodesicBetween p q = (>>> fromP) <$> geodesicBetween (toP p) (toP q)
 --    where fromP = fromInterior
---          toP w = case toInterior w of {Option (Just i) -> i}
+--          toP w = case toInterior w of {Just i -> i}
 -- 
 -- instance Geodesic (CD¹ S²) where
 --   geodesicBetween p q = (>>> fromI) <$> geodesicBetween (toI p) (toI q :: ℝ³)
@@ -233,5 +232,5 @@ instance Riemannian ℝ where
 
 
 
-middleBetween :: Geodesic m => m -> m -> Option m
+middleBetween :: Geodesic m => m -> m -> Maybe m
 middleBetween p₀ p₁ = ($ D¹ 0) <$> geodesicBetween p₀ p₁

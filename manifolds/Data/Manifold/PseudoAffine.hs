@@ -81,7 +81,6 @@ module Data.Manifold.PseudoAffine (
 
 
 import Data.Maybe
-import Data.Semigroup
 import Data.Fixed
 
 import Data.VectorSpace
@@ -173,7 +172,7 @@ class AdditiveGroup (Needle x) => Semimanifold x where
   fromInterior :: Interior x -> x
   fromInterior p = p .+~^ zeroV 
   
-  toInterior :: x -> Option (Interior x)
+  toInterior :: x -> Maybe (Interior x)
   
   -- | The signature of '.+~^' should really be @'Interior' x -> 'Needle' x -> 'Interior' x@,
   --   only, this is not possible because it only consists of non-injective type families.
@@ -246,14 +245,14 @@ class Semimanifold x => PseudoAffine x where
   --   be possible to scale this path any longer – it would have to reach “out of the
   --   manifold”. To adress this problem, these functions basically consider only the
   --   /interior/ of the space.
-  (.-~.) :: x -> x -> Option (Needle x)
+  (.-~.) :: x -> x -> Maybe (Needle x)
   p.-~.q = return $ p.-~!q
   
   -- | Unsafe version of '.-~.'. If the two points lie in disjoint regions,
   --   the behaviour is undefined.
   (.-~!) :: x -> x -> Needle x
   p.-~!q = case p.-~.q of
-      Option (Just v) -> v
+      Just v -> v
   
   pseudoAffineWitness :: PseudoAffineWitness x
   default pseudoAffineWitness ::
@@ -432,17 +431,17 @@ coerceMetric' = case ( dualSpaceWitness :: DualNeedleWitness x
 --   A proper, really well-defined (on global scales) interpolation
 --   only makes sense on a Riemannian manifold, as 'Data.Manifold.Riemannian.Geodesic'.
 palerp :: ∀ x. Manifold x
-    => x -> x -> Option (Scalar (Needle x) -> x)
+    => x -> x -> Maybe (Scalar (Needle x) -> x)
 palerp p₀ p₁ = case (toInterior p₀, p₁.-~.p₀) of
-  (Option (Just b), Option (Just v)) -> return $ \t -> b .+~^ t *^ v
+  (Just b, Just v) -> return $ \t -> b .+~^ t *^ v
   _ -> empty
 
 -- | Like 'palerp', but actually restricted to the interval between the points,
 --   with a signature like 'Data.Manifold.Riemannian.geodesicBetween'
 --   rather than 'Data.AffineSpace.alerp'.
-palerpB :: ∀ x. WithField ℝ Manifold x => x -> x -> Option (D¹ -> x)
+palerpB :: ∀ x. WithField ℝ Manifold x => x -> x -> Maybe (D¹ -> x)
 palerpB p₀ p₁ = case (toInterior p₀, p₁.-~.p₀) of
-  (Option (Just b), Option (Just v)) -> return $ \(D¹ t) -> b .+~^ ((t+1)/2) *^ v
+  (Just b, Just v) -> return $ \(D¹ t) -> b .+~^ ((t+1)/2) *^ v
   _ -> empty
 
 -- | Like 'alerp', but actually restricted to the interval between the points.
@@ -671,7 +670,7 @@ instance Semimanifold S⁰ where
 instance PseudoAffine S⁰ where
   PositiveHalfSphere .-~. PositiveHalfSphere = pure Origin
   NegativeHalfSphere .-~. NegativeHalfSphere = pure Origin
-  _ .-~. _ = Option Nothing
+  _ .-~. _ = Nothing
 
 instance Semimanifold S¹ where
   type Needle S¹ = ℝ

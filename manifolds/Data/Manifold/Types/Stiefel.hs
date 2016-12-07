@@ -25,7 +25,6 @@ module Data.Manifold.Types.Stiefel where
 
 import Data.Maybe
 import qualified Data.Vector as Arr
-import Data.Semigroup
 
 import Data.VectorSpace
 import Data.AffineSpace

@@ -129,8 +129,8 @@ data PreRegion s m where
 -- @
 newtype RWDiffable s d c
    = RWDiffable {
-        tryDfblDomain :: d -> (PreRegion s d, Option (Differentiable s d c)) }
+        tryDfblDomain :: d -> (PreRegion s d, Maybe (Differentiable s d c)) }
 
-notDefinedHere :: Option (Differentiable s d c)
-notDefinedHere = Option Nothing
+notDefinedHere :: Maybe (Differentiable s d c)
+notDefinedHere = Nothing
 

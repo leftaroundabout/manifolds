@@ -33,7 +33,6 @@ module Data.Manifold.Cone where
 
 import qualified Data.Vector.Generic as Arr
 import Data.Maybe
-import Data.Semigroup
 
 import Data.VectorSpace
 import Data.Tagged
@@ -73,9 +72,9 @@ class ( Semimanifold m, Semimanifold (Interior (Interior m))
   fromCD¹Interior :: ConeVecArr m -> CD¹ m
   fromCD¹Interior = embCℝayToCD¹ . fromCℝayInterior
   
-  toCℝayInterior :: Cℝay m -> Option (ConeVecArr m)
+  toCℝayInterior :: Cℝay m -> Maybe (ConeVecArr m)
   toCℝayInterior = toCD¹Interior . embCℝayToCD¹
-  toCD¹Interior :: CD¹ m -> Option (ConeVecArr m)
+  toCD¹Interior :: CD¹ m -> Maybe (ConeVecArr m)
   toCD¹Interior = toCℝayInterior . projCD¹ToCℝay
 
   

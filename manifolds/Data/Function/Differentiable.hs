@@ -154,8 +154,8 @@ continuityRanges nLim δbf (RWDiffable f)
                      resoHere = normSq $ δbf xq
                      resoStep = dir/sqrt(resoHere 1)
               definedHere = case fq₀ of
-                              Option (Just _) -> True
-                              Option Nothing  -> False
+                              Just _  -> True
+                              Nothing -> False
        glueMid ((l,le):ls) ((re,r):rs) | le==re  = (ls, (l,r):rs)
        glueMid l r = (l,r)
        huge = exp $ fromIntegral nLim
@@ -179,17 +179,17 @@ discretisePathSegs nLim (mx,my) f@(RWDiffable ff)
                             = ( map discretise ivsL, map discretise ivsR )
  where (ivsL, ivsR) = continuityRanges nLim mx f
        discretise rng@(l,r) = discretisePathIn nLim rng (mx,my) fr
-        where (_, Option (Just fr)) = ff $ (l+r)/2
+        where (_, Just fr) = ff $ (l+r)/2
 
               
 analyseLocalBehaviour ::
-    RWDiffable ℝ ℝ ℝ
- -> ℝ                      -- ^ /x/₀ value.
- -> Option ( (ℝ,ℝ)
-           , ℝ->Option ℝ ) -- ^ /f/ /x/₀, derivative (i.e. Taylor-1-coefficient),
+     RWDiffable ℝ ℝ ℝ
+  -> ℝ                      -- ^ /x/₀ value.
+  -> Maybe ( (ℝ,ℝ)
+           , ℝ->Maybe ℝ ) -- ^ /f/ /x/₀, derivative (i.e. Taylor-1-coefficient),
                            --   and reverse propagation of /O/ (/δ/²) bound.
 analyseLocalBehaviour (RWDiffable f) x₀ = case f x₀ of
-       (r, Option (Just (Differentiable fd)))
+       (r, Just (Differentiable fd))
            | inRegion r x₀ -> return $
               let (fx, j, δf) = fd x₀
                   epsprop ε
@@ -228,7 +228,7 @@ intervalImages nLim (mx,my) f@(RWDiffable fd)
                   = (map (id&&&ivimg) domsL, map (id&&&ivimg) domsR)
  where (domsL, domsR) = continuityRanges nLim mx f
        ivimg (xl,xr) = go xl 1 i₀ ∪ go xr (-1) i₀
-        where (_, Option (Just fdd@(Differentiable fddd)))
+        where (_, Just fdd@(Differentiable fddd))
                     = second (fmap genericiseDifferentiable) $ fd xc
               xc = (xl+xr)/2
               i₀ = minimum&&&maximum $ [fdd$xl, fdd$xc, fdd$xr]
@@ -276,7 +276,7 @@ unsafe_dev_ε_δ errHint f d
                                     ++ " gives non-positive δ="++show δ++"."
                   else mempty
 dev_ε_δ :: RealDimension a
-         => (a -> a) -> Metric a -> Option (Metric a)
+         => (a -> a) -> Metric a -> Maybe (Metric a)
 dev_ε_δ f d = let ε'² = normSq d 1
               in if ε'²>0
                   then let δ = f . sqrt $ recip ε'²
@@ -658,11 +658,11 @@ instance (RealDimension s) => Category (RWDiffable s) where
   id = RWDiffable $ \x -> (GlobalRegion, pure id)
   RWDiffable f . RWDiffable g = RWDiffable h where
    h x₀ = case g x₀ of
-           ( rg, Option (Just gr'@(AffinDiffable IsDiffableEndo gr)) )
+           ( rg, Just gr'@(AffinDiffable IsDiffableEndo gr) )
             -> let (y₀, ϕg) = toOffset'Slope gr x₀
                in case f y₀ of
-                   (GlobalRegion, Option (Just (AffinDiffable fe fr)))
-                         -> (rg, Option (Just (AffinDiffable fe (fr.gr))))
+                   (GlobalRegion, Just (AffinDiffable fe fr))
+                         -> (rg, Just (AffinDiffable fe (fr.gr)))
                    (GlobalRegion, fhr)
                          -> (rg, fmap (. gr') fhr)
                    (RealSubray diry yl, fhr)
@@ -679,51 +679,51 @@ instance (RealDimension s) => Category (RWDiffable s) where
                                  | otherwise -> (rg, hhr)
                    (PreRegion ry, fhr)
                          -> ( PreRegion $ ry . gr', fmap (. gr') fhr )
-           ( rg, Option (Just gr'@(AffinDiffable _ gr)) )
-            -> error "( rg, Option (Just gr'@(AffinDiffable gr)) )"
-           (GlobalRegion, Option (Just gr@(Differentiable grd)))
+           ( rg, Just gr'@(AffinDiffable _ gr) )
+            -> error "( rg, Just gr'@(AffinDiffable gr) )"
+           (GlobalRegion, Just gr@(Differentiable grd))
             -> let (y₀,_,_) = grd x₀
                in case f y₀ of
-                   (GlobalRegion, Option Nothing)
+                   (GlobalRegion, Nothing)
                          -> (GlobalRegion, notDefinedHere)
-                   (GlobalRegion, Option (Just fr))
+                   (GlobalRegion, Just fr)
                          -> (GlobalRegion, pure (fr . gr))
-                   (r, Option Nothing) | PreRegion ry <- genericisePreRegion r
+                   (r, Nothing) | PreRegion ry <- genericisePreRegion r
                          -> ( PreRegion $ ry . gr, notDefinedHere )
-                   (r, Option (Just fr)) | PreRegion ry <- genericisePreRegion r
+                   (r, (Just fr)) | PreRegion ry <- genericisePreRegion r
                          -> ( PreRegion $ ry . gr, pure (fr . gr) )
-           (rg@(RealSubray _ _), Option (Just gr@(Differentiable grd)))
+           (rg@(RealSubray _ _), Just gr@(Differentiable grd))
             -> let (y₀,_,_) = grd x₀
                in case f y₀ of
-                   (GlobalRegion, Option Nothing)
+                   (GlobalRegion, Nothing)
                          -> (rg, notDefinedHere)
-                   (GlobalRegion, Option (Just fr))
+                   (GlobalRegion, Just fr)
                          -> (rg, pure (fr . gr))
-                   (rf, Option Nothing)
+                   (rf, Nothing)
                      | PreRegion rx <- genericisePreRegion rg
                      , PreRegion ry <- genericisePreRegion rf
                          -> ( PreRegion $ minDblfuncs (ry . gr) rx
                             , notDefinedHere )
-                   (rf, Option (Just fr))
+                   (rf, Just fr)
                      | PreRegion rx <- genericisePreRegion rg
                      , PreRegion ry <- genericisePreRegion rf
                          -> ( PreRegion $ minDblfuncs (ry . gr) rx
                             , pure (fr . gr) )
-           (PreRegion rx, Option (Just gr@(Differentiable grd)))
+           (PreRegion rx, Just gr@(Differentiable grd))
             -> let (y₀,_,_) = grd x₀
                in case f y₀ of
-                   (GlobalRegion, Option Nothing)
+                   (GlobalRegion, Nothing)
                          -> (PreRegion rx, notDefinedHere)
-                   (GlobalRegion, Option (Just fr))
+                   (GlobalRegion, Just fr)
                          -> (PreRegion rx, pure (fr . gr))
-                   (r, Option Nothing) | PreRegion ry <- genericisePreRegion r
+                   (r, Nothing) | PreRegion ry <- genericisePreRegion r
                          -> ( PreRegion $ minDblfuncs (ry . gr) rx
                             , notDefinedHere )
-                   (r, Option (Just fr)) | PreRegion ry <- genericisePreRegion r
+                   (r, Just fr) | PreRegion ry <- genericisePreRegion r
 
                          -> ( PreRegion $ minDblfuncs (ry . gr) rx
                             , pure (fr . gr) )
-           (r, Option Nothing)
+           (r, Nothing)
             -> (r, notDefinedHere)
           
 
@@ -821,7 +821,7 @@ grwDfblFnValsCombine cmb (GenericRWDFV (RWDiffable fpcs))
                    (rc'',gmay) = gpcs d₀
                in (unsafePreRegionIntersect rc' rc'',) $
                     case (genericiseDifferentiable<$>fmay, genericiseDifferentiable<$>gmay) of
-                      (Option(Just(Differentiable f)), Option(Just(Differentiable g))) ->
+                      (Just(Differentiable f), Just(Differentiable g)) ->
                         pure . Differentiable $ \d
                          -> let (c', jf, devf) = f d
                                 (c'',jg, devg) = g d
@@ -887,7 +887,7 @@ postCompRW :: ( RealDimension s
               , SimpleSpace (Needle a), SimpleSpace (Needle b), SimpleSpace (Needle c) )
               => RWDiffable s b c -> RWDfblFuncValue s a b -> RWDfblFuncValue s a c
 postCompRW (RWDiffable f) (ConstRWDFV x) = case f x of
-     (_, Option (Just fd)) -> ConstRWDFV $ fd $ x
+     (_, Just fd) -> ConstRWDFV $ fd $ x
 postCompRW f RWDFV_IdVar = GenericRWDFV f
 postCompRW f (GenericRWDFV g) = GenericRWDFV $ f . g
 
@@ -1202,13 +1202,13 @@ ConstRWDFV _ ?-> f = f
 RWDFV_IdVar ?-> f = f
 GenericRWDFV (RWDiffable r) ?-> ConstRWDFV c = GenericRWDFV (RWDiffable s)
  where s x₀ = case r x₀ of
-                (rd, Option (Just q)) -> (rd, return $ const c)
-                (rd, Option Nothing) -> (rd, empty)
+                (rd, Just q)  -> (rd, return $ const c)
+                (rd, Nothing) -> (rd, empty)
 GenericRWDFV (RWDiffable f) ?-> GenericRWDFV (RWDiffable g) = GenericRWDFV (RWDiffable h)
  where h x₀ = case f x₀ of
-                (rf, Option (Just _)) | (rg, q) <- g x₀
+                (rf, Just _) | (rg, q) <- g x₀
                         -> (unsafePreRegionIntersect rf rg, q)
-                (rf, Option Nothing) -> (rf, empty)
+                (rf, Nothing) -> (rf, empty)
 c ?-> f = c ?-> genericiseRWDFV f
 
 positiveRegionalId :: RealDimension n => RWDiffable n n n
@@ -1257,12 +1257,12 @@ ConstRWDFV c ?|: _ = ConstRWDFV c
 RWDFV_IdVar ?|: _ = RWDFV_IdVar
 GenericRWDFV (RWDiffable f) ?|: ConstRWDFV c = GenericRWDFV (RWDiffable h)
  where h x₀ = case f x₀ of
-                (rd, Option (Just q)) -> (rd, Option (Just q))
-                (rd, Option Nothing) -> (rd, Option . Just $ const c)
+                (rd, Just q) -> (rd, Just q)
+                (rd, Nothing) -> (rd, Just $ const c)
 GenericRWDFV (RWDiffable f) ?|: GenericRWDFV (RWDiffable g) = GenericRWDFV (RWDiffable h)
  where h x₀ = case f x₀ of
-                (rf, Option (Just q)) -> (rf, pure q)
-                (rf, Option Nothing) | (rg, q) <- g x₀
+                (rf, Just q) -> (rf, pure q)
+                (rf, Nothing) | (rg, q) <- g x₀
                         -> (unsafePreRegionIntersect rf rg, q)
 c ?|: f = c ?|: genericiseRWDFV f
 
@@ -1272,8 +1272,8 @@ backupRegions :: (RealDimension n, LocallyScalable n a, LocallyScalable n b)
       => RWDiffable n a b -> RWDiffable n a b -> RWDiffable n a b
 backupRegions (RWDiffable f) (RWDiffable g) = RWDiffable h
  where h x₀ = case f x₀ of
-                (rf, q@(Option (Just _))) -> (rf, q)
-                (rf, Option Nothing) | (rg, q) <- g x₀
+                (rf, q@(Just _)) -> (rf, q)
+                (rf, Nothing) | (rg, q) <- g x₀
                         -> (unsafePreRegionIntersect rf rg, q)
 
 
