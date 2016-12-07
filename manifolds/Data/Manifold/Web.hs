@@ -230,22 +230,22 @@ fromTopShaded metricf shd = PointsWeb shd' assocData
                          = (y, cullNeighbours locRieM
                                  (i, WithAny([ (i,v)
                                              | (i,WithAny _ xN) <- locLeaves
-                                             , Option (Just v) <- [xN.-~.x] ]
+                                             , Just v <- [xN.-~.x] ]
                                                 ++ aprioriNgbs)
                                              x))
                where aprioriNgbs :: [(Int, Needle x)]
                      aprioriNgbs = catMaybes
-                                    [ getOption $ (second $ const v) <$>
+                                    [ (second $ const v) <$>
                                           positionIndex (pure locRieM) shd' xN
                                     | Right v <- vns
                                     , let xN = xi.+~^v :: x ]
                                  ++ [ (i,v) | Left i <- vns
                                             , Right (_,xN) <- [indexShadeTree shd' i]
-                                            , Option (Just v) <- [xN.-~.x] ]
-                     Option (Just xi) = toInterior x
+                                            , Just v <- [xN.-~.x] ]
+                     Just xi = toInterior x
               
               locRieM :: Metric x
-              locRieM = case pointsCovers . catOptions . map (toInterior . _topological)
+              locRieM = case pointsCovers . catMaybes . map (toInterior . _topological)
                                   $ onlyLeaves locT of
                           [sh₀] -> metricf sh₀
 
@@ -322,7 +322,7 @@ smoothenWebTopology mc = swt
                                      = cullNeighbours locRieM
                                         ( i, WithAny [ (j,v)
                                                      | j <- nextNeighbours
-                                                     , Option (Just v)
+                                                     , Just v
                                                          <- [x .-~. xLookup Arr.! j] ]
                                                      x )
                      (asd', symmetryTouched) = makeIndexLinksSymmetric
@@ -337,7 +337,7 @@ smoothenWebTopology mc = swt
                   = (y, cullNeighbours em (i, WithAny [ (j,v)
                                                       | j<-UArr.toList n
                                                       , let xN = xLookup Arr.! j
-                                                      , Option (Just v) <- [xN.-~.x] ]
+                                                      , Just v <- [xN.-~.x] ]
                                                       x ))
                where x = xLookup Arr.! i
               xLookup = Arr.fromList $ onlyLeaves shd
@@ -360,7 +360,7 @@ makeIndexLinksSymmetric orig = runST (do
   )
 
 indexWeb :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
-                => PointsWeb x y -> WebNodeId -> Option (x,y)
+                => PointsWeb x y -> WebNodeId -> Maybe (x,y)
 indexWeb (PointsWeb rsc assocD) i
   | i>=0, i<Arr.length assocD
   , Right (_,x) <- indexShadeTree rsc i  = pure (x, fst (assocD Arr.! i))
@@ -377,7 +377,7 @@ webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
                     -> Set.fromList [(min i i', max i i')
                                     | i'<-UArr.toList ngbs ]
                                ) $ Arr.indexed assoc
-       lookId i | Option (Just xy) <- indexWeb web i  = xy
+       lookId i | Just xy <- indexWeb web i  = xy
 
 
 coerceWebDomain :: ∀ a b y . (Manifold a, Manifold b, LocallyCoercible a b)
@@ -405,7 +405,7 @@ mkInterpolationSeq_lin [(xψ,yψ), (xω,yω)]
            (xψ,xω)
            (\x -> let drel = fromIntv0to1 $ (x-xψ)/(xω-xψ)
                   in yio drel )
- where Option (Just yio) = geodesicBetween yψ yω
+ where Just yio = geodesicBetween yψ yω
 mkInterpolationSeq_lin (p₀:p₁:ps)
     = mkInterpolationSeq_lin [p₀,p₁] <> mkInterpolationSeq_lin (p₁:ps)
 mkInterpolationSeq_lin _ = []
@@ -421,9 +421,9 @@ sliceWeb_lin web = sliceEdgs
  where edgs = webEdges web
        sliceEdgs cp = [ (xi d, yi d)  -- Brute-force search through all edges
                       | ((x₀,y₀), (x₁,y₁)) <- edgs
-                      , Option (Just d) <- [cutPosBetween cp (x₀,x₁)]
-                      , Option (Just xi) <- [geodesicBetween x₀ x₁]
-                      , Option (Just yi) <- [geodesicBetween y₀ y₁]
+                      , Just d <- [cutPosBetween cp (x₀,x₁)]
+                      , Just xi <- [geodesicBetween x₀ x₁]
+                      , Just yi <- [geodesicBetween y₀ y₁]
                       ]
 
 
@@ -454,14 +454,14 @@ splitToGridLines web (GridSetup x₀ [GridPlanes dirΩ spcΩ nΩ, linePln])
     = [ ((x₀', linePln), sliceWeb_lin web $ Cutplane x₀' (Stiefel1 dirΩ))
       | k <- [0 .. nΩ-1]
       , let x₀' = x₀i.+~^(fromIntegral k *^ spcΩ) ]
- where Option (Just x₀i) = toInterior x₀
+ where Just x₀i = toInterior x₀
 
 sampleWebAlongGrid_lin :: ∀ x y . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                                   , Geodesic x, Geodesic y )
-               => PointsWeb x y -> GridSetup x -> [(x,Option y)]
+               => PointsWeb x y -> GridSetup x -> [(x,Maybe y)]
 sampleWebAlongGrid_lin web grid = finalLine boundarylessWitness
                                       =<< splitToGridLines web grid
- where finalLine :: BoundarylessWitness x -> ((x, GridPlanes x), [(x,y)]) -> [(x,Option y)]
+ where finalLine :: BoundarylessWitness x -> ((x, GridPlanes x), [(x,y)]) -> [(x,Maybe y)]
        finalLine BoundarylessWitness ((x₀, GridPlanes _ dir nSpl), verts)
           | length verts < 2  = take nSpl $ (,empty)<$>iterate (.+~^dir) x₀
        finalLine BoundarylessWitness ((x₀, GridPlanes dx dir nSpl), verts)
@@ -478,7 +478,7 @@ sampleWebAlongGrid_lin web grid = finalLine boundarylessWitness
               δt = dx<.>^dir
        
 sampleWeb_2Dcartesian_lin :: (x~ℝ, y~ℝ, Geodesic z)
-             => PointsWeb (x,y) z -> ((x,x),Int) -> ((y,y),Int) -> [(y,[(x,Option z)])]
+             => PointsWeb (x,y) z -> ((x,x),Int) -> ((y,y),Int) -> [(y,[(x,Maybe z)])]
 sampleWeb_2Dcartesian_lin web (xspec@(_,nx)) yspec
        = go . sampleWebAlongGrid_lin web $ cartesianGrid2D xspec yspec
  where go [] = []
@@ -486,7 +486,7 @@ sampleWeb_2Dcartesian_lin web (xspec@(_,nx)) yspec
                              in (y, map (\((x,_),z) -> (x,z)) ln) : go l'
        
 sampleEntireWeb_2Dcartesian_lin :: (x~ℝ, y~ℝ, Geodesic z)
-             => PointsWeb (x,y) z -> Int -> Int -> [(y,[(x,Option z)])]
+             => PointsWeb (x,y) z -> Int -> Int -> [(y,[(x,Maybe z)])]
 sampleEntireWeb_2Dcartesian_lin web nx ny
        = sampleWeb_2Dcartesian_lin web ((x₀,x₁),nx) ((y₀,y₁),ny)
  where x₀ = minimum (fst<$>pts)
@@ -509,7 +509,7 @@ webLocalInfo origWeb = result
                 , _nodeNeighbours = [ (iNgb, (δx, neighbour))
                                     | iNgb <- UArr.toList $ ngbH^.neighbours
                                     , let neighbour = unsafeIndexWebData result iNgb
-                                          Option (Just δx) = _thisNodeCoord neighbour.-~.x
+                                          Just δx = _thisNodeCoord neighbour.-~.x
                                     ]
                 , _nodeLocalScalarProduct = ngbH^.localScalarProduct
                 , _nodeIsOnBoundary = anyUnopposed (ngbH^.localScalarProduct) ngbCo
@@ -525,7 +525,7 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                                          Right (_,x) -> ((x,y),n) ) asd
        asd''= Arr.map (\((x,y),n) ->
                        (((x,y), [ ( case x'.-~.x of
-                                     Option (Just v) -> v
+                                     Just v -> v
                                   , y')
                                 | j<-UArr.toList (n^.neighbours)
                                 , let ((x',y'),_) = asd' Arr.! j
@@ -534,7 +534,7 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
 
 
 nearestNeighbour :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
-                      => PointsWeb x y -> x -> Option (x,y)
+                      => PointsWeb x y -> x -> Maybe (x,y)
 nearestNeighbour (PointsWeb rsc asd) x = fmap lkBest $ positionIndex empty rsc x
  where lkBest (iEst, (_, xEst)) = (xProx, yProx)
         where (iProx, (xProx, _)) = minimumBy (comparing $ snd . snd)
@@ -545,9 +545,9 @@ nearestNeighbour (PointsWeb rsc asd) x = fmap lkBest $ positionIndex empty rsc x
               neighbours = [ (i, (xNgb, normSq locMetr v))
                            | i <- UArr.toList neighbourIds
                            , let Right (_, xNgb) = indexShadeTree rsc i
-                                 Option (Just v) = xNgb.-~.x
+                                 Just v = xNgb.-~.x
                            ]
-              Option (Just vEst) = xEst.-~.x
+              Just vEst = xEst.-~.x
 
 
 
@@ -567,7 +567,7 @@ localFmapWeb :: WithField ℝ Manifold x
 localFmapWeb f = webLocalInfo >>> fmap f
 
 traverseWebWithStrategy :: ( WithField ℝ Manifold x, Hask.Applicative m )
-               => InconsistencyStrategy m x y -> (WebLocally x y -> Option y)
+               => InconsistencyStrategy m x y -> (WebLocally x y -> Maybe y)
                      -> PointsWeb x y -> m (PointsWeb x y)
 traverseWebWithStrategy strat f = webLocalInfo
                >>> traverse (\info -> handleInconsistency strat
@@ -585,8 +585,8 @@ differentiateUncertainWebLocally info
                           | (δx,ngb) <- (zeroV, info)
                                       : (snd<$>info^.nodeNeighbours)
                           ] of
-               Option (Just j) -> j
-               _               -> Shade' zeroV mempty
+               Just j -> j
+               _      -> Shade' zeroV mempty
 
 differentiateUncertainWebFunction :: ∀ x y
    . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
@@ -599,7 +599,7 @@ rescanPDELocally :: ∀ x y .
      ( WithField ℝ Manifold x, SimpleSpace (Needle x)
      , WithField ℝ Refinable y, SimpleSpace (Needle y) )
          => DifferentialEqn x y -> WebLocally x (Shade' y)
-                                -> Option (Shade' y)
+                                -> Maybe (Shade' y)
 rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                         , dualSpaceWitness :: DualNeedleWitness y
                         , boundarylessWitness :: BoundarylessWitness x
@@ -627,7 +627,7 @@ rescanPDEOnWeb strat = traverseWebWithStrategy strat . rescanPDELocally
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
-toGraph wb = second (>>> \(i,_,_) -> case indexWeb wb i of {Option (Just xy) -> xy})
+toGraph wb = second (>>> \(i,_,_) -> case indexWeb wb i of {Just xy -> xy})
                 (graphFromEdges' edgs)
  where edgs :: [(Int, Int, [Int])]
        edgs = Arr.toList
@@ -650,7 +650,7 @@ deriving instance ( WithField ℝ Manifold x, SimpleSpace (Needle x)
 ellipsoid :: Shade' x -> ConvexSet x
 ellipsoid s = ConvexSet s [s]
 
-intersectors :: ConvexSet x -> Option (NonEmpty (Shade' x))
+intersectors :: ConvexSet x -> Maybe (NonEmpty (Shade' x))
 intersectors (ConvexSet h []) = pure (h:|[])
 intersectors (ConvexSet _ (i:sts)) = pure (i:|sts)
 intersectors _ = empty
@@ -659,9 +659,9 @@ intersectors _ = empty
 instance Refinable x => Semigroup (ConvexSet x) where
   a<>b = sconcat (a:|[b])
   sconcat csets
-    | Option (Just allIntersectors) <- sconcat <$> Hask.traverse intersectors csets
+    | Just allIntersectors <- sconcat <$> Hask.traverse intersectors csets
     , IntersectT ists <- rmTautologyIntersect perfectRefine $ IntersectT allIntersectors
-    , Option (Just hull') <- intersectShade's ists
+    , Just hull' <- intersectShade's ists
                  = ConvexSet hull' (NE.toList ists)
     | otherwise  = EmptyConvex
    where perfectRefine sh₁ sh₂
@@ -673,7 +673,7 @@ instance Refinable x => Semigroup (ConvexSet x) where
 
 itWhileJust :: InconsistencyStrategy m x y -> (a -> m a) -> a -> [a]
 itWhileJust AbortOnInconsistency f x
- | Option (Just y) <- f x  = x : itWhileJust AbortOnInconsistency f y
+ | Just y <- f x  = x : itWhileJust AbortOnInconsistency f y
 itWhileJust IgnoreInconsistencies f x
  | Identity y <- f x  = x : itWhileJust IgnoreInconsistencies f y
 itWhileJust (HighlightInconsistencies yh) f x
@@ -686,7 +686,7 @@ dupHead (x:|xs) = x:|x:xs
 
 
 data InconsistencyStrategy m x y where
-    AbortOnInconsistency :: InconsistencyStrategy Option x y
+    AbortOnInconsistency :: InconsistencyStrategy Maybe x y
     IgnoreInconsistencies :: InconsistencyStrategy Identity x y
     HighlightInconsistencies :: y -> InconsistencyStrategy Identity x y
 deriving instance Hask.Functor (InconsistencyStrategy m x)
@@ -715,7 +715,7 @@ filterDEqnSolution_static strat@AbortOnInconsistency f
                   []   -> return $ me^.thisNodeData
                   ngbs -> refineShade' (me^.thisNodeData)
                             =<< intersectShade's
-                            =<< Option ( sequenceA $ NE.fromList
+                            =<< ( sequenceA $ NE.fromList
                                   [ propagateDEqnSolution_loc
                                        f (LocalDataPropPlan
                                              (ngbInfo^.thisNodeCoord)
@@ -740,12 +740,12 @@ filterDEqnSolutions_static strategy f
            >>> localFocusWeb >>> Hask.traverse `id`\((_,(me,updShy)), ngbs)
           -> let oldValue = me^.thisNodeData :: ConvexSet y
              in  case updShy of
-              Option (Just shy) -> case ngbs of
+              Just shy -> case ngbs of
                   []  -> pure oldValue
                   _:_ | BoundarylessWitness <- (boundarylessWitness::BoundarylessWitness x)
                     -> handleInconsistency strategy oldValue
                           $ ( sequenceA $ NE.fromList
-                                  [ sj >>= Option . \ngbShy ->
+                                  [ sj >>= \ngbShy ->
                                      propagateDEqnSolution_loc
                                        f (LocalDataPropPlan
                                              (ngbInfo^.thisNodeCoord)
@@ -763,11 +763,11 @@ filterDEqnSolutions_static strategy f
                                       c           -> pure c
               _ -> handleInconsistency strategy oldValue empty
 
-handleInconsistency :: InconsistencyStrategy m x a -> a -> Option a -> m a
+handleInconsistency :: InconsistencyStrategy m x a -> a -> Maybe a -> m a
 handleInconsistency AbortOnInconsistency _ i = i
-handleInconsistency IgnoreInconsistencies _ (Option (Just v)) = Identity v
+handleInconsistency IgnoreInconsistencies _ (Just v) = Identity v
 handleInconsistency IgnoreInconsistencies b _ = Identity b
-handleInconsistency (HighlightInconsistencies _) _ (Option (Just v)) = Identity v
+handleInconsistency (HighlightInconsistencies _) _ (Just v) = Identity v
 handleInconsistency (HighlightInconsistencies b) _ _ = Identity b
 
 data SolverNodeState x y = SolverNodeInfo {
@@ -779,14 +779,14 @@ data SolverNodeState x y = SolverNodeInfo {
 makeLenses ''SolverNodeState
 
 
-type OldAndNew d = (Option d, [d])
+type OldAndNew d = (Maybe d, [d])
 
 oldAndNew :: OldAndNew d -> [d]
-oldAndNew (Option (Just x), l) = x : l
+oldAndNew (Just x, l) = x : l
 oldAndNew (_, l) = l
 
 oldAndNew' :: OldAndNew d -> [(Bool, d)]
-oldAndNew' (Option (Just x), l) = (True, x) : fmap (False,) l
+oldAndNew' (Just x, l) = (True, x) : fmap (False,) l
 oldAndNew' (_, l) = (False,) <$> l
 
 
@@ -812,7 +812,7 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                  | otherwise           = (wl,) . map (id&&&badness undefined)
                                            <$> propFromNgbs
                where propFromNgbs :: m [Shade' y]
-                     propFromNgbs = mapM (handleInconsistency strategy thisShy . Option) [
+                     propFromNgbs = mapM (handleInconsistency strategy thisShy) [
                                        propagateDEqnSolution_loc f
                                         (LocalDataPropPlan
                                            (neigh^.thisNodeCoord)
@@ -903,10 +903,10 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                         let stepV = vN^/2
                                             xStep = x .+~^ stepV
                                             aprioriInterpolate :: Shade' y
-                                            Option (Just aprioriInterpolate)
+                                            Just aprioriInterpolate
                                                = middleBetween hull hullN
                                         case intersectShade's =<<
-                                               (Option . sequenceA $ NE.fromList
+                                               (sequenceA $ NE.fromList
                                                [ propagateDEqnSolution_loc f
                                                    (LocalDataPropPlan
                                                       (n^.thisNodeCoord)
@@ -924,7 +924,7 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                                 --     $ fmap (\(vN',hullN')
                                                 --              -> (vN'^-^stepV, hullN') ) )
                                                 | (_, (δx, n)) <- ngbs ]) of
-                                         Option (Just shyStep) -> return
+                                         Just shyStep -> return
                                                [( xStep
                                                 , SolverNodeInfo (ellipsoid shyStep)
                                                        prevJacobi (badness xStep shyStep) 1
@@ -944,7 +944,7 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                      , let neighbourCandidates
                             = [ (v,nnId)
                               | (_,ngb) <- knownNgbs
-                              , (Option (Just v), nnId)
+                              , (Just v, nnId)
                                  <- case oldAndNew $ ngb^.thisNodeData of
                                           [] -> [ (xN.-~.x, nnId)
                                                 | (nnId, (_,nnWeb)) <- ngb^.nodeNeighbours
@@ -962,7 +962,7 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                      knownNgbs = second _thisNodeData . snd <$> locWeb^.nodeNeighbours
                      oldMinDistSq = minimum [ normSq locMetr vOld
                                             | (_,ngb) <- knownNgbs
-                                            , let Option (Just vOld) = ngb^.thisNodeCoord .-~. xOld
+                                            , let Just vOld = ngb^.thisNodeCoord .-~. xOld
                                             ]
                               
 recomputeJacobian :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)

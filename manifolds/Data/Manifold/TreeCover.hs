@@ -69,8 +69,6 @@ module Data.Manifold.TreeCover (
        , DifferentialEqn, LocalDifferentialEqn(..)
        , propagateDEqnSolution_loc, LocalDataPropPlan(..)
        , rangeOnGeodesic
-       -- ** Util
-       , catOptions
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild
        , AutoTriang, breakdownAutoTriang
@@ -157,8 +155,8 @@ deriving instance (Show (Interior x), Show (Metric x), WithField ℝ PseudoAffin
                 => Show (Shade' x)
 
 data LocalDifferentialEqn x y = LocalDifferentialEqn {
-      _predictDerivatives :: Option (Shade' (LocalLinear x y))
-    , _rescanDerivatives :: Shade' (LocalLinear x y) -> Shade' y -> Option (Shade' y)
+      _predictDerivatives :: Maybe (Shade' (LocalLinear x y))
+    , _rescanDerivatives :: Shade' (LocalLinear x y) -> Shade' y -> Maybe (Shade' y)
     }
 makeLenses ''LocalDifferentialEqn
 
@@ -211,10 +209,10 @@ instance IsShade Shade where
                     => PseudoAffineWitness x -> DualNeedleWitness x -> Shade x -> x -> s
          occ (PseudoAffineWitness (SemimanifoldWitness _)) DualSpaceWitness (Shade p₀ δ)
                  = \p -> case toInterior p >>= (.-~.p₀) of
-           Option(Just vd) | mSq <- normSq δinv vd
-                           , mSq == mSq  -- avoid NaN
-                           -> exp (negate mSq)
-           _               -> zeroV
+           (Just vd) | mSq <- normSq δinv vd
+                     , mSq == mSq  -- avoid NaN
+                     -> exp (negate mSq)
+           _         -> zeroV
           where δinv = dualNorm δ
   factoriseShade = fs dualSpaceWitness dualSpaceWitness
    where fs :: ∀ x y . ( Manifold x, SimpleSpace (Needle x)
@@ -267,10 +265,10 @@ instance IsShade Shade' where
                     => PseudoAffineWitness x -> Shade' x -> x -> s
          occ (PseudoAffineWitness (SemimanifoldWitness _)) (Shade' p₀ δinv) p
                = case toInterior p >>= (.-~.p₀) of
-           Option(Just vd) | mSq <- normSq δinv vd
-                           , mSq == mSq  -- avoid NaN
-                           -> exp (negate mSq)
-           _               -> zeroV
+           (Just vd) | mSq <- normSq δinv vd
+                     , mSq == mSq  -- avoid NaN
+                     -> exp (negate mSq)
+           _         -> zeroV
   factoriseShade (Shade' (x₀,y₀) δxy) = (Shade' x₀ δx, Shade' y₀ δy)
    where (δx,δy) = summandSpaceNorms δxy
   coerceShade = cS
@@ -305,13 +303,13 @@ instance ∀ x . (PseudoAffine x) => Semimanifold (Shade x) where
 instance (WithField ℝ PseudoAffine x, Geodesic (Interior x), SimpleSpace (Needle x))
              => Geodesic (Shade x) where
   geodesicBetween = gb dualSpaceWitness
-   where gb :: DualNeedleWitness x -> Shade x -> Shade x -> Option (D¹ -> Shade x)
+   where gb :: DualNeedleWitness x -> Shade x -> Shade x -> Maybe (D¹ -> Shade x)
          gb DualSpaceWitness (Shade c (Norm e)) (Shade ζ (Norm η)) = pure interp
           where interp t@(D¹ q) = Shade (pinterp t)
                                  (Norm . arr . lerp ed ηd $ (q+1)/2)
                 ed@(LinearMap _) = arr e
                 ηd@(LinearMap _) = arr η
-                Option (Just pinterp) = geodesicBetween c ζ
+                Just pinterp = geodesicBetween c ζ
 
 instance (AffineManifold x) => Semimanifold (Shade' x) where
   type Needle (Shade' x) = Diff x
@@ -328,7 +326,7 @@ instance (WithField ℝ AffineManifold x, Geodesic x, SimpleSpace (Needle x))
          interp t = Shade' (pinterp t)
                            (spanNorm [ v ^/ (alerpB 1 (recip qη) t)
                                      | (v,qη) <- sharedSpan ])
-         Option (Just pinterp) = geodesicBetween c ζ
+         Just pinterp = geodesicBetween c ζ
 
 fullShade :: WithField ℝ PseudoAffine x => Interior x -> Metric' x -> Shade x
 fullShade ctr expa = Shade ctr expa
@@ -363,7 +361,7 @@ subshadeId' :: ∀ x . (WithField ℝ PseudoAffine x, LinearSpace (Needle x))
                    => x -> NonEmpty (Needle' x) -> x -> (Int, HourglassBulb)
 subshadeId' c expvs x = case ( dualSpaceWitness :: DualNeedleWitness x
                              , x .-~. c ) of
-    (DualSpaceWitness, Option (Just v))
+    (DualSpaceWitness, Just v)
                     -> let (iu,vl) = maximumBy (comparing $ abs . snd)
                                       $ zip [0..] (map (v <.>^) $ NE.toList expvs)
                        in (iu, if vl>0 then UpperBulb else LowerBulb)
@@ -418,7 +416,7 @@ pointsCovers = case pseudoAffineWitness :: PseudoAffineWitness x of
                  (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)) ->
                   \ps -> map (\(ps', Shade x₀ _)
                                 -> coverAllAround x₀ [v | p<-ps'
-                                                        , let Option (Just v)
+                                                        , let Just v
                                                                  = p.-~.fromInterior x₀])
                              (pointsShades' mempty (fromInterior<$>ps) :: [([x], Shade x)])
 
@@ -438,7 +436,7 @@ pseudoECM = case semimanifoldWitness :: SemimanifoldWitness x of
  SemimanifoldWitness _ ->
    \_ (p₀ NE.:| psr) -> foldl' ( \(acc, (rb,nr)) (i,p)
                                 -> case (p.-~.acc, toInterior acc) of 
-                                      (Option (Just δ), Option (Just acci))
+                                      (Just δ, Just acci)
                                         -> (acci .+~^ δ^/i, (p:rb, nr))
                                       _ -> (acc, (rb, p:nr)) )
                              (p₀, mempty)
@@ -448,7 +446,7 @@ pointsShades' :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                                 => Metric' x -> [x] -> [([x], Shade x)]
 pointsShades' _ [] = []
 pointsShades' minExt ps = case (expa, toInterior ctr) of 
-                           (Option (Just e), Option (Just c))
+                           (Just e, Just c)
                              -> (ps, fullShade c e) : pointsShades' minExt unreachable
                            _ -> pointsShades' minExt inc'd
                                   ++ pointsShades' minExt unreachable
@@ -477,14 +475,14 @@ shadesMerge fuzz (sh₁@(Shade c₁ e₁) : shs)
                          -> Shade x -> Maybe (Shade x)
        tryMerge (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)) DualSpaceWitness
                     (Shade c₂ e₂)
-           | Option (Just v) <- c₁.-~.c₂
+           | Just v <- c₁.-~.c₂
            , [e₁',e₂'] <- dualNorm<$>[e₁, e₂] 
            , b₁ <- e₂'|$|v
            , b₂ <- e₁'|$|v
            , fuzz*b₁*b₂ <= b₁ + b₂
                   = Just $ let cc = c₂ .+~^ v ^/ 2
-                               Option (Just cv₁) = c₁.-~.cc
-                               Option (Just cv₂) = c₂.-~.cc
+                               Just cv₁ = c₁.-~.cc
+                               Just cv₂ = c₂.-~.cc
                            in Shade cc $ e₁ <> e₂ <> spanVariance [cv₁, cv₂]
            | otherwise  = Nothing
 shadesMerge _ shs = shs
@@ -495,14 +493,14 @@ shadesMerge _ shs = shs
 --   it gives the maximum-likelyhood result for multiple measurements of the
 --   same quantity.
 mixShade's :: ∀ y . (WithField ℝ Manifold y, SimpleSpace (Needle y))
-                 => NonEmpty (Shade' y) -> Option (Shade' y)
+                 => NonEmpty (Shade' y) -> Maybe (Shade' y)
 mixShade's = ms pseudoAffineWitness dualSpaceWitness
  where ms :: PseudoAffineWitness y -> DualNeedleWitness y
-                  -> NonEmpty (Shade' y) -> Option (Shade' y)
+                  -> NonEmpty (Shade' y) -> Maybe (Shade' y)
        ms (PseudoAffineWitness (SemimanifoldWitness _)) DualSpaceWitness
                  (Shade' c₀ (Norm e₁):|shs) = sequenceA ciso >> pure mixed
         where ciso = [ci.-~.c₀ | Shade' ci shi <- shs]
-              cis = [v | Option (Just v) <- ciso]
+              cis = [v | Just v <- ciso]
               σe = arr . sumV $ e₁ : (applyNorm . _shade'Narrowness<$>shs)
               cc = σe \$ sumV [ei $ ci | ci <- cis
                                        | Shade' _ (Norm ei) <- shs]
@@ -546,10 +544,10 @@ minusLogOcclusion' (Shade' p₀ δinv)
               (dualSpaceWitness :: DualNeedleWitness x)
  where occ (PseudoAffineWitness (SemimanifoldWitness _)) DualSpaceWitness
            p = case toInterior p >>= (.-~.p₀) of
-         Option(Just vd) | mSq <- normSq δinv vd
-                         , mSq == mSq  -- avoid NaN
-                         -> mSq
-         _               -> 1/0
+         (Just vd) | mSq <- normSq δinv vd
+                   , mSq == mSq  -- avoid NaN
+                   -> mSq
+         _         -> 1/0
 minusLogOcclusion :: ∀ x s . ( PseudoAffine x, SimpleSpace (Needle x)
                              , s ~ (Scalar (Needle x)), RealDimension s )
               => Shade x -> x -> s
@@ -558,10 +556,10 @@ minusLogOcclusion (Shade p₀ δ)
               (dualSpaceWitness :: DualNeedleWitness x)
  where occ (PseudoAffineWitness (SemimanifoldWitness _)) DualSpaceWitness
             = \p -> case toInterior p >>= (.-~.p₀) of
-         Option(Just vd) | mSq <- normSq δinv vd
-                         , mSq == mSq  -- avoid NaN
-                         -> mSq
-         _               -> 1/0
+         (Just vd) | mSq <- normSq δinv vd
+                   , mSq == mSq  -- avoid NaN
+                   -> mSq
+         _         -> 1/0
         where δinv = dualNorm δ
 
 
@@ -570,7 +568,7 @@ minusLogOcclusion (Shade p₀ δ)
 rangeOnGeodesic :: ∀ i m . 
       ( WithField ℝ PseudoAffine m, Geodesic m, SimpleSpace (Needle m)
       , WithField ℝ IntervalLike i, SimpleSpace (Needle i) )
-                     => m -> m -> Option (Shade i -> Shade m)
+                     => m -> m -> Maybe (Shade i -> Shade m)
 rangeOnGeodesic = case ( semimanifoldWitness :: SemimanifoldWitness i
                        , dualSpaceWitness :: DualNeedleWitness i
                        , dualSpaceWitness :: DualNeedleWitness m ) of
@@ -578,12 +576,12 @@ rangeOnGeodesic = case ( semimanifoldWitness :: SemimanifoldWitness i
   \p₀ p₁ -> (`fmap`(geodesicBetween p₀ p₁))
     $ \interp -> \(Shade t₀ et)
                 -> case pointsShades
-                         . mapMaybe (getOption . toInterior
+                         . mapMaybe (toInterior
                                . interp . (toClosedInterval :: i -> D¹))
                          $ fromInterior <$> t₀ : [ t₀+^v
                                                  | v<-normSpanningSystem et ] of
              [sh] -> sh
-             _ -> case pointsShades $ mapMaybe (getOption . toInterior . interp . D¹)
+             _ -> case pointsShades $ mapMaybe (toInterior . interp . D¹)
                         [-0.999, 0.999] of
                 [sh] -> sh
  where Tagged (+^) = translateP :: Tagged i (Interior i->Needle i->Interior i)
@@ -769,23 +767,23 @@ indexShadeTree sh@(OverlappingBranches n _ brs) i
 --   but not guaranteed to give the correct result unless evaluated at the
 --   precise position of a tree leaf.
 positionIndex :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x))
-       => Option (Metric x)  -- ^ For deciding (at the lowest level) what “close” means;
+       => Maybe (Metric x)   -- ^ For deciding (at the lowest level) what “close” means;
                              --   this is optional for any tree of depth >1.
         -> ShadeTree x       -- ^ The tree to index into
         -> x                 -- ^ Position to look up
-        -> Option (Int, ([ShadeTree x], x))
+        -> Maybe (Int, ([ShadeTree x], x))
                    -- ^ Index of the leaf near to the query point, the “path” of
                    --   environment trees leading down to its position (in decreasing
                    --   order of size), and actual position of the found node.
-positionIndex (Option (Just m)) sh@(PlainLeaves lvs) x
-        = case catMaybes [ ((i,p),) . normSq m <$> getOption (p.-~.x)
+positionIndex (Just m) sh@(PlainLeaves lvs) x
+        = case catMaybes [ ((i,p),) . normSq m <$> p.-~.x
                             | (i,p) <- zip [0..] lvs] of
            [] -> empty
            l | ((i,p),_) <- minimumBy (comparing snd) l
               -> pure (i, ([sh], p))
 positionIndex m (DisjointBranches _ brs) x
         = fst . foldl' (\case
-                          (q@(Option (Just _)), i₀) -> const (q, i₀)
+                          (q@(Just _), i₀) -> const (q, i₀)
                           (_, i₀) -> \t' -> ( first (+i₀) <$> positionIndex m t' x
                                             , i₀+nLeaves t' ) )
                        (empty, 0)
@@ -793,7 +791,7 @@ positionIndex m (DisjointBranches _ brs) x
 positionIndex _ sh@(OverlappingBranches n (Shade c ce) brs) x
    | PseudoAffineWitness (SemimanifoldWitness _)
                <- pseudoAffineWitness :: PseudoAffineWitness x
-   , Option (Just vx) <- toInterior x>>=(.-~.c)
+   , Just vx <- toInterior x>>=(.-~.c)
         = let (_,(i₀,t')) = maximumBy (comparing fst)
                        [ (σ*ω, t')
                        | DBranch d (Hourglass t'u t'd) <- NE.toList $ indexDBranches brs
@@ -908,7 +906,7 @@ trunks :: ∀ x. (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                   => ShadeTree x -> [Shade x]
 trunks t = case (pseudoAffineWitness :: PseudoAffineWitness x, t) of
   (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness), PlainLeaves lvs)
-                                         -> pointsCovers . catOptions $ toInterior<$>lvs
+                                         -> pointsCovers . catMaybes $ toInterior<$>lvs
   (_, DisjointBranches _ brs)            -> Hask.foldMap trunks brs
   (_, OverlappingBranches _ sh _)        -> [sh]
 
@@ -987,7 +985,7 @@ class (WithField ℝ PseudoAffine y, SimpleSpace (Needle y)) => Refinable y wher
   subShade' (Shade' ac ae) (Shade' tc te)
         = case pseudoAffineWitness :: PseudoAffineWitness y of
    PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-    | Option (Just v) <- tc.-~.ac
+    | Just v <- tc.-~.ac
     , v² <- normSq te v
     , v² <= 1
      -> all (\(y',μ) -> case μ of
@@ -1001,7 +999,7 @@ class (WithField ℝ PseudoAffine y, SimpleSpace (Needle y)) => Refinable y wher
    _ -> False
   
   -- | Intersection between two shades.
-  refineShade' :: Shade' y -> Shade' y -> Option (Shade' y)
+  refineShade' :: Shade' y -> Shade' y -> Maybe (Shade' y)
   refineShade' (Shade' c₀ (Norm e₁)) (Shade' c₀₂ (Norm e₂))
       = case ( dualSpaceWitness :: DualNeedleWitness y
              , pseudoAffineWitness :: PseudoAffineWitness y ) of
@@ -1190,14 +1188,14 @@ instance ( SimpleSpace a, SimpleSpace b
          , Scalar (DualVector (DualVector a)) ~ ℝ, Scalar (DualVector (DualVector b)) ~ ℝ )
             => Refinable (LinearMap ℝ a b)
 
-intersectShade's :: ∀ y . Refinable y => NonEmpty (Shade' y) -> Option (Shade' y)
+intersectShade's :: ∀ y . Refinable y => NonEmpty (Shade' y) -> Maybe (Shade' y)
 intersectShade's (sh:|shs) = Hask.foldrM refineShade' sh shs
 
 
 estimateLocalJacobian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
                                  , SimpleSpace (Needle x), SimpleSpace (Needle y) )
             => Metric x -> [(Local x, Shade' y)]
-                             -> Option (Shade' (LocalLinear x y))
+                             -> Maybe (Shade' (LocalLinear x y))
 estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
                             , pseudoAffineWitness :: PseudoAffineWitness y )
  where elj ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
@@ -1205,10 +1203,10 @@ estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
         mex [(Local x₁, Shade' y₁ ey₁),(Local x₀, Shade' y₀ ey₀)]
          = return $ Shade' (dx-+|>δy)
                           (Norm . LinearFunction $ \δj -> δx ⊗ (σey<$|δj $ δx))
-        where Option (Just δx) = x₁.-~.x₀
+        where Just δx = x₁.-~.x₀
               δx' = (mex<$|δx)
               dx = δx'^/(δx'<.>^δx)
-              Option (Just δy) = y₁.-~.y₀
+              Just δy = y₁.-~.y₀
               σey = convolveMetric ([]::[y]) ey₀ ey₁
        elj _ mex (po:ps)
            | DualSpaceWitness <- dualSpaceWitness :: DualNeedleWitness y
@@ -1232,19 +1230,19 @@ propagateDEqnSolution_loc f propPlan
                           (pseudoAffineWitness :: PseudoAffineWitness y)
  where pdesl DualSpaceWitness DualSpaceWitness BoundarylessWitness
              (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
-          | Option Nothing <- jacobian  = Nothing
-          | otherwise                   = pure result
+          | Nothing <- jacobian  = Nothing
+          | otherwise            = pure result
          where jacobian = f shxy ^. predictDerivatives
-               Option (Just (Shade' j₀ jExpa)) = jacobian
+               Just (Shade' j₀ jExpa) = jacobian
 
                mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2
-               Option (Just my) = middleBetween (propPlan^.sourceData.shadeCtr)
-                                                (propPlan^.targetAPrioriData.shadeCtr)
+               Just my = middleBetween (propPlan^.sourceData.shadeCtr)
+                                       (propPlan^.targetAPrioriData.shadeCtr)
                shxy = coverAllAround (mx, my)
                                      [ (δx ^-^ propPlan^.targetPosOffset ^/ 2, py ^+^ v)
                                      | (δx,ney) <- (zeroV, propPlan^.sourceData)
                                                   : (propPlan^.relatedData)
-                                     , let Option (Just py) = ney^.shadeCtr .-~. my
+                                     , let Just py = ney^.shadeCtr .-~. my
                                      , v <- normSpanningSystem' (ney^.shadeNarrowness)
                                      ]
                (Shade _ expax' :: Shade x)
@@ -1320,7 +1318,7 @@ traverseTwigsWithEnvirons f = fst . go pseudoAffineWitness [] . (0,)
                                    (_, True) -> OuterNothing
                                    (down, _) -> OuterJust down
                where envi'' = filter (snd >>> trunks >>> \(Shade ce _:_)
-                                         -> let Option (Just δyenv) = ce.-~.robc
+                                         -> let Just δyenv = ce.-~.robc
                                                 qq = vy<.>^δyenv
                                             in qq > -1
                                        ) envi'
@@ -1328,7 +1326,7 @@ traverseTwigsWithEnvirons f = fst . go pseudoAffineWitness [] . (0,)
               envi' = approach =<< envi
               approach (i₀e, apt@(OverlappingBranches _ (Shade envc _) _))
                   = first (+i₀e) <$> twigsaveTrim hither apt
-               where Option (Just δxenv) = robc .-~. envc
+               where Just δxenv = robc .-~. envc
                      hither (DBranch bdir (Hourglass bdc₁ bdc₂))
                        =  [(0           , bdc₁) | overlap > -1]
                        ++ [(nLeaves bdc₁, bdc₂) | overlap < 1]
@@ -1345,7 +1343,7 @@ traverseTwigsWithEnvirons f = fst . go pseudoAffineWitness [] . (0,)
        twigProximæ sw@(PseudoAffineWitness (SemimanifoldWitness _))
                           x₀ ct@(OverlappingBranches _ (Shade xb qb) brs)
                    = twigsaveTrim hither ct
-        where Option (Just δxb) = x₀ .-~. xb
+        where Just δxb = x₀ .-~. xb
               hither (DBranch bdir (Hourglass bdc₁ bdc₂))
                 =  ((guard (overlap > -1)) >> twigProximæ sw x₀ bdc₁)
                 ++ ((guard (overlap < 1)) >> first (+nLeaves bdc₁)<$>twigProximæ sw x₀ bdc₂)
@@ -1371,14 +1369,14 @@ completeTopShading :: ∀ x y . ( WithField ℝ PseudoAffine x, WithField ℝ Ps
 completeTopShading (PlainLeaves plvs) = case ( dualSpaceWitness :: DualNeedleWitness x
                                              , dualSpaceWitness :: DualNeedleWitness y ) of
        (DualSpaceWitness, DualSpaceWitness)
-          -> pointsShade's . catOptions
+          -> pointsShade's . catMaybes
                $ toInterior . (_topological &&& _untopological) <$> plvs
 completeTopShading (DisjointBranches _ bqs)
                      = take 1 . completeTopShading =<< NE.toList bqs
 completeTopShading t = case ( dualSpaceWitness :: DualNeedleWitness x
                             , dualSpaceWitness :: DualNeedleWitness y ) of
        (DualSpaceWitness, DualSpaceWitness)
-          -> pointsCover's . catOptions
+          -> pointsCover's . catMaybes
                 . map (toInterior <<< _topological &&& _untopological) $ onlyLeaves t
 
 
@@ -1405,12 +1403,12 @@ flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
               j₀ = dependence expa'₀
               (_,expay₀) = summandSpaceNorms expa₀
               fts (xc, (Shade' yc expay, jtg)) = unsafeFmapLeaves applδj t
-               where Option (Just δyc) = yc.-~.yc₀
+               where Just δyc = yc.-~.yc₀
                      tfm = transferAsNormsDo expay₀ (dualNorm expay)
                      applδj (WithAny y x)
                            = WithAny (yc₀ .+~^ ((tfm $ δy) ^+^ (jtg $ δx) ^+^ δyc)) x
-                      where Option (Just δx) = x.-~.xc
-                            Option (Just δy) = y.-~.(yc₀.+~^(j₀ $ δx))
+                      where Just δx = x.-~.xc
+                            Just δy = y.-~.(yc₀.+~^(j₀ $ δx))
        
        assert_onlyToplevDisjoint, assert_connected :: x`Shaded`y -> ()
        assert_onlyToplevDisjoint (DisjointBranches _ dp) = rnf (assert_connected<$>dp)
@@ -1443,7 +1441,7 @@ leavesWithPotentialNeighbours = map (second snd) . go pseudoAffineWitness 0 0 []
        go (PseudoAffineWitness (SemimanifoldWitness _)) depth n₀ walls (PlainLeaves lvs)
                = [ (x, ( [ wall & wallDistance .~ d
                          | wall <- walls
-                         , Option (Just vw) <- [toInterior x>>=(.-~.wall^.wallAnchor)]
+                         , Just vw <- [toInterior x>>=(.-~.wall^.wallAnchor)]
                          , let d = (wall^.wallNormal)<.>^vw
                          , d < wall^.wallDistance ]
                        , [] ))
@@ -1470,7 +1468,7 @@ leavesWithPotentialNeighbours = map (second snd) . go pseudoAffineWitness 0 0 []
                                        (1/0)
                                 | (iDir',(otherDir,_)) <- otherDirs ]
                      updWall wall = wall & wallDistance %~ min bcDist
-                      where Option (Just vbw) = brCtr.-~.wall^.wallAnchor
+                      where Just vbw = brCtr.-~.wall^.wallAnchor
                             bcDist = (wall^.wallNormal)<.>^vbw
               reassemble :: [(x, ([Wall x],[Int]))] -> [(x, ([Wall x],[Int]))]
               reassemble pts = [ (x, (higherWalls, newGroups++deeperGroups))
@@ -1523,9 +1521,6 @@ getBaryCoord (BaryCoords (FreeVect bcs)) i = case bcs Arr.!? i of
 mkBaryCoords :: KnownNat n => ℝ ^ S n -> BaryCoords n
 mkBaryCoords (FreeVect bcs) = BaryCoords $ FreeVect (Arr.tail bcs) ^/ Arr.sum bcs
 
-mkBaryCoords' :: KnownNat n => [ℝ] -> Option (BaryCoords n)
-mkBaryCoords' bcs = fmap (BaryCoords . (^/sum bcs)) . freeVector . Arr.fromList $ tail bcs
-
 newtype ISimplex n x = ISimplex { iSimplexBCCordEmbed :: Embedding (->) (BaryCoords n) x }
 
 
@@ -1535,7 +1530,7 @@ data TriangBuilder n x where
   TriangVerticesSt :: [x] -> TriangBuilder Z x
   TriangBuilder :: Triangulation (S n) x
                     -> [x]
-                    -> [(Simplex n x, [x] -> Option x)]
+                    -> [(Simplex n x, [x] -> Maybe x)]
                             -> TriangBuilder (S n) x
 
 
@@ -1548,7 +1543,7 @@ bottomExtendSuitability (ISimplex emb) x = case getBaryCoord (emb >-$ x) 0 of
      r -> - recip r
 
 optimalBottomExtension :: (KnownNat n, WithField ℝ Manifold x)
-                => ISimplex (S n) x -> [x] -> Option Int
+                => ISimplex (S n) x -> [x] -> Maybe Int
 optimalBottomExtension s xs
       = case filter ((>0).snd)
                $ zipWith ((. bottomExtendSuitability s) . (,)) [0..] xs of
@@ -1557,17 +1552,6 @@ optimalBottomExtension s xs
 
 
 
-
-fromISimplex :: forall x n . (KnownNat n, WithField ℝ Manifold x)
-                   => ISimplex n x -> Simplex n x
-fromISimplex (ISimplex emb) = s
- where (Option (Just s))
-          = makeSimplex' [ emb $-> jOnly
-                         | j <- [0..n]
-                         , let (Option (Just jOnly)) = mkBaryCoords' [ if k==j then 1 else 0
-                                                                     | k<-[0..n] ]
-                         ]
-       (Tagged n) = theNatN :: Tagged n Int
 
 iSimplexSideViews :: ∀ n x . KnownNat n => ISimplex n x -> [ISimplex n x]
 iSimplexSideViews = \(ISimplex is)
@@ -1590,24 +1574,6 @@ doTriangBuild t = runIdentity (fst <$>
 
 
 
-hypotheticalSimplexScore :: ∀ t n n' x . (KnownNat n', WithField ℝ Manifold x, n~S n')
-          => SimplexIT t Z x
-           -> SimplexIT t n x
-           -> TriangBuild t n x ( Option Double )
-hypotheticalSimplexScore p b = do
-   altViews :: [(SimplexIT t Z x, SimplexIT t n x)] <- do
-      pSups <- lookSupersimplicesIT p
-      nOpts <- forM pSups $ \psup -> fmap (fmap $ \((bq,_p), _b') -> (bq,psup))
-                      $ distinctSimplices b psup
-      return $ catOptions nOpts
-   scores <- forM ((p,b) :| altViews) $ \(p',b') -> do
-      x <- lookVertexIT p'
-      q <- lift $ Map.lookup b' <$> get
-      return $ case q of
-         Just(_,is) | s<-bottomExtendSuitability is x, s>0
-                 -> pure s
-         _       -> empty
-   return . fmap sum $ Hask.sequence scores
 
 
 
@@ -1827,11 +1793,11 @@ stiWithDensity :: ∀ x y . ( WithField ℝ PseudoAffine x, WithField ℝ Linear
                           , SimpleSpace (Needle x) )
          => x`Shaded`y -> x -> Cℝay y
 stiWithDensity (PlainLeaves lvs)
-  | [Shade baryc expa :: Shade x] <- pointsShades . catOptions 
+  | [Shade baryc expa :: Shade x] <- pointsShades . catMaybes 
                                        $ toInterior . _topological <$> lvs
        = let nlvs = fromIntegral $ length lvs :: ℝ
              indiShapes = [(Shade pi expa, y) | WithAny y p <- lvs
-                                              , Option (Just pi) <- [toInterior p]]
+                                              , Just pi <- [toInterior p]]
          in \x -> let lcCoeffs = [ occlusion psh x | (psh, _) <- indiShapes ]
                       dens = sum lcCoeffs
                   in mkCone dens . linearCombo . zip (snd<$>indiShapes)
@@ -1845,7 +1811,7 @@ stiWithDensity (OverlappingBranches n (Shade (WithAny _ bc) extend) brs)
  where ovbSWD :: (DualNeedleWitness x, PseudoAffineWitness x) -> x -> Cℝay y
        ovbSWD (DualSpaceWitness, PseudoAffineWitness (SemimanifoldWitness _)) x
                      = case toInterior x>>=(.-~.bc) of
-           Option (Just v)
+           Just v
              | dist² <- normSq ε v
              , dist² < 9
              , att <- exp(1/(dist²-9)+1/9)
@@ -1888,7 +1854,7 @@ spanShading f = unsafeFmapTree addYs id addYSh
  where addYs :: NonEmpty x -> NonEmpty (x`WithAny`y)
        addYs l = foldr (NE.<|) (fmap (WithAny $ fromInterior ymid) l     )
                                (fmap (`WithAny` fromInterior xmid) yexamp)
-          where [xsh@(Shade xmid _)] = pointsCovers . catOptions . toList
+          where [xsh@(Shade xmid _)] = pointsCovers . catMaybes . toList
                                            $ toInterior<$>l
                 Shade ymid yexpa = f xsh
                 yexamp = [ ymid .+~^ σ*^δy
@@ -1917,9 +1883,6 @@ fociNE (x:|xs) = (x,xs) :| fmap (second (x:)) (foci xs)
 (.:) :: (c->d) -> (a->b->c) -> a->b->d 
 (.:) = (.) . (.)
 
-
-catOptions :: [Option a] -> [a]
-catOptions = catMaybes . map getOption
 
 
 
