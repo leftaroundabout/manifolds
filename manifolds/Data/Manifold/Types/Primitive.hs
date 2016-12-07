@@ -56,6 +56,8 @@ module Data.Manifold.Types.Primitive (
    ) where
 
 
+import Math.Manifold.Core.Types
+
 import Data.VectorSpace
 import Data.VectorSpace.Free
 import Linear.V2
@@ -95,27 +97,13 @@ data GraphWindowSpec = GraphWindowSpec {
 
 
 
--- | The zero-dimensional sphere is actually just two points. Implementation might
---   therefore change to @ℝ⁰ 'Control.Category.Constrained.+' ℝ⁰@: the disjoint sum of two
---   single-point spaces.
-data S⁰ = PositiveHalfSphere | NegativeHalfSphere deriving(Eq, Show)
 
-otherHalfSphere :: S⁰ -> S⁰
-otherHalfSphere PositiveHalfSphere = NegativeHalfSphere
-otherHalfSphere NegativeHalfSphere = PositiveHalfSphere
-
--- | The unit circle.
-newtype S¹ = S¹ { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
-                } deriving (Show)
 -- | The ordinary unit sphere.
 data S² = S² { ϑParamS² :: !Double -- ^ Range @[0, π[@.
              , φParamS² :: !Double -- ^ Range @[-π, π[@.
              } deriving (Show)
 
 
-
-
-type ℝP¹ = S¹
 
 -- | The two-dimensional real projective space, implemented as a unit disk with
 --   opposing points on the rim glued together.
@@ -124,15 +112,6 @@ data ℝP² = ℝP² { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
                } deriving (Show)
 
 
-
--- | The &#x201c;one-dimensional disk&#x201d; &#x2013; really just the line segment between
---   the two points -1 and 1 of 'S⁰', i.e. this is simply a closed interval.
-newtype D¹ = D¹ { xParamD¹ :: Double -- ^ Range @[-1, 1]@.
-                } deriving (Show)
-fromIntv0to1 :: ℝ -> D¹
-fromIntv0to1 x | x<0        = D¹ (-1)
-               | x>1        = D¹ 1
-               | otherwise  = D¹ $ x*2 - 1
 
 -- | The standard, closed unit disk. Homeomorphic to the cone over 'S¹', but not in the
 --   the obvious, &#x201c;flat&#x201d; way. (And not at all, despite
@@ -208,8 +187,6 @@ instance (NaturallyEmbedded x p) => NaturallyEmbedded (Cℝay x) (p,ℝ) where
 type Endomorphism a = a->a
 
 
-type ℝ = Double
-type ℝ⁰ = ZeroDim ℝ
 type ℝ¹ = V1 ℝ
 type ℝ² = V2 ℝ
 type ℝ³ = V3 ℝ
@@ -243,18 +220,6 @@ type Cone = CD¹
 type OpenCone = Cℝay
 
 
-
-instance VectorSpace () where
-  type Scalar () = ℝ
-  _ *^ () = ()
-
-instance HasBasis () where
-  type Basis () = Void
-  basisValue = absurd
-  decompose () = []
-  decompose' () = absurd
-instance InnerSpace () where
-  () <.> () = 0
 
 
 infixr 8 ^
