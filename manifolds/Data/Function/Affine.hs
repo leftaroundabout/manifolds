@@ -30,20 +30,22 @@
 
 
 module Data.Function.Affine (
-              Affine
-            , linearAffine
-            , toOffsetSlope, toOffset'Slope 
+              Affine(..)
+            , evalAffine
+            , fromOffsetSlope
             ) where
     
 
 
 import Data.Semigroup
 
+import Data.MemoTrie
 import Data.VectorSpace
 import Data.AffineSpace
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
+import Data.Manifold.Atlas
 
 import qualified Prelude
 import qualified Control.Applicative as Hask
@@ -59,387 +61,135 @@ import Math.LinearMap.Category
 
 
 data Affine s d c where
-   Subtract :: AffineManifold α => Affine s (α,α) (Needle α)
-   AddTo :: Affine s (α, Needle α) α
-   ScaleWith :: (LinearManifold α, LinearManifold β) => (α+>β) -> Affine s α β
-   ReAffine :: ReWellPointed (Affine s) α β -> Affine s α β
+    Affine :: (ChartIndex d :->: (c, LinearMap s (Needle d) (Needle c)))
+               -> Affine s d c
 
-reAffine :: ReWellPointed (Affine s) α β -> Affine s α β
-reAffine (ReWellPointed f) = f
-reAffine f = ReAffine f
+instance Category (Affine s) where
+  type Object (Affine s) x = ( Manifold x, Interior x ~ x
+                             , Atlas x, LinearSpace (Needle x)
+                             , Scalar (Needle x) ~ s, HasTrie (ChartIndex x) )
+  id = Affine . trie $ chartReferencePoint >>> id &&& const id
+  Affine f . Affine g = Affine . trie
+      $ \ixa -> case untrie g ixa of
+           (b, ða'b) -> case untrie f $ lookupAtlas b of
+            (c, ðb'c) -> (c, ðb'c . ða'b)
 
-pattern Specific f = ReWellPointed f
-pattern Id = ReAffine WellPointedId
-infixr 1 :>>>, :<<<
-pattern f :>>> g <- ReAffine (WellPointedCompo (reAffine -> f) (reAffine -> g))
-pattern g :<<< f <- ReAffine (WellPointedCompo (reAffine -> f) (reAffine -> g))
-pattern Swap = ReAffine WellPointedSwap
-pattern AttachUnit = ReAffine WellPointedAttachUnit
-pattern DetachUnit = ReAffine WellPointedDetachUnit
-pattern Regroup = ReAffine WellPointedRegroup
-pattern Regroup' = ReAffine WellPointedRegroup_
-pattern Terminal = ReAffine WellPointedTerminal
-pattern Fst = ReAffine WellPointedFst
-pattern Snd = ReAffine WellPointedSnd
-infixr 3 :***, :&&&
-pattern f :*** g <- ReAffine (WellPointedPar (reAffine -> f) (reAffine -> g))
-pattern f :&&& g <- ReAffine (WellPointedFanout (reAffine -> f) (reAffine -> g))
-pattern Const c = ReAffine (WellPointedConst c)
-
-
-toOffsetSlope :: (MetricScalar s, WithField s LinearManifold d
-                                 , WithField s AffineManifold c )
-                      => Affine s d c -> (c, Needle d +> Needle c)
-toOffsetSlope f = toOffset'Slope f zeroV
-
-type MetricScalar s = (Num' s, LSpace (ZeroDim s))
-
-linear :: (LSpace a, LSpace b, Scalar a ~ Scalar b)
-             => (a -> b) -> (a+>b)
-linear = arr . LinearFunction
-
--- | Basically evaluates an affine function as a generic differentiable one,
---   yielding at a given reference point the result and Jacobian. Unlike with
---   'Data.Function.Differentiable.Differentiable', the induced 1st-order Taylor
---   series is equal to the function!
-toOffset'Slope :: ( MetricScalar s, WithField s AffineManifold d
-                                   , WithField s AffineManifold c )
-                      => Affine s d c -> d -> (c, Needle d +> Needle c)
-toOffset'Slope Subtract (a,b) = (a.-.b, linear $ uncurry(^-^))
-toOffset'Slope AddTo (p,v) = (p.+^v, linear $ uncurry(^+^))
-toOffset'Slope (ScaleWith q) ref = (q $ ref, q)
-toOffset'Slope Id ref = (ref, linear id)
-toOffset'Slope (f :>>> g) ref = case toOffset'Slope f ref of
-                  (cf,sf) -> case toOffset'Slope g cf of
-                     (cg,sg)     -> (cg, sg . sf)
-toOffset'Slope Swap ref = (swap ref, linear swap)
-toOffset'Slope AttachUnit ref = ((ref,Origin), linear (,Origin))
-toOffset'Slope DetachUnit ref = (fst ref, linear fst)
-toOffset'Slope Regroup ref = (regroup ref, linear regroup)
-toOffset'Slope Regroup' ref = (regroup' ref, linear regroup')
-toOffset'Slope (f:***g) ref = case ( toOffset'Slope f (fst ref)
-                                 , toOffset'Slope g (snd ref) ) of
-                  ((cf, sf), (cg, sg)) -> ((cf,cg), sf *** sg)
-toOffset'Slope Terminal ref = (Origin, zeroV)
-toOffset'Slope Fst ref = (fst ref, linear fst)
-toOffset'Slope Snd ref = (snd ref, linear snd)
-toOffset'Slope (f:&&&g) ref = case ( toOffset'Slope (arr f) ref
-                                  , toOffset'Slope (arr g) ref ) of
-                  ((cf, sf), (cg, sg)) -> ((cf,cg), sf &&& sg)
-toOffset'Slope (Const c) ref = (c, zeroV)
-            
-coOffsetForm :: ( MetricScalar s, WithField s AffineManifold d
-                                , WithField s AffineManifold c )
-                      => Affine s d c -> Affine s d c
-coOffsetForm (ScaleWith q) = id&&&const zeroV >>> Subtract >>> ScaleWith q
-coOffsetForm ((coOffsetForm -> Id:&&&Const cof :>>> Subtract :>>> f) :>>> g)
-                    = id&&&const cof >>> Subtract >>> (f >>> g)
-coOffsetForm ( (coOffsetForm -> Id:&&&Const cof :>>> Subtract :>>> f)
-          :*** (coOffsetForm -> Id:&&&Const cog :>>> Subtract :>>> g) )
-     = id&&&const(cof,cog) >>> Subtract >>> (f***g)
-coOffsetForm (Id:&&&Const cof :>>> Subtract)
-           = (Id&&&Const cof >>> ReAffine (ReWellPointed Subtract`WellPointedCompo`WellPointedId))
-coOffsetForm f = f
-
-pattern PreSubtract c f <- (coOffsetForm -> Id:&&&Const c :>>> Subtract :>>> f)
-
-preSubtract :: ( MetricScalar s, WithField s AffineManifold d
-                               , WithField s AffineManifold c )
-               => c -> Affine s (Diff c) d -> Affine s c d
--- The specialised clauses may not actually be useful here.
-preSubtract _ (Const d) = const d
-preSubtract _ Terminal = Terminal
-preSubtract c (f:>>>g) = preSubtract c f >>>! g
--- preSubtract t (f:***g) | (c,d)<-t = preSubtract c f *** preSubtract d g
-preSubtract c (f:&&&g) = preSubtract c f &&& preSubtract c g
-preSubtract c f = id&&&const c >>>! Subtract >>>! f
-   
-pattern PostAdd c f <- f:&&&Const c :>>> AddTo
-pattern PostAdd' c f <- Const c:&&&f :>>> AddTo
-
-postAdd :: (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifold c)
-               => Diff d -> Affine s c d -> Affine s c d
-postAdd c f = f&&&const c >>>! AddTo
-postAdd' :: (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifold c)
-               => d -> Affine s c (Diff d) -> Affine s c d
-postAdd' c f = const c&&&f >>>! AddTo
-
-instance (MetricScalar s) => EnhancedCat (->) (Affine s) where
-  arr f = fst . toOffset'Slope f
-
-instance (MetricScalar s) => EnhancedCat (Affine s) (ReWellPointed (Affine s)) where
-  arr (Specific c) = c
-  arr c = ReAffine c
-
-instance (MetricScalar s, WithField s AffineManifold d, WithField s AffineManifold c)
-                  => AffineSpace (Affine s d c) where
-  type Diff (Affine s d c) = Affine s d (Diff c)
-  
-  ScaleWith q .-. ScaleWith r = ScaleWith $ q^-^r
-  (PostAdd c (ScaleWith q)) .-. g = let (d, r) = toOffsetSlope g
-                                    in postAdd (c.-.d) $ ScaleWith (q^-^r)
-  f .-. (PostAdd d (ScaleWith r)) = let (c, q) = toOffsetSlope f
-                                    in postAdd (c.-.d) $ ScaleWith (q^-^r)
-  (PostAdd' c (ScaleWith q)) .-. g = let (d, r) = toOffsetSlope g
-                                     in postAdd (c.-.d) $ ScaleWith (q^-^r)
-  f .-. (PostAdd' d (ScaleWith r)) = let (c, q) = toOffsetSlope f
-                                     in postAdd (c.-.d) $ ScaleWith (q^-^r)
-  
-  Id .-. Id = const zeroV
-  Fst .-. Fst = const zeroV
-  Snd .-. Snd = const zeroV
-  Swap .-. Swap = const zeroV
-  AttachUnit .-. AttachUnit = const zeroV
-  DetachUnit .-. DetachUnit = const zeroV
-  Terminal .-. _ = Terminal
-  _ .-. Terminal = Terminal
-  Subtract .-. Subtract = const zeroV
-  AddTo .-. AddTo = const zeroV
-  
-  Const c .-. Const d = Const $ c.-.d
-  
-  Fst .-. Snd = Subtract
-
-  (f:***g) .-. (h:***i) = f.-.h *** g.-.i
-  (f:***g) .-. Const (c,d) = f.-.const c *** g.-.const d
-  ζ .-. (f:***g) | Const (c,d) <- ζ = const c.-.f *** const d.-.g
-  (f:&&&g) .-. (h:&&&i) = f.-.h &&& g.-.i
-  (f:&&&_) .-. AttachUnit = f.-.id >>>! AttachUnit
-  (f:&&&g) .-. Const (c,d) = f.-.const c &&& g.-.const d
-  ζ .-. (f:&&&g) | Const (c,d) <- ζ = const c.-.f &&& const d.-.g
-
-  ScaleWith q .-. f = let (c, r) = toOffset'Slope f zeroV
-                      in postAdd (negateV c) $ ScaleWith (q^-^r)
-  f .-. ScaleWith q = let (c, r) = toOffset'Slope f zeroV
-                      in postAdd c $ ScaleWith (r^-^q)
-  
-  PreSubtract b f .-. g = let (c, q) = toOffsetSlope f
-                              (d, r) = toOffset'Slope g b
-                          in preSubtract b . postAdd (c.-.d) $ ScaleWith (q^-^r)
-      -- f x = q·x + c
-      -- g x = r·x + w
-      -- d = r·b + w
-      -- (q−r)·(x−b) = q·x − q⋅b − r⋅x + r⋅b
-      -- s x = f (x−b) − g x
-      --     = q⋅(x−b) + c − r⋅x − w
-      --     = q⋅x − q⋅b + c − r⋅x − w
-      --     = (q−r)·(x−b) + c − r⋅b − w
-      --     = (q−r)·(x−b) + c − d
-  
-  -- According to GHC, this clause overlaps with the above. Hm...
-  f .-. PreSubtract b g = let (c, q) = toOffset'Slope f b
-                              (d, r) = toOffsetSlope g
-                          in preSubtract b $ postAdd (c.-.d) $ ScaleWith (q^-^r)
-      -- f x = q·x + v
-      -- g x = r·x + d
-      -- c = q·b + v
-      -- (q−r)·(x−b) = q·x − q⋅b − r⋅x + r⋅b
-      -- s x = f x − g (x−b)
-      --     = q⋅x + v − r⋅(x−b) − d
-      --     = q⋅x + v − r⋅x + r⋅b − d
-      --     = (q−r)·(x−b) + q⋅b + v − d
-      --     = (q−r)·(x−b) + c − d
-  
-  f .-. g = f&&&g >>> Subtract
-  
-  
-  ScaleWith q .+^ ScaleWith r = ScaleWith $ q^+^r
-  (PostAdd c (ScaleWith q)) .+^ g = let (d, r) = toOffsetSlope g
-                                    in postAdd (c.+^d) $ ScaleWith (q^+^r)
-  f .+^ (PostAdd d (ScaleWith r)) = let (c, q) = toOffsetSlope f
-                                    in postAdd' (c.+^d) $ ScaleWith (q^+^r)
-  (PostAdd' c (ScaleWith q)) .+^ g = let (d, r) = toOffsetSlope g
-                                     in postAdd' (c.+^d) $ ScaleWith (q^+^r)
-  f .+^ (PostAdd' d (ScaleWith r)) = let (c, q) = toOffsetSlope f
-                                     in postAdd' (c.+^d) $ ScaleWith (q^+^r)
-  (f:***g) .+^ (h:***i) = f.+^h *** g.+^i
-  (f:&&&g) .+^ (h:&&&i) = f.+^h &&& g.+^i
-  
-  Const c .+^ Const c' = const (c.+^c')
-
-  Terminal .+^ _ = Terminal
-  Const c .+^ Terminal = Const c
-  Const c .+^ f = const c&&&f >>> AddTo
-  
-  Id .+^ Id = Id >>> ScaleWith (linear (^*2))
-  Fst .+^ Fst = Fst >>> ScaleWith (linear (^*2))
-  Snd .+^ Snd = Snd >>> ScaleWith (linear (^*2))
-  Fst .+^ Snd = AddTo
-  Swap .+^ Swap = Swap >>> ScaleWith (linear (^*2))
-  
-  f .+^ Id = let (c,q) = toOffset'Slope f zeroV
-             in const c&&&ScaleWith (q^+^id) >>>! AddTo
-  f .+^ AttachUnit = let (c,q) = toOffset'Slope f zeroV
-                     in postAdd' c $ ScaleWith (q^+^linear(,Origin))
-  f .+^ DetachUnit = let (c,q) = toOffset'Slope f zeroV
-                     in postAdd' c $ ScaleWith (q^+^linear fst)
-  f .+^ Swap = let (c,q) = toOffset'Slope f zeroV
-               in postAdd' c $ ScaleWith (q^+^linear swap)
-  
-  PreSubtract b f .+^ g = let (c, q) = toOffsetSlope f
-                              (d, r) = toOffset'Slope g b
-                          in preSubtract b . postAdd' (c.+^d) $ ScaleWith (q^+^r)
-      -- f x = q·x + c
-      -- g x = r·x + w
-      -- d = r·b + w
-      -- (q+r)·(x−b) = q·x − q⋅b + r⋅x − r⋅b
-      -- s x = f (x−b) + g x
-      --     = q⋅(x−b) + c + r⋅x + w
-      --     = q⋅x − q⋅b + c + r⋅x + w
-      --     = (q+r)·(x−b) + c + r⋅b + w
-      --     = (q−r)·(x−b) + c + d
-  
-  f .+^ PreSubtract b g = let (c, q) = toOffset'Slope f b
-                              (d, r) = toOffsetSlope g
-                          in preSubtract b . postAdd' (c.+^d) $ ScaleWith (q^+^r)
-      -- f x = q·x + v
-      -- g x = r·x + d
-      -- c = q·b + v
-      -- (q+r)·(x−b) = q·x − q⋅b + r⋅x − r⋅b
-      -- s x = f x + g (x−b)
-      --     = q⋅x + v + r⋅(x−b) + d
-      --     = q⋅x + v + r⋅x − r⋅b + d
-      --     = (q+r)·(x−b) + q⋅b + v + d
-      --     = (q+r)·(x−b) + c + d
-  
-  f .+^ g = f&&&g >>> AddTo
-
-
-
-instance (MetricScalar s, WithField s AffineManifold d, WithField s LinearManifold c)
-                  => AdditiveGroup (Affine s d c) where
-  zeroV = const zeroV
-  
-  negateV (Const c) = const $ negateV c
-  negateV Terminal = Terminal
-  negateV (ScaleWith ϕ) = ScaleWith $ negateV ϕ
-  negateV (f:***g) = negateV f *** negateV g
-  negateV (f:&&&g) = negateV f &&& negateV g
-  negateV (f:>>>AddTo) = negateV f >>> AddTo
-  negateV (f:>>>Subtract) = (f>>>swap) >>>! Subtract
-  negateV (f:>>>ScaleWith ϕ) = negateV f >>>! ScaleWith ϕ
-  negateV (f:>>>g) = f >>>! negateV g
-  negateV AttachUnit = ScaleWith $ linear (negateV >>> (,Origin))
-  negateV Subtract = Swap >>>! Subtract
-  negateV f = f >>>! ScaleWith (linear negateV)
-  
-  (^+^) = (.+^)
-  (^-^) = (.-.)
-  
-
-infixr 1 >>>!, <<<!
--- | Affine composition using only the reified skeleton, without trying to be
---   clever in any way.
-(>>>!) :: ( MetricScalar s, WithField s AffineManifold α
-          , WithField s AffineManifold β, WithField s AffineManifold γ )
-      => Affine s α β -> Affine s β γ -> Affine s α γ
-ReAffine f >>>! ReAffine g = ReAffine $ f >>> g
-f >>>! ReAffine g = ReAffine $ ReWellPointed f >>> g
-ReAffine f >>>! g = ReAffine $ f >>> ReWellPointed g
-f >>>! g = ReAffine $ ReWellPointed f >>> ReWellPointed g
-
-(<<<!) :: ( MetricScalar s, WithField s AffineManifold α
-          , WithField s AffineManifold β, WithField s AffineManifold γ )
-      => Affine s β γ -> Affine s α β -> Affine s α γ
-(<<<!) = flip (>>>!)
-
-instance (MetricScalar s) => Category (Affine s) where
-  type Object (Affine s) o = WithField s AffineManifold o
-  
-  id = ReAffine id
-  
-  ScaleWith ϕ . ScaleWith ψ = ScaleWith $ ϕ . ψ
-  g . ScaleWith ψ = let (d, ϕ) = toOffsetSlope g
-                    in postAdd' d $ ScaleWith (ϕ . ψ)
-  (f:***g) . (h:***i) = f.h *** g.i
-  (f:***g) . (h:&&&i) = f.h &&& g.i
-  g . (PostAdd' c f) = let (d, ϕ) = toOffset'Slope g c
-                      in postAdd' d $ ScaleWith ϕ . f
-  
-  f . g = f <<<! g
-
-instance (MetricScalar s) => Cartesian (Affine s) where
+instance ∀ s . Num' s => Cartesian (Affine s) where
   type UnitObject (Affine s) = ZeroDim s
-  swap = ReAffine swap
-  attachUnit = ReAffine attachUnit
-  detachUnit = ReAffine detachUnit
-  regroup = ReAffine regroup
-  regroup' = ReAffine regroup'
+  swap = Affine . trie $ chartReferencePoint >>> swap &&& const swap
+  attachUnit = Affine . trie $ chartReferencePoint >>> \a -> ((a,Origin), attachUnit)
+  detachUnit = Affine . trie $ chartReferencePoint
+                 >>> \(a,Origin::ZeroDim s) -> (a, detachUnit)
+  regroup = Affine . trie $ chartReferencePoint >>> regroup &&& const regroup
+  regroup' = Affine . trie $ chartReferencePoint >>> regroup' &&& const regroup'
 
-instance (MetricScalar s) => Morphism (Affine s) where
-  Const c *** Const c' = const (c,c')
-  Terminal *** Terminal = const (mempty, mempty)
-  ReAffine f *** ReAffine g = ReAffine $ f *** g
-  f *** ReAffine g = ReAffine $ ReWellPointed f *** g
-  ReAffine f *** g = ReAffine $ f *** ReWellPointed g
-  f *** g = ReAffine $ ReWellPointed f *** ReWellPointed g
-
-instance (MetricScalar s) => PreArrow (Affine s) where
-  terminal = ReAffine terminal
-  fst = ReAffine fst
-  snd = ReAffine snd
-  Const c &&& Const c' = const (c,c')
-  Terminal &&& Terminal = const (mempty, mempty)
-  ReAffine f &&& ReAffine g = ReAffine $ f &&& g
-  f &&& ReAffine g = ReAffine $ ReWellPointed f &&& g
-  ReAffine f &&& g = ReAffine $ f &&& ReWellPointed g
-  f &&& g = ReAffine $ ReWellPointed f &&& ReWellPointed g
-        
---   Affine cof aof slf &&& Affine cog aog slg
---       = Affine coh (aof.-^lapply slf rco, aog.+^lapply slg rco)
---                  (linear $ lapply slf &&& lapply slg)
---    where rco = (cog.-.cof)^/2
---          coh = cof .+^ rco
-
-instance (MetricScalar s) => WellPointed (Affine s) where
+instance ∀ s . Num' s => Morphism (Affine s) where
+  Affine f *** Affine g = Affine . trie
+      $ \(ixα,ixβ) -> case (untrie f ixα, untrie g ixβ) of
+            ((fα, ðα'f), (gβ,ðβ'g)) -> ((fα,gβ), ðα'f***ðβ'g)
+  
+instance ∀ s . Num' s => PreArrow (Affine s) where
+  Affine f &&& Affine g = Affine . trie
+      $ \ix -> case (untrie f ix, untrie g ix) of
+            ((fα, ðα'f), (gβ,ðβ'g)) -> ((fα,gβ), ðα'f&&&ðβ'g)
+  terminal = Affine . trie $ \_ -> (Origin, zeroV)
+  fst = afst
+   where afst :: ∀ x y . ( Atlas x, Atlas y
+                         , LinearSpace (Needle x), LinearSpace (Needle y)
+                         , Scalar (Needle x) ~ s, Scalar (Needle y) ~ s
+                         , HasTrie (ChartIndex x), HasTrie (ChartIndex y) )
+                   => Affine s (x,y) x
+         afst = Affine . trie $ chartReferencePoint >>> \(x,_::y) -> (x, fst)
+  snd = asnd
+   where asnd :: ∀ x y . ( Atlas x, Atlas y
+                         , LinearSpace (Needle x), LinearSpace (Needle y)
+                         , Scalar (Needle x) ~ s, Scalar (Needle y) ~ s
+                         , HasTrie (ChartIndex x), HasTrie (ChartIndex y) )
+                   => Affine s (x,y) y
+         asnd = Affine . trie $ chartReferencePoint >>> \(_::x,y) -> (y, snd)
+  
+instance ∀ s . Num' s => WellPointed (Affine s) where
+  const x = Affine . trie $ const (x, zeroV)
   unit = Tagged Origin
-  const = ReAffine . const
+  
+instance EnhancedCat (->) (Affine s) where
+  arr f = fst . evalAffine f
+  
+instance EnhancedCat (Affine s) (LinearMap s) where
+  arr = alarr (linearManifoldWitness, linearManifoldWitness)
+   where alarr :: ∀ x y . ( LinearSpace x, Atlas x, HasTrie (ChartIndex x)
+                          , LinearSpace y
+                          , Scalar x ~ s, Scalar y ~ s )
+             => (LinearManifoldWitness x, LinearManifoldWitness y)
+                  -> LinearMap s x y -> Affine s x y
+         alarr (LinearManifoldWitness _, LinearManifoldWitness _) f
+             = Affine . trie $ chartReferencePoint
+                   >>> \x₀ -> let y₀ = f $ x₀
+                              in (negateV y₀, f)
 
+instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
+         , Manifold y, Scalar (Needle y) ~ s )
+              => Semimanifold (Affine s x y) where
+  type Needle (Affine s x y) = Affine s x (Needle y)
+  toInterior = pure
+  fromInterior = id
+  (.+~^) = case ( semimanifoldWitness :: SemimanifoldWitness y
+                , boundarylessWitness :: BoundarylessWitness y ) of
+    (SemimanifoldWitness _, BoundarylessWitness) -> \(Affine f) (Affine g)
+      -> Affine . trie $ \ix -> case (untrie f ix, untrie g ix) of
+          ((fx₀,f'), (gx₀,g')) -> (fx₀.+~^gx₀, f'^+^g')
+  translateP = Tagged (.+~^)
+  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness y of
+    SemimanifoldWitness _ -> SemimanifoldWitness BoundarylessWitness
+instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
+         , Manifold y, Scalar (Needle y) ~ s )
+              => PseudoAffine (Affine s x y) where
+  (.-~!) = case ( semimanifoldWitness :: SemimanifoldWitness y
+                , boundarylessWitness :: BoundarylessWitness y ) of
+    (SemimanifoldWitness _, BoundarylessWitness) -> \(Affine f) (Affine g)
+      -> Affine . trie $ \ix -> case (untrie f ix, untrie g ix) of
+          ((fx₀,f'), (gx₀,g')) -> (fx₀.-~!gx₀, f'^-^g')
+  pseudoAffineWitness = case semimanifoldWitness :: SemimanifoldWitness y of
+    SemimanifoldWitness _ -> PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
+         , Manifold y, Scalar (Needle y) ~ s )
+              => AffineSpace (Affine s x y) where
+  type Diff (Affine s x y) = Affine s x (Needle y)
+  (.+^) = (.+~^); (.-.) = (.-~!)
+instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
+         , LinearSpace y, Scalar y ~ s, Num' s )
+            => AdditiveGroup (Affine s x y) where
+  zeroV = case linearManifoldWitness :: LinearManifoldWitness y of
+       LinearManifoldWitness _ -> Affine . trie $ const (zeroV, zeroV)
+  (^+^) = case ( linearManifoldWitness :: LinearManifoldWitness y
+               , dualSpaceWitness :: DualSpaceWitness y ) of
+      (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness) -> (.+~^)
+  negateV = case linearManifoldWitness :: LinearManifoldWitness y of
+       LinearManifoldWitness _ -> \(Affine f) -> Affine . trie $
+             untrie f >>> negateV***negateV
+instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
+         , LinearSpace y, Scalar y ~ s, Num' s )
+            => VectorSpace (Affine s x y) where
+  type Scalar (Affine s x y) = s
+  (*^) = case linearManifoldWitness :: LinearManifoldWitness y of
+       LinearManifoldWitness _ -> \μ (Affine f) -> Affine . trie $
+             untrie f >>> (μ*^)***(μ*^)
 
-linearAffine :: (MetricScalar s, WithField s LinearManifold α, WithField s LinearManifold β)
-            => (α+>β) -> Affine s α β
-linearAffine = ScaleWith
+evalAffine :: ∀ s x y . ( Manifold x, Atlas x, HasTrie (ChartIndex x)
+                        , Manifold y
+                        , s ~ Scalar (Needle x), s ~ Scalar (Needle y) )
+               => Affine s x y -> x -> (y, LinearMap s (Needle x) (Needle y))
+evalAffine = ea (boundarylessWitness, boundarylessWitness)
+ where ea :: (BoundarylessWitness x, BoundarylessWitness y)
+             -> Affine s x y -> x -> (y, LinearMap s (Needle x) (Needle y))
+       ea (BoundarylessWitness, BoundarylessWitness)
+          (Affine f) x = (fx₀.+~^(ðx'f $ v), ðx'f)
+        where Just v = x .-~. chartReferencePoint chIx
+              chIx = lookupAtlas x
+              (fx₀, ðx'f) = untrie f chIx
 
-
-type AffinFuncValue s = GenericAgent (Affine s)
-
-instance (MetricScalar s) => HasAgent (Affine s) where
-  alg = genericAlg
-  ($~) = genericAgentMap
-instance ∀ s . (MetricScalar s) => CartesianAgent (Affine s) where
-  alg1to2 = genericAlg1to2
-  alg2to1 = a2t1
-   where a2t1 :: ∀ α β γ . (WithField s AffineManifold α, WithField s AffineManifold β)
-           => (∀ q . WithField s AffineManifold q
-               => AffinFuncValue s q α -> AffinFuncValue s q β -> AffinFuncValue s q γ )
-           -> Affine s (α,β) γ
-         a2t1 = case ( dualSpaceWitness :: DualSpaceWitness (Diff α)
-                     , dualSpaceWitness :: DualSpaceWitness (Diff β) ) of
-            (DualSpaceWitness, DualSpaceWitness) -> genericAlg2to1
-  alg2to2 = a2t2
-   where a2t2 :: ∀ α β γ δ . ( WithField s AffineManifold α, WithField s AffineManifold β
-                             , WithField s AffineManifold γ, WithField s AffineManifold δ )
-           => (∀ q . WithField s AffineManifold q
-               => AffinFuncValue s q α -> AffinFuncValue s q β
-                           -> (AffinFuncValue s q γ, AffinFuncValue s q δ) )
-           -> Affine s (α,β) (γ,δ)
-         a2t2 = case ( dualSpaceWitness :: DualSpaceWitness (Diff α)
-                     , dualSpaceWitness :: DualSpaceWitness (Diff β)
-                     , dualSpaceWitness :: DualSpaceWitness (Diff γ)
-                     , dualSpaceWitness :: DualSpaceWitness (Diff δ) ) of
-            (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness, DualSpaceWitness)
-                -> genericAlg2to2
-instance (MetricScalar s)
-      => PointAgent (AffinFuncValue s) (Affine s) a x where
-  point = genericPoint
-
-
-
-instance (MetricScalar s, WithField s LinearManifold v, WithField s LinearManifold a)
-    => AdditiveGroup (AffinFuncValue s a v) where
-  zeroV = GenericAgent zeroV
-  GenericAgent f ^+^ GenericAgent g = GenericAgent $ f ^+^ g
-  negateV (GenericAgent f) = GenericAgent $ negateV f
-
-
-
+fromOffsetSlope :: ∀ s x y . ( LinearSpace x, Atlas x, HasTrie (ChartIndex x)
+                             , Manifold y
+                             , s ~ Scalar (Needle x), s ~ Scalar (Needle y) )
+               => y -> LinearMap s x (Needle y) -> Affine s x y
+fromOffsetSlope = undefined
