@@ -658,7 +658,7 @@ intervalPreRegion (lb,rb) = PreRegion $ Differentiable prr
 
 
 instance (RealDimension s) => Category (RWDiffable s) where
-  type Object (RWDiffable s) o = (LocallyScalable s o, SimpleSpace (Needle o))
+  type Object (RWDiffable s) o = (LocallyScalable s o, Manifold o, SimpleSpace (Needle o))
   id = RWDiffable $ \x -> (GlobalRegion, pure id)
   RWDiffable f . RWDiffable g = RWDiffable h where
    h x₀ = case g x₀ of
@@ -777,7 +777,8 @@ data RWDfblFuncValue s d c where
 
 genericiseRWDFV :: ( RealDimension s
                    , LocallyScalable s c, SimpleSpace (Needle c)
-                   , LocallyScalable s d, SimpleSpace (Needle d) )
+                   , LocallyScalable s d, SimpleSpace (Needle d)
+                   , Manifold d, Manifold c )
                     => RWDfblFuncValue s d c -> RWDfblFuncValue s d c
 genericiseRWDFV (ConstRWDFV c) = GenericRWDFV $ const c
 genericiseRWDFV RWDFV_IdVar = GenericRWDFV id
@@ -804,6 +805,7 @@ instance (RealDimension s)
 grwDfblFnValsFunc
      :: ( RealDimension s
         , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
+        , Manifold d, Manifold c, Manifold c'
         , v ~ Needle c, v' ~ Needle c'
         , SimpleSpace v, SimpleSpace (Needle d)
         , ε ~ Norm v, ε ~ Norm v' )
@@ -813,6 +815,7 @@ grwDfblFnValsFunc f = (RWDiffable (\_ -> (GlobalRegion, pure (Differentiable f))
 grwDfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
          ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
          , LocallyScalable s d, RealDimension s
+         , Manifold d, Manifold c', Manifold c''
          , v ~ Needle c, v' ~ Needle c', v'' ~ Needle c''
          , SimpleSpace v, SimpleSpace (Needle d)
          , ε ~ Norm v  , ε' ~ Norm v'  , ε'' ~ Norm v'', ε~ε', ε~ε''  )
@@ -897,6 +900,7 @@ rwDfbl_negateV (RWDiffable f) = RWDiffable $ h linearManifoldWitness dualSpaceWi
 
 postCompRW :: ( RealDimension s
               , LocallyScalable s a, LocallyScalable s b, LocallyScalable s c
+              , Manifold a, Manifold b, Manifold c
               , SimpleSpace (Needle a), SimpleSpace (Needle b), SimpleSpace (Needle c) )
               => RWDiffable s b c -> RWDfblFuncValue s a b -> RWDfblFuncValue s a c
 postCompRW (RWDiffable f) (ConstRWDFV x) = case f x of
@@ -911,7 +915,7 @@ instance ∀ s a v . ( WithField s Manifold a, SimpleSpace (Needle a)
     => AdditiveGroup (RWDfblFuncValue s a v) where
   zeroV = case ( linearManifoldWitness :: LinearManifoldWitness v
                , dualSpaceWitness :: DualSpaceWitness v ) of
-      (LinearManifoldWitness _, DualSpaceWitness) -> point zeroV
+      (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness) -> point zeroV
   (^+^) = case ( linearManifoldWitness :: LinearManifoldWitness v
                , dualSpaceWitness :: DualSpaceWitness v ) of
       (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness)
@@ -1223,6 +1227,7 @@ infixr 4 ?->
 --   _      'Control.Applicative.*>' a = Nothing
 --   @
 (?->) :: ( RealDimension n, LocallyScalable n a, LocallyScalable n b, LocallyScalable n c
+         , Manifold b, Manifold c
          , SimpleSpace (Needle b), SimpleSpace (Needle c) )
       => RWDfblFuncValue n c a -> RWDfblFuncValue n c b -> RWDfblFuncValue n c b
 ConstRWDFV _ ?-> f = f
@@ -1278,6 +1283,7 @@ infixl 3 ?|:
 -- 
 --  Basically a weaker and agent-ised version of 'backupRegions'.
 (?|:) :: ( RealDimension n, LocallyScalable n a, LocallyScalable n b
+         , Manifold a, Manifold b
          , SimpleSpace (Needle a), SimpleSpace (Needle b) )
       => RWDfblFuncValue n a b -> RWDfblFuncValue n a b -> RWDfblFuncValue n a b
 ConstRWDFV c ?|: _ = ConstRWDFV c
