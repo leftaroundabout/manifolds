@@ -190,6 +190,11 @@ evalAffine = ea (boundarylessWitness, boundarylessWitness)
 
 fromOffsetSlope :: ∀ s x y . ( LinearSpace x, Atlas x, HasTrie (ChartIndex x)
                              , Manifold y
-                             , s ~ Scalar (Needle x), s ~ Scalar (Needle y) )
+                             , s ~ Scalar x, s ~ Scalar (Needle y) )
                => y -> LinearMap s x (Needle y) -> Affine s x y
-fromOffsetSlope = undefined
+fromOffsetSlope = case ( linearManifoldWitness :: LinearManifoldWitness x
+                       , boundarylessWitness :: BoundarylessWitness y ) of
+   (LinearManifoldWitness _, BoundarylessWitness)
+       -> \y0 ðx'y -> Affine . trie $ chartReferencePoint
+                    >>> \x₀ -> let δy = ðx'y $ x₀
+                               in (y0.+~^δy, ðx'y)
