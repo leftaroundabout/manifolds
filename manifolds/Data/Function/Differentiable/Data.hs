@@ -61,7 +61,7 @@ data Differentiable s d c where
                                                -- some error margin
                               ) )
                   -> Differentiable s d c
-   AffinDiffable :: (AffineManifold d, AffineManifold c)
+   AffinDiffable :: (CC.Object (Affine s) d, CC.Object (Affine s) c)
                => DiffableEndoProof d c -> Affine s d c -> Differentiable s d c
 
 
@@ -129,8 +129,8 @@ data PreRegion s m where
 -- @
 newtype RWDiffable s d c
    = RWDiffable {
-        tryDfblDomain :: d -> (PreRegion s d, Option (Differentiable s d c)) }
+        tryDfblDomain :: d -> (PreRegion s d, Maybe (Differentiable s d c)) }
 
-notDefinedHere :: Option (Differentiable s d c)
-notDefinedHere = Option Nothing
+notDefinedHere :: Maybe (Differentiable s d c)
+notDefinedHere = Nothing
 

@@ -49,7 +49,6 @@ module Data.Manifold.DifferentialEquation (
 
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
-import Data.Semigroup
 
 import Data.VectorSpace
 import Data.VectorSpace.Free

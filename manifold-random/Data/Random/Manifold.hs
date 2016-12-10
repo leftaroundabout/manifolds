@@ -21,6 +21,7 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.TreeCover
 
 import Data.Semigroup
+import Data.Maybe (catMaybes)
 
 import Data.Random
 
@@ -60,8 +61,11 @@ uncertainFunctionSamplesT :: ∀ x y m .
         , WithField ℝ Manifold y, SimpleSpace (Needle y) )
        => Int -> Shade x -> (x -> Shade y) -> RVarT m (x`Shaded`y)
 uncertainFunctionSamplesT n shx f = case ( dualSpaceWitness :: DualNeedleWitness x
-                                         , dualSpaceWitness :: DualNeedleWitness y ) of
-    (DualSpaceWitness, DualSpaceWitness) -> do
+                                         , dualSpaceWitness :: DualNeedleWitness y
+                                         , boundarylessWitness :: BoundarylessWitness x
+                                         , pseudoAffineWitness :: PseudoAffineWitness y ) of
+    ( DualSpaceWitness, DualSpaceWitness, BoundarylessWitness
+     ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) ) -> do
       domainSpls <- replicateM n $ rvarT shx
       pts <- forM domainSpls $ \x -> do
          y <- rvarT $ f x
@@ -86,16 +90,17 @@ uncertainFunctionSamplesT n shx f = case ( dualSpaceWitness :: DualNeedleWitness
                        mkControlSample ((x,y):css)
                          $ confidence + occlusion shl (x,y)
              css <- mkControlSample [] 0
-             let [Shade (xCtrl,yCtrl) expaCtrl :: Shade (x,y)] = pointsShades css
+             let [Shade (xCtrl,yCtrl) expaCtrl :: Shade (x,y)]
+                       = pointsShades . catMaybes $ toInterior<$>css
                  yCtrl :: Interior y
                  expayCtrl = dualNorm . snd $ summandSpaceNorms expaCtrl
                  jCtrl = dependence expaCtrl
                  jFin = jOrig^*η ^+^ jCtrl^*η'
-                 Option (Just δx) = xlc.-~.xCtrl
+                 Just δx = xlc.-~.xCtrl
                  η, η' :: ℝ
                  η = nPerTwig / (nPerTwig + fromIntegral (length css))
                  η' = 1 - η
-                 Option (Just δy) = yCtrl.-~.ylc
+                 Just δy = yCtrl.-~.ylc
              return ( xlc .+~^ δx^*η'
                     , ( Shade' (ylc .+~^ δy^*η')
                                (scaleNorm (sqrt η) expay <> scaleNorm (sqrt η') expayCtrl)

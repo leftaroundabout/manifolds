@@ -68,7 +68,6 @@ import Data.MemoTrie (HasTrie(..))
 import Data.Basis
 import Data.Fixed
 import Data.Tagged
-import Data.Semigroup
 import qualified Data.Vector.Generic as Arr
 import qualified Data.Vector
 import qualified Data.Vector.Unboxed as UArr
@@ -266,7 +265,7 @@ instance ∀ k v .
    ( WithField k LinearManifold v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
    , RealFloat k, UArr.Unbox k ) => PseudoAffine (Stiefel1 v) where 
   (.-~.) = dpst dualSpaceWitness
-   where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Option (Stiefel1Needle v)
+   where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (Stiefel1Needle v)
          dpst DualSpaceWitness (Stiefel1 s) (Stiefel1 t)
              = pure . Stiefel1Needle $ case s' UArr.! im of
                    0 -> uarrScale (recip $ l2norm delis) delis
@@ -314,35 +313,38 @@ data Cutplane x = Cutplane { sawHandle :: x
 
 
 
-sideOfCut :: WithField ℝ Manifold x => Cutplane x -> x -> Option S⁰
-sideOfCut (Cutplane sh (Stiefel1 cn)) p = decideSide . (cn<.>^) =<< p .-~. sh
+sideOfCut :: (WithField ℝ PseudoAffine x, LinearSpace (Needle x))
+                   => Cutplane x -> x -> Maybe S⁰
+sideOfCut (Cutplane sh (Stiefel1 cn)) p
+              = decideSide . (cn<.>^) =<< p.-~.sh
  where decideSide 0 = mzero
        decideSide μ | μ > 0      = pure PositiveHalfSphere
                     | otherwise  = pure NegativeHalfSphere
 
 
-fathomCutDistance :: ∀ x . WithField ℝ Manifold x
-        => Cutplane x            -- ^ Hyperplane to measure the distance from.
-         -> Metric' x            -- ^ Metric to use for measuring that distance.
-                                 --   This can only be accurate if the metric
-                                 --   is valid both around the cut-plane's 'sawHandle', and
-                                 --   around the points you measure.
-                                 --   (Strictly speaking, we would need /parallel transport/
-                                 --   to ensure this).
-         -> x                    -- ^ Point to measure the distance to.
-         -> Option ℝ             -- ^ A signed number, giving the distance from plane
-                                 --   to point with indication on which side the point lies.
-                                 --   'Nothing' if the point isn't reachable from the plane.
+fathomCutDistance :: ∀ x . (WithField ℝ PseudoAffine x, LinearSpace (Needle x))
+        => Cutplane x        -- ^ Hyperplane to measure the distance from.
+         -> Metric' x        -- ^ Metric to use for measuring that distance.
+                             --   This can only be accurate if the metric
+                             --   is valid both around the cut-plane's 'sawHandle', and
+                             --   around the points you measure.
+                             --   (Strictly speaking, we would need /parallel transport/
+                             --   to ensure this).
+         -> x                -- ^ Point to measure the distance to.
+         -> Maybe ℝ          -- ^ A signed number, giving the distance from plane
+                             --   to point with indication on which side the point lies.
+                             --   'Nothing' if the point isn't reachable from the plane.
 fathomCutDistance = fcd dualSpaceWitness
- where fcd (DualSpaceWitness :: DualSpaceWitness (Needle x)) (Cutplane sh (Stiefel1 cn)) met
+ where fcd (DualSpaceWitness :: DualSpaceWitness (Needle x))
+           (Cutplane sh (Stiefel1 cn)) met
                = \x -> fmap fathom $ x .-~. sh
         where fathom v = (cn <.>^ v) / scaleDist
               scaleDist = met|$|cn
           
 
-cutPosBetween :: WithField ℝ Manifold x => Cutplane x -> (x,x) -> Option D¹
+cutPosBetween :: WithField ℝ Manifold x => Cutplane x -> (x,x) -> Maybe D¹
 cutPosBetween (Cutplane h (Stiefel1 cn)) (x₀,x₁)
-    | Option (Just [d₀,d₁]) <- map (cn<.>^) <$> sequenceA [x₀.-~.h, x₁.-~.h]
+    | Just [d₀,d₁] <- map (cn<.>^) <$> sequenceA [x₀.-~.h, x₁.-~.h]
     , d₀*d₁ < 0  = pure . D¹ $ 2 * d₀ / (d₀ - d₁) - 1
     | otherwise  = empty
 
