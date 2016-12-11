@@ -1,5 +1,5 @@
 Name:                manifolds
-Version:             0.3.1.0
+Version:             0.4.0.0
 Category:            Math
 Synopsis:            Coordinate-free hypersurfaces
 Description:         Manifolds, a generalisation of the notion of &#x201c;smooth curves&#x201d; or surfaces,
@@ -40,7 +40,7 @@ Source-Repository head
 
 Library
   Build-Depends:     base>=4.5 && < 6
-                     , manifolds-core == 0.3.1.0
+                     , manifolds-core == 0.4.0.0
                      , transformers
                      , vector-space>=0.8
                      , free-vector-spaces>=0.1.1
