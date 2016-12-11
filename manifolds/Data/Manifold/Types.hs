@@ -168,6 +168,7 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
   type TensorProduct (Stiefel1Needle v) w = Array w
   scalarSpaceWitness = case scalarSpaceWitness :: ScalarSpaceWitness v of
          ScalarSpaceWitness -> ScalarSpaceWitness
+  linearManifoldWitness = LinearManifoldWitness BoundarylessWitness
   zeroTensor = Tensor $ Arr.replicate (freeDimension ([]::[v]) - 1) zeroV
   toFlatTensor = LinearFunction $ Tensor . Arr.convert . getStiefel1Tangent
   fromFlatTensor = LinearFunction $ Stiefel1Needle . Arr.convert . getTensorProduct
