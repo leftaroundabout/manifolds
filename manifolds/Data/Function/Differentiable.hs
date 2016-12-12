@@ -77,6 +77,9 @@ import Data.Foldable.Constrained
 
 
 
+type RealDimension s
+       = ( RealFloat' s, SimpleSpace s, Show s, Atlas s, HasTrie (ChartIndex s)
+         , s ~ Needle s, s ~ Interior s, s ~ Scalar s, s ~ DualVector s )
 
 
 discretisePathIn :: (WithField ℝ Manifold y, SimpleSpace (Needle y))
@@ -265,10 +268,12 @@ hugeℝVal = 1e+100
 
 
 
-unsafe_dev_ε_δ :: RealDimension a
+unsafe_dev_ε_δ :: ∀ a . RealDimension a
                 => String -> (a -> a) -> LinDevPropag a a
-unsafe_dev_ε_δ errHint f d
-            = let ε'² = normSq d 1
+unsafe_dev_ε_δ = case ( linearManifoldWitness :: LinearManifoldWitness a
+                      , closedScalarWitness :: ClosedScalarWitness a ) of
+ (LinearManifoldWitness _, ClosedScalarWitness) -> \errHint f d
+           -> let ε'² = normSq d 1
               in if ε'²>0
                   then let δ = f . sqrt $ recip ε'²
                        in if δ > 0
@@ -278,9 +283,12 @@ unsafe_dev_ε_δ errHint f d
                                     ++show(sqrt $ recip ε'²)
                                     ++ " gives non-positive δ="++show δ++"."
                   else mempty
-dev_ε_δ :: RealDimension a
+dev_ε_δ :: ∀ a . RealDimension a
          => (a -> a) -> Metric a -> Maybe (Metric a)
-dev_ε_δ f d = let ε'² = normSq d 1
+dev_ε_δ = case ( linearManifoldWitness :: LinearManifoldWitness a
+                      , closedScalarWitness :: ClosedScalarWitness a ) of
+ (LinearManifoldWitness _, ClosedScalarWitness) -> \f d
+           -> let ε'² = normSq d 1
               in if ε'²>0
                   then let δ = f . sqrt $ recip ε'²
                        in if δ > 0
@@ -288,8 +296,11 @@ dev_ε_δ f d = let ε'² = normSq d 1
                            else empty
                   else pure mempty
 
-as_devεδ :: RealDimension a => LinDevPropag a a -> a -> a
-as_devεδ ldp ε | ε>0
+as_devεδ :: ∀ a . RealDimension a => LinDevPropag a a -> a -> a
+as_devεδ = asdevεδ linearManifoldWitness closedScalarWitness where
+ asdevεδ :: LinearManifoldWitness a -> ClosedScalarWitness a -> LinDevPropag a a -> a -> a
+ asdevεδ (LinearManifoldWitness _) ClosedScalarWitness
+         ldp ε | ε>0
                , δ'² <- normSq (ldp $ spanNorm [recip ε]) 1
                , δ'² > 0
                     = sqrt $ recip δ'²
@@ -466,40 +477,61 @@ dfblFnValsCombine cmb (GenericAgent fa) (GenericAgent ga)
 
 
 
-instance (LocallyScalable s v, LinearManifold v, LocallyScalable s a, RealFloat' s)
+instance ∀ v s a . (LinearSpace v, Scalar v ~ s, LocallyScalable s a, RealFloat' s)
     => AdditiveGroup (DfblFuncValue s a v) where
-  zeroV = point zeroV
-  GenericAgent (AffinDiffable ef f) ^+^ GenericAgent (AffinDiffable eg g)
-         = GenericAgent $ AffinDiffable (ef<>eg) (f^+^g)
-  α^+^β = dfblFnValsCombine (\a b -> (a^+^b, arr addV, const mempty)) α β
-  negateV (GenericAgent (AffinDiffable ef f))
-         = GenericAgent $ AffinDiffable ef (negateV f)
-  negateV α = dfblFnValsFunc (\a -> (negateV a, negateV id, const mempty)) α
+  zeroV = case ( linearManifoldWitness :: LinearManifoldWitness v
+               , dualSpaceWitness :: DualSpaceWitness v ) of
+     (LinearManifoldWitness _, DualSpaceWitness) -> point zeroV
+  (^+^) = case ( linearManifoldWitness :: LinearManifoldWitness v
+               , dualSpaceWitness :: DualSpaceWitness v ) of
+     (LinearManifoldWitness _, DualSpaceWitness)
+         -> curry $ \case
+        (GenericAgent (AffinDiffable ef f), GenericAgent (AffinDiffable eg g))
+              -> GenericAgent $ AffinDiffable (ef<>eg) (f^+^g)
+        (α,β) -> dfblFnValsCombine (\a b -> (a^+^b, arr addV, const mempty)) α β
+  negateV = case ( linearManifoldWitness :: LinearManifoldWitness v
+                 , dualSpaceWitness :: DualSpaceWitness v ) of
+      (LinearManifoldWitness _, DualSpaceWitness) -> \case
+         (GenericAgent (AffinDiffable ef f))
+           -> GenericAgent $ AffinDiffable ef (negateV f)
+         α -> dfblFnValsFunc (\a -> (negateV a, negateV id, const mempty)) α
   
-instance (RealDimension n, LocallyScalable n a)
+instance ∀ n a . (RealDimension n, LocallyScalable n a)
             => Num (DfblFuncValue n a n) where
-  fromInteger i = point $ fromInteger i
-  (+) = (^+^)
-  (*) = dfblFnValsCombine $
+  fromInteger = case ( linearManifoldWitness :: LinearManifoldWitness n
+                     , closedScalarWitness :: ClosedScalarWitness n ) of
+      (LinearManifoldWitness _, ClosedScalarWitness) -> point . fromInteger
+  (+) = case closedScalarWitness :: ClosedScalarWitness n of
+      ClosedScalarWitness -> (^+^)
+  (*) = case ( linearManifoldWitness :: LinearManifoldWitness n
+             , closedScalarWitness :: ClosedScalarWitness n ) of
+      (LinearManifoldWitness _, ClosedScalarWitness) -> dfblFnValsCombine $
           \a b -> ( a*b
                   , arr $ addV <<< (scale $ a)***(scale $ b)
-                  , unsafe_dev_ε_δ(show a++"*"++show b) sqrt
+                  , unsafe_dev_ε_δ(show a++"*"++show b) (sqrt :: n->n)
                        >>> \d¹₂ -> (d¹₂,d¹₂)
                            -- ε δa δb = (a+δa)·(b+δb) - (a·b + (a·δa + b·δb)) 
                            --         = δa·δb
                            --   so choose δa = δb = √ε
                   )
-  negate = negateV
-  abs = dfblFnValsFunc dfblAbs
-   where dfblAbs a
-          | a>0        = (a, id, unsafe_dev_ε_δ("abs "++show a) $ \ε -> a + ε/2) 
-          | a<0        = (-a, negateV id, unsafe_dev_ε_δ("abs "++show a) $ \ε -> ε/2 - a)
-          | otherwise  = (0, zeroV, scaleNorm (sqrt 0.5))
-  signum = dfblFnValsFunc dfblSgn
-   where dfblSgn a
-          | a>0        = (1, zeroV, unsafe_dev_ε_δ("signum "++show a) $ const a)
-          | a<0        = (-1, zeroV, unsafe_dev_ε_δ("signum "++show a) $ \_ -> -a)
-          | otherwise  = (0, zeroV, const $ spanNorm [1])
+  negate = case closedScalarWitness :: ClosedScalarWitness n of
+     ClosedScalarWitness -> negateV
+  abs = mkabs linearManifoldWitness closedScalarWitness
+   where mkabs :: LinearManifoldWitness n -> ClosedScalarWitness n
+                     -> DfblFuncValue n a n -> DfblFuncValue n a n
+         mkabs (LinearManifoldWitness _) ClosedScalarWitness = dfblFnValsFunc dfblAbs
+          where dfblAbs a
+                 | a>0        = (a, id, unsafe_dev_ε_δ("abs "++show a) $ \ε -> a + ε/2) 
+                 | a<0        = (-a, negateV id, unsafe_dev_ε_δ("abs "++show a) $ \ε -> ε/2 - a)
+                 | otherwise  = (0, zeroV, scaleNorm (sqrt 0.5))
+  signum = mksgn linearManifoldWitness closedScalarWitness
+   where mksgn :: LinearManifoldWitness n -> ClosedScalarWitness n
+                     -> DfblFuncValue n a n -> DfblFuncValue n a n
+         mksgn (LinearManifoldWitness _) ClosedScalarWitness = dfblFnValsFunc dfblSgn
+          where dfblSgn a
+                 | a>0        = (1, zeroV, unsafe_dev_ε_δ("signum "++show a) $ const a)
+                 | a<0        = (-1, zeroV, unsafe_dev_ε_δ("signum "++show a) $ \_ -> -a)
+                 | otherwise  = (0, zeroV, const $ spanNorm [1])
 
 
 
@@ -516,10 +548,13 @@ instance (RealDimension n, LocallyScalable n a)
 
 
 -- | Important special operator needed to compute intersection of 'Region's.
-minDblfuncs :: (LocallyScalable s m, RealDimension s)
+minDblfuncs :: ∀ s m . (LocallyScalable s m, RealDimension s)
      => Differentiable s m s -> Differentiable s m s -> Differentiable s m s
-minDblfuncs (Differentiable f) (Differentiable g) = Differentiable h
- where h x
+minDblfuncs (Differentiable f) (Differentiable g)
+             = Differentiable $ h linearManifoldWitness closedScalarWitness
+ where h :: LinearManifoldWitness s -> ClosedScalarWitness s
+             -> m -> (s, Needle m+>Needle s, LinDevPropag m s)
+       h (LinearManifoldWitness _) ClosedScalarWitness x
          | fx < gx   = ( fx, jf
                        , \d -> devf d <> devg d
                                <> transformNorm δj
@@ -542,9 +577,11 @@ postEndo = genericAgentMap
 
 
 
-genericisePreRegion :: (RealDimension s, LocallyScalable s m)
+genericisePreRegion :: ∀ s m . (RealDimension s, LocallyScalable s m)
                           => PreRegion s m -> PreRegion s m
-genericisePreRegion GlobalRegion = PreRegion $ const 1
+genericisePreRegion GlobalRegion = case ( linearManifoldWitness :: LinearManifoldWitness s
+                                        , closedScalarWitness :: ClosedScalarWitness s ) of
+    (LinearManifoldWitness _, ClosedScalarWitness) -> PreRegion $ const 1
 genericisePreRegion (RealSubray PositiveHalfSphere xl) = preRegionToInfFrom' xl
 genericisePreRegion (RealSubray NegativeHalfSphere xr) = preRegionFromMinInfTo' xr
 genericisePreRegion r = r
@@ -571,13 +608,19 @@ regionProd :: (RealDimension s, LocallyScalable s a, LocallyScalable s b)
 regionProd (Region a₀ ra) (Region b₀ rb) = Region (a₀,b₀) (preRegionProd ra rb)
 
 -- | Cartesian product of two pre-regions.
-preRegionProd :: (RealDimension s, LocallyScalable s a, LocallyScalable s b)
+preRegionProd :: ∀ s a b . (RealDimension s, LocallyScalable s a, LocallyScalable s b)
                   => PreRegion s a -> PreRegion s b -> PreRegion s (a,b)
-preRegionProd GlobalRegion GlobalRegion = GlobalRegion
-preRegionProd GlobalRegion (PreRegion rb) = PreRegion $ rb . snd
-preRegionProd (PreRegion ra) GlobalRegion = PreRegion $ ra . fst
-preRegionProd (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs (ra.fst) (rb.snd)
-preRegionProd ra rb = preRegionProd (genericisePreRegion ra) (genericisePreRegion rb)
+preRegionProd = prp linearManifoldWitness closedScalarWitness
+ where prp :: LinearManifoldWitness s -> ClosedScalarWitness s
+                 -> PreRegion s a -> PreRegion s b -> PreRegion s (a,b)
+       prp _ _ GlobalRegion GlobalRegion = GlobalRegion
+       prp (LinearManifoldWitness _) ClosedScalarWitness GlobalRegion (PreRegion rb)
+                    = PreRegion $ rb . snd
+       prp (LinearManifoldWitness _) ClosedScalarWitness (PreRegion ra) GlobalRegion
+                    = PreRegion $ ra . fst
+       prp (LinearManifoldWitness _) ClosedScalarWitness (PreRegion ra) (PreRegion rb)
+                    = PreRegion $ minDblfuncs (ra.fst) (rb.snd)
+       prp _ _ ra rb = preRegionProd (genericisePreRegion ra) (genericisePreRegion rb)
 
 
 positivePreRegion, negativePreRegion :: (RealDimension s) => PreRegion s s
@@ -585,9 +628,13 @@ positivePreRegion = RealSubray PositiveHalfSphere 0
 negativePreRegion = RealSubray NegativeHalfSphere 0
 
 
-positivePreRegion', negativePreRegion' :: (RealDimension s) => PreRegion s s
-positivePreRegion' = PreRegion $ Differentiable prr
- where prr x = ( 1 - 1/xp1
+positivePreRegion', negativePreRegion' :: ∀ s . (RealDimension s) => PreRegion s s
+positivePreRegion' = PreRegion . Differentiable
+                       $ prr linearManifoldWitness closedScalarWitness
+ where prr :: LinearManifoldWitness s -> ClosedScalarWitness s
+           -> s -> (s, Needle s+>Needle s, LinDevPropag s s)
+       prr (LinearManifoldWitness _) ClosedScalarWitness
+           x = ( 1 - 1/xp1
                , (1/xp1²) *^ id
                , unsafe_dev_ε_δ("positivePreRegion@"++show x) δ )
                  -- ε = (1 − 1/(1+x)) + (-δ · 1/(x+1)²) − (1 − 1/(1+x−δ))
@@ -624,26 +671,42 @@ positivePreRegion' = PreRegion $ Differentiable prr
                   | otherwise  = ε * x / ((1+ε)/x + ε)
               xp1 = (x+1)
               xp1² = xp1 ^ 2
-negativePreRegion' = PreRegion $ ppr . ngt
- where PreRegion ppr = positivePreRegion'
-       ngt = actuallyLinearEndo $ negateV id
+negativePreRegion' = npr (linearManifoldWitness :: LinearManifoldWitness s)
+                         (closedScalarWitness :: ClosedScalarWitness s)
+ where npr (LinearManifoldWitness BoundarylessWitness)
+           (ClosedScalarWitness :: ClosedScalarWitness s)
+                  = PreRegion $ ppr . ngt
+        where PreRegion ppr = positivePreRegion'
+              ngt = actuallyLinearEndo $ negateV id
 
 preRegionToInfFrom, preRegionFromMinInfTo :: RealDimension s => s -> PreRegion s s
 preRegionToInfFrom = RealSubray PositiveHalfSphere
 preRegionFromMinInfTo = RealSubray NegativeHalfSphere
 
-preRegionToInfFrom', preRegionFromMinInfTo' :: RealDimension s => s -> PreRegion s s
-preRegionToInfFrom' xs = PreRegion $ ppr . trl
- where PreRegion ppr = positivePreRegion'
-       trl = actuallyAffineEndo (-xs) id
-preRegionFromMinInfTo' xe = PreRegion $ ppr . flp
- where PreRegion ppr = positivePreRegion'
-       flp = actuallyAffineEndo xe (negateV id)
+preRegionToInfFrom', preRegionFromMinInfTo' :: ∀ s . RealDimension s => s -> PreRegion s s
+preRegionToInfFrom' = prif (linearManifoldWitness :: LinearManifoldWitness s)
+                           (closedScalarWitness :: ClosedScalarWitness s)
+ where prif (LinearManifoldWitness BoundarylessWitness)
+            (ClosedScalarWitness :: ClosedScalarWitness s)
+            xs = PreRegion $ ppr . trl
+        where PreRegion ppr = positivePreRegion'
+              trl = actuallyAffineEndo (-xs) id
+preRegionFromMinInfTo' = prif (linearManifoldWitness :: LinearManifoldWitness s)
+                           (closedScalarWitness :: ClosedScalarWitness s)
+ where prif (LinearManifoldWitness BoundarylessWitness)
+            (ClosedScalarWitness :: ClosedScalarWitness s)
+            xe = PreRegion $ ppr . flp
+        where PreRegion ppr = positivePreRegion'
+              flp = actuallyAffineEndo xe (negateV id)
 
-intervalPreRegion :: RealDimension s => (s,s) -> PreRegion s s
-intervalPreRegion (lb,rb) = PreRegion $ Differentiable prr
+intervalPreRegion :: ∀ s . RealDimension s => (s,s) -> PreRegion s s
+intervalPreRegion (lb,rb) = PreRegion . Differentiable
+                             $ prr linearManifoldWitness closedScalarWitness
  where m = lb + radius; radius = (rb - lb)/2
-       prr x = ( 1 - ((x-m)/radius)^2
+       prr :: LinearManifoldWitness s -> ClosedScalarWitness s
+                -> s -> (s, Needle s+>Needle s, LinDevPropag s s)
+       prr (LinearManifoldWitness _) ClosedScalarWitness
+           x = ( 1 - ((x-m)/radius)^2
                , (2*(m-x)/radius^2) *^ id
                , unsafe_dev_ε_δ("intervalPreRegion@"++show x) $ (*radius) . sqrt )
 
@@ -1049,8 +1112,8 @@ instance ( RealDimension n, WithField n Manifold a
 
 
 
-instance ( RealDimension n, WithField n Manifold a
-         , LocallyScalable n a, SimpleSpace (Needle a) )
+instance ∀ n a . ( RealDimension n, WithField n Manifold a
+                 , LocallyScalable n a, SimpleSpace (Needle a) )
             => Floating (RWDfblFuncValue n a n) where
   pi = point pi
   
@@ -1058,7 +1121,8 @@ instance ( RealDimension n, WithField n Manifold a
     $ \x -> let ex = exp x
             in if ex*2 == ex  -- numerical trouble...
                 then if x<0 then ( 0, zeroV, unsafe_dev_ε_δ("exp "++show x) $ \ε -> log ε - x )
-                            else ( ex, ex*^id, unsafe_dev_ε_δ("exp "++show x) $ \_ -> 1e-300 )
+                            else ( ex, ex*^id
+                                 , unsafe_dev_ε_δ("exp "++show x) $ \_ -> 1e-300 :: n )
                 else ( ex, ex *^ id, unsafe_dev_ε_δ("exp "++show x)
                           $ \ε -> case acosh(ε/(2*ex) + 1) of
                                     δ | δ==δ      -> δ
@@ -1315,10 +1379,13 @@ backupRegions (RWDiffable f) (RWDiffable g) = RWDiffable h
 
 -- | Like 'Data.VectorSpace.lerp', but gives a differentiable function
 --   instead of a Hask one.
-lerp_diffable :: ( WithField s LinearManifold m, Atlas m
-                 , HasTrie (ChartIndex m), RealDimension s )
+lerp_diffable :: ∀ m s . ( LinearSpace m, Scalar m ~ s, Atlas m
+                         , HasTrie (ChartIndex m), RealDimension s )
       => m -> m -> Differentiable s s m
-lerp_diffable a b = actuallyAffine a . arr $ flipBilin scale $ b.-.a
+lerp_diffable = case ( linearManifoldWitness :: LinearManifoldWitness m
+                     , dualSpaceWitness :: DualSpaceWitness m ) of
+     (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness)
+         -> \a b -> actuallyAffine a . arr $ flipBilin scale $ b.-.a
 
 
 

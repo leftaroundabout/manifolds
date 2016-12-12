@@ -58,6 +58,8 @@ module Data.Manifold.Types (
         , fathomCutDistance, sideOfCut, cutPosBetween
         -- * Linear mappings
         , LinearMap, LocalLinear
+        -- * Misc
+        , StiefelScalar
    ) where
 
 
@@ -88,6 +90,8 @@ import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
 import Data.Type.Coercion
+
+type StiefelScalar s = (RealFloat s, UArr.Unbox s)
 
 #define deriveAffine(c,t)                \
 instance (c) => Semimanifold (t) where {  \
@@ -229,9 +233,9 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
   composeLinear = bilinearFunction $ \f (LinearMap g)
                      -> LinearMap $ Arr.map (getLinearFunction applyLinear f$) g
 
-instance ∀ k v .
-   ( WithField k LinearManifold v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
-   , RealFloat k, UArr.Unbox k ) => Semimanifold (Stiefel1 v) where 
+instance ∀ v .
+   ( LinearSpace v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
+   , StiefelScalar (Scalar v) ) => Semimanifold (Stiefel1 v) where
   type Needle (Stiefel1 v) = Stiefel1Needle v
   fromInterior = id
   toInterior = pure
@@ -262,9 +266,9 @@ instance ∀ k v .
                 insi ti v = Arr.generate d $ \i -> if | i<im      -> v Arr.! i
                                                       | i>im      -> v Arr.! (i-1) 
                                                       | otherwise -> ti
-instance ∀ k v .
-   ( WithField k LinearManifold v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
-   , RealFloat k, UArr.Unbox k ) => PseudoAffine (Stiefel1 v) where 
+instance ∀ v .
+   ( LinearSpace v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
+   , StiefelScalar (Scalar v) ) => PseudoAffine (Stiefel1 v) where
   (.-~.) = dpst dualSpaceWitness
    where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (Stiefel1Needle v)
          dpst DualSpaceWitness (Stiefel1 s) (Stiefel1 t)

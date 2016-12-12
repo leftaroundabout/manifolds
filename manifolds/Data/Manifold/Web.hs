@@ -84,6 +84,7 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.TreeCover
 import Data.SetLike.Intersection
 import Data.Manifold.Riemannian
+import Data.Manifold.Atlas
     
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
@@ -801,12 +802,13 @@ filterDEqnSolutions_adaptive :: ∀ x y badness m
              -> PointsWeb x (SolverNodeState x y)
                         -> m (PointsWeb x (SolverNodeState x y))
 filterDEqnSolutions_adaptive mf strategy f badness' oldState
-            = fmap recomputeJacobian $ filterGo boundarylessWitness
-                                         =<< tryPreproc boundarylessWitness
- where tryPreproc :: BoundarylessWitness x
+            = fmap recomputeJacobian $ filterGo boundarylessWitness geodesicWitness
+                                         =<< tryPreproc boundarylessWitness geodesicWitness
+ where tryPreproc :: BoundarylessWitness x -> GeodesicWitness y
                       -> m (PointsWeb x ( (WebLocally x (SolverNodeState x y)
                                         , [(Shade' y, badness)]) ))
-       tryPreproc BoundarylessWitness = traverse addPropagation $ webLocalInfo oldState
+       tryPreproc BoundarylessWitness (GeodesicWitness _)
+               = traverse addPropagation $ webLocalInfo oldState
         where addPropagation wl
                  | null neighbourInfo = pure (wl, [])
                  | otherwise           = (wl,) . map (id&&&badness undefined)
@@ -832,11 +834,12 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
        errTgtModulation = (1-) . (`mod'`1) . negate . sqrt $ fromIntegral totalAge
        badness x = badness' x . (shadeNarrowness %~ (scaleNorm errTgtModulation))
               
-       filterGo :: BoundarylessWitness x
+       filterGo :: BoundarylessWitness x -> GeodesicWitness y
                    -> (PointsWeb x ( (WebLocally x (SolverNodeState x y)
                                    , [(Shade' y, badness)]) ))
                    -> m (PointsWeb x (SolverNodeState x y))
-       filterGo BoundarylessWitness preproc'd   = fmap (smoothenWebTopology mf
+       filterGo BoundarylessWitness (GeodesicWitness _) preproc'd
+             = fmap (smoothenWebTopology mf
                                      . fromTopWebNodes mf . concat . fmap retraceBonds
                                         . Hask.toList . webLocalInfo . webLocalInfo)
              $ Hask.traverse (uncurry localChange) preproc'd

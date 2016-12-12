@@ -41,6 +41,7 @@
 {-# LANGUAGE LiberalTypeSynonyms        #-}
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DefaultSignatures          #-}
 
 
 module Data.Manifold.Riemannian  where
@@ -76,6 +77,9 @@ import Control.Monad.Constrained hiding (forM)
 import Data.Foldable.Constrained
 
 
+data GeodesicWitness x where
+  GeodesicWitness :: Geodesic (Interior x)
+       => SemimanifoldWitness x -> GeodesicWitness x
 
 class Semimanifold x => Geodesic x where
   geodesicBetween ::
@@ -85,6 +89,9 @@ class Semimanifold x => Geodesic x where
             --   If the two points are actually connected by a path...
        -> Maybe (D¹ -> x) -- ^ ...then this is the interpolation function. Attention: 
                           --   the type will change to 'Differentiable' in the future.
+  geodesicWitness :: GeodesicWitness x
+  default geodesicWitness :: Geodesic (Interior x) => GeodesicWitness x
+  geodesicWitness = GeodesicWitness semimanifoldWitness
 
 interpolate :: (Geodesic x, IntervalLike i) => x -> x -> Maybe (i -> x)
 interpolate a b = (. toClosedInterval) <$> geodesicBetween a b
@@ -99,31 +106,43 @@ instance Geodesic x where {                                        \
 
 deriveAffineGD (ℝ)
 
-instance Geodesic (ZeroDim ℝ) where
+instance Geodesic (ZeroDim s) where
   geodesicBetween Origin Origin = return $ \_ -> Origin
 
-instance (Geodesic a, Geodesic b) => Geodesic (a,b) where
+instance ∀ a b . (Geodesic a, Geodesic b) => Geodesic (a,b) where
   geodesicBetween (a,b) (α,β) = liftA2 (&&&) (geodesicBetween a α) (geodesicBetween b β)
+  geodesicWitness = case ( geodesicWitness :: GeodesicWitness a
+                         , geodesicWitness :: GeodesicWitness b ) of
+     (GeodesicWitness _, GeodesicWitness _) -> GeodesicWitness semimanifoldWitness
 
-instance (Geodesic a, Geodesic b, Geodesic c) => Geodesic (a,b,c) where
+instance ∀ a b c . (Geodesic a, Geodesic b, Geodesic c) => Geodesic (a,b,c) where
   geodesicBetween (a,b,c) (α,β,γ)
       = liftA3 (\ia ib ic t -> (ia t, ib t, ic t))
            (geodesicBetween a α) (geodesicBetween b β) (geodesicBetween c γ)
+  geodesicWitness = case ( geodesicWitness :: GeodesicWitness a
+                         , geodesicWitness :: GeodesicWitness b
+                         , geodesicWitness :: GeodesicWitness c ) of
+     (GeodesicWitness _, GeodesicWitness _, GeodesicWitness _)
+         -> GeodesicWitness semimanifoldWitness
 
 -- instance (KnownNat n) => Geodesic (FreeVect n ℝ) where
 --   geodesicBetween (FreeVect v) (FreeVect w)
 --       = return $ \(D¹ t) -> let μv = (1-t)/2; μw = (t+1)/2
 --                             in FreeVect $ Arr.zipWith (\vi wi -> μv*vi + μw*wi) v w
 
-instance (Geodesic v, FiniteFreeSpace v, WithField ℝ HilbertManifold v)
+instance ∀ v . ( Geodesic v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
+               , LinearSpace v, Scalar v ~ ℝ, Geodesic (DualVector v)
+               , InnerSpace (DualVector v) )
              => Geodesic (Stiefel1 v) where
-  geodesicBetween (Stiefel1 p') (Stiefel1 q')
-      = (\f -> \(D¹ t) -> Stiefel1 . f . D¹ $ g * tan (ϑ*t))
+  geodesicBetween = gb dualSpaceWitness
+   where gb :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (D¹ -> Stiefel1 v)
+         gb DualSpaceWitness (Stiefel1 p') (Stiefel1 q')
+           = (\f -> \(D¹ t) -> Stiefel1 . f . D¹ $ g * tan (ϑ*t))
             <$> geodesicBetween p q
-   where p = normalized p'; q = normalized q'
-         l = magnitude $ p^-^q
-         ϑ = asin $ l/2
-         g = sqrt $ 4/l^2 - 1
+          where p = normalized p'; q = normalized q'
+                l = magnitude $ p^-^q
+                ϑ = asin $ l/2
+                g = sqrt $ 4/l^2 - 1
 
 
 instance Geodesic S⁰ where

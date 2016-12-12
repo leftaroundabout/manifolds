@@ -9,6 +9,8 @@
 -- 
 
 {-# LANGUAGE TypeFamilies              #-}
+{-# LANGUAGE ConstraintKinds           #-}
+{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE EmptyDataDecls, EmptyCase #-}
 {-# LANGUAGE CPP                       #-}
@@ -25,8 +27,11 @@ import Data.Manifold.Types.Primitive
 import Data.Void
 
 import Data.VectorSpace.Free
+import Math.LinearMap.Category
 
 import Control.Arrow
+
+import Data.MemoTrie (HasTrie)
 
 class Semimanifold m => Atlas m where
   type ChartIndex m :: *
@@ -49,6 +54,8 @@ VectorSpaceAtlas(Num s, V1 s)
 VectorSpaceAtlas(Num s, V2 s)
 VectorSpaceAtlas(Num s, V3 s)
 VectorSpaceAtlas(Num s, V4 s)
+VectorSpaceAtlas((LinearSpace v, Scalar v ~ s, TensorSpace w, Scalar w ~ s), LinearMap s v w)
+VectorSpaceAtlas((TensorSpace v, Scalar v ~ s, TensorSpace w, Scalar w ~ s), Tensor s v w)
 
 instance (Atlas x, Atlas y) => Atlas (x,y) where
   type ChartIndex (x,y) = (ChartIndex x, ChartIndex y)
@@ -78,3 +85,18 @@ instance Atlas S² where
   interiorChartReferencePoint _ NegativeHalfSphere = S² pi 0
   lookupAtlas (S² ϑ _) | ϑ<pi/2     = PositiveHalfSphere
                        | otherwise  = NegativeHalfSphere
+
+
+
+
+-- | The 'AffineSpace' class plus manifold constraints.
+type AffineManifold m = ( Atlas m, Manifold m, AffineSpace m
+                        , Needle m ~ Diff m, HasTrie (ChartIndex m) )
+
+-- | An euclidean space is a real affine space whose tangent space is a Hilbert space.
+type EuclidSpace x = ( AffineManifold x, InnerSpace (Diff x)
+                     , DualVector (Diff x) ~ Diff x, Floating (Scalar (Diff x)) )
+
+euclideanMetric :: EuclidSpace x => proxy x -> Metric x
+euclideanMetric _ = euclideanNorm
+

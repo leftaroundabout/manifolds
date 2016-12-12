@@ -96,6 +96,8 @@ import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty)
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Riemannian
+import Data.Manifold.Atlas
+import Data.Function.Affine
     
 import Data.Embedding
 import Data.CoNat
@@ -190,22 +192,22 @@ class IsShade shade where
   -- | Check the statistical likelihood-density of a point being within a shade.
   --   This is taken as a normal distribution.
   occlusion :: ( PseudoAffine x, SimpleSpace (Needle x)
-               , s ~ (Scalar (Needle x)), RealDimension s )
+               , s ~ (Scalar (Needle x)), RealFloat' s )
                 => shade x -> x -> s
   factoriseShade :: ( Manifold x, SimpleSpace (Needle x)
                     , Manifold y, SimpleSpace (Needle y)
                     , Scalar (Needle x) ~ Scalar (Needle y) )
                 => shade (x,y) -> (shade x, shade y)
   coerceShade :: (Manifold x, Manifold y, LocallyCoercible x y) => shade x -> shade y
-  linIsoTransformShade :: ( LinearManifold x, LinearManifold y
-                          , SimpleSpace x, SimpleSpace y, Scalar x ~ Scalar y )
+  linIsoTransformShade :: ( SimpleSpace x, SimpleSpace y, Scalar x ~ Scalar y
+                          , Num' (Scalar x) )
                           => (x+>y) -> shade x -> shade y
 
 instance IsShade Shade where
   shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
   occlusion = occ pseudoAffineWitness dualSpaceWitness
    where occ :: ∀ x s . ( PseudoAffine x, SimpleSpace (Needle x)
-                        , Scalar (Needle x) ~ s, RealDimension s )
+                        , Scalar (Needle x) ~ s, RealFloat' s )
                     => PseudoAffineWitness x -> DualNeedleWitness x -> Shade x -> x -> s
          occ (PseudoAffineWitness (SemimanifoldWitness _)) DualSpaceWitness (Shade p₀ δ)
                  = \p -> case toInterior p >>= (.-~.p₀) of
@@ -233,12 +235,17 @@ instance IsShade Shade where
                        transformNorm . arr $ coerceNeedle' ([]::[(y,x)])
                 internCoerce = case interiorLocalCoercion ([]::[(x,y)]) of
                       CanonicalDiffeomorphism -> locallyTrivialDiffeomorphism
-  linIsoTransformShade = lits dualSpaceWitness dualSpaceWitness
-   where lits :: ∀ x y . ( LinearManifold x, LinearManifold y
-                         , Scalar (Needle x) ~ Scalar (Needle y) )
-               => DualSpaceWitness x -> DualSpaceWitness y
+  linIsoTransformShade = lits linearManifoldWitness linearManifoldWitness
+                              dualSpaceWitness dualSpaceWitness
+   where lits :: ∀ x y . ( LinearSpace x, LinearSpace y
+                         , Scalar x ~ Scalar y, Num' (Scalar x) )
+               => LinearManifoldWitness x -> LinearManifoldWitness y
+                   -> DualSpaceWitness x -> DualSpaceWitness y
                        -> (x+>y) -> Shade x -> Shade y
-         lits DualSpaceWitness DualSpaceWitness f (Shade x δx)
+         lits (LinearManifoldWitness BoundarylessWitness)
+              (LinearManifoldWitness BoundarylessWitness)
+              DualSpaceWitness DualSpaceWitness
+              f (Shade x δx)
                   = Shade (f $ x) (transformNorm (adjoint $ f) δx)
 
 instance ImpliesMetric Shade where
@@ -261,7 +268,7 @@ instance IsShade Shade' where
   shadeCtr f (Shade' c e) = fmap (`Shade'`e) $ f c
   occlusion = occ pseudoAffineWitness
    where occ :: ∀ x s . ( PseudoAffine x, SimpleSpace (Needle x)
-                        , Scalar (Needle x) ~ s, RealDimension s )
+                        , Scalar (Needle x) ~ s, RealFloat' s )
                     => PseudoAffineWitness x -> Shade' x -> x -> s
          occ (PseudoAffineWitness (SemimanifoldWitness _)) (Shade' p₀ δinv) p
                = case toInterior p >>= (.-~.p₀) of
@@ -279,7 +286,17 @@ instance IsShade Shade' where
                        transformNorm . arr $ coerceNeedle ([]::[(y,x)])
                 internCoerce = case interiorLocalCoercion ([]::[(x,y)]) of
                       CanonicalDiffeomorphism -> locallyTrivialDiffeomorphism
-  linIsoTransformShade f (Shade' x δx)
+  linIsoTransformShade = lits linearManifoldWitness linearManifoldWitness
+                              dualSpaceWitness dualSpaceWitness
+   where lits :: ∀ x y . ( SimpleSpace x, SimpleSpace y
+                         , Scalar x ~ Scalar y, RealFloat' (Scalar x) )
+               => LinearManifoldWitness x -> LinearManifoldWitness y
+                   -> DualSpaceWitness x -> DualSpaceWitness y
+                       -> (x+>y) -> Shade' x -> Shade' y
+         lits (LinearManifoldWitness BoundarylessWitness)
+              (LinearManifoldWitness BoundarylessWitness)
+              DualSpaceWitness DualSpaceWitness
+               f (Shade' x δx)
           = Shade' (f $ x) (transformNorm (pseudoInverse f) δx)
 
 shadeNarrowness :: Lens' (Shade' x) (Metric x)
@@ -312,21 +329,26 @@ instance (WithField ℝ PseudoAffine x, Geodesic (Interior x), SimpleSpace (Need
                 Just pinterp = geodesicBetween c ζ
 
 instance (AffineManifold x) => Semimanifold (Shade' x) where
-  type Needle (Shade' x) = Diff x
+  type Needle (Shade' x) = Needle x
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  Shade' c e .+~^ v = Shade' (c.+^v) e
-  Shade' c e .-~^ v = Shade' (c.-^v) e
+  (.+~^) = case boundarylessWitness :: BoundarylessWitness x of
+      BoundarylessWitness -> \(Shade' c e) v -> Shade' (c.+~^v) e
+  (.-~^) = case boundarylessWitness :: BoundarylessWitness x of
+      BoundarylessWitness -> \(Shade' c e) v -> Shade' (c.-~^v) e
+  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness x of
+     SemimanifoldWitness BoundarylessWitness -> SemimanifoldWitness BoundarylessWitness
 
-instance (WithField ℝ AffineManifold x, Geodesic x, SimpleSpace (Needle x))
+instance ∀ x . (WithField ℝ AffineManifold x, Geodesic x, SimpleSpace (Needle x))
             => Geodesic (Shade' x) where
   geodesicBetween (Shade' c e) (Shade' ζ η) = pure interp
    where sharedSpan = sharedNormSpanningSystem e η
          interp t = Shade' (pinterp t)
                            (spanNorm [ v ^/ (alerpB 1 (recip qη) t)
                                      | (v,qη) <- sharedSpan ])
-         Just pinterp = geodesicBetween c ζ
+         Just pinterp = case geodesicWitness :: GeodesicWitness x of
+            GeodesicWitness _ -> geodesicBetween c ζ
 
 fullShade :: WithField ℝ PseudoAffine x => Interior x -> Metric' x -> Shade x
 fullShade ctr expa = Shade ctr expa
@@ -352,8 +374,9 @@ pattern x :± shs <- Shade x (varianceSpanningSystem -> shs)
 -- 
 --   Note that '|±|' is only possible, as such, in an inner-product space; in
 --   general you need reciprocal vectors ('Needle'') to define a 'Shade''.
-(|±|) :: WithField ℝ EuclidSpace x => x -> [Needle x] -> Shade' x
-x |±| shs = Shade' x $ spanNorm [v^/(v<.>v) | v<-shs]
+(|±|) :: ∀ x . WithField ℝ EuclidSpace x => x -> [Needle x] -> Shade' x
+(|±|) = case boundarylessWitness :: BoundarylessWitness x of
+   BoundarylessWitness -> \x shs -> Shade' x $ spanNorm [v^/(v<.>v) | v<-shs]
 
 
 
@@ -537,7 +560,7 @@ mixShade's = ms pseudoAffineWitness dualSpaceWitness
 -- where 'shadeExpanse' gives a metric (matrix) that characterises the
 -- width of the shade.
 minusLogOcclusion' :: ∀ x s . ( PseudoAffine x, LinearSpace (Needle x)
-                              , s ~ (Scalar (Needle x)), RealDimension s )
+                              , s ~ (Scalar (Needle x)), RealFloat' s )
               => Shade' x -> x -> s
 minusLogOcclusion' (Shade' p₀ δinv)
         = occ (pseudoAffineWitness :: PseudoAffineWitness x)
@@ -549,7 +572,7 @@ minusLogOcclusion' (Shade' p₀ δinv)
                    -> mSq
          _         -> 1/0
 minusLogOcclusion :: ∀ x s . ( PseudoAffine x, SimpleSpace (Needle x)
-                             , s ~ (Scalar (Needle x)), RealDimension s )
+                             , s ~ (Scalar (Needle x)), RealFloat' s )
               => Shade x -> x -> s
 minusLogOcclusion (Shade p₀ δ)
         = occ (pseudoAffineWitness :: PseudoAffineWitness x)
@@ -712,6 +735,8 @@ instance (AffineManifold x) => Semimanifold (ShadeTree x) where
         = OverlappingBranches n (sh.+~^v)
                 $ fmap (\(DBranch d c) -> DBranch d $ (.+~^v)<$>c) br
   DisjointBranches n br .+~^ v = DisjointBranches n $ (.+~^v)<$>br
+  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness x of
+     SemimanifoldWitness BoundarylessWitness -> SemimanifoldWitness BoundarylessWitness
 
 -- | WRT union.
 instance (WithField ℝ Manifold x, SimpleSpace (Needle x)) => Semigroup (ShadeTree x) where
@@ -1789,7 +1814,7 @@ zipTreeWithList tree = go tree . cycle
 -- | This is to 'ShadeTree' as 'Data.Map.Map' is to 'Data.Set.Set'.
 type x`Shaded`y = ShadeTree (x`WithAny`y)
 
-stiWithDensity :: ∀ x y . ( WithField ℝ PseudoAffine x, WithField ℝ LinearManifold y
+stiWithDensity :: ∀ x y . ( WithField ℝ PseudoAffine x, LinearSpace y, Scalar y ~ ℝ
                           , SimpleSpace (Needle x) )
          => x`Shaded`y -> x -> Cℝay y
 stiWithDensity (PlainLeaves lvs)
@@ -1832,7 +1857,7 @@ stiAsIntervalMapping = twigsWithEnvirons >=> pure.snd.fst >=> completeTopShading
                  -> ( xloc, ( (yloc, recip $ shd|$|(0,1))
                             , dependence (dualNorm shd) ) )
 
-smoothInterpolate :: ∀ x y . ( WithField ℝ Manifold x, WithField ℝ LinearManifold y
+smoothInterpolate :: ∀ x y . ( WithField ℝ Manifold x, LinearSpace y, Scalar y ~ ℝ
                              , SimpleSpace (Needle x) )
              => NonEmpty (x,y) -> x -> y
 smoothInterpolate = si boundarylessWitness

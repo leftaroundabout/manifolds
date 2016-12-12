@@ -57,7 +57,7 @@ module Data.Manifold.PseudoAffine (
             -- ** Needles
             , Local(..)
             -- ** Metrics
-            , Metric, Metric', euclideanMetric
+            , Metric, Metric'
             , RieMetric, RieMetric'
             -- ** Constraints
             , SemimanifoldWitness(..)
@@ -65,11 +65,7 @@ module Data.Manifold.PseudoAffine (
             , BoundarylessWitness(..)
             , boundarylessWitness
             , DualNeedleWitness 
-            , RealDimension, AffineManifold
-            , LinearManifold
             , WithField
-            , HilbertManifold
-            , EuclidSpace
             , LocallyScalable
             -- ** Local functions
             , LocalLinear, LocalAffine
@@ -147,6 +143,8 @@ class ( Semimanifold x, Semimanifold ξ, LSpace (Needle x), LSpace (Needle ξ)
                   => p (x,ξ) -> CanonicalDiffeomorphism (Interior x) (Interior ξ)
   interiorLocalCoercion _ = CanonicalDiffeomorphism
 
+type NumPrime = Num'
+
 #define identityCoercion(c,t)                   \
 instance (c) => LocallyCoercible (t) (t) where { \
   locallyTrivialDiffeomorphism = id;              \
@@ -154,16 +152,16 @@ instance (c) => LocallyCoercible (t) (t) where { \
   coerceNeedle' _ = id;                             \
   oppositeLocalCoercion = CanonicalDiffeomorphism;   \
   interiorLocalCoercion _ = CanonicalDiffeomorphism }
-identityCoercion(NumberManifold s, ZeroDim s)
-identityCoercion(NumberManifold s, V0 s)
+identityCoercion(NumPrime s, ZeroDim s)
+identityCoercion(NumPrime s, V0 s)
 identityCoercion((), ℝ)
-identityCoercion(NumberManifold s, V1 s)
+identityCoercion(NumPrime s, V1 s)
 identityCoercion((), (ℝ,ℝ))
-identityCoercion(NumberManifold s, V2 s)
+identityCoercion(NumPrime s, V2 s)
 identityCoercion((), (ℝ,(ℝ,ℝ)))
 identityCoercion((), ((ℝ,ℝ),ℝ))
-identityCoercion(NumberManifold s, V3 s)
-identityCoercion(NumberManifold s, V4 s)
+identityCoercion(NumPrime s, V3 s)
+identityCoercion(NumPrime s, V4 s)
 
 
 data CanonicalDiffeomorphism a b where
@@ -182,13 +180,6 @@ type LocallyScalable s x = ( PseudoAffine x
 type LocalLinear x y = LinearMap (Scalar (Needle x)) (Needle x) (Needle y)
 type LocalAffine x y = (Needle y, LocalLinear x y)
 
--- | Basically just an &#x201c;updated&#x201d; version of the 'VectorSpace' class.
---   Every vector space is a manifold, this constraint makes it explicit.
-type LinearManifold x = ( AffineManifold x, Needle x ~ x, LSpace x )
-
-type LinearManifold' x = ( PseudoAffine x, AffineSpace x, Diff x ~ x
-                         , Interior x ~ x, Needle x ~ x, LSpace x )
-
 -- | Require some constraint on a manifold, and also fix the type of the manifold's
 --   underlying field. For example, @WithField &#x211d; 'HilbertManifold' v@ constrains
 --   @v@ to be a real (i.e., 'Double'-) Hilbert space.
@@ -197,33 +188,6 @@ type LinearManifold' x = ( PseudoAffine x, AffineSpace x, Diff x ~ x
 --   is an actual type class (like 'Manifold'): only those can always be partially
 --   applied, for @type@ constraints this is by default not allowed).
 type WithField s c x = ( c x, s ~ Scalar (Needle x), s ~ Scalar (Needle' x) )
-
--- | The 'RealFloat' class plus manifold constraints.
-type RealDimension r = ( PseudoAffine r, Interior r ~ r, Needle r ~ r, r ~ ℝ)
-
--- | The 'AffineSpace' class plus manifold constraints.
-type AffineManifold m = ( PseudoAffine m, Interior m ~ m, AffineSpace m
-                        , Needle m ~ Diff m, LinearManifold' (Diff m) )
-
--- | A Hilbert space is a /complete/ inner product space. Being a vector space, it is
---   also a manifold.
--- 
---   (Stricly speaking, that doesn't have much to do with the completeness criterion;
---   but since 'Manifold's are at the moment confined to finite dimension, they are in
---   fact (trivially) complete.)
-type HilbertManifold x = ( LinearManifold x, InnerSpace x
-                         , Interior x ~ x, Needle x ~ x, DualVector x ~ x
-                         , Floating (Scalar x) )
-
--- | An euclidean space is a real affine space whose tangent space is a Hilbert space.
-type EuclidSpace x = ( AffineManifold x, InnerSpace (Diff x)
-                     , DualVector (Diff x) ~ Diff x, Floating (Scalar (Diff x)) )
-
-type NumberManifold n = ( Num' n, Manifold n, Interior n ~ n, Needle n ~ n
-                        , LSpace n, DualVector n ~ n, Scalar n ~ n )
-
-euclideanMetric :: EuclidSpace x => proxy x -> Metric x
-euclideanMetric _ = euclideanNorm
 
 
 -- | A co-needle can be understood as a “paper stack”, with which you can measure
@@ -289,11 +253,11 @@ instance (c) => PseudoAffine (t) where {       \
 
 deriveAffine(KnownNat n, FreeVect n ℝ)
 
-instance (NumberManifold s) => LocallyCoercible (ZeroDim s) (V0 s) where
+instance (Num' s) => LocallyCoercible (ZeroDim s) (V0 s) where
   locallyTrivialDiffeomorphism Origin = V0
   coerceNeedle _ = LinearFunction $ \Origin -> V0
   coerceNeedle' _ = LinearFunction $ \Origin -> V0
-instance (NumberManifold s) => LocallyCoercible (V0 s) (ZeroDim s) where
+instance (Num' s) => LocallyCoercible (V0 s) (ZeroDim s) where
   locallyTrivialDiffeomorphism V0 = Origin
   coerceNeedle _ = LinearFunction $ \V0 -> Origin
   coerceNeedle' _ = LinearFunction $ \V0 -> Origin
@@ -376,13 +340,15 @@ instance ∀ a b c .
             -> CanonicalDiffeomorphism
 
 
-instance LinearManifold (a n) => Semimanifold (LinAff.Point a n) where
+instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
+            => Semimanifold (LinAff.Point a n) where
   type Needle (LinAff.Point a n) = a n
   fromInterior = id
   toInterior = pure
   LinAff.P v .+~^ w = LinAff.P $ v ^+^ w
   translateP = Tagged $ \(LinAff.P v) w -> LinAff.P $ v ^+^ w
-instance LinearManifold (a n) => PseudoAffine (LinAff.Point a n) where
+instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
+            => PseudoAffine (LinAff.Point a n) where
   LinAff.P v .-~. LinAff.P w = return $ v ^-^ w
 
 

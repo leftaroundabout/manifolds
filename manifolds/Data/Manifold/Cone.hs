@@ -143,7 +143,7 @@ projCD¹ToCℝay :: CD¹ m -> Cℝay m
 projCD¹ToCℝay (CD¹ h m) = Cℝay (bijectIntvtoℝplus h) m
 
 
-stiefel1Project :: LinearManifold v =>
+stiefel1Project :: LinearSpace v =>
              DualVector v       -- ^ Must be nonzero.
                  -> Stiefel1 v
 stiefel1Project = Stiefel1

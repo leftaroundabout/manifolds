@@ -91,7 +91,7 @@ data Region s m = Region { regionRefPoint :: m
 --   includes that point) to define a connected subset of a manifold.
 data PreRegion s m where
   GlobalRegion :: PreRegion s m
-  RealSubray :: RealDimension s => S⁰ -> s -> PreRegion s s
+  RealSubray :: Num' s => S⁰ -> s -> PreRegion s s
   PreRegion :: (Differentiable s m s) -- A function that is positive at reference point /p/,
                                       -- decreases and crosses zero at the region's
                                       -- boundaries. (If it goes positive again somewhere

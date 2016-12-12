@@ -62,6 +62,9 @@ import Data.Function.Differentiable
 import Data.Function.Differentiable.Data
 import Data.Manifold.TreeCover
 import Data.Manifold.Web
+import Data.Manifold.Atlas
+
+import Data.Embedding
 
 import qualified Data.List as List
 
@@ -80,12 +83,14 @@ import Data.Traversable.Constrained (Traversable, traverse)
 
 
 
-constLinearODE :: ∀ x y . ( WithField ℝ LinearManifold x, SimpleSpace x
-                          , WithField ℝ LinearManifold y, SimpleSpace y )
+constLinearODE :: ∀ x y . ( SimpleSpace x, Scalar x ~ ℝ, SimpleSpace y, Scalar y ~ ℝ )
               => ((x +> y) +> y) -> DifferentialEqn x y
-constLinearODE = case ( dualSpaceWitness :: DualNeedleWitness x
-                      , dualSpaceWitness :: DualNeedleWitness y ) of
-   (DualSpaceWitness, DualSpaceWitness) -> \bwt' ->
+constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
+                      , dualSpaceWitness :: DualSpaceWitness x
+                      , linearManifoldWitness :: LinearManifoldWitness y
+                      , dualSpaceWitness :: DualSpaceWitness y ) of
+   ( LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
+    ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt' ->
     let bwt'inv = (bwt'\$)
     in \(Shade (_x,y) δxy) -> LocalDifferentialEqn
             (let j = bwt'inv y
@@ -94,24 +99,21 @@ constLinearODE = case ( dualSpaceWitness :: DualNeedleWitness x
             (\_ -> pure )
 
 constLinearPDE :: ∀ x y y' .
-                  ( WithField ℝ LinearManifold x, SimpleSpace x
-                  , WithField ℝ LinearManifold y, SimpleSpace y, FiniteFreeSpace y
-                  , WithField ℝ LinearManifold y', SimpleSpace y' )
-              => ((x +> (y,y')) +> (y, y')) -> DifferentialEqn x (y,y')
-constLinearPDE = undefined{-case ( dualSpaceWitness :: DualNeedleWitness x
-                      , dualSpaceWitness :: DualNeedleWitness y
-                      , dualSpaceWitness :: DualSpaceWitness y' ) of
-   (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness) -> \bwt' ->
-    let bwt'inv = (bwt'\$)
-    in  \(Shade (_x,(y,y')) δxy) (Shade' jApriori σjApriori)
-                            -> let j = bwt'inv $ (zeroV,y')
-                                   δj = (bwt'>>>zeroV&&&id)
-                                         `transformNorm` dualNorm δxy
-                                   (_,y'Apriori) = bwt' $ jApriori
-                                   Norm δy' = (arr $ LinearFunction bwt'inv . (zeroV&&&id))
-                                         `transformNorm` σjApriori
-                             in (Shade' (y,y'Apriori) . Norm $ zeroV *** δy' , )
-                              <$> mixShade's (Shade' jApriori σjApriori :| [Shade' j δj])-}
+                  ( SimpleSpace x, Scalar x ~ ℝ, SimpleSpace y, Scalar y ~ ℝ )
+              => ((x +> y) +> y) -> (y +> (x +> y)) -> DifferentialEqn x y
+constLinearPDE = case ( linearManifoldWitness :: LinearManifoldWitness x
+                      , dualSpaceWitness :: DualSpaceWitness x
+                      , linearManifoldWitness :: LinearManifoldWitness y
+                      , dualSpaceWitness :: DualSpaceWitness y ) of
+   ( LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
+    ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness )
+           -> \bwt' bwt'inv (Shade (_x,y) δxy)
+       -> LocalDifferentialEqn
+            (let j = bwt'inv $ y
+                 δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
+             in return $ Shade' j δj )
+            (\shj shy
+                 -> mixShade's $ shy :| [linIsoTransformShade bwt' shj] )
 
 -- | A function that variates, relatively speaking, most strongly
 --   for arguments around 1. In the zero-limit it approaches a constant
