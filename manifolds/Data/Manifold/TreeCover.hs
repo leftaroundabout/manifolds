@@ -72,6 +72,8 @@ module Data.Manifold.TreeCover (
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild
        , AutoTriang, breakdownAutoTriang
+       -- ** External
+       , AffineManifold, euclideanMetric
     ) where
 
 

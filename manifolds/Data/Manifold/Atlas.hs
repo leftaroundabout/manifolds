@@ -33,6 +33,8 @@ import Control.Arrow
 
 import Data.MemoTrie (HasTrie)
 
+import qualified Linear.Affine as LinAff
+
 class Semimanifold m => Atlas m where
   type ChartIndex m :: *
   chartReferencePoint :: ChartIndex m -> m
@@ -86,6 +88,11 @@ instance Atlas S² where
   lookupAtlas (S² ϑ _) | ϑ<pi/2     = PositiveHalfSphere
                        | otherwise  = NegativeHalfSphere
 
+instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
+              => Atlas (LinAff.Point a n) where
+  type ChartIndex (LinAff.Point a n) = ()
+  interiorChartReferencePoint _ () = LinAff.P zeroV
+  lookupAtlas _ = ()
 
 
 
