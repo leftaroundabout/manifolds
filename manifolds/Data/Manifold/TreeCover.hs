@@ -50,6 +50,7 @@ module Data.Manifold.TreeCover (
        , occlusion
        -- ** Misc
        , factoriseShade, intersectShade's, linIsoTransformShade
+       , embedShade, projectShade
        , Refinable, subShade', refineShade', convolveShade', coerceShade
        , mixShade's
        -- * Shade trees
@@ -204,6 +205,17 @@ class IsShade shade where
   linIsoTransformShade :: ( SimpleSpace x, SimpleSpace y, Scalar x ~ Scalar y
                           , Num' (Scalar x) )
                           => (x+>y) -> shade x -> shade y
+  -- | Squash a shade down into a lower dimensional space.
+  projectShade :: ( Object (Affine s) x, Object (Affine s) y
+                        , SimpleSpace (Needle x), SimpleSpace (Needle y) )
+                        => Embedding (Affine s) x y -> shade y -> shade x
+  -- | Include a shade in a higher-dimensional space. Notice that this behaves
+  --   fundamentally different for 'Shade' and 'Shade''. For 'Shade', it gives
+  --   a “flat image” of the region, whereas for 'Shade'' it gives an “extrusion
+  --   pillar” pointing in the projection's orthogonal complement.
+  embedShade :: ( Object (Affine s) x, Object (Affine s) y
+                        , SimpleSpace (Needle x), SimpleSpace (Needle y) )
+                        => Embedding (Affine s) x y -> shade x -> shade y
 
 instance IsShade Shade where
   shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
@@ -249,6 +261,12 @@ instance IsShade Shade where
               DualSpaceWitness DualSpaceWitness
               f (Shade x δx)
                   = Shade (f $ x) (transformNorm (adjoint $ f) δx)
+  embedShade (Embedding q _) (Shade x e) = Shade y (transformVariance j e)
+   where y = q $ x
+         (_,j) = evalAffine q x
+  projectShade (Embedding _ q) (Shade x e) = Shade y (transformVariance j e)
+   where y = q $ x
+         (_,j) = evalAffine q x
 
 instance ImpliesMetric Shade where
   type MetricRequirement Shade x = (Manifold x, SimpleSpace (Needle x))
@@ -300,6 +318,13 @@ instance IsShade Shade' where
               DualSpaceWitness DualSpaceWitness
                f (Shade' x δx)
           = Shade' (f $ x) (transformNorm (pseudoInverse f) δx)
+  embedShade (Embedding q p) (Shade' x e) = Shade' y (transformNorm j e)
+   where y = q $ x
+         (_,j) = evalAffine p y
+  projectShade (Embedding p q) (Shade' x e) = Shade' y (transformNorm j e)
+   where y = q $ x
+         (_,j) = evalAffine p y
+
 
 shadeNarrowness :: Lens' (Shade' x) (Metric x)
 shadeNarrowness f (Shade' c e) = fmap (Shade' c) $ f e
