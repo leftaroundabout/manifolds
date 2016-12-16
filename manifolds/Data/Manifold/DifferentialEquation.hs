@@ -34,6 +34,7 @@
 module Data.Manifold.DifferentialEquation (
             -- * Formulating simple differential eqns.
               DifferentialEqn
+            , constLinearDEqn
             , constLinearODE
             , constLinearPDE
             , filterDEqnSolution_static, iterateFilterDEqn_static
@@ -82,6 +83,24 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 
+constLinearDEqn :: ∀ x y . ( SimpleSpace x
+                           , SimpleSpace y, AffineManifold y
+                           , Scalar x ~ ℝ, Scalar y ~ ℝ )
+              => (y +> (x +> y)) -> ((x +> y) +> y) -> DifferentialEqn x y
+constLinearDEqn = case ( linearManifoldWitness :: LinearManifoldWitness x
+                       , dualSpaceWitness :: DualSpaceWitness x
+                       , linearManifoldWitness :: LinearManifoldWitness y
+                       , dualSpaceWitness :: DualSpaceWitness y ) of
+   ( LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
+    ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt'inv bwt' ->
+        \(Shade (_x,y) δxy) -> LocalDifferentialEqn
+             (let j = bwt'inv $ y
+                  δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
+              in return $ Shade' j δj )
+             (\shjApriori shy -> mixShade's $ shy
+                                  :| [projectShade
+                                        (Embedding (arr bwt'inv)
+                                                   (arr bwt')) shjApriori])
 
 constLinearODE :: ∀ x y . ( SimpleSpace x, Scalar x ~ ℝ, SimpleSpace y, Scalar y ~ ℝ )
               => ((x +> y) +> y) -> DifferentialEqn x y
