@@ -50,6 +50,7 @@ Library
                      , linearmap-category > 0.3 && < 0.4
                      , containers
                      , comonad
+                     , free
                      , semigroups
                      , void
                      , tagged

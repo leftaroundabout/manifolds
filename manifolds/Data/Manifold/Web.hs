@@ -85,6 +85,7 @@ import Data.Manifold.TreeCover
 import Data.SetLike.Intersection
 import Data.Manifold.Riemannian
 import Data.Manifold.Atlas
+import Data.Embedding
     
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
@@ -108,6 +109,7 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 import Control.Comonad (Comonad(..))
+import Control.Comonad.Cofree
 import Control.Lens ((&), (%~), (^.), (.~), (+~))
 import Control.Lens.TH
 
@@ -685,6 +687,15 @@ dupHead :: NonEmpty a -> NonEmpty a
 dupHead (x:|xs) = x:|x:xs
 
 
+newtype InformationMergeStrategy n m y' y = InformationMergeStrategy
+    { mergeInformation :: y -> n y' -> m y }
+
+naïve :: (NonEmpty y -> y) -> InformationMergeStrategy [] Identity (x,y) y
+naïve merge = InformationMergeStrategy (\o n -> Identity . merge $ o :| fmap snd n)
+
+maybeAlt :: Hask.Alternative f => Maybe a -> f a
+maybeAlt (Just x) = pure x
+maybeAlt Nothing = Hask.empty
 
 data InconsistencyStrategy m x y where
     AbortOnInconsistency :: InconsistencyStrategy Maybe x y
@@ -695,14 +706,16 @@ deriving instance Hask.Functor (InconsistencyStrategy m x)
 
 iterateFilterDEqn_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                             , Refinable y, Geodesic (Interior y)
-                            , Hask.Applicative m )
-       => InconsistencyStrategy m x (Shade' y) -> DifferentialEqn x y
-                 -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
-iterateFilterDEqn_static strategy f
-                           = map (fmap convexSetHull)
-                           . itWhileJust strategy
-                                (filterDEqnSolutions_static (ellipsoid<$>strategy) f)
-                           . fmap (`ConvexSet`[])
+                            , Hask.MonadPlus m )
+       => InformationMergeStrategy [] m (x,Shade' y) iy
+           -> Embedding (->) (Shade' y) iy
+           -> DifferentialEqn x y
+                 -> PointsWeb x (Shade' y) -> Cofree m (PointsWeb x (Shade' y))
+iterateFilterDEqn_static strategy shading f
+                           = fmap (fmap (shading >-$))
+                           . unfold (id &&&
+                                filterDEqnSolutions_static strategy shading f)
+                           . fmap (shading $->)
 
 filterDEqnSolution_static :: ∀ x y m . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                                        , Refinable y, Geodesic (Interior y) )
@@ -729,40 +742,36 @@ filterDEqnSolution_static strat@AbortOnInconsistency f
                                   | (_, (δx, ngbInfo)) <- ngbs
                                   ] )
 
-filterDEqnSolutions_static :: ∀ x y m .
+filterDEqnSolutions_static :: ∀ x y iy m .
                               ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                               , Refinable y, Geodesic (Interior y)
-                              , Hask.Applicative m )
-       => InconsistencyStrategy m x (ConvexSet y) -> DifferentialEqn x y
-            -> PointsWeb x (ConvexSet y) -> m (PointsWeb x (ConvexSet y))
-filterDEqnSolutions_static strategy f
+                              , Hask.MonadPlus m )
+       => InformationMergeStrategy [] m  (x,Shade' y) iy -> Embedding (->) (Shade' y) iy
+          -> DifferentialEqn x y -> PointsWeb x iy -> m (PointsWeb x iy)
+filterDEqnSolutions_static strategy shading f
        = webLocalInfo
-           >>> fmap (id &&& rescanPDELocally f . fmap convexSetHull)
+           >>> fmap (id &&& rescanPDELocally f . fmap (shading>-$))
            >>> localFocusWeb >>> Hask.traverse `id`\((_,(me,updShy)), ngbs)
-          -> let oldValue = me^.thisNodeData :: ConvexSet y
+          -> let oldValue = me^.thisNodeData :: iy
              in  case updShy of
               Just shy -> case ngbs of
                   []  -> pure oldValue
                   _:_ | BoundarylessWitness <- (boundarylessWitness::BoundarylessWitness x)
-                    -> handleInconsistency strategy oldValue
-                          $ ( sequenceA $ NE.fromList
-                                  [ sj >>= \ngbShy ->
+                    -> maybeAlt
+                          ( sequenceA [ sj >>= \ngbShy -> (ngbInfo^.thisNodeCoord,)<$>
                                      propagateDEqnSolution_loc
                                        f (LocalDataPropPlan
                                              (ngbInfo^.thisNodeCoord)
                                              (negateV δx)
                                              ngbShy
                                              shy
-                                             (fmap (second (convexSetHull . _thisNodeData)
+                                             (fmap (second ((shading>-$) . _thisNodeData)
                                                     . snd) $ ngbInfo^.nodeNeighbours)
                                           )
                                   | (δx, (ngbInfo,sj)) <- ngbs
                                   ] )
-                            >>= intersectShade's
-                            >>= pure . ((oldValue<>) . ellipsoid)
-                            >>= \case EmptyConvex -> empty
-                                      c           -> pure c
-              _ -> handleInconsistency strategy oldValue empty
+                            >>= mergeInformation strategy oldValue
+              _ -> mergeInformation strategy oldValue empty
 
 handleInconsistency :: InconsistencyStrategy m x a -> a -> Maybe a -> m a
 handleInconsistency AbortOnInconsistency _ i = i
