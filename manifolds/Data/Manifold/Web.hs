@@ -53,8 +53,9 @@ module Data.Manifold.Web (
             , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- ** Configuration
             , InconsistencyStrategy(..)
+            , InformationMergeStrategy(..), naïve, inconsistencyAware
               -- * Misc
-            , ConvexSet(..), ellipsoid, coerceWebDomain
+            , ConvexSet(..), ellipsoid, ellipsoidSet, coerceWebDomain
             ) where
 
 
@@ -653,6 +654,10 @@ deriving instance ( WithField ℝ Manifold x, SimpleSpace (Needle x)
 ellipsoid :: Shade' x -> ConvexSet x
 ellipsoid s = ConvexSet s [s]
 
+ellipsoidSet :: Embedding (->) (Maybe (Shade' x)) (ConvexSet x)
+ellipsoidSet = Embedding (\case {Just s -> ConvexSet s [s]; Nothing -> EmptyConvex})
+                         (\case {ConvexSet h _ -> Just h; EmptyConvex -> Nothing})
+
 intersectors :: ConvexSet x -> Maybe (NonEmpty (Shade' x))
 intersectors (ConvexSet h []) = pure (h:|[])
 intersectors (ConvexSet _ (i:sts)) = pure (i:|sts)
@@ -693,6 +698,9 @@ newtype InformationMergeStrategy n m y' y = InformationMergeStrategy
 naïve :: (NonEmpty y -> y) -> InformationMergeStrategy [] Identity (x,y) y
 naïve merge = InformationMergeStrategy (\o n -> Identity . merge $ o :| fmap snd n)
 
+inconsistencyAware :: (NonEmpty y -> Maybe y) -> InformationMergeStrategy [] Maybe (x,y) y
+inconsistencyAware merge = InformationMergeStrategy (\o n -> merge $ o :| fmap snd n)
+
 maybeAlt :: Hask.Alternative f => Maybe a -> f a
 maybeAlt (Just x) = pure x
 maybeAlt Nothing = Hask.empty
@@ -713,8 +721,7 @@ iterateFilterDEqn_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                  -> PointsWeb x (Shade' y) -> Cofree m (PointsWeb x (Shade' y))
 iterateFilterDEqn_static strategy shading f
                            = fmap (fmap (shading >-$))
-                           . unfold (id &&&
-                                filterDEqnSolutions_static strategy shading f)
+                           . coiter (filterDEqnSolutions_static strategy shading f)
                            . fmap (shading $->)
 
 filterDEqnSolution_static :: ∀ x y m . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
