@@ -47,7 +47,7 @@ module Data.Manifold.TreeCover (
        , fullShade, fullShade', pointsShades, pointsShade's
        , pointsCovers, pointsCover's, coverAllAround
        -- ** Evaluation
-       , occlusion
+       , occlusion, prettyShowsPrecShade', prettyShowShade'
        -- ** Misc
        , factoriseShade, intersectShade's, linIsoTransformShade
        , embedShade, projectShade
@@ -383,6 +383,8 @@ fullShade ctr expa = Shade ctr expa
 fullShade' :: WithField ℝ PseudoAffine x => Interior x -> Metric x -> Shade' x
 fullShade' ctr expa = Shade' ctr expa
 
+
+infixl 6 :±, |±|
 
 -- | Span a 'Shade' from a center point and multiple deviation-vectors.
 #if GLASGOW_HASKELL < 800
@@ -1970,3 +1972,15 @@ extractJust f [] = (Nothing,[])
 extractJust f (x:xs) | Just r <- f x  = (Just r, xs)
                      | otherwise      = second (x:) $ extractJust f xs
 
+
+prettyShowsPrecShade' :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                         , Show (Interior x), Show (Needle x) )
+            => Int -> Shade' x -> ShowS
+prettyShowsPrecShade' p (Shade' x e) = showParen (p>6)
+                 $ showsPrec 6 x . ("|±|"++) . showsPrec 6 σs
+ where σs = normSpanningSystem' e
+                       
+prettyShowShade' :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
+                    , Show (Interior x), Show (Needle x) )
+            => Shade' x -> String
+prettyShowShade' sh = prettyShowsPrecShade' 0 sh []

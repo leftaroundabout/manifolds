@@ -53,7 +53,8 @@ module Data.Manifold.Web (
             , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- ** Configuration
             , InconsistencyStrategy(..)
-            , InformationMergeStrategy(..), naïve, inconsistencyAware
+            , InformationMergeStrategy(..)
+            , naïve, inconsistencyAware, indicateInconsistencies
               -- * Misc
             , ConvexSet(..), ellipsoid, ellipsoidSet, coerceWebDomain
             ) where
@@ -698,8 +699,19 @@ newtype InformationMergeStrategy n m y' y = InformationMergeStrategy
 naïve :: (NonEmpty y -> y) -> InformationMergeStrategy [] Identity (x,y) y
 naïve merge = InformationMergeStrategy (\o n -> Identity . merge $ o :| fmap snd n)
 
-inconsistencyAware :: (NonEmpty y -> Maybe y) -> InformationMergeStrategy [] Maybe (x,y) y
+inconsistencyAware :: (NonEmpty y -> m y) -> InformationMergeStrategy [] m (x,y) y
 inconsistencyAware merge = InformationMergeStrategy (\o n -> merge $ o :| fmap snd n)
+
+indicateInconsistencies :: Show x
+        => (υ -> String)
+         -> (NonEmpty υ -> Maybe υ)
+         -> InformationMergeStrategy [] (Either String) (x,υ) υ
+indicateInconsistencies showυ merge = InformationMergeStrategy
+           (\o n -> case merge $ o :| fmap snd n of
+               Just r  -> pure r
+               Nothing -> Left $ "Cannot propagate ["++intercalate ", "
+                                   [show x++"-> "++showυ υ | (x,υ)<-n]
+                                ++"] (a priori "++showυ o++")" )
 
 maybeAlt :: Hask.Alternative f => Maybe a -> f a
 maybeAlt (Just x) = pure x
