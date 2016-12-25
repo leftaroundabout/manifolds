@@ -143,7 +143,7 @@ class ( Semimanifold x, Semimanifold ξ, LSpace (Needle x), LSpace (Needle ξ)
                   => p (x,ξ) -> CanonicalDiffeomorphism (Interior x) (Interior ξ)
   interiorLocalCoercion _ = CanonicalDiffeomorphism
 
-type NumPrime = Num'
+type NumPrime n = (Num' n, Eq n)
 
 #define identityCoercion(c,t)                   \
 instance (c) => LocallyCoercible (t) (t) where { \
@@ -253,11 +253,11 @@ instance (c) => PseudoAffine (t) where {       \
 
 deriveAffine(KnownNat n, FreeVect n ℝ)
 
-instance (Num' s) => LocallyCoercible (ZeroDim s) (V0 s) where
+instance (NumPrime s) => LocallyCoercible (ZeroDim s) (V0 s) where
   locallyTrivialDiffeomorphism Origin = V0
   coerceNeedle _ = LinearFunction $ \Origin -> V0
   coerceNeedle' _ = LinearFunction $ \Origin -> V0
-instance (Num' s) => LocallyCoercible (V0 s) (ZeroDim s) where
+instance (NumPrime s) => LocallyCoercible (V0 s) (ZeroDim s) where
   locallyTrivialDiffeomorphism V0 = Origin
   coerceNeedle _ = LinearFunction $ \V0 -> Origin
   coerceNeedle' _ = LinearFunction $ \V0 -> Origin

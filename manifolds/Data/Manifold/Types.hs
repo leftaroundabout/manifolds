@@ -18,6 +18,7 @@
 {-# LANGUAGE FunctionalDependencies   #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE LiberalTypeSynonyms      #-}
+{-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE RankNTypes               #-}
 {-# LANGUAGE TupleSections            #-}
@@ -83,6 +84,7 @@ import Data.Manifold.Cone
 import Math.LinearMap.Category
 
 import qualified Prelude
+import qualified Data.Traversable as Hask
 
 import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Arrow.Constrained
@@ -105,6 +107,7 @@ instance (c) => PseudoAffine (t) where {        \
 
 
 newtype Stiefel1Needle v = Stiefel1Needle { getStiefel1Tangent :: UArr.Vector (Scalar v) }
+deriving instance (Eq (Scalar v), UArr.Unbox (Scalar v)) => Eq (Stiefel1Needle v)
 newtype Stiefel1Basis v = Stiefel1Basis { getStiefel1Basis :: Int }
 s1bTrie :: ∀ v b. FiniteFreeSpace v => (Stiefel1Basis v->b) -> Stiefel1Basis v:->:b
 s1bTrie = \f -> St1BTrie $ fmap (f . Stiefel1Basis) allIs
@@ -167,7 +170,7 @@ instance (FiniteFreeSpace v, UArr.Unbox (Scalar v)) => AffineSpace (Stiefel1Need
 
 deriveAffine((FiniteFreeSpace v, UArr.Unbox (Scalar v)), Stiefel1Needle v)
 
-instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
+instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar v))
               => TensorSpace (Stiefel1Needle v) where
   type TensorProduct (Stiefel1Needle v) w = Array w
   scalarSpaceWitness = case scalarSpaceWitness :: ScalarSpaceWitness v of
@@ -189,6 +192,7 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
   fzipTensorWith = bilinearFunction $ \f (Tensor a, Tensor b)
                      -> Tensor $ Arr.zipWith (curry $ arr f) a b
   coerceFmapTensorProduct _ Coercion = Coercion
+  wellDefinedTensor (Tensor a) = Tensor <$> Hask.traverse wellDefinedVector a
 
 asTensor :: Coercion (LinearMap s a b) (Tensor s (DualVector a) b)
 asTensor = Coercion
@@ -199,7 +203,7 @@ infixr 0 +$>
             => LinearMap s a b -> a -> b
 (+$>) = getLinearFunction . getLinearFunction applyLinear
   
-instance ∀ v . (LSpace v, FiniteFreeSpace v, UArr.Unbox (Scalar v))
+instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar v))
               => LinearSpace (Stiefel1Needle v) where
   type DualVector (Stiefel1Needle v) = Stiefel1Needle v
   linearId = LinearMap . Arr.generate d $ \i -> Stiefel1Needle . Arr.generate d $
