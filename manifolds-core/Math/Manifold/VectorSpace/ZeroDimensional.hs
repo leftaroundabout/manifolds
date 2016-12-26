@@ -20,7 +20,7 @@ import Data.Void
 
 
 
-data ZeroDim s = Origin
+data ZeroDim s = Origin deriving (Eq, Show)
 
 instance Monoid (ZeroDim s) where
   mempty = Origin
