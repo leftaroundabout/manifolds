@@ -42,3 +42,6 @@ instance HasBasis (ZeroDim s) where
   basisValue = absurd
   decompose Origin = []
   decompose' Origin = absurd
+instance (AdditiveGroup s) => InnerSpace (ZeroDim s) where
+  Origin <.> Origin = zeroV
+
