@@ -1190,9 +1190,14 @@ class (WithField ℝ PseudoAffine y, SimpleSpace (Needle y)) => Refinable y wher
 -- 
 -- <<images/examples/ShadeCombinations/2Dconvolution-skewed.png>>
   convolveMetric :: Hask.Functor p => p y -> Metric y -> Metric y -> Metric y
-  convolveMetric _ ey eδ = spanNorm [ f ^* ζ crl
-                                    | (f,crl) <- eδsp ]
+  convolveMetric _ ey eδ = case wellDefinedNorm result of
+          Just r  -> r
+          Nothing -> case debugView :: Maybe (DebugView y) of
+            Just DebugView -> error $ "Can not convolve norms "
+                               ++show (arr (applyNorm ey) :: Needle y+>Needle' y)
+                               ++" and "++show (arr (applyNorm eδ) :: Needle y+>Needle' y)
    where eδsp = sharedSeminormSpanningSystem ey eδ
+         result = spanNorm [ f ^* ζ crl | (f,crl) <- eδsp ]
          ζ = case filter (>0) . catMaybes $ snd<$>eδsp of
             [] -> const 0
             nzrelap
@@ -1322,9 +1327,10 @@ propagateDEqnSolution_loc f propPlan
                                      [δx | (δx,_) <- propPlan^.relatedData]
                expax = dualNorm expax'
                result :: Shade' y
-               result = convolveShade'
-                        (propPlan^.sourceData)
-                        (Shade' δyb $ applyLinMapNorm jExpa dx)
+               Just result = wellDefinedShade' $ convolveShade'
+                        (case wellDefinedShade' $ propPlan^.sourceData of {Just s->s})
+                        (case wellDefinedShade' $ Shade' δyb $ applyLinMapNorm jExpa dx
+                           of {Just s->s})
                 where δyb = j₀ $ δx
                δx = propPlan^.targetPosOffset
                dx = δx'^/(δx'<.>^δx)
@@ -2002,3 +2008,9 @@ prettyShowShade' :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                     , Show (Interior x), Show (Needle x) )
             => Shade' x -> String
 prettyShowShade' sh = prettyShowsPrecShade' 0 sh []
+
+
+
+wellDefinedShade' :: LinearSpace (Needle x) => Shade' x -> Maybe (Shade' x)
+wellDefinedShade' (Shade' c e) = Shade' c <$> wellDefinedNorm e
+
