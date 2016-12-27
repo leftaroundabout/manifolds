@@ -35,6 +35,7 @@
 {-# LANGUAGE LiberalTypeSynonyms        #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE TemplateHaskell            #-}
 
 
@@ -1029,10 +1030,19 @@ coerceShadeTree = case ( dualSpaceWitness :: DualNeedleWitness x
                                  (coerceNeedle' ([]::[(x,y)]) $)
                                  coerceShade
 
+data DebugView x where
+  DebugView :: ( Show x, Show (Needle x+>Needle' x), LinearShowable (Needle x)
+               , Needle' x ~ Needle x ) => DebugView x
 
 -- | Class of manifolds which can use 'Shade'' as a basic set type.
 --   This is easily possible for vector spaces with the default implementations.
 class (WithField ℝ PseudoAffine y, SimpleSpace (Needle y)) => Refinable y where
+  debugView :: Maybe (DebugView y)
+  default debugView :: ( Show y, Show (Needle y+>Needle' y)
+                       , Needle' y~Needle y, LinearShowable (Needle y) )
+                         => Maybe (DebugView y)
+  debugView = Just DebugView
+  
   -- | @a `subShade'` b ≡ True@ means @a@ is fully contained in @b@, i.e. from
   --   @'minusLogOcclusion'' a p < 1@ follows also @minusLogOcclusion' b p < 1@.
   subShade' :: Shade' y -> Shade' y -> Bool
@@ -1225,10 +1235,16 @@ instance Refinable ℝ where
 --                                   $ recip (sqrt wy) + recip (sqrt wδ) )
 --              (_ , _) -> Shade' y₀ zeroV
 
-instance ( Refinable a, Interior a ~ a, Refinable b, Interior b ~ b
-         , Scalar (DualVector (DualVector (Needle b)))
+instance ∀ a b . ( Refinable a, Interior a ~ a, Refinable b, Interior b ~ b
+                 , Scalar (DualVector (DualVector (Needle b)))
                       ~ Scalar (DualVector (DualVector (Needle a))) )
-    => Refinable (a,b)
+    => Refinable (a,b) where
+  debugView = case ( debugView :: Maybe (DebugView a)
+                   , debugView :: Maybe (DebugView b)
+                   , dualSpaceWitness :: DualSpaceWitness (Needle a)
+                   , dualSpaceWitness :: DualSpaceWitness (Needle b) ) of
+      (Just DebugView, Just DebugView, DualSpaceWitness, DualSpaceWitness)
+              -> Just DebugView
   
 instance Refinable ℝ⁰
 instance Refinable ℝ¹
@@ -1237,10 +1253,12 @@ instance Refinable ℝ³
 instance Refinable ℝ⁴
                             
 instance ( SimpleSpace a, SimpleSpace b
+         , Refinable a, Refinable b
          , Scalar a ~ ℝ, Scalar b ~ ℝ
          , Scalar (DualVector a) ~ ℝ, Scalar (DualVector b) ~ ℝ
          , Scalar (DualVector (DualVector a)) ~ ℝ, Scalar (DualVector (DualVector b)) ~ ℝ )
-            => Refinable (LinearMap ℝ a b)
+            => Refinable (LinearMap ℝ a b) where
+  debugView = Nothing
 
 intersectShade's :: ∀ y . Refinable y => NonEmpty (Shade' y) -> Maybe (Shade' y)
 intersectShade's (sh:|shs) = Hask.foldrM refineShade' sh shs
