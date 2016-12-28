@@ -57,6 +57,7 @@ module Data.Manifold.Web (
             , naïve, inconsistencyAware, indicateInconsistencies
               -- * Misc
             , ConvexSet(..), ellipsoid, ellipsoidSet, coerceWebDomain
+            , rescanPDEOnWeb, rescanPDELocally
             ) where
 
 
