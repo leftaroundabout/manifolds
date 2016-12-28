@@ -71,6 +71,7 @@ Library
   Exposed-modules:   Data.Manifold
                      Data.Manifold.PseudoAffine
                      Data.Manifold.TreeCover
+                     Data.Manifold.Shade
                      Data.Manifold.Web
                      Data.Manifold.DifferentialEquation
                      Data.SimplicialComplex
