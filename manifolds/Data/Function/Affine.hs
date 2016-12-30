@@ -33,6 +33,8 @@ module Data.Function.Affine (
               Affine(..)
             , evalAffine
             , fromOffsetSlope
+            -- * Misc
+            , lensEmbedding
             ) where
     
 
@@ -46,6 +48,7 @@ import Data.Tagged
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Atlas
+import Data.Embedding
 
 import qualified Prelude
 import qualified Control.Applicative as Hask
@@ -57,6 +60,8 @@ import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
 import Math.LinearMap.Category
+
+import Control.Lens
 
 
 
@@ -198,3 +203,19 @@ fromOffsetSlope = case ( linearManifoldWitness :: LinearManifoldWitness x
        -> \y0 ðx'y -> Affine . trie $ chartReferencePoint
                     >>> \x₀ -> let δy = ðx'y $ x₀
                                in (y0.+~^δy, ðx'y)
+
+
+instance EnhancedCat (Embedding (Affine s)) (Embedding (LinearMap s)) where
+  arr (Embedding e p) = Embedding (arr e) (arr p)
+
+
+lensEmbedding :: ∀ k s x c .
+                 ( Num' s
+                 , LinearSpace x, LinearSpace c, Object k x, Object k c
+                 , Scalar x ~ s, Scalar c ~ s
+                 , EnhancedCat k (LinearMap s) )
+                  => Lens' x c -> Embedding k c x
+lensEmbedding l = Embedding (arr $ (arr $ LinearFunction (\c -> zeroV & l .~ c)
+                                     :: LinearMap s c x) )
+                            (arr $ (arr $ LinearFunction (^.l)
+                                     :: LinearMap s x c) )
