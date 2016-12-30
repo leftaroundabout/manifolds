@@ -142,8 +142,8 @@ class IsShade shade where
   occlusion :: ( PseudoAffine x, SimpleSpace (Needle x)
                , s ~ (Scalar (Needle x)), RealFloat' s )
                 => shade x -> x -> s
-  factoriseShade :: ( Manifold x, SimpleSpace (Needle x)
-                    , Manifold y, SimpleSpace (Needle y)
+  factoriseShade :: ( PseudoAffine x, SimpleSpace (Needle x)
+                    , PseudoAffine y, SimpleSpace (Needle y)
                     , Scalar (Needle x) ~ Scalar (Needle y) )
                 => shade (x,y) -> (shade x, shade y)
   coerceShade :: (Manifold x, Manifold y, LocallyCoercible x y) => shade x -> shade y
@@ -176,8 +176,8 @@ instance IsShade Shade where
            _         -> zeroV
           where δinv = dualNorm δ
   factoriseShade = fs dualSpaceWitness dualSpaceWitness
-   where fs :: ∀ x y . ( Manifold x, SimpleSpace (Needle x)
-                       , Manifold y, SimpleSpace (Needle y)
+   where fs :: ∀ x y . ( PseudoAffine x, SimpleSpace (Needle x)
+                       , PseudoAffine y, SimpleSpace (Needle y)
                        , Scalar (Needle x) ~ Scalar (Needle y) )
                => DualNeedleWitness x -> DualNeedleWitness y
                        -> Shade (x,y) -> (Shade x, Shade y)
@@ -782,7 +782,7 @@ instance Refinable ℝ where
 --                                   $ recip (sqrt wy) + recip (sqrt wδ) )
 --              (_ , _) -> Shade' y₀ zeroV
 
-instance ∀ a b . ( Refinable a, Interior a ~ a, Refinable b, Interior b ~ b
+instance ∀ a b . ( Refinable a, Refinable b
                  , Scalar (DualVector (DualVector (Needle b)))
                       ~ Scalar (DualVector (DualVector (Needle a))) )
     => Refinable (a,b) where
