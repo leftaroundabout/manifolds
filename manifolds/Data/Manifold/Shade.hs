@@ -65,6 +65,7 @@ import Data.VectorSpace
 import Data.AffineSpace
 import Math.LinearMap.Category
 import Data.Tagged
+import Linear (_x,_y,_z,_w)
 
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^))
@@ -90,6 +91,7 @@ import Control.Monad.Constrained hiding (forM)
 
 import GHC.Generics (Generic)
 
+import Text.Show.Number
 
 
 -- | A 'Shade' is a very crude description of a region within a manifold. It
@@ -965,16 +967,7 @@ extractJust f (x:xs) | Just r <- f x  = (Just r, xs)
                      | otherwise      = second (x:) $ extractJust f xs
 
 
-prettyShowsPrecShade' :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                         , Show (Interior x), Show (Needle x) )
-            => Int -> Shade' x -> ShowS
-prettyShowsPrecShade' p (Shade' x e) = showParen (p>6)
-                 $ showsPrec 6 x . ("|±|"++) . showsPrec 6 σs
- where σs = normSpanningSystem' e
-                       
-prettyShowShade' :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                    , Show (Interior x), Show (Needle x) )
-            => Shade' x -> String
+prettyShowShade' :: LtdErrorShow x => Shade' x -> String
 prettyShowShade' sh = prettyShowsPrecShade' 0 sh []
 
 
@@ -982,3 +975,72 @@ prettyShowShade' sh = prettyShowsPrecShade' 0 sh []
 wellDefinedShade' :: LinearSpace (Needle x) => Shade' x -> Maybe (Shade' x)
 wellDefinedShade' (Shade' c e) = Shade' c <$> wellDefinedNorm e
 
+
+
+data LtdErrorShowWitness m where
+   LtdErrorShowWitness :: (LtdErrorShow (Interior m), LtdErrorShow (Needle m))
+                  => PseudoAffineWitness m -> LtdErrorShowWitness m
+
+class Refinable m => LtdErrorShow m where
+  ltdErrorShowWitness :: LtdErrorShowWitness m
+  default ltdErrorShowWitness :: (LtdErrorShow (Interior m), LtdErrorShow (Needle m))
+                         => LtdErrorShowWitness m
+  ltdErrorShowWitness = LtdErrorShowWitness pseudoAffineWitness
+  showsPrecShade'_errorLtdC :: Int -> Shade' m -> ShowS
+  prettyShowsPrecShade' :: Int -> Shade' m -> ShowS
+  prettyShowsPrecShade' p sh@(Shade' c e)
+              = showParen (p>6) $ v
+                   . ("|±|["++) . flip (foldr id) (intersperse (',':) u) . (']':)
+   where v = showsPrecShade'_errorLtdC 6 sh
+         u :: [ShowS] = case ltdErrorShowWitness :: LtdErrorShowWitness m of
+           LtdErrorShowWitness (PseudoAffineWitness (SemimanifoldWitness _)) ->
+             [ showsPrecShade'_errorLtdC 6 (Shade' δ e :: Shade' (Needle m))
+             | δ <- varianceSpanningSystem e']
+         e' = dualNorm e
+
+instance LtdErrorShow ℝ⁰ where
+  showsPrecShade'_errorLtdC _ _ = ("zeroV"++)
+instance LtdErrorShow ℝ where
+  showsPrecShade'_errorLtdC _ (Shade' v u) = errorLtdShow (δ/2) v
+   where δ = case u<$|1 of
+          σ | σ>0 -> sqrt $ 1/σ
+          _       -> v*10
+instance LtdErrorShow ℝ² where
+  showsPrecShade'_errorLtdC _ sh = ("V2 "++) . shshx . (' ':) . shshy
+   where shx = projectShade (lensEmbedding _x) sh
+         shy = projectShade (lensEmbedding _y) sh
+         shshx = showsPrecShade'_errorLtdC 0 shx 
+         shshy = showsPrecShade'_errorLtdC 0 shy 
+instance LtdErrorShow ℝ³ where
+  showsPrecShade'_errorLtdC _ sh = ("V3 "++) . shshx . (' ':) . shshy . (' ':) . shshz
+   where shx = projectShade (lensEmbedding _x) sh
+         shy = projectShade (lensEmbedding _y) sh
+         shz = projectShade (lensEmbedding _z) sh
+         shshx = showsPrecShade'_errorLtdC 0 shx 
+         shshy = showsPrecShade'_errorLtdC 0 shy 
+         shshz = showsPrecShade'_errorLtdC 0 shz 
+instance LtdErrorShow ℝ⁴ where
+  showsPrecShade'_errorLtdC _ sh
+           = ("V4 "++) . shshx . (' ':) . shshy . (' ':) . shshz . (' ':) . shshw
+   where shx = projectShade (lensEmbedding _x) sh
+         shy = projectShade (lensEmbedding _y) sh
+         shz = projectShade (lensEmbedding _z) sh
+         shw = projectShade (lensEmbedding _w) sh
+         shshx = showsPrecShade'_errorLtdC 0 shx 
+         shshy = showsPrecShade'_errorLtdC 0 shy 
+         shshz = showsPrecShade'_errorLtdC 0 shz 
+         shshw = showsPrecShade'_errorLtdC 0 shw 
+instance ∀ x y .
+         ( LtdErrorShow x, LtdErrorShow y
+         , Scalar (DualVector (Needle' x)) ~ Scalar (DualVector (Needle' y)) )
+              => LtdErrorShow (x,y) where
+  ltdErrorShowWitness = case ( ltdErrorShowWitness :: LtdErrorShowWitness x
+                             , ltdErrorShowWitness :: LtdErrorShowWitness y ) of
+   (  LtdErrorShowWitness(PseudoAffineWitness(SemimanifoldWitness BoundarylessWitness))
+    , LtdErrorShowWitness(PseudoAffineWitness(SemimanifoldWitness BoundarylessWitness)) )
+    ->LtdErrorShowWitness(PseudoAffineWitness(SemimanifoldWitness BoundarylessWitness))
+  showsPrecShade'_errorLtdC _ sh = ('(':) . shshx . (',':) . shshy . (')':)
+   where (shx,shy) = factoriseShade sh
+         shshx = showsPrecShade'_errorLtdC 0 shx 
+         shshy = showsPrecShade'_errorLtdC 0 shy 
+                       

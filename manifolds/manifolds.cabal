@@ -53,6 +53,7 @@ Library
                      , free
                      , semigroups
                      , void
+                     , number-show >= 0.1 && < 0.2
                      , tagged
                      , deepseq
                      , lens
