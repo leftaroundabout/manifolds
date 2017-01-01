@@ -48,7 +48,7 @@ module Data.Manifold.Web (
             , differentiateUncertainWebFunction
               -- * Differential equations
               -- ** Fixed resolution
-            , filterDEqnSolution_static, iterateFilterDEqn_static
+            , iterateFilterDEqn_static
               -- ** Automatic resolution
             , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- ** Configuration
@@ -737,30 +737,6 @@ iterateFilterDEqn_static strategy shading f
                            . coiter (filterDEqnSolutions_static strategy shading f)
                            . fmap (shading $->)
 
-filterDEqnSolution_static :: ∀ x y m . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                                       , Refinable y, Geodesic (Interior y) )
-       => InconsistencyStrategy m x (Shade' y) -> DifferentialEqn x y
-            -> PointsWeb x (Shade' y) -> m (PointsWeb x (Shade' y))
-filterDEqnSolution_static strat@AbortOnInconsistency f
-    = case boundarylessWitness :: BoundarylessWitness x of
-     BoundarylessWitness ->
-        rescanPDEOnWeb strat f >=> webLocalInfo
-           >>> Hask.traverse `id`\me -> case me^.nodeNeighbours of
-                  []   -> return $ me^.thisNodeData
-                  ngbs -> refineShade' (me^.thisNodeData)
-                            =<< intersectShade's
-                            =<< ( sequenceA $ NE.fromList
-                                  [ propagateDEqnSolution_loc
-                                       f (LocalDataPropPlan
-                                             (ngbInfo^.thisNodeCoord)
-                                             (negateV δx)
-                                             (ngbInfo^.thisNodeData)
-                                             (me^.thisNodeData)
-                                             (fmap (second _thisNodeData . snd)
-                                                       $ ngbInfo^.nodeNeighbours)
-                                          )
-                                  | (_, (δx, ngbInfo)) <- ngbs
-                                  ] )
 
 filterDEqnSolutions_static :: ∀ x y iy m .
                               ( WithField ℝ Manifold x, SimpleSpace (Needle x)
