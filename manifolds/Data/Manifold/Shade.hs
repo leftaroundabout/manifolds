@@ -76,7 +76,7 @@ import Data.Function.Affine
 
 import Data.Embedding
 
-import Control.Lens (Lens', (^.))
+import Control.Lens (Lens', (^.), view, _1, _2, mapping, (&))
 import Control.Lens.TH
 
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
@@ -114,21 +114,23 @@ data Shade' x = Shade' { _shade'Ctr :: !(Interior x)
 deriving instance (Show (Interior x), Show (Metric x), WithField ℝ PseudoAffine x)
                 => Show (Shade' x)
 
-data LocalDifferentialEqn x y = LocalDifferentialEqn {
-      _predictDerivatives :: Maybe (Shade' (LocalLinear x y))
-    , _rescanDerivatives :: Shade' (LocalLinear x y) -> Shade' y -> Maybe (Shade' y)
+data LocalDifferentialEqn x ð y = LocalDifferentialEqn {
+      _predictDerivatives :: Shade' ð -> Maybe (Shade' (LocalLinear x y))
+    , _rescanDerivatives :: Shade' (LocalLinear x y)
+                             -> Shade' y -> (Maybe (Shade' y), Maybe (Shade' ð))
     }
 makeLenses ''LocalDifferentialEqn
 
-type DifferentialEqn x y = Shade (x,y) -> LocalDifferentialEqn x y
+type DifferentialEqn x ð y = Shade (x,y) -> LocalDifferentialEqn x ð y
 
-data LocalDataPropPlan x y = LocalDataPropPlan
+data LocalDataPropPlan x ym yr = LocalDataPropPlan
        { _sourcePosition :: !(Interior x)
        , _targetPosOffset :: !(Needle x)
-       , _sourceData, _targetAPrioriData :: !y
-       , _relatedData :: [(Needle x, y)]
+       , _sourceData, _targetAPrioriData :: !ym
+       , _relatedData :: [(Needle x, yr)]
        }
-deriving instance (Show (Interior x), Show y, Show (Needle x)) => Show (LocalDataPropPlan x y)
+deriving instance (Show (Interior x), Show ym, Show yr, Show (Needle x))
+             => Show (LocalDataPropPlan x ym yr)
 
 makeLenses ''LocalDataPropPlan
 
@@ -838,11 +840,11 @@ estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
 
 
 
-propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x
-                                     , Refinable y, Geodesic (Interior y)
-                                     , SimpleSpace (Needle x) )
-           => DifferentialEqn x y
-               -> LocalDataPropPlan x (Shade' y)
+propagateDEqnSolution_loc :: ∀ x y ð . ( WithField ℝ Manifold x
+                                       , Refinable y, Geodesic (Interior y)
+                                       , SimpleSpace (Needle x) )
+           => DifferentialEqn x ð y
+               -> LocalDataPropPlan x (Shade' y, Shade' ð) (Shade' y)
                -> Maybe (Shade' y)
 propagateDEqnSolution_loc f propPlan
                   = pdesl (dualSpaceWitness :: DualNeedleWitness x)
@@ -853,26 +855,28 @@ propagateDEqnSolution_loc f propPlan
              (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
           | Nothing <- jacobian  = Nothing
           | otherwise            = pure result
-         where jacobian = f shxy ^. predictDerivatives
+         where jacobian = f shxy ^. predictDerivatives $ shð
                Just (Shade' j₀ jExpa) = jacobian
 
-               mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2
-               Just my = middleBetween (propPlan^.sourceData.shadeCtr)
-                                       (propPlan^.targetAPrioriData.shadeCtr)
-               shxy = coverAllAround (mx, my)
-                                     [ (δx ^-^ propPlan^.targetPosOffset ^/ 2, py ^+^ v)
-                                     | (δx,ney) <- (zeroV, propPlan^.sourceData)
-                                                  : (propPlan^.relatedData)
-                                     , let Just py = ney^.shadeCtr .-~. my
-                                     , v <- normSpanningSystem' (ney^.shadeNarrowness)
+               mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2 :: x
+               shð = propPlan^.sourceData._2
+               shxy = coverAllAround (mx, mυ)
+                                     [ (δx ^-^ propPlan^.targetPosOffset ^/ 2, pυ ^+^ v)
+                                     | (δx,neυ) <- (zeroV, propPlan^.sourceData._1)
+                                                  : (second id
+                                                      <$> propPlan^.relatedData)
+                                     , let Just pυ = neυ^.shadeCtr .-~. mυ
+                                     , v <- normSpanningSystem' (neυ^.shadeNarrowness)
                                      ]
+                where Just mυ = middleBetween (propPlan^.sourceData._1.shadeCtr)
+                                              (propPlan^.targetAPrioriData._1.shadeCtr)
                (Shade _ expax' :: Shade x)
                     = coverAllAround (propPlan^.sourcePosition)
                                      [δx | (δx,_) <- propPlan^.relatedData]
                expax = dualNorm expax'
                result :: Shade' y
                Just result = wellDefinedShade' $ convolveShade'
-                        (case wellDefinedShade' $ propPlan^.sourceData of {Just s->s})
+                        (case wellDefinedShade' $ propPlan^.sourceData._1 of {Just s->s})
                         (case wellDefinedShade' $ Shade' δyb $ applyLinMapNorm jExpa dx
                            of {Just s->s})
                 where δyb = j₀ $ δx
