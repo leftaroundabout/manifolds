@@ -38,7 +38,7 @@ module Data.Manifold.Shade (
        , fullShade, fullShade', pointsShades, pointsShade's
        , pointsCovers, pointsCover's, coverAllAround
        -- ** Evaluation
-       , occlusion, prettyShowsPrecShade', prettyShowShade'
+       , occlusion, prettyShowsPrecShade', prettyShowShade', LtdErrorShow
        -- ** Misc
        , factoriseShade, intersectShade's, linIsoTransformShade
        , embedShade, projectShade
@@ -111,8 +111,6 @@ deriving instance (Show (Interior x), Show (Metric' x), WithField ℝ PseudoAffi
 --   It does OTOH need to have nonzero thickness, which 'Shade' needs not.
 data Shade' x = Shade' { _shade'Ctr :: !(Interior x)
                        , _shade'Narrowness :: !(Metric x) }
-deriving instance (Show (Interior x), Show (Metric x), WithField ℝ PseudoAffine x)
-                => Show (Shade' x)
 
 data LocalDifferentialEqn x ð y = LocalDifferentialEqn {
       _predictDerivatives :: Shade' ð -> Maybe (Shade' (LocalLinear x y))
@@ -1048,3 +1046,5 @@ instance ∀ x y .
          shshx = showsPrecShade'_errorLtdC 0 shx 
          shshy = showsPrecShade'_errorLtdC 0 shy 
                        
+instance LtdErrorShow x => Show (Shade' x) where
+  showsPrec = prettyShowsPrecShade'
