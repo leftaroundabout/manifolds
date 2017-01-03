@@ -33,7 +33,7 @@
 
 module Data.Manifold.DifferentialEquation (
             -- * Formulating simple differential eqns.
-              DifferentialEqn
+              DifferentialEqn, ODE
             , constLinearDEqn
             , constLinearODE
             , constLinearPDE
@@ -83,6 +83,15 @@ import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
 
+-- | An ordinary differential equation is one that does not need any a-priori
+--   partial derivatives to compute the derivative for integration in some
+--   propagation direction. Classically, ODEs are usually understood as
+--   @DifferentialEquation ℝ ℝ⁰ y@, but actually @x@ can at least
+--   be an arbitrary one-dimensional space (i.e. basically real intervals or 'S¹').
+--   In these cases, there is always only one partial derivative: that which we
+--   integrate over, in the only possible direction for propagation.
+type ODE x y = DifferentialEqn x ℝ⁰ y
+
 constLinearDEqn :: ∀ x y ð . ( SimpleSpace x
                              , SimpleSpace y, AffineManifold y
                              , SimpleSpace ð, AffineManifold ð
@@ -119,7 +128,7 @@ constLinearDEqn = case ( linearManifoldWitness :: LinearManifoldWitness x
          }
 
 constLinearODE :: ∀ x y . ( SimpleSpace x, Scalar x ~ ℝ, SimpleSpace y, Scalar y ~ ℝ )
-              => ((x +> y) +> y) -> DifferentialEqn x ℝ⁰ y
+              => ((x +> y) +> y) -> ODE x y
 constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
                       , dualSpaceWitness :: DualSpaceWitness x
                       , linearManifoldWitness :: LinearManifoldWitness y
