@@ -55,6 +55,7 @@ module Data.Manifold.Web (
             , InconsistencyStrategy(..)
             , InformationMergeStrategy(..)
             , naïve, inconsistencyAware, indicateInconsistencies
+            , PropagationInconsistency(..)
               -- * Misc
             , ConvexSet(..), ellipsoid, ellipsoidSet, coerceWebDomain
             , rescanPDEOnWeb, rescanPDELocally
@@ -84,6 +85,7 @@ import Data.Fixed (mod')
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
+import Data.Manifold.Shade
 import Data.Manifold.TreeCover
 import Data.SetLike.Intersection
 import Data.Manifold.Riemannian
@@ -97,6 +99,7 @@ import Control.Monad.ST (runST)
 import Data.STRef (newSTRef, modifySTRef, readSTRef)
 import Control.Monad.Trans.State
 import Control.Monad.Trans.List
+import Control.Monad.Trans.Except
 import Data.Functor.Identity (Identity(..))
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, toList)
@@ -151,6 +154,17 @@ data NeighbourhoodVector x = NeighbourhoodVector
           }
 makeLenses ''NeighbourhoodVector
 
+data PropagationInconsistency x υ = PropagationInconsistency {
+      _inconsistentPropagatedData :: [(x,υ)]
+    , _inconsistentAPrioriData :: υ }
+  | PropagationInconsistencies [PropagationInconsistency x υ]
+ deriving (Show)
+makeLenses ''PropagationInconsistency
+
+instance Monoid (PropagationInconsistency x υ) where
+  mempty = PropagationInconsistencies []
+  mappend p q = mconcat [p,q]
+  mconcat = PropagationInconsistencies
 
 instance (NFData x, NFData (Metric x)) => NFData (Neighbourhood x)
 
@@ -702,16 +716,12 @@ naïve merge = InformationMergeStrategy (\o n -> Identity . merge $ o :| fmap sn
 inconsistencyAware :: (NonEmpty y -> m y) -> InformationMergeStrategy [] m (x,y) y
 inconsistencyAware merge = InformationMergeStrategy (\o n -> merge $ o :| fmap snd n)
 
-indicateInconsistencies :: Show x
-        => (υ -> String)
-         -> (NonEmpty υ -> Maybe υ)
-         -> InformationMergeStrategy [] (Either String) (x,υ) υ
-indicateInconsistencies showυ merge = InformationMergeStrategy
+indicateInconsistencies :: (NonEmpty υ -> Maybe υ)
+         -> InformationMergeStrategy [] (Except (PropagationInconsistency x υ)) (x,υ) υ
+indicateInconsistencies merge = InformationMergeStrategy
            (\o n -> case merge $ o :| fmap snd n of
                Just r  -> pure r
-               Nothing -> Left $ "Cannot propagate ["++intercalate ", "
-                                   [show x++"-> "++showυ υ | (x,υ)<-n]
-                                ++"] (a priori "++showυ o++")" )
+               Nothing -> throwE $ PropagationInconsistency n o )
 
 maybeAlt :: Hask.Alternative f => Maybe a -> f a
 maybeAlt (Just x) = pure x
