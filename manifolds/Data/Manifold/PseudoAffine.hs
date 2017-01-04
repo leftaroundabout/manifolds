@@ -104,6 +104,8 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained
 
+import Control.Lens (Lens', lens, (^.), (&), (%~), (.~))
+
 import GHC.Exts (Constraint)
 
 
@@ -178,6 +180,17 @@ type LocallyScalable s x = ( PseudoAffine x
                            , Num' s )
 
 type LocalLinear x y = LinearMap (Scalar (Needle x)) (Needle x) (Needle y)
+
+
+infixr 7 /∂
+(/∂) :: ∀ x y s v . ( Num' s, LinearSpace x, LinearSpace y, LinearSpace v
+                    , s ~ Scalar x, s ~ Scalar y, s ~ Scalar v )
+       => Lens' y v -> Lens' x s -> Lens' (LinearMap s x y) v
+𝑣/∂𝑡 = lens (\m -> (m $ zeroV & 𝑡.~1)^.𝑣)
+            (\m -> let met = m $ zeroV & 𝑡.~1
+                   in \v -> (m . arr (LinearFunction $ 𝑡.~0))
+                            ^+^ arr (LinearFunction $ \x -> met & 𝑣 .~ v^*(x^.𝑡)) )
+
 type LocalAffine x y = (Needle y, LocalLinear x y)
 
 -- | Require some constraint on a manifold, and also fix the type of the manifold's
