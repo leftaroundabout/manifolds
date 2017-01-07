@@ -557,17 +557,19 @@ rangeOnGeodesic = case ( semimanifoldWitness :: SemimanifoldWitness i
                        , dualSpaceWitness :: DualNeedleWitness i
                        , dualSpaceWitness :: DualNeedleWitness m ) of
  (SemimanifoldWitness _, DualSpaceWitness, DualSpaceWitness) ->
-  \p₀ p₁ -> (`fmap`(geodesicBetween p₀ p₁))
-    $ \interp -> \(Shade t₀ et)
-                -> case pointsShades
+  \p₀ p₁ -> geodesicBetween p₀ p₁ >>=
+      \interp -> case pointsShades =<<
+                       [ mapMaybe (toInterior . interp . D¹) [-(1-ε), 1-ε]
+                       | ε <- [0.0001, 0.001, 0.01, 0.1] ] of
+                      defaultSh:_ -> Just $
+                       \(Shade t₀ et) -> case pointsShades
                          . mapMaybe (toInterior
                                . interp . (toClosedInterval :: i -> D¹))
                          $ fromInterior <$> t₀ : [ t₀+^v
                                                  | v<-normSpanningSystem et ] of
-             [sh] -> sh
-             _ -> case pointsShades $ mapMaybe (toInterior . interp . D¹)
-                        [-0.999, 0.999] of
-                [sh] -> sh
+                       [sh] -> sh
+                       _ -> defaultSh
+                      _ -> Nothing
  where Tagged (+^) = translateP :: Tagged i (Interior i->Needle i->Interior i)
 
 
