@@ -149,6 +149,10 @@ class IsShade shade where
                     , Scalar (Needle x) ~ Scalar (Needle y) )
                 => shade (x,y) -> (shade x, shade y)
   coerceShade :: (Manifold x, Manifold y, LocallyCoercible x y) => shade x -> shade y
+  orthoShades :: ( PseudoAffine x, SimpleSpace (Needle x)
+           , PseudoAffine y, SimpleSpace (Needle y)
+           , Scalar (Needle x) ~ Scalar (Needle y) )
+                => shade x -> shade y -> shade (x,y)
   linIsoTransformShade :: ( SimpleSpace x, SimpleSpace y, Scalar x ~ Scalar y
                           , Num' (Scalar x) )
                           => (x+>y) -> shade x -> shade y
@@ -190,6 +194,14 @@ instance IsShade Shade where
          fs DualSpaceWitness DualSpaceWitness (Shade (x₀,y₀) δxy)
                    = (Shade x₀ δx, Shade y₀ δy)
           where (δx,δy) = summandSpaceNorms δxy
+  orthoShades = fs dualSpaceWitness dualSpaceWitness
+   where fs :: ∀ x y . ( PseudoAffine x, SimpleSpace (Needle x)
+                       , PseudoAffine y, SimpleSpace (Needle y)
+                       , Scalar (Needle x) ~ Scalar (Needle y) )
+               => DualNeedleWitness x -> DualNeedleWitness y
+                       -> Shade x -> Shade y ->  Shade (x,y)
+         fs DualSpaceWitness DualSpaceWitness (Shade x δx) (Shade y δy)
+             = Shade (x,y) $ sumSubspaceNorms δx δy
   coerceShade = cS dualSpaceWitness dualSpaceWitness
    where cS :: ∀ x y . (LocallyCoercible x y)
                 => DualNeedleWitness x -> DualNeedleWitness y -> Shade x -> Shade y
@@ -263,6 +275,7 @@ instance IsShade Shade' where
            _         -> zeroV
   factoriseShade (Shade' (x₀,y₀) δxy) = (Shade' x₀ δx, Shade' y₀ δy)
    where (δx,δy) = summandSpaceNorms δxy
+  orthoShades (Shade' x δx) (Shade' y δy) = Shade' (x,y) $ sumSubspaceNorms δx δy
   coerceShade = cS
    where cS :: ∀ x y . (LocallyCoercible x y) => Shade' x -> Shade' y
          cS = \(Shade' x δxym) -> Shade' (internCoerce x) (tN δxym)
