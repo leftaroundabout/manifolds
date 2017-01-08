@@ -68,7 +68,7 @@ module Data.Manifold.PseudoAffine (
             , WithField
             , LocallyScalable
             -- ** Local functions
-            , LocalLinear, LocalAffine
+            , LocalLinear, LocalAffine, (∂), (/∂)
             -- * Misc
             , alerpB, palerp, palerpB, LocallyCoercible(..), CanonicalDiffeomorphism(..)
             , ImpliesMetric(..), coerceMetric, coerceMetric'
