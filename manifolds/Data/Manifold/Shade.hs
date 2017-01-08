@@ -50,7 +50,7 @@ module Data.Manifold.Shade (
        , estimateLocalJacobian
        , DifferentialEqn, LocalDifferentialEqn(..)
        , propagateDEqnSolution_loc, LocalDataPropPlan(..)
-       , rangeOnGeodesic
+       , rangeOnGeodesic, rangeWithinVertices
     ) where
 
 
@@ -604,6 +604,30 @@ rangeOnGeodesic = case ( semimanifoldWitness :: SemimanifoldWitness i
                       _ -> Nothing
  where Tagged (+^) = translateP :: Tagged i (Interior i->Needle i->Interior i)
 
+
+rangeWithinVertices :: ∀ s i m t
+        . ( RealFrac' s
+          , WithField s PseudoAffine i, WithField s PseudoAffine m
+          , SimpleSpace (Needle i), SimpleSpace (Needle m)
+          , AffineManifold (Interior i), AffineManifold (Interior m)
+          , Object (Affine s) (Interior i), Object (Affine s) (Interior m)
+          , Hask.Traversable t )
+          => (i,m) -> t (i,m) -> Maybe (Shade i -> Shade m)
+rangeWithinVertices
+      = case ( semimanifoldWitness :: SemimanifoldWitness i
+             , semimanifoldWitness :: SemimanifoldWitness m ) of
+  (SemimanifoldWitness BoundarylessWitness, SemimanifoldWitness BoundarylessWitness)
+      -> \(ci,cm) verts -> case
+             ( toInterior ci, toInterior cm
+             , sequenceA [ fzip (pi.-~.ci, pm.-~.cm)
+                         | (pi, pm) <- Hask.toList verts ] ) of
+          (Just cii, Just cmi, Just vs)
+            | Just affinSys <- (correspondingDirections (cii,cmi) vs
+                                 :: Maybe (Embedding (Affine (Scalar (Needle i)))
+                                                     (Interior i) (Interior m)))
+            -> Just $ embedShade affinSys
+          _ -> Nothing
+          
 
 
 

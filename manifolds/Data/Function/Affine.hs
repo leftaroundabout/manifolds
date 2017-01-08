@@ -34,7 +34,7 @@ module Data.Function.Affine (
             , evalAffine
             , fromOffsetSlope
             -- * Misc
-            , lensEmbedding
+            , lensEmbedding, correspondingDirections
             ) where
     
 
@@ -52,6 +52,7 @@ import Data.Embedding
 
 import qualified Prelude
 import qualified Control.Applicative as Hask
+import Data.Functor (($>))
 
 import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Category.Constrained.Reified
@@ -219,3 +220,34 @@ lensEmbedding l = Embedding (arr $ (arr $ LinearFunction (\c -> zeroV & l .~ c)
                                      :: LinearMap s c x) )
                             (arr $ (arr $ LinearFunction (^.l)
                                      :: LinearMap s x c) )
+
+
+correspondingDirections :: ∀ s x c t
+                        . ( WithField s AffineManifold c
+                          , WithField s AffineManifold x
+                          , SemiInner (Needle c), SemiInner (Needle x)
+                          , RealFrac' s
+                          , Traversable t )
+              => (Interior c, Interior x)
+                  -> t (Needle c, Needle x) -> Maybe (Embedding (Affine s) c x)
+correspondingDirections (c₀, x₀) dirMap
+   = freeEmbeddings $> Embedding (Affine . trie $ c2x boundarylessWitness)
+                                 (Affine . trie $ x2c boundarylessWitness)
+ where freeEmbeddings = fzip ( embedFreeSubspace $ fst<$>dirMap
+                             , embedFreeSubspace $ snd<$>dirMap )
+       c2t :: Lens' (Needle c) (t s)
+       c2t = case freeEmbeddings of Just (Lens ct, _) -> ct
+       x2t :: Lens' (Needle x) (t s)
+       x2t = case freeEmbeddings of Just (_, Lens xt) -> xt
+       c2x :: BoundarylessWitness c -> ChartIndex c
+                            -> (x, LinearMap s (Needle c) (Needle x))
+       c2x BoundarylessWitness ιc
+              = ( x₀ .+~^ (zeroV & x2t .~ δc^.c2t)
+                , arr . LinearFunction $ \dc -> zeroV & x2t .~ dc^.c2t )
+        where Just δc = chartReferencePoint ιc .-~. c₀
+       x2c :: BoundarylessWitness x -> ChartIndex x
+                            -> (c, LinearMap s (Needle x) (Needle c))
+       x2c BoundarylessWitness ιx
+              = ( c₀ .+~^ (zeroV & c2t .~ δx^.x2t)
+                , arr . LinearFunction $ \dx -> zeroV & c2t .~ dx^.x2t )
+        where Just δx = chartReferencePoint ιx .-~. x₀
