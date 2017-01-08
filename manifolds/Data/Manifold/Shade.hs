@@ -153,16 +153,20 @@ class IsShade shade where
                           , Num' (Scalar x) )
                           => (x+>y) -> shade x -> shade y
   -- | Squash a shade down into a lower dimensional space.
-  projectShade :: ( Object (Affine s) x, Object (Affine s) y
-                        , SimpleSpace (Needle x), SimpleSpace (Needle y) )
-                        => Embedding (Affine s) x y -> shade y -> shade x
+  projectShade :: ( Semimanifold x, Semimanifold y
+                  , Object (Affine s) (Interior x), Object (Affine s) (Interior y)
+                  , SemiInner (Needle x), SemiInner (Needle y) )
+                        => Embedding (Affine s) (Interior x) (Interior y)
+                              -> shade y -> shade x
   -- | Include a shade in a higher-dimensional space. Notice that this behaves
   --   fundamentally different for 'Shade' and 'Shade''. For 'Shade', it gives
   --   a “flat image” of the region, whereas for 'Shade'' it gives an “extrusion
   --   pillar” pointing in the projection's orthogonal complement.
-  embedShade :: ( Object (Affine s) x, Object (Affine s) y
-                        , SimpleSpace (Needle x), SimpleSpace (Needle y) )
-                        => Embedding (Affine s) x y -> shade x -> shade y
+  embedShade :: ( Semimanifold x, Semimanifold y
+                , Object (Affine s) (Interior x), Object (Affine s) (Interior y)
+                , SemiInner (Needle x), SemiInner (Needle y) )
+                        => Embedding (Affine s) (Interior x) (Interior y)
+                              -> shade x -> shade y
 
 instance IsShade Shade where
   shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
@@ -208,12 +212,26 @@ instance IsShade Shade where
               DualSpaceWitness DualSpaceWitness
               f (Shade x δx)
                   = Shade (f $ x) (transformNorm (adjoint $ f) δx)
-  embedShade (Embedding q _) (Shade x e) = Shade y (transformVariance j e)
-   where y = q $ x
-         (_,j) = evalAffine q x
-  projectShade (Embedding _ q) (Shade x e) = Shade y (transformVariance j e)
-   where y = q $ x
-         (_,j) = evalAffine q x
+  embedShade = ps' (semimanifoldWitness, semimanifoldWitness)
+   where ps' :: ∀ s x y . ( Object (Affine s) (Interior x), Object (Affine s) (Interior y)
+                          , SemiInner (Needle x), SemiInner (Needle y) )
+                        => (SemimanifoldWitness x, SemimanifoldWitness y)
+               -> Embedding (Affine s) (Interior x) (Interior y)
+                              -> Shade x -> Shade y
+         ps' (SemimanifoldWitness _, SemimanifoldWitness _)
+              (Embedding q _) (Shade x e) = Shade y (transformVariance j e)
+          where y = q $ x
+                (_,j) = evalAffine q x
+  projectShade = ps' (semimanifoldWitness, semimanifoldWitness)
+   where ps' :: ∀ s x y . ( Object (Affine s) (Interior x), Object (Affine s) (Interior y)
+                          , SemiInner (Needle x), SemiInner (Needle y) )
+                        => (SemimanifoldWitness x, SemimanifoldWitness y)
+               -> Embedding (Affine s) (Interior x) (Interior y)
+                              -> Shade y -> Shade x
+         ps' (SemimanifoldWitness _, SemimanifoldWitness _)
+              (Embedding _ q) (Shade x e) = Shade y (transformVariance j e)
+          where y = q $ x
+                (_,j) = evalAffine q x
 
 instance ImpliesMetric Shade where
   type MetricRequirement Shade x = (Manifold x, SimpleSpace (Needle x))
@@ -265,12 +283,26 @@ instance IsShade Shade' where
               DualSpaceWitness DualSpaceWitness
                f (Shade' x δx)
           = Shade' (f $ x) (transformNorm (pseudoInverse f) δx)
-  embedShade (Embedding q p) (Shade' x e) = Shade' y (transformNorm j e)
-   where y = q $ x
-         (_,j) = evalAffine p y
-  projectShade (Embedding p q) (Shade' x e) = Shade' y (transformNorm j e)
-   where y = q $ x
-         (_,j) = evalAffine p y
+  embedShade = ps (semimanifoldWitness, semimanifoldWitness)
+   where ps :: ∀ s x y . ( Object (Affine s) (Interior x), Object (Affine s) (Interior y)
+                         , SemiInner (Needle x), SemiInner (Needle y) )
+                        => (SemimanifoldWitness x, SemimanifoldWitness y)
+               -> Embedding (Affine s) (Interior x) (Interior y)
+                              -> Shade' x -> Shade' y
+         ps (SemimanifoldWitness _, SemimanifoldWitness _)
+             (Embedding q p) (Shade' x e) = Shade' y (transformNorm j e)
+          where y = q $ x
+                (_,j) = evalAffine p y
+  projectShade = ps (semimanifoldWitness, semimanifoldWitness)
+   where ps :: ∀ s x y . ( Object (Affine s) (Interior x), Object (Affine s) (Interior y)
+                         , SemiInner (Needle x), SemiInner (Needle y) )
+                        => (SemimanifoldWitness x, SemimanifoldWitness y)
+               -> Embedding (Affine s) (Interior x) (Interior y)
+                              -> Shade' y -> Shade' x
+         ps (SemimanifoldWitness _, SemimanifoldWitness _)
+             (Embedding p q) (Shade' x e) = Shade' y (transformNorm j e)
+          where y = q $ x
+                (_,j) = evalAffine p y
 
 
 shadeNarrowness :: Lens' (Shade' x) (Metric x)
@@ -1011,25 +1043,25 @@ instance LtdErrorShow ℝ where
           _       -> v*10
 instance LtdErrorShow ℝ² where
   showsPrecShade'_errorLtdC _ sh = ("V2 "++) . shshx . (' ':) . shshy
-   where shx = projectShade (lensEmbedding _x) sh
-         shy = projectShade (lensEmbedding _y) sh
+   where shx = projectShade (lensEmbedding _x) sh :: Shade' ℝ
+         shy = projectShade (lensEmbedding _y) sh :: Shade' ℝ
          shshx = showsPrecShade'_errorLtdC 0 shx 
          shshy = showsPrecShade'_errorLtdC 0 shy 
 instance LtdErrorShow ℝ³ where
   showsPrecShade'_errorLtdC _ sh = ("V3 "++) . shshx . (' ':) . shshy . (' ':) . shshz
-   where shx = projectShade (lensEmbedding _x) sh
-         shy = projectShade (lensEmbedding _y) sh
-         shz = projectShade (lensEmbedding _z) sh
+   where shx = projectShade (lensEmbedding _x) sh :: Shade' ℝ
+         shy = projectShade (lensEmbedding _y) sh :: Shade' ℝ
+         shz = projectShade (lensEmbedding _z) sh :: Shade' ℝ
          shshx = showsPrecShade'_errorLtdC 0 shx 
          shshy = showsPrecShade'_errorLtdC 0 shy 
          shshz = showsPrecShade'_errorLtdC 0 shz 
 instance LtdErrorShow ℝ⁴ where
   showsPrecShade'_errorLtdC _ sh
            = ("V4 "++) . shshx . (' ':) . shshy . (' ':) . shshz . (' ':) . shshw
-   where shx = projectShade (lensEmbedding _x) sh
-         shy = projectShade (lensEmbedding _y) sh
-         shz = projectShade (lensEmbedding _z) sh
-         shw = projectShade (lensEmbedding _w) sh
+   where shx = projectShade (lensEmbedding _x) sh :: Shade' ℝ
+         shy = projectShade (lensEmbedding _y) sh :: Shade' ℝ
+         shz = projectShade (lensEmbedding _z) sh :: Shade' ℝ
+         shw = projectShade (lensEmbedding _w) sh :: Shade' ℝ
          shshx = showsPrecShade'_errorLtdC 0 shx 
          shshy = showsPrecShade'_errorLtdC 0 shy 
          shshz = showsPrecShade'_errorLtdC 0 shz 
