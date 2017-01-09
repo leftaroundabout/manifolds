@@ -217,6 +217,15 @@ deriveAffineGD (ℝ²)
 deriveAffineGD (ℝ³)
 deriveAffineGD (ℝ⁴)
 
+instance (TensorSpace v, Scalar v ~ ℝ, TensorSpace w, Scalar w ~ ℝ)
+             => Geodesic (Tensor ℝ v w) where
+  geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹
+instance (LinearSpace v, Scalar v ~ ℝ, TensorSpace w, Scalar w ~ ℝ)
+             => Geodesic (LinearMap ℝ v w) where
+  geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹
+instance (TensorSpace v, Scalar v ~ ℝ, TensorSpace w, Scalar w ~ ℝ)
+             => Geodesic (LinearFunction ℝ v w) where
+  geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹
 
 
 -- | One-dimensional manifolds, whose closure is homeomorpic to the unit interval.
