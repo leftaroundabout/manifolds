@@ -43,7 +43,7 @@ module Data.Manifold.Shade (
        , factoriseShade, orthoShades, (✠), intersectShade's, linIsoTransformShade
        , embedShade, projectShade
        , Refinable, subShade', refineShade', convolveShade', coerceShade
-       , mixShade's
+       , mixShade's, dualShade
        -- * Misc
        , shadesMerge, pointsShades', pseudoECM, convolveMetric
        , WithAny(..), shadeWithAny, shadeWithoutAnything
@@ -255,6 +255,12 @@ instance IsShade Shade where
               (Embedding _ q) (Shade x e) = Shade y (transformVariance j e)
           where y = q $ x
                 (_,j) = evalAffine q x
+
+
+dualShade :: ∀ x . (PseudoAffine x, SimpleSpace (Needle x))
+                => Shade x -> Shade' x
+dualShade = case dualSpaceWitness :: DualSpaceWitness (Needle x) of
+    DualSpaceWitness -> \(Shade c e) -> Shade' c $ dualNorm e
 
 instance ImpliesMetric Shade where
   type MetricRequirement Shade x = (Manifold x, SimpleSpace (Needle x))
