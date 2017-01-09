@@ -40,7 +40,7 @@ module Data.Manifold.Shade (
        -- ** Evaluation
        , occlusion, prettyShowsPrecShade', prettyShowShade', LtdErrorShow
        -- ** Misc
-       , factoriseShade, intersectShade's, linIsoTransformShade
+       , factoriseShade, orthoShades, (✠), intersectShade's, linIsoTransformShade
        , embedShade, projectShade
        , Refinable, subShade', refineShade', convolveShade', coerceShade
        , mixShade's
@@ -149,6 +149,7 @@ class IsShade shade where
                     , Scalar (Needle x) ~ Scalar (Needle y) )
                 => shade (x,y) -> (shade x, shade y)
   coerceShade :: (Manifold x, Manifold y, LocallyCoercible x y) => shade x -> shade y
+  -- | ASCII version of '✠'.
   orthoShades :: ( PseudoAffine x, SimpleSpace (Needle x)
            , PseudoAffine y, SimpleSpace (Needle y)
            , Scalar (Needle x) ~ Scalar (Needle y) )
@@ -171,6 +172,16 @@ class IsShade shade where
                 , SemiInner (Needle x), SemiInner (Needle y) )
                         => Embedding (Affine s) (Interior x) (Interior y)
                               -> shade x -> shade y
+  
+
+infixl 5 ✠
+-- | Combine two shades on independent subspaces to a shade with the same
+--   properties on the subspaces (see 'factoriseShade') and no covariance.
+(✠) :: ( IsShade shade, PseudoAffine x, SimpleSpace (Needle x)
+       , PseudoAffine y, SimpleSpace (Needle y)
+       , Scalar (Needle x) ~ Scalar (Needle y) )
+                => shade x -> shade y -> shade (x,y)
+(✠) = orthoShades
 
 instance IsShade Shade where
   shadeCtr f (Shade c e) = fmap (`Shade`e) $ f c
