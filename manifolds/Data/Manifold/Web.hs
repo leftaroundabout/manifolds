@@ -776,7 +776,7 @@ filterDEqnSolutions_static strategy shading f
                                           )
                                   | (δx, (ngbInfo,sj)) <- ngbs
                                   ] )
-                            >>= mergeInformation strategy oldValue
+                            >>= mergeInformation strategy (shading$->shy)
               _ -> mergeInformation strategy oldValue empty
         )
 
