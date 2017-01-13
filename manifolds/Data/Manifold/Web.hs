@@ -736,6 +736,8 @@ deriving instance Hask.Functor (InconsistencyStrategy m x)
 
 iterateFilterDEqn_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                             , Refinable y, Geodesic (Interior y)
+                            , WithField ℝ AffineManifold ð, Geodesic ð
+                            , SimpleSpace (Needle ð)
                             , Hask.MonadPlus m )
        => InformationMergeStrategy [] m (x,Shade' y) iy
            -> Embedding (->) (Shade' y) iy
@@ -750,6 +752,8 @@ iterateFilterDEqn_static strategy shading f
 filterDEqnSolutions_static :: ∀ x y iy ð m .
                               ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                               , Refinable y, Geodesic (Interior y)
+                              , WithField ℝ AffineManifold ð, Geodesic ð
+                              , SimpleSpace (Needle ð)
                               , Hask.MonadPlus m )
        => InformationMergeStrategy [] m  (x,Shade' y) iy -> Embedding (->) (Shade' y) iy
           -> DifferentialEqn x ð y -> PointsWeb x iy -> m (PointsWeb x iy)
@@ -810,6 +814,7 @@ oldAndNew' (_, l) = (False,) <$> l
 filterDEqnSolutions_adaptive :: ∀ x y ð badness m
         . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
           , WithField ℝ AffineManifold y, Refinable y, Geodesic y
+          , WithField ℝ AffineManifold ð, Geodesic ð, SimpleSpace (Needle ð)
           , badness ~ ℝ, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m x (Shade' y)
@@ -999,7 +1004,8 @@ recomputeJacobian = webLocalInfo
 
 iterateFilterDEqn_adaptive
      :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-        , WithField ℝ AffineManifold y, Refinable y, Geodesic y, Hask.Monad m )
+        , WithField ℝ AffineManifold y, Refinable y, Geodesic y, Hask.Monad m
+        , WithField ℝ AffineManifold ð, Geodesic ð, SimpleSpace (Needle ð) )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m x (Shade' y)
        -> DifferentialEqn x ð y

@@ -930,7 +930,8 @@ estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
 
 propagateDEqnSolution_loc :: ∀ x y ð . ( WithField ℝ Manifold x
                                        , Refinable y, Geodesic (Interior y)
-                                       , SimpleSpace (Needle x) )
+                                       , WithField ℝ AffineManifold ð, Geodesic ð
+                                       , SimpleSpace (Needle x), SimpleSpace (Needle ð) )
            => DifferentialEqn x ð y
                -> LocalDataPropPlan x (Shade' y, Shade' ð) (Shade' y)
                -> Maybe (Shade' y)
@@ -947,7 +948,8 @@ propagateDEqnSolution_loc f propPlan
                Just (Shade' j₀ jExpa) = jacobian
 
                mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2 :: x
-               shð = propPlan^.sourceData._2
+               Just shð = middleBetween (propPlan^.sourceData._2)
+                                        (propPlan^.targetAPrioriData._2)
                shxy = coverAllAround (mx, mυ)
                                      [ (δx ^-^ propPlan^.targetPosOffset ^/ 2, pυ ^+^ v)
                                      | (δx,neυ) <- (zeroV, propPlan^.sourceData._1)
