@@ -89,6 +89,7 @@ Library
                    Data.Manifold.Cone
                    Data.CoNat
                    Data.Embedding
+                   Data.Manifold.Function.Quadratic
                    Data.Function.Differentiable.Data
                    Control.Monad.Trans.OuterMaybe
                    Util.Associate
