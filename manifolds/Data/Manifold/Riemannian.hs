@@ -48,6 +48,8 @@ module Data.Manifold.Riemannian  where
 
 
 import Data.Maybe
+import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as Arr
 
 import Data.VectorSpace
@@ -262,3 +264,13 @@ instance Riemannian ℝ where
 
 middleBetween :: Geodesic m => m -> m -> Maybe m
 middleBetween p₀ p₁ = ($ D¹ 0) <$> geodesicBetween p₀ p₁
+
+
+pointsBarycenter :: Geodesic m => NonEmpty m -> Maybe m
+pointsBarycenter (p:|[]) = Just p
+pointsBarycenter ps = case ( pointsBarycenter (NE.fromList group₀)
+                           , pointsBarycenter (NE.fromList group₁) ) of
+            (Just bc₀, Just bc₁) -> middleBetween bc₀ bc₁
+            _                    -> Nothing
+ where psl = Hask.toList ps
+       (group₀, group₁) = splitAt (length psl`quot`2) psl
