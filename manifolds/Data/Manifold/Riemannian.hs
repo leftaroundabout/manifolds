@@ -94,6 +94,9 @@ class Semimanifold x => Geodesic x where
   geodesicWitness :: GeodesicWitness x
   default geodesicWitness :: Geodesic (Interior x) => GeodesicWitness x
   geodesicWitness = GeodesicWitness semimanifoldWitness
+  middleBetween :: x -> x -> Maybe x
+  middleBetween p₀ p₁ = ($ D¹ 0) <$> geodesicBetween p₀ p₁
+
 
 interpolate :: (Geodesic x, IntervalLike i) => x -> x -> Maybe (i -> x)
 interpolate a b = (. toClosedInterval) <$> geodesicBetween a b
@@ -103,19 +106,22 @@ interpolate a b = (. toClosedInterval) <$> geodesicBetween a b
 
 #define deriveAffineGD(x)                                         \
 instance Geodesic x where {                                        \
-  geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹ \
+  geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹; \
+  middleBetween a b = return $ alerp a b (1/2) \
  }
 
 deriveAffineGD (ℝ)
 
 instance Geodesic (ZeroDim s) where
   geodesicBetween Origin Origin = return $ \_ -> Origin
+  middleBetween Origin Origin = return Origin
 
 instance ∀ a b . (Geodesic a, Geodesic b) => Geodesic (a,b) where
   geodesicBetween (a,b) (α,β) = liftA2 (&&&) (geodesicBetween a α) (geodesicBetween b β)
   geodesicWitness = case ( geodesicWitness :: GeodesicWitness a
                          , geodesicWitness :: GeodesicWitness b ) of
      (GeodesicWitness _, GeodesicWitness _) -> GeodesicWitness semimanifoldWitness
+  middleBetween (a,b) (α,β) = fzip (middleBetween a α, middleBetween b β)
 
 instance ∀ a b c . (Geodesic a, Geodesic b, Geodesic c) => Geodesic (a,b,c) where
   geodesicBetween (a,b,c) (α,β,γ)
@@ -145,6 +151,10 @@ instance ∀ v . ( Geodesic v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
                 l = magnitude $ p^-^q
                 ϑ = asin $ l/2
                 g = sqrt $ 4/l^2 - 1
+  middleBetween = gb dualSpaceWitness
+   where gb :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (Stiefel1 v)
+         gb DualSpaceWitness  (Stiefel1 p) (Stiefel1 q)
+             = Stiefel1 <$> middleBetween (normalized p) (normalized q)
 
 
 instance Geodesic S⁰ where
@@ -159,6 +169,10 @@ instance Geodesic S¹ where
                         <$> geodesicBetween (pi-φ) (-ϕ-pi)
     | otherwise       = (>>> S¹ . \ψ -> signum ψ*pi - ψ)
                         <$> geodesicBetween (-pi-φ) (pi-ϕ)
+  middleBetween (S¹ φ) (S¹ ϕ)
+    | abs (φ-ϕ) < pi  = S¹ <$> middleBetween φ ϕ
+    | φ > 0           = S¹ <$> middleBetween (pi-φ) (-ϕ-pi)
+    | otherwise       = S¹ <$> middleBetween (-pi-φ) (pi-ϕ)
 
 
 -- instance Geodesic (Cℝay S⁰) where
@@ -261,9 +275,6 @@ instance Riemannian ℝ where
 
 
 
-
-middleBetween :: Geodesic m => m -> m -> Maybe m
-middleBetween p₀ p₁ = ($ D¹ 0) <$> geodesicBetween p₀ p₁
 
 
 pointsBarycenter :: Geodesic m => NonEmpty m -> Maybe m
