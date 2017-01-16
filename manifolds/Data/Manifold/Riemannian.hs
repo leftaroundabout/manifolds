@@ -281,7 +281,13 @@ pointsBarycenter :: Geodesic m => NonEmpty m -> Maybe m
 pointsBarycenter (p:|[]) = Just p
 pointsBarycenter ps = case ( pointsBarycenter (NE.fromList group₀)
                            , pointsBarycenter (NE.fromList group₁) ) of
-            (Just bc₀, Just bc₁) -> middleBetween bc₀ bc₁
-            _                    -> Nothing
+            (Just bc₀, Just bc₁)
+                | δn == 0      -> middleBetween bc₀ bc₁
+                | otherwise    -> ($ D¹ (fromIntegral δn/fromIntegral ntot))
+                                    <$> geodesicBetween bc₀ bc₁
+            _                  -> Nothing
  where psl = Hask.toList ps
-       (group₀, group₁) = splitAt (length psl`quot`2) psl
+       (group₀, group₁) = splitAt nl psl
+       ntot = length psl
+       nl = ntot`quot`2
+       δn = ntot  - nl*2
