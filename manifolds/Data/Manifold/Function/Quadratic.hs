@@ -24,6 +24,7 @@ module Data.Manifold.Function.Quadratic (
 
 
 import Data.Semigroup
+import qualified Data.List.NonEmpty as NE
 
 import Data.MemoTrie
 import Data.VectorSpace
@@ -31,6 +32,7 @@ import Data.AffineSpace
 import Data.Tagged
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Atlas
+import Data.Manifold.Riemannian
 import Data.Function.Affine
 
 import Prelude                       hiding (id, ($), fmap, fst)
@@ -38,7 +40,6 @@ import Control.Category.Constrained.Prelude (id, ($), fmap, fst)
 import Control.Arrow.Constrained ((>>>), (&&&), (***), second)
 
 import Math.LinearMap.Category
-
 
 
 
@@ -118,4 +119,25 @@ evalQuadratic = ea (boundarylessWitness, boundarylessWitness)
               chIx = lookupAtlas x
               (fx₀, (ðx'f₀, ð²x'f)) = untrie f chIx
 
+quadratic_linearRegression :: ∀ s x y .
+                      ( WithField s AffineManifold x, Geodesic x
+                      , WithField s AffineManifold y, Geodesic y
+                      , SimpleSpace (Needle x), SimpleSpace (Needle y) )
+            => Metric y -> NE.NonEmpty (x,y) -> Quadratic s x y
+quadratic_linearRegression nm = qlr
+                  (dualSpaceWitness, boundarylessWitness, dualSpaceWitness)
+ where qlr :: ( DualSpaceWitness (Needle x)
+              , BoundarylessWitness y, DualSpaceWitness (Needle y))
+                   -> NE.NonEmpty (x,y) -> Quadratic s x y
+       qlr (DualSpaceWitness, BoundarylessWitness, DualSpaceWitness) ps = Quadratic . trie $
+         \cix -> let cmx = chartReferencePoint cix
+                     Just cmy = pointsBarycenter $ snd<$>ps
+                     Just vsxy = mapM (\(x,y) -> (,) <$> x.-~.cmx <*> y.-~.cmy) ps
+                     ((a,b),c) :: (( SymmetricTensor s (Needle x)+>(Needle y)
+                                   , Needle x+>Needle y ), Needle y)
+                               = linearRegressionW nm
+                                  (\δx -> lfun $ \((a,b),c) -> (a$squareV δx)
+                                                             ^+^ (b$δx) ^+^ c )
+                                  (NE.toList vsxy)
+                 in (cmy.+~^c, (b, a))
 
