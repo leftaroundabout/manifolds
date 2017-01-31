@@ -43,14 +43,15 @@ import Math.LinearMap.Category
 
 
 data Quadratic s d c where
-    Quadratic :: (ChartIndex d :->: (c, LinearMap s (Needle d)
-                                          (Needle c, LinearMap s (Needle d) (Needle c)))
+    Quadratic :: (ChartIndex d :->: ( c, ( LinearMap s (Needle d) (Needle c)
+                                         , LinearMap s (SymmetricTensor s (Needle d))
+                                                     (Needle c) ) )
                  )  -> Quadratic s d c
 
 affineQuadratic :: (WithField s AffineManifold d, WithField s AffineManifold c)
         => Affine s d c -> Quadratic s d c
 affineQuadratic (Affine f) = Quadratic . trie
-                  $ untrie f >>> second (getLinearFunction . fmap $ id &&& zeroV)
+                  $ untrie f >>> second (id &&& const zeroV)
 
 instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
          , Manifold y, Scalar (Needle y) ~ s )
@@ -101,18 +102,20 @@ instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Need
              untrie f >>> (μ*^)***(μ*^)
 
 evalQuadratic :: ∀ s x y . ( Manifold x, Atlas x, HasTrie (ChartIndex x)
-                        , Manifold y
-                        , s ~ Scalar (Needle x), s ~ Scalar (Needle y) )
-               => Quadratic s x y -> x -> (y, LinearMap s (Needle x) (Needle y))
+                           , Manifold y
+                           , s ~ Scalar (Needle x), s ~ Scalar (Needle y) )
+               => Quadratic s x y -> x
+                    -> (y, ( LinearMap s (Needle x) (Needle y)
+                           , LinearMap s (SymmetricTensor s (Needle x)) (Needle y) ))
 evalQuadratic = ea (boundarylessWitness, boundarylessWitness)
  where ea :: (BoundarylessWitness x, BoundarylessWitness y)
-             -> Quadratic s x y -> x -> (y, LinearMap s (Needle x) (Needle y))
+             -> Quadratic s x y -> x -> (y, ( LinearMap s (Needle x) (Needle y)
+                                            , LinearMap s (SymmetricTensor s (Needle x)) (Needle y) ))
        ea (BoundarylessWitness, BoundarylessWitness)
-          (Quadratic f) x = ( fx₀.+~^(fx₀¹^+^(ð²x'f $ v))
-                            , getLinearFunction (fmap fst) $ ðx'f )
+          (Quadratic f) x = ( fx₀.+~^(ðx'f₀ $ v).+~^(ð²x'f $ squareV v)
+                            , ( ðx'f₀^+^(currySymBilin ð²x'f $ v), ð²x'f ) )
         where Just v = x .-~. chartReferencePoint chIx
               chIx = lookupAtlas x
-              (fx₀, ðx'f) = untrie f chIx
-              (fx₀¹, ð²x'f) = ðx'f $ v
+              (fx₀, (ðx'f₀, ð²x'f)) = untrie f chIx
 
 
