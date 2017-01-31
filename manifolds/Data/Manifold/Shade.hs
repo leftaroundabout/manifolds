@@ -73,6 +73,7 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.Riemannian
 import Data.Manifold.Atlas
 import Data.Function.Affine
+import Data.Manifold.Function.Quadratic
 
 import Data.Embedding
 
@@ -926,6 +927,53 @@ estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
                              <*> sequenceA [estimateLocalJacobian mex [po,pi] | pi<-ps]
        elj _ _ _ = return $ Shade' zeroV mempty
 
+
+
+data QuadraticModel x y = QuadraticModel {
+         _quadraticModelOffset :: Interior y
+       , _quadraticModel :: Quadratic (Scalar (Needle x)) (Needle x) (Needle y)
+       , _quadraticModelDeviations :: Metric y
+       }
+
+estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
+                                , AffineManifold (Needle x), AffineManifold (Needle y)
+                                , Geodesic (Needle x), Geodesic (Needle y)
+                                , SimpleSpace (Needle x), SimpleSpace (Needle y) )
+            => NonEmpty (Local x, Shade' y) -> QuadraticModel x y
+estimateLocalHessian pts = elj ( pseudoAffineWitness :: PseudoAffineWitness x
+                               , pseudoAffineWitness :: PseudoAffineWitness y )
+ where elj ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+           , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
+         = QuadraticModel bcy theModel (dualNorm' theDev)
+        where localPts :: NonEmpty (Needle x, Shade' (Needle y))
+              localPts = pts >>= \(Local x, Shade' y ey)
+                             -> case y.-~.bcy of
+                                 Just vy -> pure (x, Shade' vy ey)
+              modelDeviations :: [(Needle x, Needle y)]
+              modelDeviations = NE.toList localPts >>= \(vx, Shade' vy ey)
+                             -> let (ym, _) = evalQuadratic theModel vx
+                                in [ (vx, ym^-^vy^+^σ*^δy)
+                                   | δy <- normSpanningSystem' ey
+                                   , σ <- [-1, 1] ]
+              theModel = quadratic_linearRegression mey $ second _shade'Ctr<$>localPts
+              Shade _ theDev = coverAllAround zeroV $ snd <$> modelDeviations
+                                 :: Shade (Needle y)
+              bcy :: Interior y
+              -- bcy = pointsBarycenter $ _shade'Ctr . snd <$> pts
+              mey :: Metric y
+              [Shade' bcy mey] = pointsShade's $ _shade'Ctr . snd <$> NE.toList pts
+                                   :: [Shade' y]
+
+evalQuadraticModel :: ∀ x y . ( PseudoAffine x, AffineManifold (Needle x)
+                              , PseudoAffine y, SimpleSpace (Needle y)
+                              , Scalar (Needle x) ~ Scalar (Needle y) )
+          => QuadraticModel x y -> Needle x -> Shade' y
+evalQuadraticModel = case ( pseudoAffineWitness :: PseudoAffineWitness x
+                          , pseudoAffineWitness :: PseudoAffineWitness y ) of
+   ( PseudoAffineWitness (SemimanifoldWitness _)
+    ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
+       -> \(QuadraticModel oy m ey) vx
+        -> case evalQuadratic m vx of (vy,_) -> Shade' (oy.+~^vy) ey
 
 
 propagateDEqnSolution_loc :: ∀ x y ð . ( WithField ℝ Manifold x

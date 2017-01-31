@@ -18,7 +18,7 @@
 
 
 module Data.Manifold.Function.Quadratic (
-              Quadratic(..)
+              Quadratic(..), evalQuadratic, quadratic_linearRegression
             ) where
 
 
