@@ -45,7 +45,7 @@ module Data.Manifold.Web (
               -- ** Local environments
             , localFocusWeb
               -- * Uncertain functions
-            , differentiateUncertainWebFunction
+            , differentiateUncertainWebFunction, differentiate²UncertainWebFunction
               -- * Differential equations
               -- ** Fixed resolution
             , iterateFilterDEqn_static
@@ -90,6 +90,7 @@ import Data.Manifold.TreeCover
 import Data.SetLike.Intersection
 import Data.Manifold.Riemannian
 import Data.Manifold.Atlas
+import Data.Manifold.Function.Quadratic
 import Data.Embedding
     
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
@@ -614,6 +615,33 @@ differentiateUncertainWebFunction :: ∀ x y
             => PointsWeb x (Shade' y)
              -> PointsWeb x (Shade' (LocalLinear x y))
 differentiateUncertainWebFunction = localFmapWeb differentiateUncertainWebLocally
+
+differentiate²UncertainWebLocally :: ∀ x y
+   . ( WithField ℝ Manifold x, FlatSpace (Needle x)
+     , WithField ℝ Refinable y, FlatSpace (Needle y) )
+            => WebLocally x (Shade' y)
+             -> Shade' (Needle x ⊗〃+> Needle y)
+differentiate²UncertainWebLocally = d²uwl
+                ( pseudoAffineWitness :: PseudoAffineWitness x
+                , pseudoAffineWitness :: PseudoAffineWitness y )
+ where d²uwl ( PseudoAffineWitness (SemimanifoldWitness _)
+             , PseudoAffineWitness (SemimanifoldWitness _) ) info
+          = case estimateLocalHessian $
+                          (\(δx,ngb) -> ( Local δx :: Local x, ngb^.thisNodeData ))
+                          <$> (zeroV, info)
+                                      :| (snd<$>info^.nodeNeighbours)
+                          of
+               QuadraticModel _ h e -> Shade' ((snd . snd) (evalQuadratic h zeroV))
+                                         (transformNorm (lfun $ ($ xVol)) e)
+        where xVol :: SymmetricTensor ℝ (Needle x)
+              xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
+
+differentiate²UncertainWebFunction :: ∀ x y
+   . ( WithField ℝ Manifold x, FlatSpace (Needle x)
+     , WithField ℝ Refinable y, FlatSpace (Needle y) )
+         => PointsWeb x (Shade' y)
+          -> PointsWeb x (Shade' (Needle x ⊗〃+> Needle y)) 
+differentiate²UncertainWebFunction = localFmapWeb differentiate²UncertainWebLocally
 
 rescanPDELocally :: ∀ x y ð .
      ( WithField ℝ Manifold x, SimpleSpace (Needle x)

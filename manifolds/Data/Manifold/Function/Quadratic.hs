@@ -114,7 +114,7 @@ evalQuadratic = ea (boundarylessWitness, boundarylessWitness)
                                             , LinearMap s (SymmetricTensor s (Needle x)) (Needle y) ))
        ea (BoundarylessWitness, BoundarylessWitness)
           (Quadratic f) x = ( fx₀.+~^(ðx'f₀ $ v).+~^(ð²x'f $ squareV v)
-                            , ( ðx'f₀ ^+^ 2*^(currySymBilin ð²x'f $ v)
+                            , ( ðx'f₀ ^+^ 2*^((currySymBilin $ ð²x'f) $ v)
                               , ð²x'f
                               ) )
         where Just v = x .-~. chartReferencePoint chIx

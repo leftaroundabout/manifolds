@@ -62,6 +62,7 @@ import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty, embed, coEmbed)
 import Data.Manifold.Types.Stiefel
 import Data.Manifold.PseudoAffine
+import Data.Manifold.Atlas (AffineManifold)
     
 import Data.CoNat
 
@@ -291,3 +292,6 @@ pointsBarycenter ps = case ( pointsBarycenter (NE.fromList group₀)
        ntot = length psl
        nl = ntot`quot`2
        δn = ntot  - nl*2
+
+
+type FlatSpace x = (AffineManifold x, Geodesic x, SimpleSpace x)

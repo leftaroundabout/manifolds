@@ -45,11 +45,15 @@ module Data.Manifold.Shade (
        , Refinable, subShade', refineShade', convolveShade', coerceShade
        , mixShade's, dualShade
        -- * Misc
+       -- ** Shades
        , shadesMerge, pointsShades', pseudoECM, convolveMetric
        , WithAny(..), shadeWithAny, shadeWithoutAnything
-       , estimateLocalJacobian
+       -- ** Local data fit models
+       , estimateLocalJacobian, estimateLocalHessian, QuadraticModel(..)
+       -- ** Differential equations
        , DifferentialEqn, LocalDifferentialEqn(..)
        , propagateDEqnSolution_loc, LocalDataPropPlan(..)
+       -- ** Range interpolation
        , rangeOnGeodesic, rangeWithinVertices
     ) where
 
@@ -936,9 +940,7 @@ data QuadraticModel x y = QuadraticModel {
        }
 
 estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
-                                , AffineManifold (Needle x), AffineManifold (Needle y)
-                                , Geodesic (Needle x), Geodesic (Needle y)
-                                , SimpleSpace (Needle x), SimpleSpace (Needle y) )
+                                , FlatSpace (Needle x), FlatSpace (Needle y) )
             => NonEmpty (Local x, Shade' y) -> QuadraticModel x y
 estimateLocalHessian pts = elj ( pseudoAffineWitness :: PseudoAffineWitness x
                                , pseudoAffineWitness :: PseudoAffineWitness y )
