@@ -631,7 +631,7 @@ differentiate²UncertainWebLocally = d²uwl
                           <$> (zeroV, info)
                                       :| (snd<$>info^.nodeNeighbours)
                           of
-               QuadraticModel _ h e -> Shade' ((snd . snd) (evalQuadratic h zeroV))
+               QuadraticModel _ h e -> Shade' (((^*2) . snd . snd) (evalQuadratic h zeroV))
                                          (transformNorm (lfun $ ($ xVol)) e)
         where xVol :: SymmetricTensor ℝ (Needle x)
               xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
