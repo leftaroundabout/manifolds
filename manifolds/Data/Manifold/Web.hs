@@ -645,14 +645,18 @@ differentiate²UncertainWebLocally = d²uwl
  where d²uwl ( PseudoAffineWitness (SemimanifoldWitness _)
              , PseudoAffineWitness (SemimanifoldWitness _) ) info
           = case estimateLocalHessian $
-                          (\(δx,ngb) -> ( Local δx :: Local x, ngb^.thisNodeData ))
-                          <$> (zeroV, info)
-                                      :| (snd<$>info^.nodeNeighbours)
+                          (\ngb -> case (ngb^.thisNodeCoord .-~. info^.thisNodeCoord) of
+                             Just δx -> (Local δx :: Local x, ngb^.thisNodeData) )
+                          <$> info :| envi
                           of
                QuadraticModel _ h e -> Shade' (((^*2) . snd . snd) (evalQuadratic h zeroV))
                                          (transformNorm (lfun $ ($ xVol)) e)
         where xVol :: SymmetricTensor ℝ (Needle x)
               xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
+              _:directEnvi:remoteEnvi = localOnion info
+              envi = directEnvi ++ take (nMinData - length directEnvi) (concat remoteEnvi)
+       nMinData = 1 + d + d*(d+1)`div`2
+        where d = subbasisDimension (entireBasis :: SubBasis (Needle x))
 
 differentiate²UncertainWebFunction :: ∀ x y
    . ( WithField ℝ Manifold x, FlatSpace (Needle x)
