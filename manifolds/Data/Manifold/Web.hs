@@ -557,8 +557,10 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
 localOnion :: ∀ x y . WithField ℝ Manifold x
             => WebLocally x y -> [[WebLocally x y]]
 localOnion origin = go Map.empty $ Map.singleton (origin^.thisNodeId) (1, origin)
- where go previous next = ( snd . snd <$> sortBy (comparing $ negate . fst)
-                                                 (Map.toList next) )
+ where go previous next
+        | Map.null next = []
+        | otherwise  = ( snd <$> sortBy (comparing $ negate . fst)
+                                                 (Hask.toList next) )
                      : go (Map.union previous next)
                           (Map.fromListWith (\(n,ninfo) (n',_) -> (n+n'::Int, ninfo))
                                 [ (nnid,(1,nneigh))
