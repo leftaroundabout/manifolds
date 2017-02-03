@@ -58,13 +58,14 @@ module Data.Manifold.Web (
             , PropagationInconsistency(..)
               -- * Misc
             , ConvexSet(..), ellipsoid, ellipsoidSet, coerceWebDomain
-            , rescanPDEOnWeb, rescanPDELocally
+            , rescanPDEOnWeb, rescanPDELocally, webOnions
             ) where
 
 
 import Data.List hiding (filter, all, foldr1)
 import Data.Maybe
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import qualified Data.Vector as Arr
 import qualified Data.Vector.Mutable as MArr
 import qualified Data.Vector.Unboxed as UArr
@@ -553,6 +554,21 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                                 ]), n)
                  ) asd'
 
+localOnion :: ∀ x y . WithField ℝ Manifold x
+            => WebLocally x y -> [[WebLocally x y]]
+localOnion origin = go Map.empty $ Map.singleton (origin^.thisNodeId) (1, origin)
+ where go previous next = ( snd . snd <$> sortBy (comparing $ negate . fst)
+                                                 (Map.toList next) )
+                     : go (Map.union previous next)
+                          (Map.fromListWith (\(n,ninfo) (n',_) -> (n+n'::Int, ninfo))
+                                [ (nnid,(1,nneigh))
+                                | (nid,(_,ninfo))<-Map.toList next
+                                , (nnid,(_,nneigh))<-ninfo^.nodeNeighbours
+                                , Map.notMember nnid previous ])
+
+webOnions :: ∀ x y . WithField ℝ Manifold x
+            => PointsWeb x y -> PointsWeb x [[(x,y)]]
+webOnions = localFmapWeb (map (map $ _thisNodeCoord&&&_thisNodeData) . localOnion)
 
 nearestNeighbour :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
                       => PointsWeb x y -> x -> Maybe (x,y)
