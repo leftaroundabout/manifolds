@@ -655,8 +655,16 @@ differentiate²UncertainWebLocally = d²uwl
               xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
               _:directEnvi:remoteEnvi = localOnion info
               envi = directEnvi ++ take (nMinData - length directEnvi) (concat remoteEnvi)
-       nMinData = 1 + d + d*(d+1)`div`2
-        where d = subbasisDimension (entireBasis :: SubBasis (Needle x))
+       nMinData = 1 + regular_neighboursCount
+                         (subbasisDimension (entireBasis :: SubBasis (Needle x)))
+
+-- | Heuristic formula, matches the number of neighbours each vertex has in a one-
+--   and two-dimensional count
+regular_neighboursCount :: Int -> Int
+regular_neighboursCount d
+ | d>0        = (regular_neighboursCount (d-1) + 1)*2
+ | otherwise  = 0
+
 
 differentiate²UncertainWebFunction :: ∀ x y
    . ( WithField ℝ Manifold x, FlatSpace (Needle x)
