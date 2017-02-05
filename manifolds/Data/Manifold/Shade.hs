@@ -963,7 +963,7 @@ estimateLocalHessian pts = elj ( pseudoAffineWitness :: PseudoAffineWitness x
               bcy :: Interior y
               -- bcy = pointsBarycenter $ _shade'Ctr . snd <$> pts
               mey :: Metric y
-              [Shade' bcy mey] = pointsShade's $ _shade'Ctr . snd <$> NE.toList pts
+              [Shade' bcy mey] = pointsCover's $ _shade'Ctr . snd <$> NE.toList pts
                                    :: [Shade' y]
 
 evalQuadraticModel :: ∀ x y . ( PseudoAffine x, AffineManifold (Needle x)
