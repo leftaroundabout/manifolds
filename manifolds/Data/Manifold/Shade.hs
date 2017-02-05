@@ -119,8 +119,9 @@ data Shade' x = Shade' { _shade'Ctr :: !(Interior x)
 
 data LocalDifferentialEqn x ð y = LocalDifferentialEqn {
       _predictDerivatives :: Shade' ð -> Maybe (Shade' (LocalLinear x y))
-    , _rescanDerivatives :: Shade' (LocalLinear x y)
-                             -> Shade' y -> (Maybe (Shade' y), Maybe (Shade' ð))
+    , _rescanDerivatives :: Shade' y -> Shade' (LocalLinear x y)
+                             -> Shade' (LocalBilinear x y)
+                             -> (Maybe (Shade' y), Maybe (Shade' ð))
     }
 makeLenses ''LocalDifferentialEqn
 

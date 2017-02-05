@@ -68,7 +68,7 @@ module Data.Manifold.PseudoAffine (
             , WithField
             , LocallyScalable
             -- ** Local functions
-            , LocalLinear, LocalAffine, (∂), (/∂)
+            , LocalLinear, LocalBilinear, LocalAffine, (∂), (/∂)
             -- * Misc
             , alerpB, palerp, palerpB, LocallyCoercible(..), CanonicalDiffeomorphism(..)
             , ImpliesMetric(..), coerceMetric, coerceMetric'
@@ -181,6 +181,9 @@ type LocallyScalable s x = ( PseudoAffine x
                            , Num' s )
 
 type LocalLinear x y = LinearMap (Scalar (Needle x)) (Needle x) (Needle y)
+type LocalBilinear x y = LinearMap (Scalar (Needle x))
+                                   (SymmetricTensor (Scalar (Needle x)) (Needle x))
+                                   (Needle y)
 
 
 infixr 7 ∂, /∂

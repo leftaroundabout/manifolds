@@ -674,8 +674,8 @@ differentiate²UncertainWebFunction :: ∀ x y
 differentiate²UncertainWebFunction = localFmapWeb differentiate²UncertainWebLocally
 
 rescanPDELocally :: ∀ x y ð .
-     ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-     , WithField ℝ Refinable y, SimpleSpace (Needle y) )
+     ( WithField ℝ Manifold x, FlatSpace (Needle x)
+     , WithField ℝ Refinable y, FlatSpace (Needle y) )
          => DifferentialEqn x ð y -> WebLocally x (Shade' y)
                                 -> (Maybe (Shade' y), Maybe (Shade' ð))
 rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
@@ -692,11 +692,12 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                      , v <- normSpanningSystem'
                                               (ngb^.thisNodeData.shadeNarrowness)] of
                         LocalDifferentialEqn _ rescan
-                            -> rescan (differentiateUncertainWebLocally info)
-                                      (info^.thisNodeData)
+                            -> rescan (info^.thisNodeData)
+                                      (differentiateUncertainWebLocally info)
+                                      (differentiate²UncertainWebLocally info)
 
-rescanPDEOnWeb :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                  , WithField ℝ Refinable y, SimpleSpace (Needle y)
+rescanPDEOnWeb :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
+                  , WithField ℝ Refinable y, FlatSpace (Needle y)
                   , Hask.Applicative m )
                 => InconsistencyStrategy m x (Shade' y)
                   -> DifferentialEqn x ð y -> PointsWeb x (Shade' y)
@@ -792,8 +793,8 @@ data InconsistencyStrategy m x y where
 deriving instance Hask.Functor (InconsistencyStrategy m x)
 
 
-iterateFilterDEqn_static :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                            , Refinable y, Geodesic (Interior y)
+iterateFilterDEqn_static :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
+                            , Refinable y, Geodesic (Interior y), FlatSpace (Needle y)
                             , WithField ℝ AffineManifold ð, Geodesic ð
                             , SimpleSpace (Needle ð)
                             , Hask.MonadPlus m )
@@ -808,8 +809,8 @@ iterateFilterDEqn_static strategy shading f
 
 
 filterDEqnSolutions_static :: ∀ x y iy ð m .
-                              ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                              , Refinable y, Geodesic (Interior y)
+                              ( WithField ℝ Manifold x, FlatSpace (Needle x)
+                              , Refinable y, Geodesic (Interior y), FlatSpace (Needle y)
                               , WithField ℝ AffineManifold ð, Geodesic ð
                               , SimpleSpace (Needle ð)
                               , Hask.MonadPlus m )

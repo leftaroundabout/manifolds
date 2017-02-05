@@ -114,7 +114,7 @@ constLinearDEqn = case ( linearManifoldWitness :: LinearManifoldWitness x
                            sumSubspaceNorms (transformNorm (zeroV&&&id) $ dualNorm δxy) δð
                 in return $ Shade' j δj
          , _rescanDerivatives
-            = \shjApriori shy
+            = \shy shjApriori _
                 -> ( mixShade's $ shy
                              :| [ projectShade
                                    (Embedding (arr bwt'inv <<< id&&&zeroV)
@@ -140,7 +140,7 @@ constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
             (let j = bwt'inv y
                  δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
              in \_ -> return $ Shade' j δj )
-            (\_ shy -> (pure shy, Just $ Shade' Origin mempty) )
+            (\shy _ _ -> (pure shy, Just $ Shade' Origin mempty) )
 
 constLinearPDE :: ∀ x y ð .
                   ( WithField ℝ SimpleSpace x
@@ -164,7 +164,7 @@ constLinearPDE = case ( linearManifoldWitness :: LinearManifoldWitness x
                      δj = bwt' `transformNorm` δð
                  in return $ Shade' j δj
            , _rescanDerivatives
-              = \shjApriori shy
+              = \shy shjApriori _
                 -> ( return shy
                    , return $ projectShade (Embedding (arr bwt'inv) (arr bwt')) shjApriori
                    )
