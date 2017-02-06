@@ -68,7 +68,7 @@ module Data.Manifold.PseudoAffine (
             , WithField
             , LocallyScalable
             -- ** Local functions
-            , LocalLinear, LocalBilinear, LocalAffine, (∂), (/∂)
+            , LocalLinear, LocalBilinear, LocalAffine
             -- * Misc
             , alerpB, palerp, palerpB, LocallyCoercible(..), CanonicalDiffeomorphism(..)
             , ImpliesMetric(..), coerceMetric, coerceMetric'
@@ -186,22 +186,6 @@ type LocalBilinear x y = LinearMap (Scalar (Needle x))
                                    (Needle y)
 
 
-infixr 7 ∂, /∂
-(/∂) :: ∀ s x y v q
-          . ( Num' s, LinearSpace x, LinearSpace y, LinearSpace v, LinearSpace q
-            , s ~ Scalar x, s ~ Scalar y, s ~ Scalar v, s ~ Scalar q )
-       => Lens' y v -> Lens' x q -> Lens' (LinearMap s x y) (LinearMap s q v)
-𝑣/∂𝑞 = lens (\m -> fmap (LinearFunction (^.𝑣))
-                     $ m . arr (LinearFunction $ \q -> zeroV & 𝑞.~q))
-            (\m u -> arr.LinearFunction
-               $ \x -> (m $ x & 𝑞.~zeroV)
-                   ^+^ (𝑣.~(u $ x^.𝑞) $ m $ zeroV & 𝑞.~(x^.𝑞)) )
-
-(∂) :: ∀ s a q v . ( Num' s, OneDimensional q, LinearSpace q, LinearSpace v
-                   , s ~ Scalar a, s ~ Scalar q, s ~ Scalar v )
-       => q -> Lens' a (LinearMap s q v) -> Lens' a v
-q∂𝑚 = lens (\a -> a^.𝑚 $ q)
-           (\a v -> (a & 𝑚 .~ arr (LinearFunction $ \q' -> v ^* (q'^/!q))) )
 
 type LocalAffine x y = (Needle y, LocalLinear x y)
 
