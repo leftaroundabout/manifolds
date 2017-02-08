@@ -699,10 +699,13 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
 rescanPDEOnWeb :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
                   , WithField ℝ Refinable y, FlatSpace (Needle y)
                   , Hask.Applicative m )
-                => InconsistencyStrategy m x (Shade' y)
+                => InconsistencyStrategy m x (Shade' y, Shade' ð)
                   -> DifferentialEqn x ð y -> PointsWeb x (Shade' y)
-                                   -> m (PointsWeb x (Shade' y))
-rescanPDEOnWeb strat deq = traverseWebWithStrategy strat $ fst . rescanPDELocally deq
+                                   -> m (PointsWeb x (Shade' y, Shade' ð))
+rescanPDEOnWeb strat deq = traverseWebWithStrategy strat
+                 (fzip . rescanPDELocally deq . fmap fst)
+         . fmap (\shy -> (shy, error
+                   "No default value for inconsistent PDE-rescanning on web"))
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
