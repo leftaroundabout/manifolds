@@ -23,6 +23,7 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE CPP                        #-}
+{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE LiberalTypeSynonyms        #-}
 {-# LANGUAGE DefaultSignatures          #-}
@@ -64,6 +65,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup
 import Control.DeepSeq
+import Data.MemoTrie
 
 import Data.VectorSpace
 import Data.AffineSpace
@@ -940,6 +942,29 @@ data QuadraticModel x y = QuadraticModel {
        , _quadraticModelDeviations :: Metric y
        }
 
+quadratic_linearRegression :: ∀ s x y .
+                      ( WithField s AffineManifold x, Geodesic x
+                      , WithField s AffineManifold y, Geodesic y
+                      , SimpleSpace (Needle x), SimpleSpace (Needle y) )
+            => NE.NonEmpty (x, Shade' y) -> Quadratic s x y
+quadratic_linearRegression = qlr
+                  (dualSpaceWitness, boundarylessWitness, dualSpaceWitness)
+ where qlr :: ( DualSpaceWitness (Needle x)
+              , BoundarylessWitness y, DualSpaceWitness (Needle y))
+                   -> NE.NonEmpty (x, Shade' y) -> Quadratic s x y
+       qlr (DualSpaceWitness, BoundarylessWitness, DualSpaceWitness) ps = Quadratic . trie $
+         \cix -> let cmx = chartReferencePoint cix
+                     Just cmy = pointsBarycenter $ _shade'Ctr.snd<$>ps
+                     Just vsxy = Hask.mapM (\(x, Shade' y ey) -> (,) <$> x.-~.cmx
+                                                            <*>((,ey)<$>y.-~.cmy)) ps
+                     ((a,b),c) :: (( SymmetricTensor s (Needle x)+>(Needle y)
+                                   , Needle x+>Needle y ), Needle y)
+                               = fst `id` linearRegressionWVar
+                                  (\δx -> lfun $ \((a,b),c) -> (a $ squareV δx)
+                                                             ^+^ (b $ δx) ^+^ c )
+                                  (NE.toList vsxy)
+                 in (cmy.+~^c, (b, a))
+
 estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
                                 , FlatSpace (Needle x), FlatSpace (Needle y) )
             => NonEmpty (Local x, Shade' y) -> QuadraticModel x y
@@ -958,7 +983,7 @@ estimateLocalHessian pts = elj ( pseudoAffineWitness :: PseudoAffineWitness x
                                 in [ (vx, ym^-^vy^+^σ*^δy)
                                    | δy <- normSpanningSystem' ey
                                    , σ <- [-1, 1] ]
-              theModel = quadratic_linearRegression mey $ second _shade'Ctr<$>localPts
+              theModel = quadratic_linearRegression localPts
               Shade _ theDev = coverAllAround zeroV $ snd <$> modelDeviations
                                  :: Shade (Needle y)
               bcy :: Interior y
