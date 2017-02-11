@@ -92,6 +92,7 @@ import Data.SetLike.Intersection
 import Data.Manifold.Riemannian
 import Data.Manifold.Atlas
 import Data.Manifold.Function.Quadratic
+import Data.Function.Affine
 import Data.Embedding
     
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
@@ -636,7 +637,7 @@ differentiateUncertainWebFunction = localFmapWeb differentiateUncertainWebLocall
 
 differentiate²UncertainWebLocally :: ∀ x y
    . ( WithField ℝ Manifold x, FlatSpace (Needle x)
-     , WithField ℝ Refinable y, FlatSpace (Needle y) )
+     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
             => WebLocally x (Shade' y)
              -> Shade' (Needle x ⊗〃+> Needle y)
 differentiate²UncertainWebLocally = d²uwl
@@ -649,14 +650,22 @@ differentiate²UncertainWebLocally = d²uwl
                              Just δx -> (Local δx :: Local x, ngb^.thisNodeData) )
                           <$> info :| envi
                           of
-               QuadraticModel _ h e -> Shade' (((^*2) . snd . snd) (evalQuadratic h zeroV))
-                                         (transformNorm (lfun $ ($ xVol)) e)
+               QuadraticModel _ h -> projectShade
+                          (fromEmbedProject (acoSnd.acoSnd) (snd.snd)) h
         where xVol :: SymmetricTensor ℝ (Needle x)
               xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
               _:directEnvi:remoteEnvi = localOnion info
               envi = directEnvi ++ take (nMinData - length directEnvi) (concat remoteEnvi)
        nMinData = 1 + regular_neighboursCount
                          (subbasisDimension (entireBasis :: SubBasis (Needle x)))
+
+acoSnd :: ∀ s v y . ( Object (Affine s) y, Object (Affine s) v
+                    , LinearSpace v, Scalar v ~ s ) => Affine s y (v,y)
+acoSnd = case ( linearManifoldWitness :: LinearManifoldWitness v
+              , dualSpaceWitness :: DualSpaceWitness (Needle v)
+              , dualSpaceWitness :: DualSpaceWitness (Needle y) ) of
+   (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness, DualSpaceWitness)
+       -> const zeroV &&& id
 
 -- | Heuristic formula, matches the number of neighbours each vertex has in a one-
 --   and two-dimensional count
@@ -668,14 +677,14 @@ regular_neighboursCount d
 
 differentiate²UncertainWebFunction :: ∀ x y
    . ( WithField ℝ Manifold x, FlatSpace (Needle x)
-     , WithField ℝ Refinable y, FlatSpace (Needle y) )
+     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
          => PointsWeb x (Shade' y)
           -> PointsWeb x (Shade' (Needle x ⊗〃+> Needle y)) 
 differentiate²UncertainWebFunction = localFmapWeb differentiate²UncertainWebLocally
 
 rescanPDELocally :: ∀ x y ð .
      ( WithField ℝ Manifold x, FlatSpace (Needle x)
-     , WithField ℝ Refinable y, FlatSpace (Needle y) )
+     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
          => DifferentialEqn x ð y -> WebLocally x (Shade' y)
                                 -> (Maybe (Shade' y), Maybe (Shade' ð))
 rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
@@ -697,7 +706,7 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                       (differentiate²UncertainWebLocally info)
 
 rescanPDEOnWeb :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                  , WithField ℝ Refinable y, FlatSpace (Needle y)
+                  , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y)
                   , Hask.Applicative m )
                 => InconsistencyStrategy m x (Shade' y, Shade' ð)
                   -> DifferentialEqn x ð y -> PointsWeb x (Shade' y)
@@ -797,7 +806,7 @@ deriving instance Hask.Functor (InconsistencyStrategy m x)
 
 
 iterateFilterDEqn_static :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                            , Refinable y, Geodesic (Interior y), FlatSpace (Needle y)
+                            , Refinable y, Geodesic y, FlatSpace (Needle y)
                             , WithField ℝ AffineManifold ð, Geodesic ð
                             , SimpleSpace (Needle ð)
                             , Hask.MonadPlus m )
@@ -813,14 +822,15 @@ iterateFilterDEqn_static strategy shading f
 
 filterDEqnSolutions_static :: ∀ x y iy ð m .
                               ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                              , Refinable y, Geodesic (Interior y), FlatSpace (Needle y)
+                              , Refinable y, Geodesic y, FlatSpace (Needle y)
                               , WithField ℝ AffineManifold ð, Geodesic ð
                               , SimpleSpace (Needle ð)
                               , Hask.MonadPlus m )
        => InformationMergeStrategy [] m  (x,Shade' y) iy -> Embedding (->) (Shade' y) iy
           -> DifferentialEqn x ð y -> PointsWeb x iy -> m (PointsWeb x iy)
-filterDEqnSolutions_static strategy shading f
-       = webLocalInfo
+filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
+   GeodesicWitness _ -> \strategy shading f
+       -> webLocalInfo
            >>> fmap (id &&& rescanPDELocally f . fmap (shading>-$))
            >>> localFocusWeb >>> Hask.traverse ( \((_,(me,updShy)), ngbs)
           -> let oldValue = me^.thisNodeData :: iy

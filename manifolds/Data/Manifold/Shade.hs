@@ -443,7 +443,8 @@ pointsShades :: (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                                  => [Interior x] -> [Shade x]
 pointsShades = map snd . pointsShades' mempty . map fromInterior
 
-coverAllAround :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+coverAllAround :: ∀ x s . ( Fractional' s, WithField s PseudoAffine x
+                          , SimpleSpace (Needle x) )
                   => Interior x -> [Needle x] -> Shade x
 coverAllAround x₀ offs = Shade x₀
          $ guaranteeIn dualSpaceWitness offs
@@ -938,70 +939,57 @@ estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
 
 data QuadraticModel x y = QuadraticModel {
          _quadraticModelOffset :: Interior y
-       , _quadraticModel :: Quadratic (Scalar (Needle x)) (Needle x) (Needle y)
-       , _quadraticModelDeviations :: Metric y
+       , _quadraticModel :: Shade' (Needle y, (Needle x+>Needle y, Needle x⊗〃+>Needle y))
        }
 
 quadratic_linearRegression :: ∀ s x y .
-                      ( WithField s AffineManifold x, Geodesic x
-                      , WithField s AffineManifold y, Geodesic y
+                      ( WithField s PseudoAffine x
+                      , WithField s PseudoAffine y, Geodesic y
                       , SimpleSpace (Needle x), SimpleSpace (Needle y) )
-            => NE.NonEmpty (x, Shade' y) -> Quadratic s x y
+            => NE.NonEmpty (Needle x, Shade' y) -> QuadraticModel x y
 quadratic_linearRegression = qlr
-                  (dualSpaceWitness, boundarylessWitness, dualSpaceWitness)
+                  ( dualSpaceWitness, pseudoAffineWitness
+                  , linearManifoldWitness, dualSpaceWitness
+                  , geodesicWitness )
  where qlr :: ( DualSpaceWitness (Needle x)
-              , BoundarylessWitness y, DualSpaceWitness (Needle y))
-                   -> NE.NonEmpty (x, Shade' y) -> Quadratic s x y
-       qlr (DualSpaceWitness, BoundarylessWitness, DualSpaceWitness) ps = Quadratic . trie $
-         \cix -> let cmx = chartReferencePoint cix
-                     Just cmy = pointsBarycenter $ _shade'Ctr.snd<$>ps
-                     Just vsxy = Hask.mapM (\(x, Shade' y ey) -> (,) <$> x.-~.cmx
-                                                            <*>((,ey)<$>y.-~.cmy)) ps
-                     ((a,b),c) :: (( SymmetricTensor s (Needle x)+>(Needle y)
-                                   , Needle x+>Needle y ), Needle y)
-                               = fst `id` linearRegressionWVar
-                                  (\δx -> lfun $ \((a,b),c) -> (a $ squareV δx)
-                                                             ^+^ (b $ δx) ^+^ c )
-                                  (NE.toList vsxy)
-                 in (cmy.+~^c, (b, a))
+              , PseudoAffineWitness y, LinearManifoldWitness (Needle y)
+              , DualSpaceWitness (Needle y)
+              , GeodesicWitness y )
+                   -> NE.NonEmpty (Needle x, Shade' y) -> QuadraticModel x y
+       qlr ( DualSpaceWitness
+           , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+           , LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
+           , GeodesicWitness _ ) ps
+                 = QuadraticModel cmy . dualShade
+                     $ coverAllAround (c, (b, a)) (convexPolytopeRepresentatives dabcs)
+        where Just cmy = pointsBarycenter $ _shade'Ctr.snd<$>ps
+              Just vsxy = Hask.mapM (\(x, Shade' y ey) -> (x,).(,ey)<$>y.-~.cmy) ps
+              ((c,(b,a)) :: ( Needle y, (Needle x+>Needle y
+                              , SymmetricTensor s (Needle x)+>(Needle y))
+                            )
+               , dabcs)
+                        = linearRegressionWVar
+                           (\δx -> lfun $ \(c,(b,a)) -> (a $ squareV δx)
+                                                      ^+^ (b $ δx) ^+^ c )
+                           (NE.toList vsxy)
 
-estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
+estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y, Geodesic y
                                 , FlatSpace (Needle x), FlatSpace (Needle y) )
             => NonEmpty (Local x, Shade' y) -> QuadraticModel x y
 estimateLocalHessian pts = elj ( pseudoAffineWitness :: PseudoAffineWitness x
                                , pseudoAffineWitness :: PseudoAffineWitness y )
  where elj ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
            , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
-         = QuadraticModel bcy theModel (dualNorm' theDev)
-        where localPts :: NonEmpty (Needle x, Shade' (Needle y))
-              localPts = pts >>= \(Local x, Shade' y ey)
-                             -> case y.-~.bcy of
-                                 Just vy -> pure (x, Shade' vy ey)
-              modelDeviations :: [(Needle x, Needle y)]
-              modelDeviations = NE.toList localPts >>= \(vx, Shade' vy ey)
-                             -> let (ym, _) = evalQuadratic theModel vx
-                                in [ (vx, ym^-^vy^+^σ*^δy)
-                                   | δy <- normSpanningSystem' ey
-                                   , σ <- [-1, 1] ]
+         = theModel
+        where localPts :: NonEmpty (Needle x, Shade' y)
+              localPts = pts >>= \(Local x, shy) -> pure (x, shy)
               theModel = quadratic_linearRegression localPts
-              Shade _ theDev = coverAllAround zeroV $ snd <$> modelDeviations
-                                 :: Shade (Needle y)
               bcy :: Interior y
               -- bcy = pointsBarycenter $ _shade'Ctr . snd <$> pts
               mey :: Metric y
               [Shade' bcy mey] = pointsCover's $ _shade'Ctr . snd <$> NE.toList pts
                                    :: [Shade' y]
 
-evalQuadraticModel :: ∀ x y . ( PseudoAffine x, AffineManifold (Needle x)
-                              , PseudoAffine y, SimpleSpace (Needle y)
-                              , Scalar (Needle x) ~ Scalar (Needle y) )
-          => QuadraticModel x y -> Needle x -> Shade' y
-evalQuadraticModel = case ( pseudoAffineWitness :: PseudoAffineWitness x
-                          , pseudoAffineWitness :: PseudoAffineWitness y ) of
-   ( PseudoAffineWitness (SemimanifoldWitness _)
-    ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
-       -> \(QuadraticModel oy m ey) vx
-        -> case evalQuadratic m vx of (vy,_) -> Shade' (oy.+~^vy) ey
 
 
 propagateDEqnSolution_loc :: ∀ x y ð . ( WithField ℝ Manifold x
