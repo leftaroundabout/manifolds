@@ -939,7 +939,7 @@ estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
 
 data QuadraticModel x y = QuadraticModel {
          _quadraticModelOffset :: Interior y
-       , _quadraticModel :: Shade' (Needle y, (Needle x+>Needle y, Needle x⊗〃+>Needle y))
+       , _quadraticModel :: Shade (Needle y, (Needle x+>Needle y, Needle x⊗〃+>Needle y))
        }
 
 quadratic_linearRegression :: ∀ s x y .
@@ -960,14 +960,14 @@ quadratic_linearRegression = qlr
            , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
            , LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
            , GeodesicWitness _ ) ps
-                 = QuadraticModel cmy . dualShade
-                     $ coverAllAround (c, (b, a)) (convexPolytopeRepresentatives dabcs)
+                 = QuadraticModel cmy
+                     $ coverAllAround mBest (convexPolytopeRepresentatives dm)
         where Just cmy = pointsBarycenter $ _shade'Ctr.snd<$>ps
               Just vsxy = Hask.mapM (\(x, Shade' y ey) -> (x,).(,ey)<$>y.-~.cmy) ps
-              ((c,(b,a)) :: ( Needle y, (Needle x+>Needle y
+              (mBest :: ( Needle y, (Needle x+>Needle y
                               , SymmetricTensor s (Needle x)+>(Needle y))
                             )
-               , dabcs)
+               , dm)
                         = linearRegressionWVar
                            (\δx -> lfun $ \(c,(b,a)) -> (a $ squareV δx)
                                                       ^+^ (b $ δx) ^+^ c )
@@ -982,13 +982,11 @@ estimateLocalHessian pts = elj ( pseudoAffineWitness :: PseudoAffineWitness x
            , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
          = theModel
         where localPts :: NonEmpty (Needle x, Shade' y)
-              localPts = pts >>= \(Local x, shy) -> pure (x, shy)
+              localPts = pts >>= \(Local x, Shade' y ey)
+                             -> NE.fromList [ (x, Shade' (y.+~^σ*^δy) ey)
+                                            | δy <- normSpanningSystem' ey
+                                            , σ <- [-1,1] ]
               theModel = quadratic_linearRegression localPts
-              bcy :: Interior y
-              -- bcy = pointsBarycenter $ _shade'Ctr . snd <$> pts
-              mey :: Metric y
-              [Shade' bcy mey] = pointsCover's $ _shade'Ctr . snd <$> NE.toList pts
-                                   :: [Shade' y]
 
 
 

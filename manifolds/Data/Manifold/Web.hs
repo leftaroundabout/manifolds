@@ -642,16 +642,20 @@ differentiate²UncertainWebLocally :: ∀ x y
              -> Shade' (Needle x ⊗〃+> Needle y)
 differentiate²UncertainWebLocally = d²uwl
                 ( pseudoAffineWitness :: PseudoAffineWitness x
-                , pseudoAffineWitness :: PseudoAffineWitness y )
+                , pseudoAffineWitness :: PseudoAffineWitness y
+                , dualSpaceWitness :: DualSpaceWitness (Needle x)
+                , dualSpaceWitness :: DualSpaceWitness (Needle y) )
  where d²uwl ( PseudoAffineWitness (SemimanifoldWitness _)
-             , PseudoAffineWitness (SemimanifoldWitness _) ) info
+             , PseudoAffineWitness (SemimanifoldWitness _)
+             , DualSpaceWitness, DualSpaceWitness ) info
           = case estimateLocalHessian $
                           (\ngb -> case (ngb^.thisNodeCoord .-~. info^.thisNodeCoord) of
                              Just δx -> (Local δx :: Local x, ngb^.thisNodeData) )
                           <$> info :| envi
                           of
-               QuadraticModel _ h -> projectShade
-                          (fromEmbedProject (acoSnd.acoSnd) (snd.snd)) h
+               QuadraticModel _ h -> dualShade $ projectShade
+                          (fromEmbedProject (acoSnd.acoSnd ^/ 2)
+                                            (snd.snd ^* 2) ) h
         where xVol :: SymmetricTensor ℝ (Needle x)
               xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
               _:directEnvi:remoteEnvi = localOnion info
