@@ -620,6 +620,7 @@ minusLogOcclusion (Shade p₀ δ)
 
 
 
+{-# WARNING rangeOnGeodesic "This function never worked properly. Use 'rangeWithinVertices'." #-}
 rangeOnGeodesic :: ∀ i m . 
       ( WithField ℝ PseudoAffine m, Geodesic m, SimpleSpace (Needle m)
       , WithField ℝ IntervalLike i, SimpleSpace (Needle i) )
