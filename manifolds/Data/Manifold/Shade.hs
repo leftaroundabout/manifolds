@@ -182,6 +182,19 @@ class IsShade shade where
                               -> shade x -> shade y
   
 
+linearProjectShade :: ∀ s x y
+          . (Num' s, LinearSpace x, LinearSpace y, Scalar x ~ s, Scalar y ~ s)
+                  => (x+>y) -> Shade x -> Shade y
+linearProjectShade = case ( linearManifoldWitness :: LinearManifoldWitness x
+                          , linearManifoldWitness :: LinearManifoldWitness y
+                          , dualSpaceWitness :: DualSpaceWitness x
+                          , dualSpaceWitness :: DualSpaceWitness y ) of
+   ( LinearManifoldWitness BoundarylessWitness
+    ,LinearManifoldWitness BoundarylessWitness
+    ,DualSpaceWitness, DualSpaceWitness )
+       -> \f (Shade x ex) -> Shade (f $ x) (transformVariance f ex)
+
+
 infixl 5 ✠
 -- | Combine two shades on independent subspaces to a shade with the same
 --   properties on the subspaces (see 'factoriseShade') and no covariance.
@@ -269,6 +282,11 @@ dualShade :: ∀ x . (PseudoAffine x, SimpleSpace (Needle x))
                 => Shade x -> Shade' x
 dualShade = case dualSpaceWitness :: DualSpaceWitness (Needle x) of
     DualSpaceWitness -> \(Shade c e) -> Shade' c $ dualNorm e
+
+dualShade' :: ∀ x . (PseudoAffine x, SimpleSpace (Needle x))
+                => Shade' x -> Shade x
+dualShade' = case dualSpaceWitness :: DualSpaceWitness (Needle x) of
+    DualSpaceWitness -> \(Shade' c e) -> Shade c $ dualNorm' e
 
 instance ImpliesMetric Shade where
   type MetricRequirement Shade x = (Manifold x, SimpleSpace (Needle x))
@@ -1007,9 +1025,15 @@ propagateDEqnSolution_loc f propPlan
              (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
           | Nothing <- jacobian  = Nothing
           | otherwise            = pure result
-         where jacobian = f shxy ^. predictDerivatives $ shð
+         where jacobian = (f shxy ^. predictDerivatives $ shð)
+                           >>= \j -> mixShade's $ j:|[aprioriDirDrv]
                Just (Shade' j₀ jExpa) = jacobian
-
+               jacobianSh :: Shade (LocalLinear x y)
+               Just jacobianSh = dualShade' <$> jacobian
+               aprioriDirDrv :: Shade' (LocalLinear x y)
+               Just aprioriDirDrv = estimateLocalJacobian expax
+                                 [ (Local zeroV :: Local x, propPlan^.sourceData._1)
+                                 , (Local δx,        propPlan^.targetAPrioriData._1) ]
                mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2 :: x
                Just shð = middleBetween (propPlan^.sourceData._2)
                                         (propPlan^.targetAPrioriData._2)
@@ -1030,23 +1054,12 @@ propagateDEqnSolution_loc f propPlan
                result :: Shade' y
                Just result = wellDefinedShade' $ convolveShade'
                         (case wellDefinedShade' $ propPlan^.sourceData._1 of {Just s->s})
-                        (case wellDefinedShade' $ Shade' δyb $ applyLinMapNorm jExpa dx
+                        (case wellDefinedShade' . dualShade
+                               . linearProjectShade (lfun ($ δx))
+                                $ jacobianSh
                            of {Just s->s})
                 where δyb = j₀ $ δx
                δx = propPlan^.targetPosOffset
-               dx = δx'^/(δx'<.>^δx)
-                where δx' = expax<$|δx
-
-applyLinMapNorm :: ∀ x y . (LSpace x, LSpace y, Scalar x ~ Scalar y)
-           => Norm (x+>y) -> DualVector x -> Norm y
-applyLinMapNorm = case dualSpaceWitness :: DualSpaceWitness y of
-  DualSpaceWitness -> \n dx -> transformNorm (arr $ LinearFunction (dx-+|>)) n
-
-ignoreDirectionalDependence :: ∀ x y . (LSpace x, LSpace y, Scalar x ~ Scalar y)
-           => (x, DualVector x) -> Norm (x+>y) -> Norm (x+>y)
-ignoreDirectionalDependence = case dualSpaceWitness :: DualSpaceWitness y of
-  DualSpaceWitness -> \(v,v') -> transformNorm . arr . LinearFunction $
-         \j -> j . arr (LinearFunction $ \x -> x ^-^ v^*(v'<.>^x))
 
 
 
