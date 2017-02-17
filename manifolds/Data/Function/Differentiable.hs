@@ -676,7 +676,7 @@ negativePreRegion' = npr (linearManifoldWitness :: LinearManifoldWitness s)
  where npr (LinearManifoldWitness BoundarylessWitness)
            (ClosedScalarWitness :: ClosedScalarWitness s)
                   = PreRegion $ ppr . ngt
-        where PreRegion ppr = positivePreRegion'
+        where PreRegion ppr = positivePreRegion' :: PreRegion s s
               ngt = actuallyLinearEndo $ negateV id
 
 preRegionToInfFrom, preRegionFromMinInfTo :: RealDimension s => s -> PreRegion s s
@@ -689,14 +689,14 @@ preRegionToInfFrom' = prif (linearManifoldWitness :: LinearManifoldWitness s)
  where prif (LinearManifoldWitness BoundarylessWitness)
             (ClosedScalarWitness :: ClosedScalarWitness s)
             xs = PreRegion $ ppr . trl
-        where PreRegion ppr = positivePreRegion'
+        where PreRegion ppr = positivePreRegion' :: PreRegion s s
               trl = actuallyAffineEndo (-xs) id
 preRegionFromMinInfTo' = prif (linearManifoldWitness :: LinearManifoldWitness s)
                            (closedScalarWitness :: ClosedScalarWitness s)
  where prif (LinearManifoldWitness BoundarylessWitness)
             (ClosedScalarWitness :: ClosedScalarWitness s)
             xe = PreRegion $ ppr . flp
-        where PreRegion ppr = positivePreRegion'
+        where PreRegion ppr = positivePreRegion' :: PreRegion s s
               flp = actuallyAffineEndo xe (negateV id)
 
 intervalPreRegion :: ∀ s . RealDimension s => (s,s) -> PreRegion s s

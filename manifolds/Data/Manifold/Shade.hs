@@ -108,8 +108,10 @@ import Text.Show.Number
 -- 
 --   For a /precise/ description of an arbitrarily-shaped connected subset of a manifold,
 --   there is 'Region', whose implementation is vastly more complex.
-data Shade x = Shade { _shadeCtr :: !(Interior x)
-                     , _shadeExpanse :: !(Metric' x) }
+data Shade x where
+   Shade :: (Semimanifold x, SimpleSpace (Needle x))
+           =>  { _shadeCtr :: !(Interior x)
+               , _shadeExpanse :: !(Metric' x) } -> Shade x
 deriving instance (Show (Interior x), Show (Metric' x), WithField ℝ PseudoAffine x)
                 => Show (Shade x)
 
@@ -156,7 +158,8 @@ class IsShade shade where
                     , PseudoAffine y, SimpleSpace (Needle y)
                     , Scalar (Needle x) ~ Scalar (Needle y) )
                 => shade (x,y) -> (shade x, shade y)
-  coerceShade :: (Manifold x, Manifold y, LocallyCoercible x y) => shade x -> shade y
+  coerceShade :: ( Manifold x, Manifold y, LocallyCoercible x y
+                 , SimpleSpace (Needle y) ) => shade x -> shade y
   -- | ASCII version of '✠'.
   orthoShades :: ( PseudoAffine x, SimpleSpace (Needle x)
            , PseudoAffine y, SimpleSpace (Needle y)
@@ -168,7 +171,7 @@ class IsShade shade where
   -- | Squash a shade down into a lower dimensional space.
   projectShade :: ( Semimanifold x, Semimanifold y
                   , Object (Affine s) (Interior x), Object (Affine s) (Interior y)
-                  , SemiInner (Needle x), SemiInner (Needle y) )
+                  , SimpleSpace (Needle x), SemiInner (Needle y) )
                         => Embedding (Affine s) (Interior x) (Interior y)
                               -> shade y -> shade x
   -- | Include a shade in a higher-dimensional space. Notice that this behaves
@@ -177,13 +180,13 @@ class IsShade shade where
   --   pillar” pointing in the projection's orthogonal complement.
   embedShade :: ( Semimanifold x, Semimanifold y
                 , Object (Affine s) (Interior x), Object (Affine s) (Interior y)
-                , SemiInner (Needle x), SemiInner (Needle y) )
+                , SemiInner (Needle x), SimpleSpace (Needle y) )
                         => Embedding (Affine s) (Interior x) (Interior y)
                               -> shade x -> shade y
   
 
 linearProjectShade :: ∀ s x y
-          . (Num' s, LinearSpace x, LinearSpace y, Scalar x ~ s, Scalar y ~ s)
+          . (Num' s, LinearSpace x, SimpleSpace y, Scalar x ~ s, Scalar y ~ s)
                   => (x+>y) -> Shade x -> Shade y
 linearProjectShade = case ( linearManifoldWitness :: LinearManifoldWitness x
                           , linearManifoldWitness :: LinearManifoldWitness y
@@ -235,7 +238,7 @@ instance IsShade Shade where
          fs DualSpaceWitness DualSpaceWitness (Shade x δx) (Shade y δy)
              = Shade (x,y) $ sumSubspaceNorms δx δy
   coerceShade = cS dualSpaceWitness dualSpaceWitness
-   where cS :: ∀ x y . (LocallyCoercible x y)
+   where cS :: ∀ x y . (LocallyCoercible x y, SimpleSpace (Needle y))
                 => DualNeedleWitness x -> DualNeedleWitness y -> Shade x -> Shade y
          cS DualSpaceWitness DualSpaceWitness
                     = \(Shade x δxym) -> Shade (internCoerce x) (tN δxym)
@@ -246,7 +249,7 @@ instance IsShade Shade where
                       CanonicalDiffeomorphism -> locallyTrivialDiffeomorphism
   linIsoTransformShade = lits linearManifoldWitness linearManifoldWitness
                               dualSpaceWitness dualSpaceWitness
-   where lits :: ∀ x y . ( LinearSpace x, LinearSpace y
+   where lits :: ∀ x y . ( LinearSpace x, SimpleSpace y
                          , Scalar x ~ Scalar y, Num' (Scalar x) )
                => LinearManifoldWitness x -> LinearManifoldWitness y
                    -> DualSpaceWitness x -> DualSpaceWitness y
@@ -257,8 +260,9 @@ instance IsShade Shade where
               f (Shade x δx)
                   = Shade (f $ x) (transformNorm (adjoint $ f) δx)
   embedShade = ps' (semimanifoldWitness, semimanifoldWitness)
-   where ps' :: ∀ s x y . ( Object (Affine s) (Interior x), Object (Affine s) (Interior y)
-                          , SemiInner (Needle x), SemiInner (Needle y) )
+   where ps' :: ∀ s x y . ( Semimanifold y
+                          , Object (Affine s) (Interior x), Object (Affine s) (Interior y)
+                          , SemiInner (Needle x), SimpleSpace (Needle y) )
                         => (SemimanifoldWitness x, SemimanifoldWitness y)
                -> Embedding (Affine s) (Interior x) (Interior y)
                               -> Shade x -> Shade y
@@ -267,8 +271,9 @@ instance IsShade Shade where
           where y = q $ x
                 (_,j) = evalAffine q x
   projectShade = ps' (semimanifoldWitness, semimanifoldWitness)
-   where ps' :: ∀ s x y . ( Object (Affine s) (Interior x), Object (Affine s) (Interior y)
-                          , SemiInner (Needle x), SemiInner (Needle y) )
+   where ps' :: ∀ s x y . ( Semimanifold x
+                          , Object (Affine s) (Interior x), Object (Affine s) (Interior y)
+                          , SimpleSpace (Needle x), SemiInner (Needle y) )
                         => (SemimanifoldWitness x, SemimanifoldWitness y)
                -> Embedding (Affine s) (Interior x) (Interior y)
                               -> Shade y -> Shade x
@@ -412,10 +417,11 @@ instance ∀ x . (WithField ℝ AffineManifold x, Geodesic x, SimpleSpace (Needl
          Just pinterp = case geodesicWitness :: GeodesicWitness x of
             GeodesicWitness _ -> geodesicBetween c ζ
 
-fullShade :: WithField ℝ PseudoAffine x => Interior x -> Metric' x -> Shade x
+fullShade :: (Semimanifold x, SimpleSpace (Needle x))
+                      => Interior x -> Metric' x -> Shade x
 fullShade ctr expa = Shade ctr expa
 
-fullShade' :: WithField ℝ PseudoAffine x => Interior x -> Metric x -> Shade' x
+fullShade' :: WithField ℝ SimpleSpace x => Interior x -> Metric x -> Shade' x
 fullShade' ctr expa = Shade' ctr expa
 
 
@@ -425,11 +431,11 @@ infixl 6 :±, |±|
 #if GLASGOW_HASKELL < 800
 pattern (:±) :: ()
 #else
-pattern (:±) :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
+pattern (:±) :: (Semimanifold x, SimpleSpace (Needle x))
 #endif
-             => (WithField ℝ Manifold x, SimpleSpace (Needle x))
+             => (Semimanifold x, SimpleSpace (Needle x))
                          => Interior x -> [Needle x] -> Shade x
-pattern x :± shs <- Shade x (varianceSpanningSystem -> shs)
+pattern x :± shs <- (Shade x (varianceSpanningSystem -> shs))
  where x :± shs = fullShade x $ spanVariance shs
 
 -- | Similar to ':±', but instead of expanding the shade, each vector /restricts/ it.
@@ -1123,7 +1129,7 @@ instance (AdditiveGroup x) => Hask.Monad (WithAny x) where
 shadeWithAny :: y -> Shade x -> Shade (x`WithAny`y)
 shadeWithAny y (Shade x xe) = Shade (WithAny y x) xe
 
-shadeWithoutAnything :: Shade (x`WithAny`y) -> Shade x
+shadeWithoutAnything :: Semimanifold x => Shade (x`WithAny`y) -> Shade x
 shadeWithoutAnything (Shade (WithAny _ b) e) = Shade b e
 
                       

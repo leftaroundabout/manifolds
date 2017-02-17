@@ -534,7 +534,7 @@ unsafeFmapTree f fn fs (OverlappingBranches n sh brs)
                       ) brs
       in overlappingBranches (fs sh) brs'
 
-coerceShadeTree :: ∀ x y . (LocallyCoercible x y, Manifold x, Manifold y)
+coerceShadeTree :: ∀ x y . (LocallyCoercible x y, Manifold x, Manifold y, SimpleSpace (Needle y))
                        => ShadeTree x -> ShadeTree y
 coerceShadeTree = case ( dualSpaceWitness :: DualNeedleWitness x
                        , dualSpaceWitness :: DualNeedleWitness y ) of
@@ -973,15 +973,18 @@ instance Semigroup (Sawboneses x) where
 constShaded :: y -> ShadeTree x -> x`Shaded`y
 constShaded y = unsafeFmapTree (WithAny y<$>) id (shadeWithAny y)
 
-stripShadedUntopological :: x`Shaded`y -> ShadeTree x
+stripShadedUntopological :: (Semimanifold x, SimpleSpace (Needle x))
+                   => x`Shaded`y -> ShadeTree x
 stripShadedUntopological = unsafeFmapTree (fmap _topological) id shadeWithoutAnything
 
-fmapShaded :: (y -> υ) -> (x`Shaded`y) -> (x`Shaded`υ)
+fmapShaded :: (Semimanifold x, SimpleSpace (Needle x))
+                   => (y -> υ) -> (x`Shaded`y) -> (x`Shaded`υ)
 fmapShaded f = unsafeFmapTree (fmap $ \(WithAny y x) -> WithAny (f y) x)
                               id
                               (\(Shade yx shx) -> Shade (fmap f yx) shx)
 
-joinShaded :: (x`WithAny`y)`Shaded`z -> x`Shaded`(y,z)
+joinShaded :: (Semimanifold x, SimpleSpace (Needle x))
+                   => (x`WithAny`y)`Shaded`z -> x`Shaded`(y,z)
 joinShaded = unsafeFmapTree (fmap $ \(WithAny z (WithAny y x)) -> WithAny (y,z) x)
                             id
                             (\(Shade (WithAny z (WithAny y x)) shx)

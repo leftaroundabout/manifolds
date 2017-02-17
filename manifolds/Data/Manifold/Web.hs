@@ -403,7 +403,8 @@ webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
        lookId i | Just xy <- indexWeb web i  = xy
 
 
-coerceWebDomain :: ∀ a b y . (Manifold a, Manifold b, LocallyCoercible a b)
+coerceWebDomain :: ∀ a b y
+     . (Manifold a, Manifold b, LocallyCoercible a b, SimpleSpace (Needle b))
                                  => PointsWeb a y -> PointsWeb b y
 coerceWebDomain (PointsWeb rsc assoc)
          = case oppositeLocalCoercion :: CanonicalDiffeomorphism b a of
