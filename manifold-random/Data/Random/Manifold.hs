@@ -90,7 +90,8 @@ uncertainFunctionSamplesT n shx f = case ( dualSpaceWitness :: DualNeedleWitness
                        mkControlSample ((x,y):css)
                          $ confidence + occlusion shl (x,y)
              css <- mkControlSample [] 0
-             let [Shade (xCtrl,yCtrl) expaCtrl :: Shade (x,y)]
+             let xCtrl :: x
+                 [Shade (xCtrl,yCtrl) expaCtrl :: Shade (x,y)]
                        = pointsShades . catMaybes $ toInterior<$>css
                  yCtrl :: Interior y
                  expayCtrl = dualNorm . snd $ summandSpaceNorms expaCtrl
