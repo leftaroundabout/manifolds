@@ -1,0 +1,17 @@
+flags: {}
+packages:
+- location: './manifolds-core'
+- location: './manifolds'
+- location: './manifold-random'
+- location:
+    git: https://github.com/leftaroundabout/constrained-categories.git
+    commit: master
+- location:
+    git: https://github.com/leftaroundabout/free-vector-spaces.git
+    commit: master
+- location:
+    git: https://github.com/leftaroundabout/linearmap-family.git
+    commit: master
+extra-deps:
+- number-show-0.1.0.0
+resolver: lts-8.0

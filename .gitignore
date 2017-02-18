@@ -7,7 +7,9 @@ cabal-dev
 .virthualenv
 *~
 bin/
+.stack-work
 *.kate-swp
+*.swp
 *.fuse_hidden*
 \#*
 *.lock
