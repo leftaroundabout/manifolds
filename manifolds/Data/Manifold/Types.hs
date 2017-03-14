@@ -55,7 +55,7 @@ module Data.Manifold.Types (
         -- ** Lines
         , Line(..), lineAsPlaneIntersection
         -- ** Hyperplanes
-        , Cutplane(..)
+        , Cutplane(..), normalPlane
         , fathomCutDistance, sideOfCut, cutPosBetween
         -- * Linear mappings
         , LinearMap, LocalLinear
@@ -320,6 +320,10 @@ data Line x = Line { lineHandle :: x
 data Cutplane x = Cutplane { sawHandle :: x
                            , cutNormal :: Stiefel1 (Needle x) }
 
+normalPlane :: x         -- ^ Some point lying in the desired plane.
+            -> Needle' x -- ^ Co-vector perpendicular to the plane. Must be nonzero.
+            -> Cutplane x
+normalPlane x n = Cutplane x $ Stiefel1 n
 
 
 sideOfCut :: (WithField ℝ PseudoAffine x, LinearSpace (Needle x))
