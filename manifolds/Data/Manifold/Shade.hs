@@ -121,15 +121,14 @@ deriving instance (Show (Interior x), Show (Metric' x), WithField ℝ PseudoAffi
 data Shade' x = Shade' { _shade'Ctr :: !(Interior x)
                        , _shade'Narrowness :: !(Metric x) }
 
-data LocalDifferentialEqn x ð y = LocalDifferentialEqn {
-      _predictDerivatives :: Shade' ð -> Maybe (Shade' (LocalLinear x y))
-    , _rescanDerivatives :: Shade' y -> Shade' (LocalLinear x y)
+newtype LocalDifferentialEqn x y = LocalDifferentialEqn {
+      _rescanDifferentialEqn :: Shade' y -> Shade' (LocalLinear x y)
                              -> Shade' (LocalBilinear x y)
-                             -> (Maybe (Shade' y), Maybe (Shade' ð))
+                             -> (Maybe (Shade' y), Maybe (Shade' (LocalLinear x y)))
     }
 makeLenses ''LocalDifferentialEqn
 
-type DifferentialEqn x ð y = Shade (x,y) -> LocalDifferentialEqn x ð y
+type DifferentialEqn x y = Shade (x,y) -> LocalDifferentialEqn x y
 
 data LocalDataPropPlan x ym yr = LocalDataPropPlan
        { _sourcePosition :: !(Interior x)
@@ -998,6 +997,24 @@ quadratic_linearRegression = qlr
                                                       ^+^ (b $ δx) ^+^ c )
                            (NE.toList vsxy)
 
+quadraticModel_decomposition :: ∀ x y .
+          ( PseudoAffine x, PseudoAffine y
+          , SimpleSpace (Needle x), SimpleSpace (Needle y)
+          , Scalar (Needle y) ~ Scalar (Needle x) ) =>
+     QuadraticModel x y -> (Shade' y, (Shade' (LocalLinear x y), Shade' (LocalBilinear x y))) 
+quadraticModel_decomposition (QuadraticModel y₀ shyðð²)
+    | (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
+                                     :: PseudoAffineWitness y <- pseudoAffineWitness
+             = (Shade' (y₀.+~^yb) ey, shðð²)
+ where (Shade' yb ey, shðð²)
+           :: (Shade' (Needle y), (Shade' (LocalLinear x y), Shade' (LocalBilinear x y)))
+           | (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
+                                     :: PseudoAffineWitness y <- pseudoAffineWitness
+           , DualSpaceWitness :: DualSpaceWitness (Needle y) <- dualSpaceWitness
+           , DualSpaceWitness :: DualSpaceWitness (Needle x) <- dualSpaceWitness
+            = dualShade *** (dualShade *** dualShade)
+                            $ second factoriseShade $ factoriseShade shyðð²
+
 estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y, Geodesic y
                                 , FlatSpace (Needle x), FlatSpace (Needle y) )
             => NonEmpty (Local x, Shade' y) -> QuadraticModel x y
@@ -1014,52 +1031,60 @@ estimateLocalHessian pts = elj ( pseudoAffineWitness :: PseudoAffineWitness x
               theModel = quadratic_linearRegression localPts
 
 
+propagationCenteredQuadraticModel :: ∀ x y .
+                         ( WithField ℝ Manifold x, Refinable y, Geodesic y
+                         , FlatSpace (Needle x), FlatSpace (Needle y) )
+         => LocalDataPropPlan x (Shade' y) (Shade' y) -> QuadraticModel x y
+propagationCenteredQuadraticModel propPlan = estimateLocalHessian ptsFromCenter
+ where ctrOffset = propPlan^.targetPosOffset^/2
+       ptsFromCenter = (Local $ negateV ctrOffset :: Local x, propPlan^.sourceData)
+                     :| [(Local $ δx^-^ctrOffset, shy)
+                        | (δx, shy)
+                            <- (propPlan^.targetPosOffset, propPlan^.targetAPrioriData)
+                               : propPlan^.relatedData
+                        ]
 
-propagateDEqnSolution_loc :: ∀ x y ð . ( WithField ℝ Manifold x
-                                       , Refinable y, Geodesic (Interior y)
-                                       , WithField ℝ AffineManifold ð, Geodesic ð
-                                       , SimpleSpace (Needle x), SimpleSpace (Needle ð) )
-           => DifferentialEqn x ð y
-               -> LocalDataPropPlan x (Shade' y, Shade' ð) (Shade' y)
+propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x
+                                       , Refinable y, Geodesic y
+                                       , FlatSpace (Needle x), FlatSpace (Needle y) )
+           => DifferentialEqn x y
+               -> LocalDataPropPlan x (Shade' y) (Shade' y)
                -> Maybe (Shade' y)
 propagateDEqnSolution_loc f propPlan
                   = pdesl (dualSpaceWitness :: DualNeedleWitness x)
                           (dualSpaceWitness :: DualNeedleWitness y)
                           (boundarylessWitness :: BoundarylessWitness x)
                           (pseudoAffineWitness :: PseudoAffineWitness y)
+                          (geodesicWitness :: GeodesicWitness y)
  where pdesl DualSpaceWitness DualSpaceWitness BoundarylessWitness
              (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
+             (GeodesicWitness _)
           | Nothing <- jacobian  = Nothing
           | otherwise            = pure result
-         where jacobian = (f shxy ^. predictDerivatives $ shð)
-                           >>= \j -> mixShade's $ j:|[aprioriDirDrv]
+         where (_,jacobian) = (f shxy ^. rescanDifferentialEqn) shy shð shð²
                Just (Shade' j₀ jExpa) = jacobian
                jacobianSh :: Shade (LocalLinear x y)
                Just jacobianSh = dualShade' <$> jacobian
-               aprioriDirDrv :: Shade' (LocalLinear x y)
-               Just aprioriDirDrv = estimateLocalJacobian expax
-                                 [ (Local zeroV :: Local x, propPlan^.sourceData._1)
-                                 , (Local δx,        propPlan^.targetAPrioriData._1) ]
+               (shy, (shð,shð²)) = quadraticModel_decomposition
+                                   $ propagationCenteredQuadraticModel propPlan
                mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2 :: x
-               Just shð = middleBetween (propPlan^.sourceData._2)
-                                        (propPlan^.targetAPrioriData._2)
+               (Shade _ expax' :: Shade x)
+                    = coverAllAround (propPlan^.sourcePosition)
+                                     [δx | (δx,_) <- propPlan^.relatedData]
                shxy = coverAllAround (mx, mυ)
                                      [ (δx ^-^ propPlan^.targetPosOffset ^/ 2, pυ ^+^ v)
-                                     | (δx,neυ) <- (zeroV, propPlan^.sourceData._1)
+                                     | (δx,neυ) <- (zeroV, propPlan^.sourceData)
                                                   : (second id
                                                       <$> propPlan^.relatedData)
                                      , let Just pυ = neυ^.shadeCtr .-~. mυ
                                      , v <- normSpanningSystem' (neυ^.shadeNarrowness)
                                      ]
-                where Just mυ = middleBetween (propPlan^.sourceData._1.shadeCtr)
-                                              (propPlan^.targetAPrioriData._1.shadeCtr)
-               (Shade _ expax' :: Shade x)
-                    = coverAllAround (propPlan^.sourcePosition)
-                                     [δx | (δx,_) <- propPlan^.relatedData]
+                where Just mυ = middleBetween (propPlan^.sourceData.shadeCtr)
+                                              (propPlan^.targetAPrioriData.shadeCtr)
                expax = dualNorm expax'
                result :: Shade' y
                Just result = wellDefinedShade' $ convolveShade'
-                        (case wellDefinedShade' $ propPlan^.sourceData._1 of {Just s->s})
+                        (case wellDefinedShade' $ propPlan^.sourceData of {Just s->s})
                         (case wellDefinedShade' . dualShade
                                . linearProjectShade (lfun ($ δx))
                                 $ jacobianSh

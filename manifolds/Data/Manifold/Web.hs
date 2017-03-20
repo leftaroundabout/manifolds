@@ -557,8 +557,13 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                  ) asd'
 
 localOnion :: ∀ x y . WithField ℝ Manifold x
-            => WebLocally x y -> [[WebLocally x y]]
-localOnion origin = go Map.empty $ Map.singleton (origin^.thisNodeId) (1, origin)
+            => WebLocally x y -> [WebNodeId] -> [[WebLocally x y]]
+localOnion origin directCandidates = go Map.empty . Map.fromList
+                      $ (origin^.thisNodeId, (1, origin))
+                       : [ (nid, (1, ninfo))
+                         | nid <- directCandidates
+                         , (_,(_,ninfo)) <- origin^.nodeNeighbours
+                         , ninfo^.thisNodeId == nid ]
  where go previous next
         | Map.null next = []
         | otherwise  = ( snd <$> sortBy (comparing $ negate . fst)
@@ -572,7 +577,7 @@ localOnion origin = go Map.empty $ Map.singleton (origin^.thisNodeId) (1, origin
 
 webOnions :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x [[(x,y)]]
-webOnions = localFmapWeb (map (map $ _thisNodeCoord&&&_thisNodeData) . localOnion)
+webOnions = localFmapWeb (map (map $ _thisNodeCoord&&&_thisNodeData) . (`localOnion`[]))
 
 nearestNeighbour :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
                       => PointsWeb x y -> x -> Maybe (x,y)
@@ -659,7 +664,7 @@ differentiate²UncertainWebLocally = d²uwl
                                             (snd.snd ^* 2) ) h
         where xVol :: SymmetricTensor ℝ (Needle x)
               xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
-              _:directEnvi:remoteEnvi = localOnion info
+              _:directEnvi:remoteEnvi = localOnion info []
               envi = directEnvi ++ take (nMinData - length directEnvi) (concat remoteEnvi)
        nMinData = 1 + regular_neighboursCount
                          (subbasisDimension (entireBasis :: SubBasis (Needle x)))
@@ -687,11 +692,10 @@ differentiate²UncertainWebFunction :: ∀ x y
           -> PointsWeb x (Shade' (Needle x ⊗〃+> Needle y)) 
 differentiate²UncertainWebFunction = localFmapWeb differentiate²UncertainWebLocally
 
-rescanPDELocally :: ∀ x y ð .
+rescanPDELocally :: ∀ x y .
      ( WithField ℝ Manifold x, FlatSpace (Needle x)
      , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
-         => DifferentialEqn x ð y -> WebLocally x (Shade' y)
-                                -> (Maybe (Shade' y), Maybe (Shade' ð))
+         => DifferentialEqn x y -> WebLocally x (Shade' y) -> (Maybe (Shade' y))
 rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                         , dualSpaceWitness :: DualNeedleWitness y
                         , boundarylessWitness :: BoundarylessWitness x
@@ -705,21 +709,19 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                      | (_,(δx,ngb))<-info^.nodeNeighbours
                                      , v <- normSpanningSystem'
                                               (ngb^.thisNodeData.shadeNarrowness)] of
-                        LocalDifferentialEqn _ rescan
-                            -> rescan (info^.thisNodeData)
+                        LocalDifferentialEqn rescan -> fst
+                             ( rescan (info^.thisNodeData)
                                       (differentiateUncertainWebLocally info)
-                                      (differentiate²UncertainWebLocally info)
+                                      (differentiate²UncertainWebLocally info) )
 
 rescanPDEOnWeb :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
                   , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y)
                   , Hask.Applicative m )
-                => InconsistencyStrategy m x (Shade' y, Shade' ð)
-                  -> DifferentialEqn x ð y -> PointsWeb x (Shade' y)
-                                   -> m (PointsWeb x (Shade' y, Shade' ð))
+                => InconsistencyStrategy m x (Shade' y)
+                  -> DifferentialEqn x y -> PointsWeb x (Shade' y)
+                                   -> m (PointsWeb x (Shade' y))
 rescanPDEOnWeb strat deq = traverseWebWithStrategy strat
-                 (fzip . rescanPDELocally deq . fmap fst)
-         . fmap (\shy -> (shy, error
-                   "No default value for inconsistent PDE-rescanning on web"))
+                 (rescanPDELocally deq)
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
@@ -812,12 +814,10 @@ deriving instance Hask.Functor (InconsistencyStrategy m x)
 
 iterateFilterDEqn_static :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
                             , Refinable y, Geodesic y, FlatSpace (Needle y)
-                            , WithField ℝ AffineManifold ð, Geodesic ð
-                            , SimpleSpace (Needle ð)
                             , Hask.MonadPlus m )
        => InformationMergeStrategy [] m (x,Shade' y) iy
            -> Embedding (->) (Shade' y) iy
-           -> DifferentialEqn x ð y
+           -> DifferentialEqn x y
                  -> PointsWeb x (Shade' y) -> Cofree m (PointsWeb x (Shade' y))
 iterateFilterDEqn_static strategy shading f
                            = fmap (fmap (shading >-$))
@@ -828,11 +828,9 @@ iterateFilterDEqn_static strategy shading f
 filterDEqnSolutions_static :: ∀ x y iy ð m .
                               ( WithField ℝ Manifold x, FlatSpace (Needle x)
                               , Refinable y, Geodesic y, FlatSpace (Needle y)
-                              , WithField ℝ AffineManifold ð, Geodesic ð
-                              , SimpleSpace (Needle ð)
                               , Hask.MonadPlus m )
        => InformationMergeStrategy [] m  (x,Shade' y) iy -> Embedding (->) (Shade' y) iy
-          -> DifferentialEqn x ð y -> PointsWeb x iy -> m (PointsWeb x iy)
+          -> DifferentialEqn x y -> PointsWeb x iy -> m (PointsWeb x iy)
 filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
    GeodesicWitness _ -> \strategy shading f
        -> webLocalInfo
@@ -840,18 +838,18 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
            >>> localFocusWeb >>> Hask.traverse ( \((_,(me,updShy)), ngbs)
           -> let oldValue = me^.thisNodeData :: iy
              in  case updShy of
-              (Just shy, Just shð) -> case ngbs of
+              Just shy -> case ngbs of
                   []  -> pure oldValue
                   _:_ | BoundarylessWitness <- (boundarylessWitness::BoundarylessWitness x)
                     -> maybeAlt
-                          ( sequenceA [ fzip sj
+                          ( sequenceA [ sj
                                 >>= \ngbShyð -> (ngbInfo^.thisNodeCoord,)<$>
                                      propagateDEqnSolution_loc
                                        f (LocalDataPropPlan
                                              (ngbInfo^.thisNodeCoord)
                                              (negateV δx)
                                              ngbShyð
-                                             (shy, shð)
+                                             shy
                                              (fmap (second ((shading>-$) . _thisNodeData)
                                                     . snd) $ ngbInfo^.nodeNeighbours)
                                           )
@@ -889,13 +887,12 @@ oldAndNew' (_, l) = (False,) <$> l
 
 
 filterDEqnSolutions_adaptive :: ∀ x y ð badness m
-        . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-          , WithField ℝ AffineManifold y, Refinable y, Geodesic y
-          , WithField ℝ AffineManifold ð, Geodesic ð, SimpleSpace (Needle ð)
+        . ( WithField ℝ Manifold x, FlatSpace (Needle x)
+          , WithField ℝ AffineManifold y, Refinable y, Geodesic y, FlatSpace (Needle y)
           , badness ~ ℝ, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m x (Shade' y)
-       -> DifferentialEqn x ð y
+       -> DifferentialEqn x y
        -> (x -> Shade' y -> badness)
              -> PointsWeb x (SolverNodeState x y)
                         -> m (PointsWeb x (SolverNodeState x y))
@@ -918,9 +915,8 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                            (neigh^.thisNodeCoord)
                                            (negateV δx)
                                            (convexSetHull $ neigh^.thisNodeData
-                                                                  .solverNodeStatus
-                                           , undefined)
-                                           (thisShy, undefined)
+                                                                  .solverNodeStatus)
+                                           thisShy
                                            [ second (convexSetHull
                                                      . _solverNodeStatus . _thisNodeData) nn
                                            | (_,nn)<-neigh^.nodeNeighbours ] )
@@ -1014,9 +1010,8 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                                       (n^.thisNodeCoord)
                                                       (stepV ^-^ δx)
                                                       (convexSetHull $
-                                                        n^.thisNodeData.solverNodeStatus
-                                                      , undefined)
-                                                      (aprioriInterpolate, undefined)
+                                                        n^.thisNodeData.solverNodeStatus)
+                                                      aprioriInterpolate
                                                       (second (convexSetHull
                                                                ._solverNodeStatus
                                                                ._thisNodeData)
@@ -1080,12 +1075,12 @@ recomputeJacobian = webLocalInfo
 
 
 iterateFilterDEqn_adaptive
-     :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-        , WithField ℝ AffineManifold y, Refinable y, Geodesic y, Hask.Monad m
-        , WithField ℝ AffineManifold ð, Geodesic ð, SimpleSpace (Needle ð) )
+     :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
+        , WithField ℝ AffineManifold y, Refinable y, Geodesic y, FlatSpace (Needle y)
+        , Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m x (Shade' y)
-       -> DifferentialEqn x ð y
+       -> DifferentialEqn x y
        -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
              -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
 iterateFilterDEqn_adaptive mf strategy f badness

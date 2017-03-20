@@ -36,7 +36,6 @@ module Data.Manifold.DifferentialEquation (
               DifferentialEqn, ODE
             , constLinearDEqn
             , constLinearODE
-            , constLinearPDE
             , iterateFilterDEqn_static
             -- * Cost functions for error bounds
             , maxDeviationsGoal
@@ -90,44 +89,35 @@ import Data.Traversable.Constrained (Traversable, traverse)
 --   be an arbitrary one-dimensional space (i.e. basically real intervals or 'S¹').
 --   In these cases, there is always only one partial derivative: that which we
 --   integrate over, in the only possible direction for propagation.
-type ODE x y = DifferentialEqn x ℝ⁰ y
+type ODE x y = DifferentialEqn x y
 
-constLinearDEqn :: ∀ x y ð . ( SimpleSpace x
-                             , SimpleSpace y, AffineManifold y
-                             , SimpleSpace ð, AffineManifold ð
-                             , Scalar x ~ ℝ, Scalar y ~ ℝ, Scalar ð ~ ℝ )
-              => ((y,ð) +> (x +> y)) -> ((x +> y) +> (y,ð)) -> DifferentialEqn x ð y
+constLinearDEqn :: ∀ x y . ( SimpleSpace x
+                           , SimpleSpace y, AffineManifold y
+                           , Scalar x ~ ℝ, Scalar y ~ ℝ )
+              => (y +> (x +> y)) -> ((x +> y) +> y) -> DifferentialEqn x y
 constLinearDEqn = case ( linearManifoldWitness :: LinearManifoldWitness x
                        , dualSpaceWitness :: DualSpaceWitness x
                        , linearManifoldWitness :: LinearManifoldWitness y
-                       , dualSpaceWitness :: DualSpaceWitness y
-                       , linearManifoldWitness :: LinearManifoldWitness ð
-                       , dualSpaceWitness :: DualSpaceWitness ð ) of
+                       , dualSpaceWitness :: DualSpaceWitness y ) of
    ( LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
-    ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
     ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt'inv bwt' ->
         \(Shade (_x,y) δxy) -> LocalDifferentialEqn
-         { _predictDerivatives
-            = \(Shade' ð δð) ->
-                let j = bwt'inv $ (y,ð)
-                    δj = bwt' `transformNorm`
-                           sumSubspaceNorms (transformNorm (zeroV&&&id) $ dualNorm δxy) δð
-                in return $ Shade' j δj
-         , _rescanDerivatives
+         { _rescanDifferentialEqn
             = \shy shjApriori _
                 -> ( mixShade's $ shy
                              :| [ projectShade
-                                   (Embedding (arr bwt'inv <<< id&&&zeroV)
-                                              (arr bwt'    >>> fst))
+                                   (Embedding (arr bwt'inv)
+                                              (arr bwt'))
                                    shjApriori ]
                    , return $ projectShade
-                                   (Embedding (arr bwt'inv <<< zeroV&&&id)
-                                              (arr bwt'    >>> snd))
-                                   shjApriori
+                                   (Embedding (arr bwt')
+                                              (arr bwt'inv))
+                                   shy
                    )
          }
 
-constLinearODE :: ∀ x y . ( SimpleSpace x, Scalar x ~ ℝ, SimpleSpace y, Scalar y ~ ℝ )
+constLinearODE :: ∀ x y . ( SimpleSpace x, Scalar x ~ ℝ
+                          , AffineManifold y, SimpleSpace y, Scalar y ~ ℝ )
               => ((x +> y) +> y) -> ODE x y
 constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
                       , dualSpaceWitness :: DualSpaceWitness x
@@ -135,40 +125,13 @@ constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
                       , dualSpaceWitness :: DualSpaceWitness y ) of
    ( LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
     ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt' ->
-    let bwt'inv = (bwt'\$)
+    let bwt'inv = pseudoInverse bwt'
     in \(Shade (_x,y) δxy) -> LocalDifferentialEqn
-            (let j = bwt'inv y
-                 δj = (bwt'>>>zeroV&&&id) `transformNorm` dualNorm δxy
-             in \_ -> return $ Shade' j δj )
-            (\shy _ _ -> (pure shy, Just $ Shade' Origin mempty) )
+            (\shy _ _ -> ( pure shy
+                         , return $ projectShade (Embedding (arr bwt')
+                                                            (arr bwt'inv)) shy )
+            )
 
-constLinearPDE :: ∀ x y ð .
-                  ( WithField ℝ SimpleSpace x
-                  , WithField ℝ SimpleSpace y
-                  , WithField ℝ SimpleSpace ð, AffineManifold ð )
-              => ((x +> y) +> ð) -> (ð +> (x +> y)) -> DifferentialEqn x ð y
-constLinearPDE = case ( linearManifoldWitness :: LinearManifoldWitness x
-                      , dualSpaceWitness :: DualSpaceWitness x
-                      , linearManifoldWitness :: LinearManifoldWitness y
-                      , dualSpaceWitness :: DualSpaceWitness y
-                      , linearManifoldWitness :: LinearManifoldWitness ð
-                      , dualSpaceWitness :: DualSpaceWitness ð ) of
-   ( LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
-    ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
-    ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness )
-           -> \bwt' bwt'inv (Shade (_x,y) δxy)
-       -> LocalDifferentialEqn
-           { _predictDerivatives
-              = \(Shade' ð δð) ->
-                 let j = bwt'inv $ ð
-                     δj = bwt' `transformNorm` δð
-                 in return $ Shade' j δj
-           , _rescanDerivatives
-              = \shy shjApriori _
-                -> ( return shy
-                   , return $ projectShade (Embedding (arr bwt'inv) (arr bwt')) shjApriori
-                   )
-           }
 
 -- | A function that variates, relatively speaking, most strongly
 --   for arguments around 1. In the zero-limit it approaches a constant
