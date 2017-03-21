@@ -557,7 +557,7 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                  ) asd'
 
 localOnion :: ∀ x y . WithField ℝ Manifold x
-            => WebLocally x y -> [WebNodeId] -> [[WebLocally x y]]
+            => WebLocally x y -> [WebNodeId] -> [[(Needle x, WebLocally x y)]]
 localOnion origin directCandidates = go Map.empty . Map.fromList
                       $ (origin^.thisNodeId, (1, origin))
                        : [ (nid, (1, ninfo))
@@ -566,18 +566,22 @@ localOnion origin directCandidates = go Map.empty . Map.fromList
                          , ninfo^.thisNodeId == nid ]
  where go previous next
         | Map.null next = []
-        | otherwise  = ( snd <$> sortBy (comparing $ negate . fst)
+        | otherwise  = ( computeOffset . snd
+                                    <$> sortBy (comparing $ negate . fst)
                                                  (Hask.toList next) )
                      : go (Map.union previous next)
                           (Map.fromListWith (\(n,ninfo) (n',_) -> (n+n'::Int, ninfo))
                                 [ (nnid,(1,nneigh))
                                 | (nid,(_,ninfo))<-Map.toList next
                                 , (nnid,(_,nneigh))<-ninfo^.nodeNeighbours
-                                , Map.notMember nnid previous ])
+                                , Map.notMember nnid previous && Map.notMember nnid next ])
+       computeOffset p = case p^.thisNodeCoord .-~. origin^.thisNodeCoord of
+                Just v -> (v,p)
 
 webOnions :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x [[(x,y)]]
-webOnions = localFmapWeb (map (map $ _thisNodeCoord&&&_thisNodeData) . (`localOnion`[]))
+webOnions = localFmapWeb (map (map $ _thisNodeCoord&&&_thisNodeData <<< snd)
+                                . (`localOnion`[]))
 
 nearestNeighbour :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
                       => PointsWeb x y -> x -> Maybe (x,y)
@@ -655,9 +659,8 @@ differentiate²UncertainWebLocally = d²uwl
              , PseudoAffineWitness (SemimanifoldWitness _)
              , DualSpaceWitness, DualSpaceWitness ) info
           = case estimateLocalHessian $
-                          (\ngb -> case (ngb^.thisNodeCoord .-~. info^.thisNodeCoord) of
-                             Just δx -> (Local δx :: Local x, ngb^.thisNodeData) )
-                          <$> info :| envi
+                          (\(δx,ngb) -> (Local δx :: Local x, ngb^.thisNodeData) )
+                          <$> (zeroV,info) :| envi
                           of
                QuadraticModel _ h -> dualShade $ projectShade
                           (fromEmbedProject (acoSnd.acoSnd ^/ 2)
@@ -850,8 +853,8 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
                                              (negateV δx)
                                              ngbShyð
                                              shy
-                                             (fmap (second ((shading>-$) . _thisNodeData)
-                                                    . snd) $ ngbInfo^.nodeNeighbours)
+                                             (fmap (second ((shading>-$) . _thisNodeData))
+                                               $ localOnion me [ngbInfo^.thisNodeId] !! 1)
                                           )
                                   | (δx, (ngbInfo,sj)) <- ngbs
                                   ] )
