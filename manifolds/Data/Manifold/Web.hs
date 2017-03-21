@@ -46,6 +46,7 @@ module Data.Manifold.Web (
             , localFocusWeb
               -- * Uncertain functions
             , differentiateUncertainWebFunction, differentiate²UncertainWebFunction
+            , localModels_BGrid
               -- * Differential equations
               -- ** Fixed resolution
             , iterateFilterDEqn_static
@@ -672,6 +673,28 @@ differentiate²UncertainWebLocally = d²uwl
        nMinData = 1 + regular_neighboursCount
                          (subbasisDimension (entireBasis :: SubBasis (Needle x)))
 
+
+localModels_BGrid :: ∀ x y . ( WithField ℝ Manifold x, FlatSpace (Needle x)
+                             , Refinable y, Geodesic y, FlatSpace (Needle y) )
+          => PointsWeb x (Shade' y) -> [(x, QuadraticModel x y)]
+localModels_BGrid = Hask.concatMap theBGrid . Hask.toList . webLocalInfo
+ where theBGrid :: WebLocally x (Shade' y) -> [(x, QuadraticModel x y)]
+       theBGrid node = [ ( pn .-~^ δx^/2
+                         , propagationCenteredQuadraticModel
+                             ( LocalDataPropPlan
+                                    pn
+                                    (negateV δx)
+                                    (ngbNode^.thisNodeData)
+                                    (node^.thisNodeData)
+                                    (fmap (second _thisNodeData)
+                                      $ localOnion ngbNode [node^.thisNodeId] !! 1)
+                                          ) )
+                       | (nid, (δx, ngbNode)) <- node^.nodeNeighbours
+                       , nid > node^.thisNodeId
+                       , Just pn <- [toInterior $ ngbNode^.thisNodeCoord]
+                       ]
+
+
 acoSnd :: ∀ s v y . ( Object (Affine s) y, Object (Affine s) v
                     , LinearSpace v, Scalar v ~ s ) => Affine s y (v,y)
 acoSnd = case ( linearManifoldWitness :: LinearManifoldWitness v
@@ -854,7 +877,7 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
                                              ngbShyð
                                              shy
                                              (fmap (second ((shading>-$) . _thisNodeData))
-                                               $ localOnion me [ngbInfo^.thisNodeId] !! 1)
+                                               $ localOnion ngbInfo [me^.thisNodeId] !! 1)
                                           )
                                   | (δx, (ngbInfo,sj)) <- ngbs
                                   ] )

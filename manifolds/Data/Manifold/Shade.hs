@@ -50,7 +50,8 @@ module Data.Manifold.Shade (
        , shadesMerge, pointsShades', pseudoECM, convolveMetric
        , WithAny(..), shadeWithAny, shadeWithoutAnything
        -- ** Local data fit models
-       , estimateLocalJacobian, estimateLocalHessian, QuadraticModel(..)
+       , estimateLocalJacobian, estimateLocalHessian
+       , propagationCenteredQuadraticModel, QuadraticModel(..), quadraticModel_decomposition
        -- ** Differential equations
        , DifferentialEqn, LocalDifferentialEqn(..)
        , propagateDEqnSolution_loc, LocalDataPropPlan(..)
@@ -1005,8 +1006,10 @@ quadraticModel_decomposition :: ∀ x y .
 quadraticModel_decomposition (QuadraticModel y₀ shyðð²)
     | (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
                                      :: PseudoAffineWitness y <- pseudoAffineWitness
-             = (Shade' (y₀.+~^yb) ey, shðð²)
- where (Shade' yb ey, shðð²)
+    , DualSpaceWitness :: DualSpaceWitness (Needle x) <- dualSpaceWitness
+    , DualSpaceWitness :: DualSpaceWitness (Needle y) <- dualSpaceWitness
+             = (Shade' (y₀.+~^yb) ey, (shð, linIsoTransformShade (id^*2) shð²))
+ where (Shade' yb ey, (shð, shð²))
            :: (Shade' (Needle y), (Shade' (LocalLinear x y), Shade' (LocalBilinear x y)))
            | (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
                                      :: PseudoAffineWitness y <- pseudoAffineWitness
