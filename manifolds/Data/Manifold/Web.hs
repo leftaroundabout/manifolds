@@ -46,7 +46,7 @@ module Data.Manifold.Web (
             , localFocusWeb
               -- * Uncertain functions
             , differentiateUncertainWebFunction, differentiate²UncertainWebFunction
-            , localModels_BGrid
+            , localModels_CGrid
               -- * Differential equations
               -- ** Fixed resolution
             , iterateFilterDEqn_static
@@ -674,12 +674,17 @@ differentiate²UncertainWebLocally = d²uwl
                          (subbasisDimension (entireBasis :: SubBasis (Needle x)))
 
 
-localModels_BGrid :: ∀ x y . ( WithField ℝ Manifold x, FlatSpace (Needle x)
+-- | Calculate a quadratic fit with uncertainty margin centered around the connection
+--   between any two adjacent nodes. In case of a regular grid (which we by no means
+--   require here!) this corresponds to the vector quantities of an Arakawa type C/D
+--   grid (cf. A. Arakawa, V.R. Lamb (1977):
+--   Computational design of the basic dynamical processes of the UCLA general circulation model)
+localModels_CGrid :: ∀ x y . ( WithField ℝ Manifold x, FlatSpace (Needle x)
                              , Refinable y, Geodesic y, FlatSpace (Needle y) )
           => PointsWeb x (Shade' y) -> [(x, QuadraticModel x y)]
-localModels_BGrid = Hask.concatMap theBGrid . Hask.toList . webLocalInfo
- where theBGrid :: WebLocally x (Shade' y) -> [(x, QuadraticModel x y)]
-       theBGrid node = [ ( pn .-~^ δx^/2
+localModels_CGrid = Hask.concatMap theCGrid . Hask.toList . webLocalInfo
+ where theCGrid :: WebLocally x (Shade' y) -> [(x, QuadraticModel x y)]
+       theCGrid node = [ ( pn .-~^ δx^/2
                          , propagationCenteredQuadraticModel
                              ( LocalDataPropPlan
                                     pn
