@@ -721,7 +721,7 @@ differentiate²UncertainWebFunction = localFmapWeb differentiate²UncertainWebLo
 rescanPDELocally :: ∀ x y .
      ( WithField ℝ Manifold x, FlatSpace (Needle x)
      , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
-         => DifferentialEqn x y -> WebLocally x (Shade' y) -> (Maybe (Shade' y))
+         => DifferentialEqn x y -> WebLocally x (Shade' y) -> Maybe (Shade' y)
 rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                         , dualSpaceWitness :: DualNeedleWitness y
                         , boundarylessWitness :: BoundarylessWitness x
@@ -867,9 +867,11 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
               Just shy -> case ngbs of
                   []  -> pure oldValue
                   _:_ | BoundarylessWitness <- (boundarylessWitness::BoundarylessWitness x)
-                    -> maybeAlt
-                          ( sequenceA [ sj
-                                >>= \ngbShyð -> (ngbInfo^.thisNodeCoord,)<$>
+                    -> sequenceA [ maybeAlt sj
+                                >>= \ngbShyð -> fmap ((me^.thisNodeCoord .+~^ δx,)
+                                                   . (shading>-$))
+                                  . mergeInformation strategy oldValue . Hask.toList
+                                  $ (ngbInfo^.thisNodeCoord,)<$>
                                      propagateDEqnSolution_loc
                                        f (LocalDataPropPlan
                                              (ngbInfo^.thisNodeCoord)
@@ -880,7 +882,7 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
                                                $ localOnion ngbInfo [me^.thisNodeId] !! 1)
                                           )
                                   | (δx, (ngbInfo,sj)) <- ngbs
-                                  ] )
+                                  ]
                             >>= mergeInformation strategy (shading$->shy)
               _ -> mergeInformation strategy oldValue empty
         )
