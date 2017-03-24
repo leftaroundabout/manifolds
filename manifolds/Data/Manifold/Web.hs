@@ -55,7 +55,7 @@ module Data.Manifold.Web (
               -- ** Configuration
             , InconsistencyStrategy(..)
             , InformationMergeStrategy(..)
-            , naïve, inconsistencyAware, indicateInconsistencies
+            , naïve, inconsistencyAware, indicateInconsistencies, postponeInconsistencies
             , PropagationInconsistency(..)
               -- * Misc
             , ConvexSet(..), ellipsoid, ellipsoidSet, coerceWebDomain
@@ -104,6 +104,7 @@ import Data.STRef (newSTRef, modifySTRef, readSTRef)
 import Control.Monad.Trans.State
 import Control.Monad.Trans.List
 import Control.Monad.Trans.Except
+import Control.Monad.Trans.Writer
 import Data.Functor.Identity (Identity(..))
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, toList)
@@ -831,6 +832,14 @@ indicateInconsistencies merge = InformationMergeStrategy
            (\o n -> case merge $ o :| fmap snd n of
                Just r  -> pure r
                Nothing -> throwE $ PropagationInconsistency n o )
+
+postponeInconsistencies :: Hask.Monad m => (NonEmpty υ -> Maybe υ)
+   -> InformationMergeStrategy [] (WriterT [PropagationInconsistency x υ] m)
+                                  (x,υ) υ
+postponeInconsistencies merge = InformationMergeStrategy
+           (\o n -> case merge $ o :| fmap snd n of
+               Just r  -> pure r
+               Nothing -> writer (o,[PropagationInconsistency n o]) )
 
 maybeAlt :: Hask.Alternative f => Maybe a -> f a
 maybeAlt (Just x) = pure x
