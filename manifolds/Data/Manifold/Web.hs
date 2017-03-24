@@ -384,8 +384,7 @@ makeIndexLinksSymmetric orig = runST (do
     return (final, allTouched)
   )
 
-indexWeb :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
-                => PointsWeb x y -> WebNodeId -> Maybe (x,y)
+indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
 indexWeb (PointsWeb rsc assocD) i
   | i>=0, i<Arr.length assocD
   , Right (_,x) <- indexShadeTree rsc i  = pure (x, fst (assocD Arr.! i))
@@ -394,8 +393,7 @@ indexWeb (PointsWeb rsc assocD) i
 unsafeIndexWebData :: PointsWeb x y -> WebNodeId -> y
 unsafeIndexWebData (PointsWeb _ asd) i = fst (asd Arr.! i)
 
-webEdges :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
-            => PointsWeb x y -> [((x,y), (x,y))]
+webEdges :: ∀ x y . PointsWeb x y -> [((x,y), (x,y))]
 webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
  where allEdges :: Set.Set (WebNodeId,WebNodeId)
        allEdges = Hask.foldMap (\(i,(_, Neighbourhood ngbs _))

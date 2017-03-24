@@ -310,8 +310,7 @@ fromLeafPoints = fromLeafPoints' sShIdPartition
 
 -- | The leaves of a shade tree are numbered. For a given index, this function
 --   attempts to find the leaf with that ID, within its immediate environment.
-indexShadeTree :: ∀ x . WithField ℝ Manifold x
-       => ShadeTree x -> Int -> Either Int ([ShadeTree x], x)
+indexShadeTree :: ∀ x . ShadeTree x -> Int -> Either Int ([ShadeTree x], x)
 indexShadeTree _ i
     | i<0        = Left i
 indexShadeTree sh@(PlainLeaves lvs) i = case length lvs of
