@@ -197,6 +197,13 @@ instance Traversable (PointsWeb x) (PointsWeb x) (->) (->) where
    where (ys,ngss) = Arr.unzip asd
 
 
+data WebChunk x y = WebChunk {
+     _parentWeb :: PointsWeb x y
+   , _overrideStart :: WebNodeId
+   , _overriddenData :: Arr.Vector y
+   }
+
+makeLenses ''WebChunk
 
 type MetricChoice x = Shade x -> Metric x
 
@@ -542,6 +549,21 @@ webLocalInfo origWeb = result
                          -> not $ (`any`ngbCo) $ \(v',_)
                               -> (rieM<$|v) <.>^ v' < 0
 
+
+hardbakeChunk :: WebChunk x y -> PointsWeb x y
+hardbakeChunk (WebChunk (PointsWeb xs parentData) i₀ override)
+         = PointsWeb xs . Arr.update parentData
+                     . Arr.zipWith (\y' (i, (_y, ngbs)) -> (i, (y', ngbs))) override
+                     $ Arr.slice i₀ (Arr.length override) (Arr.indexed parentData)
+
+aroundChunk :: (PointsWeb x y -> PointsWeb x z) -> WebChunk x y -> WebChunk x z
+aroundChunk f chunk@(WebChunk origWeb i₀ override) = case f $ hardbakeChunk chunk of
+         newWeb@(PointsWeb _ newData) -> WebChunk newWeb i₀ . Arr.map fst
+                                          $ Arr.slice i₀ (Arr.length override) newData
+
+entireWeb :: PointsWeb x y -> WebChunk x y
+entireWeb web@(PointsWeb _ asd) = WebChunk web 0 $ Arr.map fst asd
+
 localFocusWeb :: WithField ℝ Manifold x
                    => PointsWeb x y -> PointsWeb x ((x,y), [(Needle x, y)])
 localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
@@ -555,6 +577,43 @@ localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
                                 , let ((x',y'),_) = asd' Arr.! j
                                 ]), n)
                  ) asd'
+
+
+
+treewiseTraverseLocalWeb :: ∀ f x y . (WithField ℝ Manifold x, Hask.Applicative f)
+     => (WebLocally x y -> f y)
+       -> (∀ t i w . (Hask.Traversable t, Ord i) => (w -> f w) -> t (i, w) -> f (t w) )
+       -> PointsWeb x y -> f (PointsWeb x y)
+treewiseTraverseLocalWeb fl ct = fmap hardbakeChunk . twt . entireWeb
+ where twt = treewiseTraverseLocalWeb' fl $ ct twt
+
+treewiseTraverseLocalWeb' :: ∀ f x y . (WithField ℝ Manifold x, Hask.Applicative f)
+     => (WebLocally x y -> f y)
+       -> (NonEmpty (Int, WebChunk x y) -> f (NonEmpty (WebChunk x y)))
+       -> WebChunk x y -> f (WebChunk x y)
+treewiseTraverseLocalWeb' fl ct domain@(WebChunk (PointsWeb t _) i₀ domainData)
+                  = rezoomed t 0
+ where rezoomed (PlainLeaves _) _ = localTraverseWebChunk fl domain
+       rezoomed tree pos
+         | pos == i₀, nLeaves tree == lDomain
+             = fmap reassemble $ ct (NE.zipWith
+                       (\jb (i₀b,t')
+                         -> (jb, domain & overrideStart .~ i₀+i₀b
+                                        & overriddenData
+                                            .~ Arr.slice i₀b (nLeaves t') domainData ))
+                       (0:|[1..]) branches)
+         | otherwise                     = go branches
+        where branches = trunkBranches tree
+              go (_:|((i₀nb,nb):brs))
+                | pos+i₀nb <= i₀  = go $ (i₀nb,nb):|brs
+              go ((i₀b,t):|_) = rezoomed t (pos+i₀b)
+              reassemble :: NonEmpty (WebChunk x y) -> WebChunk x y
+              reassemble brs = domain & overriddenData
+                                  .~ Hask.foldMap _overriddenData brs
+       lDomain = Arr.length domainData
+
+
+
 
 localOnion :: ∀ x y . WithField ℝ Manifold x
             => WebLocally x y -> [WebNodeId] -> [[(Needle x, WebLocally x y)]]
@@ -615,6 +674,19 @@ instance WithField ℝ Manifold x => Comonad (WebLocally x) where
 localFmapWeb :: WithField ℝ Manifold x
                 => (WebLocally x y -> z) -> PointsWeb x y -> PointsWeb x z
 localFmapWeb f = webLocalInfo >>> fmap f
+
+-- ^ 'fmap' from the co-Kleisli category of 'WebLocally'.
+localTraverseWeb :: (WithField ℝ Manifold x, Hask.Applicative m)
+                => (WebLocally x y -> m z) -> PointsWeb x y -> m (PointsWeb x z)
+localTraverseWeb f = webLocalInfo >>> Hask.traverse f
+
+-- ^ 'fmap' from the co-Kleisli category of 'WebLocally', restricted to some
+--   contiguous part of a web.
+localTraverseWebChunk :: (WithField ℝ Manifold x, Hask.Applicative m)
+                => (WebLocally x y -> m y) -> WebChunk x y -> m (WebChunk x y)
+localTraverseWebChunk f web@(WebChunk pWeb i₀ _)
+      = case aroundChunk webLocalInfo web of
+         WebChunk _ _ override -> WebChunk pWeb i₀ <$> Hask.traverse f override
 
 traverseWebWithStrategy :: ( WithField ℝ Manifold x, Hask.Applicative m )
                => InconsistencyStrategy m x y -> (WebLocally x y -> Maybe y)

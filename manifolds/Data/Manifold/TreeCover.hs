@@ -45,9 +45,10 @@ module Data.Manifold.TreeCover (
        , Refinable, subShade', refineShade', convolveShade', coerceShade
        , mixShade's
        -- * Shade trees
-       , ShadeTree(..), fromLeafPoints, onlyLeaves, indexShadeTree, positionIndex
-       -- * View helpers
-       , onlyNodes
+       , ShadeTree(..), fromLeafPoints, onlyLeaves
+       , indexShadeTree, positionIndex
+       -- ** View helpers
+       , onlyNodes, trunkBranches, nLeaves
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
        -- * Misc
@@ -184,10 +185,12 @@ oneBulb UpperBulb f (Hourglass u l) = Hourglass (f u) l
 oneBulb LowerBulb f (Hourglass u l) = Hourglass u (f l)
 
 
+type LeafCount = Int
+type LeafIndex = Int
 
 data ShadeTree x = PlainLeaves [x]
-                 | DisjointBranches !Int (NonEmpty (ShadeTree x))
-                 | OverlappingBranches !Int !(Shade x) (NonEmpty (DBranch x))
+                 | DisjointBranches !LeafCount (NonEmpty (ShadeTree x))
+                 | OverlappingBranches !LeafCount !(Shade x) (NonEmpty (DBranch x))
   deriving (Generic)
 deriving instance ( WithField ℝ PseudoAffine x, Show x
                   , Show (Interior x), Show (Needle' x), Show (Metric' x) )
@@ -210,6 +213,20 @@ instance (Semigroup c) => Semigroup (DBranches' x c) where
   DBranches b1 <> DBranches b2 = DBranches $ NE.zipWith (\(DBranch d1 c1) (DBranch _ c2)
                                                               -> DBranch d1 $ c1<>c2 ) b1 b2
 
+
+
+trunkBranches :: ShadeTree x -> NonEmpty (LeafIndex, ShadeTree x)
+trunkBranches (OverlappingBranches _ _ brs)
+        = (`evalState`0)
+            . forM (brs >>= \(DBranch _ (Hourglass t b)) -> t:|[b]) $ \st -> do
+               i₀ <- get
+               put $ i₀ + nLeaves st
+               return (i₀, st)
+trunkBranches (DisjointBranches _ brs) = (`evalState`0) . forM brs $ \st -> do
+               i₀ <- get
+               put $ i₀ + nLeaves st
+               return (i₀, st)
+trunkBranches t = pure (0,t)
   
 directionChoices :: WithField ℝ Manifold x
                => [DBranch x]
