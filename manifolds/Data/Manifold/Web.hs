@@ -49,7 +49,7 @@ module Data.Manifold.Web (
             , localModels_CGrid
               -- * Differential equations
               -- ** Fixed resolution
-            , iterateFilterDEqn_static
+            , iterateFilterDEqn_static, iterateFilterDEqn_static_selective
               -- ** Automatic resolution
             , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- ** Configuration
@@ -919,7 +919,21 @@ iterateFilterDEqn_static strategy shading f
                            . fmap (shading $->)
 
 
-filterDEqnSolutions_static :: ∀ x y iy ð m .
+iterateFilterDEqn_static_selective :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
+                                      , Refinable y, Geodesic y, FlatSpace (Needle y)
+                                      , Hask.MonadPlus m, badness ~ ℝ )
+       => InformationMergeStrategy [] m (x,Shade' y) iy
+           -> Embedding (->) (Shade' y) iy
+           -> (x -> iy -> badness)
+           -> DifferentialEqn x y
+                 -> PointsWeb x (Shade' y) -> Cofree m (PointsWeb x (Shade' y))
+iterateFilterDEqn_static_selective strategy shading badness f
+      = fmap (fmap (shading >-$))
+      . coiter (filterDEqnSolutions_static_selective strategy shading badness f)
+      . fmap (shading $->)
+
+
+filterDEqnSolutions_static :: ∀ x y iy m .
                               ( WithField ℝ Manifold x, FlatSpace (Needle x)
                               , Refinable y, Geodesic y, FlatSpace (Needle y)
                               , Hask.MonadPlus m )
@@ -954,6 +968,41 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
                             >>= mergeInformation strategy (shading$->shy)
               _ -> mergeInformation strategy oldValue empty
         )
+
+filterDEqnSolutions_static_selective :: ∀ x y iy m badness .
+                              ( WithField ℝ Manifold x, FlatSpace (Needle x)
+                              , Refinable y, Geodesic y, FlatSpace (Needle y)
+                              , Hask.MonadPlus m, badness ~ ℝ )
+       => InformationMergeStrategy [] m  (x,Shade' y) iy -> Embedding (->) (Shade' y) iy
+          -> (x -> iy -> badness)
+          -> DifferentialEqn x y
+          -> PointsWeb x iy -> m (PointsWeb x iy)
+filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y of
+   GeodesicWitness _ -> \strategy shading badness f
+       -> treewiseTraverseLocalWeb ( \me
+          -> let oldValue = me^.thisNodeData :: iy
+             in  case me^.nodeNeighbours of
+                  [] -> pure oldValue
+                  _:_ | BoundarylessWitness <- (boundarylessWitness::BoundarylessWitness x)
+                    -> sequenceA [ fmap ((me^.thisNodeCoord .+~^ δx,)
+                                                   . (shading>-$))
+                                  . mergeInformation strategy oldValue . Hask.toList
+                                  $ (ngbInfo^.thisNodeCoord,)<$>
+                                     propagateDEqnSolution_loc
+                                       f (LocalDataPropPlan
+                                             (ngbInfo^.thisNodeCoord)
+                                             (negateV δx)
+                                             (shading >-$ ngbInfo^.thisNodeData)
+                                             (shading >-$ oldValue)
+                                             (fmap (second ((shading>-$) . _thisNodeData))
+                                               $ localOnion ngbInfo [me^.thisNodeId] !! 1)
+                                          )
+                                  | (_, (δx, ngbInfo)) <- me^.nodeNeighbours
+                                  ]
+                            >>= mergeInformation strategy oldValue )
+                 (\combiner branchData
+                     -> Hask.traverse (combiner . snd) branchData)
+
 
 handleInconsistency :: InconsistencyStrategy m x a -> a -> Maybe a -> m a
 handleInconsistency AbortOnInconsistency _ i = i
