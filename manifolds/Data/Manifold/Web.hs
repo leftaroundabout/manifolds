@@ -104,7 +104,7 @@ import Data.STRef (newSTRef, modifySTRef, readSTRef)
 import Control.Monad.Trans.State
 import Control.Monad.Trans.List
 import Control.Monad.Trans.Except
-import Control.Monad.Trans.Writer
+import Control.Monad.Trans.Writer hiding (censor)
 import Data.Functor.Identity (Identity(..))
 import qualified Data.Foldable       as Hask
 import Data.Foldable (all, toList)
@@ -969,6 +969,24 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
               _ -> mergeInformation strategy oldValue empty
         )
 
+
+
+data Average a = Average { weight :: Int
+                         , averageAcc :: a
+                         } deriving (Hask.Functor)
+instance Num a => Monoid (Average a) where
+  mempty = Average 0 0
+  mappend (Average w₀ a₀) (Average w₁ a₁) = Average (w₀+w₁) (a₀+a₁)
+instance Hask.Applicative Average where
+  pure = Average 1
+  Average w₀ a₀ <*> Average w₁ a₁ = Average (w₀*w₁) (a₀ a₁)
+
+average :: Fractional a => Average a -> a
+average (Average w a) = a / fromIntegral w
+
+averaging :: VectorSpace a => [a] -> Average a
+averaging l = Average (length l) (sumV l)
+
 filterDEqnSolutions_static_selective :: ∀ x y iy m badness .
                               ( WithField ℝ Manifold x, FlatSpace (Needle x)
                               , Refinable y, Geodesic y, FlatSpace (Needle y)
@@ -979,12 +997,18 @@ filterDEqnSolutions_static_selective :: ∀ x y iy m badness .
           -> PointsWeb x iy -> m (PointsWeb x iy)
 filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y of
    GeodesicWitness _ -> \strategy shading badness f
-       -> treewiseTraverseLocalWeb ( \me
+       -> fmap fst . (runWriterT :: WriterT (Average badness) m (PointsWeb x iy)
+                                        -> m (PointsWeb x iy, Average badness))
+         . treewiseTraverseLocalWeb ( \me
           -> let oldValue = me^.thisNodeData :: iy
+                 badHere = badness $ me^.thisNodeCoord
+                 oldBadness = badHere oldValue
              in  case me^.nodeNeighbours of
                   [] -> pure oldValue
                   _:_ | BoundarylessWitness <- (boundarylessWitness::BoundarylessWitness x)
-                    -> sequenceA [ fmap ((me^.thisNodeCoord .+~^ δx,)
+                    -> WriterT . fmap (\updated
+                                    -> (updated, pure (oldBadness / badHere updated)))
+                       $ sequenceA [ fmap ((me^.thisNodeCoord .+~^ δx,)
                                                    . (shading>-$))
                                   . mergeInformation strategy oldValue . Hask.toList
                                   $ (ngbInfo^.thisNodeCoord,)<$>
@@ -1000,8 +1024,31 @@ filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y
                                   | (_, (δx, ngbInfo)) <- me^.nodeNeighbours
                                   ]
                             >>= mergeInformation strategy oldValue )
-                 (\combiner branchData
-                     -> Hask.traverse (combiner . snd) branchData)
+                 (\combiner branchData -> WriterT $ do
+                       (branchResults,improvements)
+                         <- runWriterT $ Hask.traverse
+                                          (\(i,branch) -> fmap (i,)
+                                                          . censor (pure . (i,) . average)
+                                                          $ combiner branch)
+                                          branchData
+                       let (best, _) = maximumBy (comparing snd) improvements
+                       (branchResults',improvements')
+                         <- runWriterT $ Hask.traverse
+                                          (\(i,branch) -> if i==best
+                                             then censor (pure . (i,) . average)
+                                                              $ combiner branch
+                                             else WriterT $ return (branch, pure (i,1)) )
+                                          branchResults
+                       return ( branchResults'
+                              , liftA2 (*) (averaging $ snd<$>improvements)
+                                           (averaging $ snd<$>improvements') )
+                 )
+
+-- | The <http://hackage.haskell.org/package/transformers-0.5.4.0/docs/Control-Monad-Trans-Writer-Lazy.html#v:censor transformers version of this>
+--   is insufficiently polymorphic, requiring @w ~ w'@.
+censor :: Functor m (->) (->) => (w -> w') -> WriterT w m a -> WriterT w' m a
+censor = mapWriterT . fmap . second
+
 
 
 handleInconsistency :: InconsistencyStrategy m x a -> a -> Maybe a -> m a
