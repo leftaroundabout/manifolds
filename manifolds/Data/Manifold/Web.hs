@@ -59,7 +59,7 @@ module Data.Manifold.Web (
             , PropagationInconsistency(..)
               -- * Misc
             , ConvexSet(..), ellipsoid, ellipsoidSet, coerceWebDomain
-            , rescanPDEOnWeb, rescanPDELocally, webOnions
+            , rescanPDELocally, webOnions
             ) where
 
 
@@ -688,13 +688,6 @@ localTraverseWebChunk f web@(WebChunk pWeb i₀ _)
       = case aroundChunk webLocalInfo web of
          WebChunk _ _ override -> WebChunk pWeb i₀ <$> Hask.traverse f override
 
-traverseWebWithStrategy :: ( WithField ℝ Manifold x, Hask.Applicative m )
-               => InconsistencyStrategy m x y -> (WebLocally x y -> Maybe y)
-                     -> PointsWeb x y -> m (PointsWeb x y)
-traverseWebWithStrategy strat f = webLocalInfo
-               >>> traverse (\info -> handleInconsistency strat
-                                       (info^.thisNodeData) (f info))
-
 differentiateUncertainWebLocally :: ∀ x y
    . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
      , WithField ℝ Refinable y, SimpleSpace (Needle y) )
@@ -815,15 +808,6 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                              ( rescan (info^.thisNodeData)
                                       (differentiateUncertainWebLocally info)
                                       (differentiate²UncertainWebLocally info) )
-
-rescanPDEOnWeb :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                  , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y)
-                  , Hask.Applicative m )
-                => InconsistencyStrategy m x (Shade' y)
-                  -> DifferentialEqn x y -> PointsWeb x (Shade' y)
-                                   -> m (PointsWeb x (Shade' y))
-rescanPDEOnWeb strat deq = traverseWebWithStrategy strat
-                 (rescanPDELocally deq)
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
