@@ -997,7 +997,13 @@ filterDEqnSolutions_static_selective :: ∀ x y iy m badness .
           -> PointsWeb x iy -> m (PointsWeb x iy)
 filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y of
    GeodesicWitness _ -> \strategy shading badness f
-       -> fmap fst . (runWriterT :: WriterT (Average badness) m (PointsWeb x iy)
+       ->  -- Integration step: determine at each point from the function values
+           -- what the derivatives should be, and use them to propagate the solution
+           -- in all directions. We only spend a single computation step on regions
+           -- where nothing much changes (indicating the a-priori information is
+           -- too weak yet to make any predictions anyway), but multiple steps in
+           -- regions where good progress is noticed.
+         fmap fst . (runWriterT :: WriterT (Average badness) m (PointsWeb x iy)
                                         -> m (PointsWeb x iy, Average badness))
          . treewiseTraverseLocalWeb ( \me
           -> let oldValue = me^.thisNodeData :: iy
@@ -1043,6 +1049,12 @@ filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y
                               , liftA2 (*) (averaging $ snd<$>improvements)
                                            (averaging $ snd<$>improvements') )
                  )
+          >=> -- Boundary-condition / differentiation step: update the local values
+              -- based on a-priori boundary conditions, possibly dependent on
+              -- numerical derivatives of the current solution estimate.
+              localTraverseWeb (\me -> fmap (shading$->)
+                                         . maybeAlt $ rescanPDELocally f me)
+            . fmap (shading>-$)
 
 -- | The <http://hackage.haskell.org/package/transformers-0.5.4.0/docs/Control-Monad-Trans-Writer-Lazy.html#v:censor transformers version of this>
 --   is insufficiently polymorphic, requiring @w ~ w'@.
