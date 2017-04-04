@@ -993,7 +993,7 @@ quadratic_linearRegression = qlr
                               , SymmetricTensor s (Needle x)+>(Needle y))
                             )
                , dm)
-                        = linearRegressionWVar
+                        = linearRegressionWExtremeVar
                            (\δx -> lfun $ \(c,(b,a)) -> (a $ squareV δx)
                                                       ^+^ (b $ δx) ^+^ c )
                            (NE.toList vsxy)
