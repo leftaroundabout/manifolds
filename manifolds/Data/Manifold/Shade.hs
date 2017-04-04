@@ -1021,17 +1021,7 @@ quadraticModel_decomposition (QuadraticModel y₀ shyðð²)
 estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y, Geodesic y
                                 , FlatSpace (Needle x), FlatSpace (Needle y) )
             => NonEmpty (Local x, Shade' y) -> QuadraticModel x y
-estimateLocalHessian pts = elj ( pseudoAffineWitness :: PseudoAffineWitness x
-                               , pseudoAffineWitness :: PseudoAffineWitness y )
- where elj ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-           , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
-         = theModel
-        where localPts :: NonEmpty (Needle x, Shade' y)
-              localPts = pts >>= \(Local x, Shade' y ey)
-                             -> NE.fromList [ (x, Shade' (y.+~^σ*^δy) ey)
-                                            | δy <- normSpanningSystem' ey
-                                            , σ <- [-1,1] ]
-              theModel = quadratic_linearRegression localPts
+estimateLocalHessian pts = quadratic_linearRegression $ first getLocalOffset <$> pts
 
 
 propagationCenteredQuadraticModel :: ∀ x y .
