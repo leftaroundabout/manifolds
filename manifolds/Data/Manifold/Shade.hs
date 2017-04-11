@@ -986,7 +986,7 @@ quadratic_linearRegression = qlr
            , LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
            , GeodesicWitness _ ) ps
                  = QuadraticModel cmy
-                     $ coverAllAround mBest (symmetricConvexPolytopeRepresentatives dm)
+                     $ coverAllAround mBest (symmetricPolytopeOuterVertices dm)
         where Just cmy = pointsBarycenter $ _shade'Ctr.snd<$>ps
               Just vsxy = Hask.mapM (\(x, Shade' y ey) -> (x,).(,ey)<$>y.-~.cmy) ps
               (mBest :: ( Needle y, (Needle x+>Needle y
