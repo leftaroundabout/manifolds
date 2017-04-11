@@ -963,8 +963,9 @@ estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
 
 
 data QuadraticModel x y = QuadraticModel {
-         _quadraticModelOffset :: Interior y
-       , _quadraticModel :: Shade (Needle y, (Needle x+>Needle y, Needle x⊗〃+>Needle y))
+         _quadraticModelOffset :: Shade                      y
+       , _quadraticModelLCoeff :: Shade ( Needle x  +>Needle y)
+       , _quadraticModelQCoeff :: Shade (Needle x⊗〃+>Needle y)
        }
 
 quadratic_linearRegression :: ∀ s x y .
@@ -985,10 +986,13 @@ quadratic_linearRegression = qlr
            , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
            , LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
            , GeodesicWitness _ ) ps
-                 = QuadraticModel cmy
-                     $ coverAllAround mBest (symmetricPolytopeOuterVertices dm)
+                 = QuadraticModel
+                    (coverAllAround (cmy.+~^fst mBest) $ fst <$> outerModelVerts)
+                    (coverAllAround (fst (snd mBest)) $ fst.snd <$> outerModelVerts)
+                    (coverAllAround (snd (snd mBest)) $ snd.snd <$> outerModelVerts)
         where Just cmy = pointsBarycenter $ _shade'Ctr.snd<$>ps
               Just vsxy = Hask.mapM (\(x, Shade' y ey) -> (x,).(,ey)<$>y.-~.cmy) ps
+              outerModelVerts = symmetricPolytopeOuterVertices dm
               (mBest :: ( Needle y, (Needle x+>Needle y
                               , SymmetricTensor s (Needle x)+>(Needle y))
                             )
@@ -1003,20 +1007,12 @@ quadraticModel_decomposition :: ∀ x y .
           , SimpleSpace (Needle x), SimpleSpace (Needle y)
           , Scalar (Needle y) ~ Scalar (Needle x) ) =>
      QuadraticModel x y -> (Shade' y, (Shade' (LocalLinear x y), Shade' (LocalBilinear x y))) 
-quadraticModel_decomposition (QuadraticModel y₀ shyðð²)
+quadraticModel_decomposition (QuadraticModel sh shð shð²)
     | (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
                                      :: PseudoAffineWitness y <- pseudoAffineWitness
     , DualSpaceWitness :: DualSpaceWitness (Needle x) <- dualSpaceWitness
     , DualSpaceWitness :: DualSpaceWitness (Needle y) <- dualSpaceWitness
-             = (Shade' (y₀.+~^yb) ey, (shð, linIsoTransformShade (id^*2) shð²))
- where (Shade' yb ey, (shð, shð²))
-           :: (Shade' (Needle y), (Shade' (LocalLinear x y), Shade' (LocalBilinear x y)))
-           | (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
-                                     :: PseudoAffineWitness y <- pseudoAffineWitness
-           , DualSpaceWitness :: DualSpaceWitness (Needle y) <- dualSpaceWitness
-           , DualSpaceWitness :: DualSpaceWitness (Needle x) <- dualSpaceWitness
-            = dualShade *** (dualShade *** dualShade)
-                            $ second factoriseShade $ factoriseShade shyðð²
+             = (dualShade sh, (dualShade shð, dualShade shð²))
 
 estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y, Geodesic y
                                 , FlatSpace (Needle x), FlatSpace (Needle y) )

@@ -727,9 +727,7 @@ differentiate²UncertainWebLocally = d²uwl
                           (\(δx,ngb) -> (Local δx :: Local x, ngb^.thisNodeData) )
                           <$> (zeroV,info) :| envi
                           of
-               QuadraticModel _ h -> dualShade $ projectShade
-                          (fromEmbedProject (acoSnd.acoSnd ^/ 2)
-                                            (snd.snd ^* 2) ) h
+               QuadraticModel _ _ h -> dualShade h
         where xVol :: SymmetricTensor ℝ (Needle x)
               xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
               _:directEnvi:remoteEnvi = localOnion info []
