@@ -987,17 +987,19 @@ quadratic_linearRegression = qlr
            , LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
            , GeodesicWitness _ ) ps
                  = QuadraticModel
-                    (coverAllAround (cmy.+~^fst mBest) $ fst <$> outerModelVerts)
-                    (coverAllAround (fst (snd mBest)) $ fst.snd <$> outerModelVerts)
-                    (coverAllAround (snd (snd mBest)) $ snd.snd <$> outerModelVerts)
+                    (Shade (cmy.+~^cBest) σc)
+                    (Shade bBest σb)
+                    (Shade aBest σa)
         where Just cmy = pointsBarycenter $ _shade'Ctr.snd<$>ps
               Just vsxy = Hask.mapM (\(x, Shade' y ey) -> (x,).(,ey)<$>y.-~.cmy) ps
-              outerModelVerts = symmetricPolytopeOuterVertices dm
-              (mBest :: ( Needle y, (Needle x+>Needle y
-                              , SymmetricTensor s (Needle x)+>(Needle y))
-                            )
-               , dm)
-                        = linearRegressionWExtremeVar
+              (cBest, (bBest, aBest)) = linearFit_bestModel regResult
+              (σc, (σb, σa)) = second summandSpaceNorms . summandSpaceNorms
+                                . dualNorm
+                                $ linearFit_modelUncertainty regResult
+              regResult :: LinearRegressionResult (Needle x) (Needle y)
+                              ( Needle y, (Needle x+>Needle y
+                                          , SymmetricTensor s (Needle x)+>(Needle y)) )
+                        = linearRegression
                            (\δx -> lfun $ \(c,(b,a)) -> (a $ squareV δx)
                                                       ^+^ (b $ δx) ^+^ c )
                            (NE.toList vsxy)
