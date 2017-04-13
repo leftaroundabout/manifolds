@@ -51,7 +51,7 @@ module Data.Manifold.Shade (
        , WithAny(..), shadeWithAny, shadeWithoutAnything
        -- ** Local data fit models
        , estimateLocalJacobian, estimateLocalHessian
-       , propagationCenteredQuadraticModel, QuadraticModel(..), quadraticModel_decomposition
+       , propagationCenteredQuadraticModel, QuadraticModel(..), quadraticModel_derivatives
        -- ** Differential equations
        , DifferentialEqn, LocalDifferentialEqn(..)
        , propagateDEqnSolution_loc, LocalDataPropPlan(..)
@@ -1004,17 +1004,18 @@ quadratic_linearRegression = qlr
                                                       ^+^ (b $ δx) ^+^ c )
                            (NE.toList vsxy)
 
-quadraticModel_decomposition :: ∀ x y .
+quadraticModel_derivatives :: ∀ x y .
           ( PseudoAffine x, PseudoAffine y
           , SimpleSpace (Needle x), SimpleSpace (Needle y)
           , Scalar (Needle y) ~ Scalar (Needle x) ) =>
      QuadraticModel x y -> (Shade' y, (Shade' (LocalLinear x y), Shade' (LocalBilinear x y))) 
-quadraticModel_decomposition (QuadraticModel sh shð shð²)
+quadraticModel_derivatives (QuadraticModel sh shð shð²)
     | (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
                                      :: PseudoAffineWitness y <- pseudoAffineWitness
     , DualSpaceWitness :: DualSpaceWitness (Needle x) <- dualSpaceWitness
     , DualSpaceWitness :: DualSpaceWitness (Needle y) <- dualSpaceWitness
-             = (dualShade sh, (dualShade shð, dualShade shð²))
+             = (dualShade sh, ( dualShade shð
+                              , linIsoTransformShade (2*^id) $ dualShade shð² ))
 
 estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y, Geodesic y
                                 , FlatSpace (Needle x), FlatSpace (Needle y) )
@@ -1056,7 +1057,7 @@ propagateDEqnSolution_loc f propPlan
                Just (Shade' j₀ jExpa) = jacobian
                jacobianSh :: Shade (LocalLinear x y)
                Just jacobianSh = dualShade' <$> jacobian
-               (shy, (shð,shð²)) = quadraticModel_decomposition
+               (shy, (shð,shð²)) = quadraticModel_derivatives
                                    $ propagationCenteredQuadraticModel propPlan
                mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2 :: x
                (Shade _ expax' :: Shade x)
