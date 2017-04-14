@@ -38,7 +38,7 @@ module Data.Manifold.Web (
               -- ** Construction
             , fromWebNodes, fromShadeTree_auto, fromShadeTree, fromShaded
               -- ** Lookup
-            , nearestNeighbour, indexWeb, webEdges, toGraph
+            , nearestNeighbour, indexWeb, webEdges, toGraph, webBoundary
               -- ** Decomposition
             , sliceWeb_lin -- , sampleWebAlongLine_lin
             , sampleWeb_2Dcartesian_lin, sampleEntireWeb_2Dcartesian_lin
@@ -400,6 +400,8 @@ indexWeb (PointsWeb rsc assocD) i
 unsafeIndexWebData :: PointsWeb x y -> WebNodeId -> y
 unsafeIndexWebData (PointsWeb _ asd) i = fst (asd Arr.! i)
 
+-- | Yield all pairs of directly-connected nodes. Not to be confused
+--   with 'webBoundary', which yields “the outer edge” of a web.
 webEdges :: ∀ x y . PointsWeb x y -> [((x,y), (x,y))]
 webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
  where allEdges :: Set.Set (WebNodeId,WebNodeId)
@@ -408,6 +410,11 @@ webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
                                     | i'<-UArr.toList ngbs ]
                                ) $ Arr.indexed assoc
        lookId i | Just xy <- indexWeb web i  = xy
+
+webBoundary :: WithField ℝ Manifold x => PointsWeb x y -> [(x,y)]
+webBoundary = webLocalInfo >>> Hask.toList >>> Hask.concatMap`id`
+        \info -> [ (info^.thisNodeCoord, info^.thisNodeData)
+                 | info^.nodeIsOnBoundary ]
 
 
 coerceWebDomain :: ∀ a b y
