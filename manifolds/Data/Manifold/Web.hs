@@ -795,7 +795,10 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                         , pseudoAffineWitness :: PseudoAffineWitness y ) of
    ( DualSpaceWitness,DualSpaceWitness,BoundarylessWitness
     , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
-     -> \f info -> let xc = info^.thisNodeCoord
+     -> \f info
+          -> if info^.nodeIsOnBoundary
+              then return $ info^.thisNodeData
+              else let xc = info^.thisNodeCoord
                        yc = info^.thisNodeData.shadeCtr
                    in case f $ coverAllAround (xc, yc)
                                      [ (δx, (ngb^.thisNodeData.shadeCtr.-~!yc) ^+^ v)
@@ -943,7 +946,9 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
            >>> fmap (id &&& rescanPDELocally f . fmap (shading>-$))
            >>> localFocusWeb >>> Hask.traverse ( \((_,(me,updShy)), ngbs)
           -> let oldValue = me^.thisNodeData :: iy
-             in  case updShy of
+             in if me ^. nodeIsOnBoundary
+                 then return oldValue
+                 else case updShy of
               Just shy -> case ngbs of
                   []  -> pure oldValue
                   _:_ | BoundarylessWitness <- (boundarylessWitness::BoundarylessWitness x)
@@ -1007,7 +1012,9 @@ filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y
           -> let oldValue = me^.thisNodeData :: iy
                  badHere = badness $ me^.thisNodeCoord
                  oldBadness = badHere oldValue
-             in  case me^.nodeNeighbours of
+             in if me ^. nodeIsOnBoundary
+                 then return oldValue
+                 else case me^.nodeNeighbours of
                   [] -> pure oldValue
                   _:_ | BoundarylessWitness <- (boundarylessWitness::BoundarylessWitness x)
                     -> WriterT . fmap (\updated
