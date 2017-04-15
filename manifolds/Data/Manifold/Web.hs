@@ -553,8 +553,10 @@ webLocalInfo origWeb = result
                 , _nodeIsOnBoundary = anyUnopposed (ngbH^.localScalarProduct) ngbCo
                 }, ngbH )
        anyUnopposed rieM ngbCo = (`any`ngbCo) $ \(v,_)
-                         -> not $ (`any`ngbCo) $ \(v',_)
-                              -> (rieM<$|v) <.>^ v' < 0
+                         -> not $ (`any`ngbCo) $ \(w,_)
+                              -> let [v',w'] = (rieM<$|)<$>[v,w]
+                                     vw = v'<.>^w
+                                 in vw < 0 && vw^2 > (v'<.>^v) * (w'<.>^w) / 2
 
 
 hardbakeChunk :: WebChunk x y -> PointsWeb x y
