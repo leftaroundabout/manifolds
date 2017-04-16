@@ -724,7 +724,8 @@ flexTwigsShading f = traverseTwigsWithEnvirons locFlex
 seekPotentialNeighbours :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                 => ShadeTree x -> x`Shaded`[Int]
 seekPotentialNeighbours tree = zipTreeWithList tree
-                     $ snd<$>leavesWithPotentialNeighbours tree
+                     $ case snd<$>leavesWithPotentialNeighbours tree of
+                         (n:ns) -> n:|ns
 
 leavesWithPotentialNeighbours :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                 => ShadeTree x -> [(x, [Int])]
@@ -1006,8 +1007,8 @@ joinShaded = unsafeFmapTree (fmap $ \(WithAny z (WithAny y x)) -> WithAny (y,z) 
                             (\(Shade (WithAny z (WithAny y x)) shx)
                                   -> Shade (WithAny (y,z) x) shx )
 
-zipTreeWithList :: ShadeTree x -> [y] -> (x`Shaded`y)
-zipTreeWithList tree = go tree . cycle
+zipTreeWithList :: ShadeTree x -> NonEmpty y -> (x`Shaded`y)
+zipTreeWithList tree = go tree . NE.toList . NE.cycle
  where go (PlainLeaves lvs) ys = PlainLeaves $ zipWith WithAny ys lvs
        go (DisjointBranches n brs) ys
              = DisjointBranches n . NE.fromList

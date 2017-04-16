@@ -240,7 +240,8 @@ fromShaded metricf = smoothenWebTopology metricf
                        . joinShaded . seekPotentialNeighbours
 
 toShaded :: WithField ℝ PseudoAffine x => PointsWeb x y -> (x`Shaded`y)
-toShaded (PointsWeb shd asd) = zipTreeWithList shd $ Arr.toList (fst<$>asd)
+toShaded (PointsWeb shd asd) = zipTreeWithList shd $ case Arr.toList (fst<$>asd) of
+                   (y:ys) -> y:|ys
 
 fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (MetricChoice x)
