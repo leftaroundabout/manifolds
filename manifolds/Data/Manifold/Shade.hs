@@ -967,6 +967,8 @@ data QuadraticModel x y = QuadraticModel {
        , _quadraticModelLCoeff :: Shade ( Needle x  +>Needle y)
        , _quadraticModelQCoeff :: Shade (Needle x⊗〃+>Needle y)
        }
+type QModelTup s x y = ( Needle y, (Needle x+>Needle y
+                                 , SymmetricTensor s (Needle x)+>(Needle y)) )
 
 quadratic_linearRegression :: ∀ s x y .
                       ( WithField s PseudoAffine x
@@ -995,10 +997,18 @@ quadratic_linearRegression = qlr
               (cBest, (bBest, aBest)) = linearFit_bestModel regResult
               (σc, (σb, σa)) = second summandSpaceNorms . summandSpaceNorms
                                 . dualNorm
+                                . (case linearFit_χν² regResult of
+                                     χν² | χν² > 0, recip χν² > 0
+                                            -> scaleNorm (recip $ 1 + sqrt χν²)
+                                     _ -> {-Dbg.trace ("Fit for quadratic model requires"
+               ++" well-defined χν² (which needs positive number of degrees of freedom)."
+               ++"\n Data: "++show (length ps
+                                * subbasisDimension (entireBasis :: SubBasis (Needle y)))
+               ++"\n Model parameters: "++show (subbasisDimension
+                                        (entireBasis :: SubBasis (QModelTup s x y))) )-}
+                                          id)
                                 $ linearFit_modelUncertainty regResult
-              regResult :: LinearRegressionResult (Needle x) (Needle y)
-                              ( Needle y, (Needle x+>Needle y
-                                          , SymmetricTensor s (Needle x)+>(Needle y)) )
+              regResult :: LinearRegressionResult (Needle x) (Needle y) (QModelTup s x y)
                         = linearRegression
                            (\δx -> lfun $ \(c,(b,a)) -> (a $ squareV δx)
                                                       ^+^ (b $ δx) ^+^ c )
