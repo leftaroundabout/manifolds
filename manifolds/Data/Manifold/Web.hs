@@ -551,13 +551,25 @@ webLocalInfo origWeb = result
                                           Just δx = _thisNodeCoord neighbour.-~.x
                                     ]
                 , _nodeLocalScalarProduct = ngbH^.localScalarProduct
-                , _nodeIsOnBoundary = anyUnopposed (ngbH^.localScalarProduct) ngbCo
+                , _nodeIsOnBoundary = case fst <$> ngbCo of
+                                       [] -> True
+                                       (v:vs) -> isJust . allcontainingHalfspace
+                                                    (ngbH^.localScalarProduct) $ v:|vs
                 }, ngbH )
-       anyUnopposed rieM ngbCo = (`any`ngbCo) $ \(v,_)
-                         -> not $ (`any`ngbCo) $ \(w,_)
-                              -> let [v',w'] = (rieM<$|)<$>[v,w]
-                                     vw = v'<.>^w
-                                 in vw < 0 && vw^2 > (v'<.>^v) * (w'<.>^w) / 2
+       allcontainingHalfspace :: Metric x -> NonEmpty (Needle x) -> Maybe (Needle' x)
+       allcontainingHalfspace rieM (v:|[]) = Just $ dv ^/ (dv<.>^v)
+        where dv = rieM<$|v
+       allcontainingHalfspace rieM vs@(v:|w:ws) = do
+            prevPlane <- allcontainingHalfspace rieM $ w:|ws
+            let ϑs = fmap (\u -> let x = prevPlane<.>^u
+                                     y = thisPlane<.>^u in atan2 x y) vs
+                [ϑmin, ϑmax] = [minimum, maximum] <*> [ϑs]
+                δϑ = ϑmax - ϑmin
+                dv = rieM<$|v
+                thisPlane = dv ^/ (dv<.>^v)
+            if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
+                                    in prevPlane^*cos ϑbest ^+^ thisPlane^*sin ϑbest
+                        else Nothing
 
 
 hardbakeChunk :: WebChunk x y -> PointsWeb x y
