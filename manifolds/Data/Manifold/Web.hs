@@ -639,25 +639,32 @@ treewiseTraverseLocalWeb' fl ct domain@(WebChunk (PointsWeb t _) i₀ domainData
 
 localOnion :: ∀ x y . WithField ℝ Manifold x
             => WebLocally x y -> [WebNodeId] -> [[(Needle x, WebLocally x y)]]
-localOnion origin directCandidates = go Map.empty . Map.fromList
-                      $ (origin^.thisNodeId, (1, origin))
-                       : [ (nid, (1, ninfo))
-                         | nid <- directCandidates
-                         , (_,(_,ninfo)) <- origin^.nodeNeighbours
-                         , ninfo^.thisNodeId == nid ]
- where go previous next
+localOnion origin directCandidates = map sortBCDistance . go Map.empty . Map.fromList
+                      $ (origin^.thisNodeId, (1, origin)) : seeds
+ where seeds :: [(WebNodeId, (Int, WebLocally x y))]
+       seeds = [ (nid, (1, ninfo))
+               | nid <- directCandidates
+               , (_,(_,ninfo)) <- origin^.nodeNeighbours
+               , ninfo^.thisNodeId == nid ]
+       go previous next
         | Map.null next = []
         | otherwise  = ( computeOffset . snd
                                     <$> sortBy (comparing $ negate . fst)
                                                  (Hask.toList next) )
                      : go (Map.union previous next)
                           (Map.fromListWith (\(n,ninfo) (n',_) -> (n+n'::Int, ninfo))
-                                [ (nnid,(1,nneigh))
-                                | (nid,(_,ninfo))<-Map.toList next
-                                , (nnid,(_,nneigh))<-ninfo^.nodeNeighbours
-                                , Map.notMember nnid previous && Map.notMember nnid next ])
+                             [ (nnid,(1,nneigh))
+                             | (nid,(_,ninfo))<-Map.toList next
+                             , (nnid,(_,nneigh))<-ninfo^.nodeNeighbours
+                             , Map.notMember nnid previous && Map.notMember nnid next ])
        computeOffset p = case p^.thisNodeCoord .-~. origin^.thisNodeCoord of
                 Just v -> (v,p)
+       sortBCDistance = map snd . sortBy (comparing fst) . map (bcDist&&&id)
+        where bcDist (v,_)
+                = normSq (origin^.nodeLocalScalarProduct) $ v^-^seedBarycenterOffs
+       seedBarycenterOffs = sumV ngbOffs ^/ fromIntegral (length directCandidates + 1)
+        where ngbOffs = [ v | (_, (_, n)) <- seeds
+                            , let Just v = n^.thisNodeCoord .-~. origin^.thisNodeCoord ]
 
 webOnions :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x [[(x,y)]]
