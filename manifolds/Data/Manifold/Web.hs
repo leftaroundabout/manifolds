@@ -732,6 +732,12 @@ differentiateUncertainWebLocally info
                Just j -> j
                _      -> Shade' zeroV mempty
 
+
+-- | Dimension of the space of quadratic functions on @v@.
+p²Dimension :: ∀ v p . FiniteDimensional v => p v -> Int
+p²Dimension _ = 1 + d + (d*(d+1))`div`2
+ where d = subbasisDimension (entireBasis :: SubBasis v)
+
 differentiateUncertainWebFunction :: ∀ x y
    . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
      , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
@@ -760,10 +766,16 @@ differentiate²UncertainWebLocally = d²uwl
         where xVol :: SymmetricTensor ℝ (Needle x)
               xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
               _:directEnvi:remoteEnvi = localOnion info []
-              envi = directEnvi ++ take (nMinData - length directEnvi) (concat remoteEnvi)
-       nMinData = 1 + regular_neighboursCount
-                         (subbasisDimension (entireBasis :: SubBasis (Needle x)))
+              envi = directEnvi ++ take (nMinNeighbours - length directEnvi)
+                                        (concat remoteEnvi)
+       nMinNeighbours = p²Dimension ([] :: [Needle x])
 
+
+selectQuadraticFittableEnvironment :: ∀ x y
+           . (WithField ℝ Manifold x, SimpleSpace (Needle x))
+                => WebLocally x y -> [WebNodeId] -> [(Needle x, WebLocally x y)]
+selectQuadraticFittableEnvironment me
+       = take (p²Dimension ([] :: [Needle x]) + 1) . concat . localOnion me
 
 -- | Calculate a quadratic fit with uncertainty margin centered around the connection
 --   between any two adjacent nodes. In case of a regular grid (which we by no means
@@ -783,7 +795,8 @@ localModels_CGrid = Hask.concatMap theCGrid . Hask.toList . webLocalInfo
                                     (ngbNode^.thisNodeData)
                                     (node^.thisNodeData)
                                     (fmap (second _thisNodeData)
-                                      $ localOnion ngbNode [node^.thisNodeId] !! 1)
+                                      $ selectQuadraticFittableEnvironment
+                                                    ngbNode [node^.thisNodeId] )
                                           ) )
                        | (nid, (δx, ngbNode)) <- node^.nodeNeighbours
                        , nid > node^.thisNodeId
@@ -798,13 +811,6 @@ acoSnd = case ( linearManifoldWitness :: LinearManifoldWitness v
               , dualSpaceWitness :: DualSpaceWitness (Needle y) ) of
    (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness, DualSpaceWitness)
        -> const zeroV &&& id
-
--- | Heuristic formula, matches the number of neighbours each vertex has in a one-
---   and two-dimensional count
-regular_neighboursCount :: Int -> Int
-regular_neighboursCount d
- | d>0        = (regular_neighboursCount (d-1) + 1)*2
- | otherwise  = 0
 
 
 differentiate²UncertainWebFunction :: ∀ x y
@@ -993,7 +999,8 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
                                              ngbShyð
                                              shy
                                              (fmap (second ((shading>-$) . _thisNodeData))
-                                               $ localOnion ngbInfo [me^.thisNodeId] !! 1)
+                                               $ selectQuadraticFittableEnvironment
+                                                          ngbInfo [me^.thisNodeId])
                                           )
                                   | (δx, (ngbInfo,sj)) <- ngbs
                                   ]
@@ -1059,7 +1066,8 @@ filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y
                                              (shading >-$ ngbInfo^.thisNodeData)
                                              (shading >-$ oldValue)
                                              (fmap (second ((shading>-$) . _thisNodeData))
-                                               $ localOnion ngbInfo [me^.thisNodeId] !! 1)
+                                               $ selectQuadraticFittableEnvironment
+                                                        ngbInfo [me^.thisNodeId] )
                                           )
                                   | (_, (δx, ngbInfo)) <- me^.nodeNeighbours
                                   ]
