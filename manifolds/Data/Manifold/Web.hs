@@ -38,7 +38,7 @@ module Data.Manifold.Web (
               -- ** Construction
             , fromWebNodes, fromShadeTree_auto, fromShadeTree, fromShaded
               -- ** Lookup
-            , nearestNeighbour, indexWeb, webEdges, toGraph, webBoundary
+            , nearestNeighbour, indexWeb, toGraph, webBoundary
               -- ** Decomposition
             , sliceWeb_lin -- , sampleWebAlongLine_lin
             , sampleWeb_2Dcartesian_lin, sampleEntireWeb_2Dcartesian_lin
@@ -128,19 +128,22 @@ import GHC.Generics (Generic)
 
 import Development.Placeholders
 
-
 type WebNodeId = Int
 
-data Neighbourhood x = Neighbourhood {
-     _neighbours :: UArr.Vector WebNodeId
+data Neighbourhood x y = Neighbourhood {
+     _dataAtNode :: y
+   , _neighbours :: UArr.Vector WebNodeId
    , _localScalarProduct :: Metric x
+   , _webBoundaryAtNode :: Maybe (Needle' x)
    }
-  deriving (Generic)
+  deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
 makeLenses ''Neighbourhood
 
+type WebNodeIdOffset = Int
+
 deriving instance ( WithField ℝ PseudoAffine x
-                  , SimpleSpace (Needle x), Show (Needle' x) )
-             => Show (Neighbourhood x)
+                  , SimpleSpace (Needle x), Show (Needle' x), Show y )
+             => Show (Neighbourhood x y)
 
 data WebLocally x y = LocalWebInfo {
       _thisNodeCoord :: x
@@ -173,17 +176,17 @@ instance Monoid (PropagationInconsistency x υ) where
   mappend p q = mconcat [p,q]
   mconcat = PropagationInconsistencies
 
-instance (NFData x, NFData (Metric x)) => NFData (Neighbourhood x)
+instance (NFData x, NFData (Metric x), NFData (Needle' x), NFData y)
+           => NFData (Neighbourhood x y)
 
 -- | A 'PointsWeb' is almost, but not quite a mesh. It is a stongly connected†
 --   directed graph, backed by a tree for fast nearest-neighbour lookup of points.
 -- 
 --   †In general, there can be disconnected components, but every connected
 --   component is strongly connected.
-data PointsWeb :: * -> * -> * where
+newtype PointsWeb :: * -> * -> * where
    PointsWeb :: {
-       webNodeRsc :: ShadeTree x
-     , webNodeAssocData :: Arr.Vector (y, Neighbourhood x)
+       webNodeRsc :: x`Shaded`Neighbourhood x y
      } -> PointsWeb x y
   deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
 
@@ -192,17 +195,11 @@ instance (NFData x, NFData (Metric x), NFData (Needle' x), NFData y) => NFData (
 instance Foldable (PointsWeb x) (->) (->) where
   ffoldl = uncurry . Hask.foldl' . curry
   foldMap = Hask.foldMap
-instance Traversable (PointsWeb x) (PointsWeb x) (->) (->) where
-  traverse f (PointsWeb rsc asd)
-           = fmap (PointsWeb rsc . (`Arr.zip`ngss) . Arr.fromList)
-              . traverse f $ Arr.toList ys
-   where (ys,ngss) = Arr.unzip asd
 
 
 data WebChunk x y = WebChunk {
-     _parentWeb :: PointsWeb x y
-   , _overrideStart :: WebNodeId
-   , _overriddenData :: Arr.Vector y
+     _thisChunk :: PointsWeb x y
+   , _precedingChunks, _succedingChunks :: [PointsWeb x y]
    }
 
 makeLenses ''WebChunk
@@ -241,9 +238,7 @@ fromShaded metricf = smoothenWebTopology metricf
                        . seekPotentialNeighbours
 
 toShaded :: WithField ℝ PseudoAffine x => PointsWeb x y -> (x`Shaded`y)
-toShaded (PointsWeb shd asd)
-    = fmap snd . zipTreeWithList shd $ case Arr.toList (fst<$>asd) of
-                   (y:ys) -> y:|ys
+toShaded (PointsWeb shd) = fmap _dataAtNode shd
 
 fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (MetricChoice x)
@@ -251,168 +246,33 @@ fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                       -- ^ Source tree, with topology information
                       --   (IDs of neighbour-candidates, or needles pointing to them)
      -> PointsWeb x y
-fromTopShaded metricf shd = PointsWeb shd' assocData 
- where shd' = fmap terminal shd
-       assocData = Hask.foldMap locMesh $ allTwigs shd
-       
-       locMesh :: (Int, x`Shaded`([Int+Needle x], y))
-                   -> Arr.Vector (y, Neighbourhood x)
-       locMesh (i₀, locT) = Arr.map findNeighbours $ Arr.fromList locLeaves
-        where locLeaves :: [ (Int, (x,([Int+Needle x], y))) ]
-              locLeaves = map (first (+i₀)) . zip [0..] $ onlyLeaves locT
-              findNeighbours :: (Int, (x,([Int+Needle x], y))) -> (y, Neighbourhood x)
-              findNeighbours (i, (x,(vns,y)))
-                         = (y, cullNeighbours locRieM
-                                 (i, (x, [ (i,v)
-                                             | (i,(xN,_)) <- locLeaves
-                                             , Just v <- [xN.-~.x] ]
-                                                ++ aprioriNgbs)
-                                             ))
-               where aprioriNgbs :: [(Int, Needle x)]
-                     aprioriNgbs = catMaybes
-                                    [ (second $ const v) <$>
-                                          positionIndex (pure locRieM) shd' xN
-                                    | Right v <- vns
-                                    , let xN = xi.+~^v :: x ]
-                                 ++ [ (i,v) | Left i <- vns
-                                            , Right (_,(xN,())) <- [indexShadeTree shd' i]
-                                            , Just v <- [xN.-~.x] ]
-                     Just xi = toInterior x
-              
-              locRieM :: Metric x
-              locRieM = case pointsCovers . catMaybes . map (toInterior . fst)
-                                  $ onlyLeaves locT of
-                          [sh₀] -> metricf sh₀
+fromTopShaded metricf shd = $notImplemented
 
-cullNeighbours :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
-      => Metric x -> (Int, (x,[(Int,Needle x)])) -> Neighbourhood x
-cullNeighbours locRieM (i, (x, vns))
-           = Neighbourhood (UArr.fromList . sort $ _nvectId<$>execState seek mempty)
-                           locRieM
- where seek :: State [NeighbourhoodVector x] ()
-       seek = do
-          Hask.forM_ ( fastNubBy (comparing fst) $ vns )
-                    $ \(iNgb, v) ->
-             when (iNgb/=i) `id`do
-                oldNgbs <- get
-                let w₀ = locRieM<$|v
-                    l = sqrt $ w₀<.>^v
-                    onOverlap = sum [ o^2 | nw<-oldNgbs
-                                          , let o = (nw^.nvectNormal)<.>^v
-                                          , o > 0 ]
-                when (l > onOverlap) `id`do
-                   let w = w₀^/sqrt l^3
-                       newCandidates
-                          = NeighbourhoodVector iNgb v w l 0
-                          : [ ongb & otherNeighboursOverlap .~ 0
-                            | ongb <- oldNgbs
-                            , let o = w<.>^(ongb^.theNVect)
-                                  newOverlap = (if o > 0 then (o^2+) else id)
-                                                $ ongb^.otherNeighboursOverlap
-                            , newOverlap < ongb^.nvectLength ]
-                   put $ recalcOverlaps newCandidates
-       recalcOverlaps [] = []
-       recalcOverlaps (ngb:ngbs)
-             = (ngb & otherNeighboursOverlap +~ furtherOvl)
-             : recalcOverlaps [ ngb' & otherNeighboursOverlap +~ max 0 o ^ 2
-                              | ngb' <- ngbs
-                              , let o = (ngb^.nvectNormal)<.>^(ngb'^.theNVect) ]
-        where furtherOvl = sum [ o^2 | nw<-ngbs
-                                     , let o = (nw^.nvectNormal)<.>^(ngb^.theNVect)
-                                     , o > 0 ]
+cullNeighbours :: ∀ x y . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+      => Metric x -> (Int, (x,[(Int,Needle x)])) -> Neighbourhood x y
+cullNeighbours = $notImplemented
               
 
 -- | Re-calculate the links in a web, so as to give each point a satisfyingly
 --   “complete-spanning” environment.
 smoothenWebTopology :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
-smoothenWebTopology mc = swt
- where swt (PointsWeb shd net) = PointsWeb shd . go allNodes Set.empty
-                                                   . fst $ makeIndexLinksSymmetric net
-        where allNodes = Set.fromList . Arr.toList $ fst <$> Arr.indexed net
-              go activeSet pastLinks asd
-                 | all (isNothing.fst) refined
-                 , Set.null (Set.difference symmetryTouched pastLinks)
-                               = Arr.imap finalise asd'
-                 | otherwise   = go (Set.fromList
-                                         [ j | (Just i, (_,Neighbourhood ngbs' _))
-                                               <-refined
-                                         , j <- i : UArr.toList ngbs' ]
-                                      `Set.union` (Set.map fst symmetryTouched))
-                                    updtLinks
-                                    asd'
-               where refined = reseek<$>Set.toList activeSet
-                      where reseek i = ( guard isNews >> pure i
-                                       , (y, Neighbourhood newNgbs locRieM) )
-                             where isNews = newNgbs /= oldNgbs
-                                             && or [ not $ Set.member (i,j) pastLinks
-                                                   | j <- UArr.toList newNgbs ]
-                                   (y,Neighbourhood oldNgbs locRieM) = asd Arr.! i
-                                   nextNeighbours = fastNub
-                                     $ UArr.toList oldNgbs
-                                     ++ (UArr.toList._neighbours.snd.(asd Arr.!)
-                                             =<< UArr.toList oldNgbs)
-                                   x = xLookup Arr.! i
-                                   Neighbourhood newNgbs _
-                                     = cullNeighbours locRieM
-                                        ( i, (x, [ (j,v)
-                                                     | j <- nextNeighbours
-                                                     , Just v
-                                                         <- [x .-~. xLookup Arr.! j] ]
-                                                     ))
-                     (asd', symmetryTouched) = makeIndexLinksSymmetric
-                              $ asd Arr.// [(i,n) | (Just i,n) <- refined]
-                     updtLinks = Set.unions
-                                   [ pastLinks
-                                   , Set.fromList
-                                      [ (i,j) | (Just i,(_,Neighbourhood n _)) <- refined
-                                              , j<-UArr.toList n ]
-                                   , symmetryTouched ]
-              finalise i (y, Neighbourhood n em)
-                  = (y, cullNeighbours em (i, (x, [ (j,v)
-                                                      | j<-UArr.toList n
-                                                      , let xN = xLookup Arr.! j
-                                                      , Just v <- [xN.-~.x] ]
-                                                      ) ))
-               where x = xLookup Arr.! i
-              xLookup = Arr.fromList . map fst $ onlyLeaves shd
+smoothenWebTopology mc = $notImplemented
 
 makeIndexLinksSymmetric
-       :: Arr.Vector (y, Neighbourhood x)
-       -> (Arr.Vector (y, Neighbourhood x), Set.Set (WebNodeId,WebNodeId))
-makeIndexLinksSymmetric orig = runST (do
-    result <- Arr.thaw orig
-    touched <- newSTRef $ Set.empty
-    (`Arr.imapM_`orig) $ \i (_,Neighbourhood ngbs _) -> do
-       UArr.forM_ ngbs $ \j -> do
-          (yn, Neighbourhood nngbs lsc) <- MArr.read result j
-          when (not $ i`UArr.elem`nngbs) `id`do
-             MArr.write result j (yn, Neighbourhood (UArr.snoc nngbs i) lsc)
-             modifySTRef touched $ Set.insert (j,i)
-    final <- Arr.freeze result
-    allTouched <- readSTRef touched
-    return (final, allTouched)
-  )
+       :: Arr.Vector (y, Neighbourhood x y)
+       -> (Arr.Vector (y, Neighbourhood x y), Set.Set (WebNodeId,WebNodeId))
+makeIndexLinksSymmetric orig = $notImplemented
 
 indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
-indexWeb (PointsWeb rsc assocD) i
-  | i>=0, i<Arr.length assocD
-  , Right (_,(x,())) <- indexShadeTree rsc i  = pure (x, fst (assocD Arr.! i))
-  | otherwise                                 = empty
+indexWeb (PointsWeb rsc) i = case indexShadeTree rsc i of
+       Right (_, (x, Neighbourhood y _ _ _)) -> Just (x, y)
+       _ -> Nothing
 
 unsafeIndexWebData :: PointsWeb x y -> WebNodeId -> y
-unsafeIndexWebData (PointsWeb _ asd) i = fst (asd Arr.! i)
+unsafeIndexWebData web i = case indexWeb web i of
+              Just (x,y) -> y
 
--- | Yield all pairs of directly-connected nodes. Not to be confused
---   with 'webBoundary', which yields “the outer edge” of a web.
-webEdges :: ∀ x y . PointsWeb x y -> [((x,y), (x,y))]
-webEdges web@(PointsWeb rsc assoc) = (lookId***lookId) <$> toList allEdges
- where allEdges :: Set.Set (WebNodeId,WebNodeId)
-       allEdges = Hask.foldMap (\(i,(_, Neighbourhood ngbs _))
-                    -> Set.fromList [(min i i', max i i')
-                                    | i'<-UArr.toList ngbs ]
-                               ) $ Arr.indexed assoc
-       lookId i | Just xy <- indexWeb web i  = xy
 
 webBoundary :: WithField ℝ Manifold x => PointsWeb x y -> [(x,y)]
 webBoundary = webLocalInfo >>> Hask.toList >>> Hask.concatMap`id`
@@ -453,7 +313,7 @@ sliceWeb_lin :: ∀ x y . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                         , Geodesic x, Geodesic y )
                => PointsWeb x y -> Cutplane x -> [(x,y)]
 sliceWeb_lin web = sliceEdgs
- where edgs = webEdges web
+ where edgs = $notImplemented :: [((x,y),(x,y))]
        sliceEdgs cp = [ (xi d, yi d)  -- Brute-force search through all edges
                       | ((x₀,y₀), (x₁,y₁)) <- edgs
                       , Just d <- [cutPosBetween cp (x₀,x₁)]
@@ -534,8 +394,9 @@ webLocalInfo :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x (WebLocally x y)
 webLocalInfo origWeb = result
  where result = wli $ localFocusWeb origWeb
-       wli (PointsWeb rsc asd) = PointsWeb rsc asd'
-        where asd' = Arr.imap localInfo asd
+       wli (PointsWeb rsc) = PointsWeb $notImplemented
+       localInfo :: WebNodeId -> (((x,y), [(Needle x, y)]), Neighbourhood x y)
+                              -> (WebLocally x y, Neighbourhood x y)
        localInfo i (((x,y), ngbCo), ngbH)
             = ( LocalWebInfo {
                   _thisNodeCoord = x
@@ -569,32 +430,18 @@ webLocalInfo origWeb = result
 
 
 hardbakeChunk :: WebChunk x y -> PointsWeb x y
-hardbakeChunk (WebChunk (PointsWeb xs parentData) i₀ override)
-         = PointsWeb xs . Arr.update parentData
-                     . Arr.zipWith (\y' (i, (_y, ngbs)) -> (i, (y', ngbs))) override
-                     $ Arr.slice i₀ (Arr.length override) (Arr.indexed parentData)
+hardbakeChunk = _thisChunk
 
 aroundChunk :: (PointsWeb x y -> PointsWeb x z) -> WebChunk x y -> WebChunk x z
-aroundChunk f chunk@(WebChunk origWeb i₀ override) = case f $ hardbakeChunk chunk of
-         newWeb@(PointsWeb _ newData) -> WebChunk newWeb i₀ . Arr.map fst
-                                          $ Arr.slice i₀ (Arr.length override) newData
+aroundChunk f (WebChunk origWeb prc suc) = case f origWeb of
+         newWeb -> $notImplemented
 
 entireWeb :: PointsWeb x y -> WebChunk x y
-entireWeb web@(PointsWeb _ asd) = WebChunk web 0 $ Arr.map fst asd
+entireWeb web = WebChunk web [] []
 
 localFocusWeb :: WithField ℝ Manifold x
                    => PointsWeb x y -> PointsWeb x ((x,y), [(Needle x, y)])
-localFocusWeb (PointsWeb rsc asd) = PointsWeb rsc asd''
- where asd' = Arr.imap (\i (y,n) -> case indexShadeTree rsc i of
-                                         Right (_,(x,())) -> ((x,y),n) ) asd
-       asd''= Arr.map (\((x,y),n) ->
-                       (((x,y), [ ( case x'.-~.x of
-                                     Just v -> v
-                                  , y')
-                                | j<-UArr.toList (n^.neighbours)
-                                , let ((x',y'),_) = asd' Arr.! j
-                                ]), n)
-                 ) asd'
+localFocusWeb (PointsWeb rsc) = PointsWeb $notImplemented
 
 
 
@@ -609,8 +456,8 @@ treewiseTraverseLocalWeb' :: ∀ f x y . (WithField ℝ Manifold x, Hask.Applica
      => (WebLocally x y -> f y)
        -> (NonEmpty (Int, WebChunk x y) -> f (NonEmpty (WebChunk x y)))
        -> WebChunk x y -> f (WebChunk x y)
-treewiseTraverseLocalWeb' fl ct domain@(WebChunk (PointsWeb t _) i₀ domainData)
-                  = rezoomed t 0
+treewiseTraverseLocalWeb' fl ct domain
+                  = $notImplemented{-
  where rezoomed (PlainLeaves _) _ = localTraverseWebChunk fl domain
        rezoomed tree pos
          | pos == i₀, nLeaves tree == lDomain
@@ -629,7 +476,7 @@ treewiseTraverseLocalWeb' fl ct domain@(WebChunk (PointsWeb t _) i₀ domainData
               reassemble brs = domain & overriddenData
                                   .~ Hask.foldMap _overriddenData brs
        lDomain = Arr.length domainData
-
+   -}
 
 
 
@@ -669,20 +516,7 @@ webOnions = localFmapWeb (map (map $ _thisNodeCoord&&&_thisNodeData <<< snd)
 
 nearestNeighbour :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
                       => PointsWeb x y -> x -> Maybe (x,y)
-nearestNeighbour (PointsWeb rsc asd) x = fmap (lkBest . second (second fst))
-                                           $ positionIndex empty rsc x
- where lkBest (iEst, (_, xEst)) = (xProx, yProx)
-        where (iProx, (xProx, _)) = minimumBy (comparing $ snd . snd)
-                                     $ (iEst, (xEst, normSq locMetr vEst))
-                                         : neighbours
-              (yProx, _) = asd Arr.! iProx
-              (_, Neighbourhood neighbourIds locMetr) = asd Arr.! iEst
-              neighbours = [ (i, (xNgb, normSq locMetr v))
-                           | i <- UArr.toList neighbourIds
-                           , let Right (_, (xNgb,())) = indexShadeTree rsc i
-                                 Just v = xNgb.-~.x
-                           ]
-              Just vEst = xEst.-~.x
+nearestNeighbour (PointsWeb rsc) x = fmap $notImplemented (positionIndex empty rsc x)
 
 
 
@@ -710,9 +544,8 @@ localTraverseWeb f = webLocalInfo >>> Hask.traverse f
 --   contiguous part of a web.
 localTraverseWebChunk :: (WithField ℝ Manifold x, Hask.Applicative m)
                 => (WebLocally x y -> m y) -> WebChunk x y -> m (WebChunk x y)
-localTraverseWebChunk f web@(WebChunk pWeb i₀ _)
-      = case aroundChunk webLocalInfo web of
-         WebChunk _ _ override -> WebChunk pWeb i₀ <$> Hask.traverse f override
+localTraverseWebChunk f (WebChunk this pred succ)
+      = fmap (\c -> WebChunk c pred succ) $ localTraverseWeb f this
 
 differentiateUncertainWebLocally :: ∀ x y
    . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
@@ -848,8 +681,8 @@ toGraph wb = second (>>> \(i,_,_) -> case indexWeb wb i of {Just xy -> xy})
                 (graphFromEdges' edgs)
  where edgs :: [(Int, Int, [Int])]
        edgs = Arr.toList
-            . Arr.imap (\i (_, Neighbourhood ngbs _) -> (i, i, UArr.toList ngbs))
-                    $ webNodeAssocData wb
+            . Arr.imap (\i (Neighbourhood _ ngbs _ _) -> (i, i, UArr.toList ngbs))
+            . Arr.fromList . Hask.toList $ webNodeRsc wb
 
 
 
@@ -1146,7 +979,7 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                       -> m (PointsWeb x ( (WebLocally x (SolverNodeState x y)
                                         , [(Shade' y, badness)]) ))
        tryPreproc BoundarylessWitness (GeodesicWitness _)
-               = traverse addPropagation $ webLocalInfo oldState
+               = Hask.traverse addPropagation $ webLocalInfo oldState
         where addPropagation wl
                  | null neighbourInfo = pure (wl, [])
                  | otherwise           = (wl,) . map (id&&&badness undefined)
