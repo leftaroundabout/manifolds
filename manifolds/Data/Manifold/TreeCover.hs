@@ -54,7 +54,7 @@ module Data.Manifold.TreeCover (
        -- * Misc
        , HasFlatView(..), shadesMerge
        , allTwigs, twigsWithEnvirons, Twig, TwigEnviron, seekPotentialNeighbours
-       , completeTopShading, flexTwigsShading
+       , completeTopShading, flexTwigsShading, traverseTrunkBranchChoices
        , Shaded(..), fmapShaded
        , constShaded, zipTreeWithList
        , stiAsIntervalMapping, spanShading
@@ -124,6 +124,7 @@ import Data.Traversable.Constrained (traverse)
 import GHC.Generics (Generic)
 import Data.Type.Coercion
 
+import Development.Placeholders
 
 
 type Depth = Int
@@ -268,6 +269,16 @@ traverseDirectionChoices f dbs
        td _ _ = pure []
        scanLeafNums _ [] = []
        scanLeafNums i₀ ((v,t):vts) = (i₀, (v,t)) : scanLeafNums (i₀ + nLeaves t) vts
+
+
+
+traverseTrunkBranchChoices :: ( AdditiveGroup (Needle' x), Hask.Applicative f )
+               => (    (Int, x`Shaded`y)
+                    -> x`Shaded`y
+                    -> f (x`Shaded`z) )
+                 -> x`Shaded`y
+                 -> f (x`Shaded`z)
+traverseTrunkBranchChoices f = $notImplemented
 
 
 indexDBranches :: NonEmpty (DBranch x y) -> NonEmpty (DBranch' x (Int, x`Shaded`y))

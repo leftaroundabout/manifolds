@@ -199,7 +199,7 @@ instance Foldable (PointsWeb x) (->) (->) where
 
 data WebChunk x y = WebChunk {
      _thisChunk :: PointsWeb x y
-   , _precedingChunks, _succedingChunks :: [PointsWeb x y]
+   , _layersAroundChunk :: [(x`Shaded`Neighbourhood x y, WebNodeId)]
    }
 
 makeLenses ''WebChunk
@@ -390,6 +390,21 @@ sampleEntireWeb_2Dcartesian_lin web nx ny
        y₁ = maximum (snd<$>pts)
        pts = fst . fst <$> toList (localFocusWeb web)
 
+
+traverseInnermostChunks :: ∀ f x y z . ( Hask.Applicative f
+                                       , WithField ℝ Manifold x, LSpace (Needle x) )
+          => (WebChunk x y -> f (WebChunk x z)) -> PointsWeb x y -> f (PointsWeb x z)
+traverseInnermostChunks f = go []
+ where go :: [(x`Shaded`Neighbourhood x y, WebNodeId)] -> PointsWeb x y -> f (PointsWeb x z)
+       go outlayers (w@(PointsWeb (PlainLeaves _)))
+         = _thisChunk <$> f (WebChunk w outlayers) 
+       go outlayers (PointsWeb w) = PointsWeb <$> traverseTrunkBranchChoices travel w
+        where travel :: (Int, (Shaded x (Neighbourhood x y)))
+                 -> Shaded x (Neighbourhood x y)
+                 -> f (Shaded x (Neighbourhood x z))
+              travel (i₀, br) obrs
+                  = webNodeRsc <$> go ((obrs,i₀) : outlayers) (PointsWeb br)
+
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x (WebLocally x y)
 webLocalInfo origWeb = result
@@ -433,11 +448,11 @@ hardbakeChunk :: WebChunk x y -> PointsWeb x y
 hardbakeChunk = _thisChunk
 
 aroundChunk :: (PointsWeb x y -> PointsWeb x z) -> WebChunk x y -> WebChunk x z
-aroundChunk f (WebChunk origWeb prc suc) = case f origWeb of
+aroundChunk f (WebChunk origWeb outlayers) = case f origWeb of
          newWeb -> $notImplemented
 
 entireWeb :: PointsWeb x y -> WebChunk x y
-entireWeb web = WebChunk web [] []
+entireWeb web = WebChunk web []
 
 localFocusWeb :: WithField ℝ Manifold x
                    => PointsWeb x y -> PointsWeb x ((x,y), [(Needle x, y)])
@@ -544,8 +559,8 @@ localTraverseWeb f = webLocalInfo >>> Hask.traverse f
 --   contiguous part of a web.
 localTraverseWebChunk :: (WithField ℝ Manifold x, Hask.Applicative m)
                 => (WebLocally x y -> m y) -> WebChunk x y -> m (WebChunk x y)
-localTraverseWebChunk f (WebChunk this pred succ)
-      = fmap (\c -> WebChunk c pred succ) $ localTraverseWeb f this
+localTraverseWebChunk f (WebChunk this outlayers)
+      = fmap (\c -> WebChunk c outlayers) $ localTraverseWeb f this
 
 differentiateUncertainWebLocally :: ∀ x y
    . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
