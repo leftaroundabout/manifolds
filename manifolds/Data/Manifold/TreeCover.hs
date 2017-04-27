@@ -56,7 +56,7 @@ module Data.Manifold.TreeCover (
        , allTwigs, twigsWithEnvirons, Twig, TwigEnviron, seekPotentialNeighbours
        , completeTopShading, flexTwigsShading
        , Shaded(..), fmapShaded
-       , constShaded, zipTreeWithList, traverseDirectionChoices
+       , constShaded, zipTreeWithList
        , stiAsIntervalMapping, spanShading
        , estimateLocalJacobian
        , DifferentialEqn, LocalDifferentialEqn(..)
@@ -249,8 +249,7 @@ directionIChoices i₀ (DBranch ѧ (Hourglass t b) : hs)
        bot = (i₀+1,(negateV ѧ,b))
        uds = directionIChoices (i₀+2) hs
 
-traverseDirectionChoices :: ( WithField ℝ PseudoAffine x, LSpace (Needle x)
-                            , Hask.Applicative f )
+traverseDirectionChoices :: ( AdditiveGroup (Needle' x), Hask.Applicative f )
                => (    (Int, (Needle' x, x`Shaded`y))
                     -> [(Int, (Needle' x, x`Shaded`y))]
                     -> f (x`Shaded`z) )
