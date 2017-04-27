@@ -273,12 +273,20 @@ traverseDirectionChoices f dbs
 
 
 traverseTrunkBranchChoices :: ( AdditiveGroup (Needle' x), Hask.Applicative f )
-               => (    (Int, x`Shaded`y)
-                    -> x`Shaded`y
-                    -> f (x`Shaded`z) )
-                 -> x`Shaded`y
-                 -> f (x`Shaded`z)
-traverseTrunkBranchChoices f = $notImplemented
+               => ( (Int, x`Shaded`y) -> x`Shaded`y -> f (x`Shaded`z) )
+                 -> x`Shaded`y -> f (x`Shaded`z)
+traverseTrunkBranchChoices f (OverlappingBranches n sh bs)
+        = OverlappingBranches n sh . NE.fromList <$> go 0 id (NE.toList bs)
+ where go _ _ [] = pure []
+       go i₀ prbs (tbs@(DBranch v (Hourglass τ β)) : dbs)
+        = (:) . DBranch v <$>
+            (Hourglass <$> (f (i₀, τ) . OverlappingBranches (n-nτ) sh
+                            . NE.fromList . prbs $ DBranch v (Hourglass hole β) : dbs)
+                       <*> (f (i₀+nτ, β) . OverlappingBranches (n-nβ) sh
+                            . NE.fromList . prbs $ DBranch v (Hourglass τ hole) : dbs))
+            <*> go (i₀+nτ+nβ) (prbs . (tbs:)) dbs
+        where [nτ, nβ] = nLeaves<$>[τ,β]
+              hole = PlainLeaves []
 
 
 indexDBranches :: NonEmpty (DBranch x y) -> NonEmpty (DBranch' x (Int, x`Shaded`y))
