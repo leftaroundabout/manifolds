@@ -397,11 +397,11 @@ sampleEntireWeb_2Dcartesian_lin web nx ny
 
 traverseInnermostChunks :: ∀ f x y z . ( Hask.Applicative f
                                        , WithField ℝ Manifold x, LSpace (Needle x) )
-          => (WebChunk x y -> f (WebChunk x z)) -> PointsWeb x y -> f (PointsWeb x z)
+          => (WebChunk x y -> f (PointsWeb x z)) -> PointsWeb x y -> f (PointsWeb x z)
 traverseInnermostChunks f = go []
  where go :: [(x`Shaded`Neighbourhood x y, WebNodeId)] -> PointsWeb x y -> f (PointsWeb x z)
        go outlayers (w@(PointsWeb (PlainLeaves _)))
-         = _thisChunk <$> f (WebChunk w outlayers) 
+         = f (WebChunk w outlayers) 
        go outlayers (PointsWeb w) = PointsWeb <$> traverseTrunkBranchChoices travel w
         where travel :: (Int, (Shaded x (Neighbourhood x y)))
                  -> Shaded x (Neighbourhood x y)
@@ -413,10 +413,22 @@ traverseNodesInEnvi :: ∀ f x y z . ( Hask.Applicative f
                                    , WithField ℝ Manifold x, LSpace (Needle x) )
            => (NodeInWeb x y -> f (Neighbourhood x z))
              -> PointsWeb x y -> f (PointsWeb x z)
-traverseNodesInEnvi = $notImplemented
+traverseNodesInEnvi f = traverseInnermostChunks fc
+ where fc :: WebChunk x y -> f (PointsWeb x z)
+       fc (WebChunk (PointsWeb (PlainLeaves lvs)) outlayers)
+            = PointsWeb . PlainLeaves <$> Hask.traverse fn (ixedFoci lvs)
+        where fn ((i, (x, ngbh)), nearbyLeaves)
+               = (x,) <$> f (NodeInWeb (x,ngbh)
+                                     $ (PlainLeaves nearbyLeaves, i) : outlayers)
+
+ixedFoci :: [a] -> [((Int, a), [a])]
+ixedFoci = go 0
+ where go _ [] = []
+       go i (x:xs) = ((i,x), xs) : map (second (x:)) (go (i+1) xs)
+ 
 
 jumpNodeOffset :: WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
-jumpNodeOffset = $notImplemented
+jumpNodeOffset δi (NodeInWeb (_,ngbh) outlayers) = $notImplemented
 
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x (WebLocally x y)
