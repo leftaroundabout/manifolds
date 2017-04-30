@@ -129,17 +129,16 @@ import GHC.Generics (Generic)
 import Development.Placeholders
 
 type WebNodeId = Int
+type WebNodeIdOffset = Int
 
 data Neighbourhood x y = Neighbourhood {
      _dataAtNode :: y
-   , _neighbours :: UArr.Vector WebNodeId
+   , _neighbours :: UArr.Vector WebNodeIdOffset
    , _localScalarProduct :: Metric x
    , _webBoundaryAtNode :: Maybe (Needle' x)
    }
   deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
 makeLenses ''Neighbourhood
-
-type WebNodeIdOffset = Int
 
 deriving instance ( WithField ℝ PseudoAffine x
                   , SimpleSpace (Needle x), Show (Needle' x), Show y )
@@ -203,6 +202,11 @@ data WebChunk x y = WebChunk {
    }
 
 makeLenses ''WebChunk
+
+data NodeInWeb x y = NodeInWeb {
+     _thisNodeOnly :: (x, Neighbourhood x y)
+   , _layersAroundNode :: [(x`Shaded`Neighbourhood x y, WebNodeId)]
+   }
 
 type MetricChoice x = Shade x -> Metric x
 
@@ -405,29 +409,34 @@ traverseInnermostChunks f = go []
               travel (i₀, br) obrs
                   = webNodeRsc <$> go ((obrs,i₀) : outlayers) (PointsWeb br)
 
+traverseNodesInEnvi :: ∀ f x y z . ( Hask.Applicative f
+                                   , WithField ℝ Manifold x, LSpace (Needle x) )
+           => (NodeInWeb x y -> f (Neighbourhood x z))
+             -> PointsWeb x y -> f (PointsWeb x z)
+traverseNodesInEnvi = $notImplemented
+
+jumpNodeOffset :: WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
+jumpNodeOffset = $notImplemented
+
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x (WebLocally x y)
-webLocalInfo origWeb = result
- where result = wli $ localFocusWeb origWeb
-       wli (PointsWeb rsc) = PointsWeb $notImplemented
-       localInfo :: WebNodeId -> (((x,y), [(Needle x, y)]), Neighbourhood x y)
-                              -> (WebLocally x y, Neighbourhood x y)
-       localInfo i (((x,y), ngbCo), ngbH)
-            = ( LocalWebInfo {
+webLocalInfo = runIdentity . traverseNodesInEnvi (Identity . linkln)
+ where linkln :: NodeInWeb x y -> Neighbourhood x (WebLocally x y)
+       linkln node@(NodeInWeb (x, locloc@(Neighbourhood y ngbs metric nBoundary)) envis)
+           = locloc & dataAtNode .~ LocalWebInfo {
                   _thisNodeCoord = x
                 , _thisNodeData = y
                 , _thisNodeId = i
-                , _nodeNeighbours = [ (iNgb, (δx, neighbour))
-                                    | iNgb <- UArr.toList $ ngbH^.neighbours
-                                    , let neighbour = unsafeIndexWebData result iNgb
-                                          Just δx = _thisNodeCoord neighbour.-~.x
-                                    ]
-                , _nodeLocalScalarProduct = ngbH^.localScalarProduct
-                , _nodeIsOnBoundary = case fst <$> ngbCo of
-                                       [] -> True
-                                       (v:vs) -> isJust . allcontainingHalfspace
-                                                    (ngbH^.localScalarProduct) $ v:|vs
-                }, ngbH )
+                , _nodeNeighbours = [ (i + δi, (δx, ngb))
+                                    | δi <- UArr.toList ngbs
+                                    , let ngbNode@(NodeInWeb (xn, _) _)
+                                              = jumpNodeOffset δi node
+                                          Just δx = xn .-~. x
+                                          Neighbourhood ngb _ _ _ = linkln ngbNode ]
+                , _nodeLocalScalarProduct = metric
+                , _nodeIsOnBoundary = isJust nBoundary
+                }
+        where i = foldr ((+) . snd) 0 envis
        allcontainingHalfspace :: Metric x -> NonEmpty (Needle x) -> Maybe (Needle' x)
        allcontainingHalfspace rieM (v:|[]) = Just $ dv ^/ (dv<.>^v)
         where dv = rieM<$|v
