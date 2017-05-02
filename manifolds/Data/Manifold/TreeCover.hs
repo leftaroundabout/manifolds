@@ -59,6 +59,7 @@ module Data.Manifold.TreeCover (
        , constShaded, zipTreeWithList
        , stiAsIntervalMapping, spanShading
        , estimateLocalJacobian
+       , DBranch, DBranch'(..), Hourglass(..)
        , DifferentialEqn, LocalDifferentialEqn(..)
        , propagateDEqnSolution_loc, LocalDataPropPlan(..)
        , rangeOnGeodesic

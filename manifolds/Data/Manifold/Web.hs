@@ -207,6 +207,7 @@ data NodeInWeb x y = NodeInWeb {
      _thisNodeOnly :: (x, Neighbourhood x y)
    , _layersAroundNode :: [(x`Shaded`Neighbourhood x y, WebNodeId)]
    }
+makeLenses ''NodeInWeb
 
 type MetricChoice x = Shade x -> Metric x
 
@@ -428,7 +429,64 @@ ixedFoci = go 0
  
 
 jumpNodeOffset :: WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
-jumpNodeOffset δi (NodeInWeb (_,ngbh) outlayers) = $notImplemented
+jumpNodeOffset 0 node = node
+jumpNodeOffset δi (NodeInWeb x environment)
+   = case zoomoutWebChunk δi $ WebChunk (PointsWeb $ PlainLeaves [x]) environment of
+       (WebChunk bigChunk envi', δi') -> case pickNodeInWeb bigChunk δi' of
+              NodeInWeb x' envi'' -> NodeInWeb x' $ envi'' ++ envi'
+
+webAroundChunk :: WebChunk x y -> PointsWeb x y
+webAroundChunk (WebChunk chunk []) = chunk
+webAroundChunk (WebChunk (PointsWeb (PlainLeaves lvs))
+                         ((PlainLeaves lvsAround, i) : envi))
+   = webAroundChunk $ WebChunk (PointsWeb . PlainLeaves $ lvsBefore++lvs++lvsAfter) envi
+ where (lvsBefore, lvsAfter) = splitAt i lvsAround
+webAroundChunk (WebChunk (PointsWeb chunk)
+                         ((OverlappingBranches nw ew (DBranch dir
+                            (Hourglass (PlainLeaves[]) d) :| brs), 0) : envi))
+   = webAroundChunk $ WebChunk (PointsWeb $ OverlappingBranches nw ew
+                                          (DBranch dir (Hourglass chunk d) :| brs))
+                               envi
+webAroundChunk (WebChunk (PointsWeb chunk)
+                         ((OverlappingBranches nw ew (DBranch dir
+                            (Hourglass u (PlainLeaves[])) :| brs), i) : envi))
+ | i==nLeaves u
+   = webAroundChunk $ WebChunk (PointsWeb $ OverlappingBranches nw ew
+                                          (DBranch dir (Hourglass u chunk) :| brs))
+                               envi
+webAroundChunk (WebChunk chunk
+                         ((OverlappingBranches nw ew (br₀@(DBranch _ (Hourglass u d))
+                                                         :|br₁:brs), i) : envi))
+  = case webAroundChunk (WebChunk chunk [(OverlappingBranches nw ew (br₁:|brs), i')])
+      of PointsWeb (OverlappingBranches nw' ew' (br₁':|brs'))
+           -> webAroundChunk $ WebChunk
+                    (PointsWeb $ OverlappingBranches nw' ew' (br₀:|br₁':brs'))
+                    envi
+ where i' = i + nLeaves u + nLeaves d
+
+
+zoomoutWebChunk :: WebNodeIdOffset -> WebChunk x y -> (WebChunk x y, WebNodeId)
+zoomoutWebChunk δi (WebChunk chunk ((outlayer, olp) : outlayers))
+  | δi < 0 || δi >= nLeaves outlayer
+      = zoomoutWebChunk δi' (WebChunk (webAroundChunk $ WebChunk chunk [(outlayer,olp)])
+                                      outlayers)
+ where δi' | δi < 0     = δi + olp
+           | otherwise  = δi + olp - nLeaves outlayer
+zoomoutWebChunk δi ch = (ch, δi)
+
+pickNodeInWeb :: PointsWeb x y -> WebNodeId -> NodeInWeb x y
+pickNodeInWeb (PointsWeb (PlainLeaves lvs)) i
+  | i>0, (preds, node:succs)<-splitAt i lvs
+                   = NodeInWeb node [(PlainLeaves $ preds++succs, i)]
+pickNodeInWeb (PointsWeb (OverlappingBranches nw ew (DBranch dir (Hourglass u d):|[]))) i
+  | i < nu     = pickNodeInWeb (PointsWeb u) i
+                      & layersAroundNode %~ ((OverlappingBranches nw ew
+                                               (DBranch dir (Hourglass gap d):|[]),0):)
+  | otherwise  = pickNodeInWeb (PointsWeb d) (i-nu)
+                      & layersAroundNode %~ ((OverlappingBranches nw ew
+                                               (DBranch dir (Hourglass u gap):|[]),0):)
+ where gap = PlainLeaves []
+       nu = nLeaves u
 
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x (WebLocally x y)
