@@ -211,6 +211,21 @@ makeLenses ''NodeInWeb
 
 type MetricChoice x = Shade x -> Metric x
 
+allcontainingHalfspace :: ∀ v . (SimpleSpace v, Scalar v ~ ℝ, Scalar (DualVector v) ~ ℝ)
+                => Norm v -> NonEmpty v -> Maybe (DualVector v)
+allcontainingHalfspace rieM (v:|[]) = Just $ dv ^/ (dv<.>^v)
+ where dv = rieM<$|v
+allcontainingHalfspace rieM vs@(v:|w:ws) = do
+     prevPlane <- allcontainingHalfspace rieM $ w:|ws
+     let ϑs = fmap (\u -> let x = prevPlane<.>^u
+                              y = thisPlane<.>^u in atan2 x y) vs
+         [ϑmin, ϑmax] = [minimum, maximum] <*> [ϑs]
+         δϑ = ϑmax - ϑmin
+         dv = rieM<$|v
+         thisPlane = dv ^/ (dv<.>^v)
+     if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
+                             in prevPlane^*cos ϑbest ^+^ thisPlane^*sin ϑbest
+                 else Nothing
 
 fromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                     => (MetricChoice x) -> [(x,y)] -> PointsWeb x y
@@ -507,20 +522,6 @@ webLocalInfo = runIdentity . traverseNodesInEnvi (Identity . linkln)
                 , _nodeIsOnBoundary = isJust nBoundary
                 }
         where i = foldr ((+) . snd) 0 envis
-       allcontainingHalfspace :: Metric x -> NonEmpty (Needle x) -> Maybe (Needle' x)
-       allcontainingHalfspace rieM (v:|[]) = Just $ dv ^/ (dv<.>^v)
-        where dv = rieM<$|v
-       allcontainingHalfspace rieM vs@(v:|w:ws) = do
-            prevPlane <- allcontainingHalfspace rieM $ w:|ws
-            let ϑs = fmap (\u -> let x = prevPlane<.>^u
-                                     y = thisPlane<.>^u in atan2 x y) vs
-                [ϑmin, ϑmax] = [minimum, maximum] <*> [ϑs]
-                δϑ = ϑmax - ϑmin
-                dv = rieM<$|v
-                thisPlane = dv ^/ (dv<.>^v)
-            if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
-                                    in prevPlane^*cos ϑbest ^+^ thisPlane^*sin ϑbest
-                        else Nothing
 
 
 hardbakeChunk :: WebChunk x y -> PointsWeb x y
