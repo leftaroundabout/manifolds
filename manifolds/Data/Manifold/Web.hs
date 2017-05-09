@@ -257,6 +257,13 @@ fromShaded metricf = smoothenWebTopology metricf
 toShaded :: WithField ℝ PseudoAffine x => PointsWeb x y -> (x`Shaded`y)
 toShaded (PointsWeb shd) = fmap _dataAtNode shd
 
+unlinkedFromShaded :: ∀ x y . SimpleSpace (Needle x)
+                 => MetricChoice x -> (x`Shaded`y) -> PointsWeb x y
+unlinkedFromShaded metricf = PointsWeb<<<fmap `id` \y
+                -> Neighbourhood y mempty (metricf $notImplemented) (Just dv)
+ where nm = metricf $notImplemented
+       dv = head $ normSpanningSystem nm
+
 fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (MetricChoice x)
      -> (x`Shaded`([Int+Needle x], y))
