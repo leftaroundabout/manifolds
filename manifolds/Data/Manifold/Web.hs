@@ -211,18 +211,19 @@ makeLenses ''NodeInWeb
 
 type MetricChoice x = Shade x -> Metric x
 
-pumpHalfspace :: ∀ v . (SimpleSpace v, Scalar v ~ ℝ, Scalar (DualVector v) ~ ℝ)
+pumpHalfspace :: ∀ v . (SimpleSpace v, Scalar v ~ ℝ)
                 => Norm v -> v -> (DualVector v, [v]) -> Maybe (DualVector v)
-pumpHalfspace rieM v (prevPlane, ws)
-   = if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
-                             in prevPlane^*cos ϑbest ^+^ thisPlane^*sin ϑbest
-                 else Nothing
-   where ϑs = fmap (\u -> let x = prevPlane<.>^u
+pumpHalfspace rieM v (prevPlane, ws) = case dualSpaceWitness :: DualSpaceWitness v of
+ DualSpaceWitness -> 
+  let    ϑs = fmap (\u -> let x = prevPlane<.>^u
                               y = thisPlane<.>^u in atan2 x y) $ v:ws
          [ϑmin, ϑmax] = [minimum, maximum] <*> [ϑs]
          δϑ = ϑmax - ϑmin
          dv = rieM<$|v
          thisPlane = dv ^/ (dv<.>^v)
+  in if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
+                             in prevPlane^*cos ϑbest ^+^ thisPlane^*sin ϑbest
+                 else Nothing
 
 fromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                     => (MetricChoice x) -> [(x,y)] -> PointsWeb x y
@@ -236,7 +237,8 @@ fromTopWebNodes = case boundarylessWitness :: BoundarylessWitness x of
    BoundarylessWitness ->
        \mf -> fromTopShaded mf . fromLeafPoints_ . map regroup'
 
-fromShadeTree_auto :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x)) => ShadeTree x -> PointsWeb x ()
+fromShadeTree_auto :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x))
+                              => ShadeTree x -> PointsWeb x ()
 fromShadeTree_auto = fromShaded (dualNorm' . _shadeExpanse) . constShaded ()
 
 fromShadeTree :: ∀ x . (WithField ℝ Manifold x, SimpleSpace (Needle x))
@@ -263,6 +265,38 @@ unlinkedFromShaded metricf = PointsWeb<<<fmap `id` \y
                 -> Neighbourhood y mempty (metricf $notImplemented) (Just dv)
  where nm = metricf $notImplemented
        dv = head $ normSpanningSystem nm
+
+autoLinkWeb :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
+                => PointsWeb x y -> PointsWeb x y
+autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
+                                                  . (id &&& findEnviPts (0,1)) )
+ where fetchNgbs :: [(WebNodeIdOffset, Needle x)]
+                 -> (NodeInWeb x y, [[(WebNodeIdOffset, (x, Neighbourhood x y))]])
+                 -> Neighbourhood x y
+       fetchNgbs alreadyFound
+                 ( NodeInWeb (x, Neighbourhood y aprNgbs locMetr (Just wall)) _
+                 , enviLayers )
+         | (δi, (v, nh)) : _ <- newNgbCandidates
+             = Neighbourhood y (UArr.cons δi aprNgbs) locMetr
+                  $ pumpHalfspace locMetr v (wall, snd<$>alreadyFound)
+        where newNgbCandidates
+                  = [ (δi, (v, nh))
+                    | envi <- enviLayers
+                    , (δi, ((v,_), nh)) <- sortBy (comparing $ snd . fst . snd)
+                                  [ (δi, ((v,dist), nh))
+                                  | (δi,(xp,nh)) <- envi
+                                  , let Just v = xp.-~.x
+                                  , wall<.>^v >= 0
+                                  , not . any (==δi) $ UArr.toList aprNgbs
+                                                        ++ map fst alreadyFound
+                                  , let dist = normSq locMetr v ] ]
+       fetchNgbs _ (NodeInWeb (_, d) _, _) = d
+       findEnviPts (iw,wedgeSize) (NodeInWeb tr ((envi,iSpl):envis))
+                  = (zip [-iw-iSpl ..] preds ++ zip [wedgeSize-iw ..] succs)
+                     : findEnviPts (iw+iSpl, wedgeSize + iSpl + length succs)
+                                   (NodeInWeb tr envis)
+               where (preds, succs) = splitAt iSpl $ onlyLeaves envi
+       findEnviPts _ _ = []
 
 fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (MetricChoice x)
