@@ -814,7 +814,7 @@ toGraph wb = second (>>> \(i,_,_) -> case indexWeb wb i of {Just xy -> xy})
                 (graphFromEdges' edgs)
  where edgs :: [(Int, Int, [Int])]
        edgs = Arr.toList
-            . Arr.imap (\i (Neighbourhood _ ngbs _ _) -> (i, i, UArr.toList ngbs))
+            . Arr.imap (\i (Neighbourhood _ ngbs _ _) -> (i, i, (i+) <$> UArr.toList ngbs))
             . Arr.fromList . Hask.toList $ webNodeRsc wb
 
 
