@@ -252,9 +252,7 @@ fromShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                               --   Riemannian metric).
      -> (x`Shaded`y)          -- ^ Source tree.
      -> PointsWeb x y
-fromShaded metricf = smoothenWebTopology metricf
-                   . fromTopShaded metricf . fmapShaded (first (map Left) . swap)
-                       . seekPotentialNeighbours
+fromShaded metricf = autoLinkWeb . unlinkedFromShaded metricf
 
 toShaded :: WithField ℝ PseudoAffine x => PointsWeb x y -> (x`Shaded`y)
 toShaded (PointsWeb shd) = fmap _dataAtNode shd
