@@ -56,6 +56,7 @@ Library
                      , number-show >= 0.1 && < 0.2
                      , tagged
                      , deepseq
+                     , placeholders
                      , lens
                      , constrained-categories >= 0.2.3 && < 0.3.1
   other-extensions:  FlexibleInstances

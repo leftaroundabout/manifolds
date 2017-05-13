@@ -465,7 +465,7 @@ pattern x :± shs <- (Shade x (varianceSpanningSystem -> shs))
 --   Hence the result type is a list.
 pointsShades :: (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                                  => [Interior x] -> [Shade x]
-pointsShades = map snd . pointsShades' mempty . map fromInterior
+pointsShades = map snd . pointsShades' mempty . map ((,()) . fromInterior)
 
 coverAllAround :: ∀ x s . ( Fractional' s, WithField s PseudoAffine x
                           , SimpleSpace (Needle x) )
@@ -494,10 +494,11 @@ pointsCovers :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
 pointsCovers = case pseudoAffineWitness :: PseudoAffineWitness x of
                  (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)) ->
                   \ps -> map (\(ps', Shade x₀ _)
-                                -> coverAllAround x₀ [v | p<-ps'
+                                -> coverAllAround x₀ [v | (p,())<-ps'
                                                         , let Just v
                                                                  = p.-~.fromInterior x₀])
-                             (pointsShades' mempty (fromInterior<$>ps) :: [([x], Shade x)])
+                             (pointsShades' mempty ((,()).fromInterior<$>ps)
+                                  :: [([(x,())], Shade x)])
 
 pointsShade's :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                      => [Interior x] -> [Shade' x]
@@ -509,20 +510,20 @@ pointsCover's :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
 pointsCover's = case dualSpaceWitness :: DualNeedleWitness x of
  DualSpaceWitness -> map (\(Shade c e :: Shade x) -> Shade' c $ dualNorm e) . pointsCovers
 
-pseudoECM :: ∀ x p . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x), Hask.Functor p)
-                => p x -> NonEmpty x -> (x, ([x],[x]))
+pseudoECM :: ∀ x y p . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x), Hask.Functor p)
+                => p x -> NonEmpty (x,y) -> (x, ([(x,y)],[(x,y)]))
 pseudoECM = case semimanifoldWitness :: SemimanifoldWitness x of
  SemimanifoldWitness _ ->
-   \_ (p₀ NE.:| psr) -> foldl' ( \(acc, (rb,nr)) (i,p)
+   \_ ((p₀,y₀) NE.:| psr) -> foldl' ( \(acc, (rb,nr)) (i,(p,y))
                                 -> case (p.-~.acc, toInterior acc) of 
                                       (Just δ, Just acci)
-                                        -> (acci .+~^ δ^/i, (p:rb, nr))
-                                      _ -> (acc, (rb, p:nr)) )
+                                        -> (acci .+~^ δ^/i, ((p,y):rb, nr))
+                                      _ -> (acc, (rb, (p,y):nr)) )
                              (p₀, mempty)
-                             ( zip [1..] $ p₀:psr )
+                             ( zip [1..] $ (p₀,y₀):psr )
 
-pointsShades' :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
-                                => Metric' x -> [x] -> [([x], Shade x)]
+pointsShades' :: ∀ x y . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+                                => Metric' x -> [(x,y)] -> [([(x,y)], Shade x)]
 pointsShades' _ [] = []
 pointsShades' minExt ps = case (expa, toInterior ctr) of 
                            (Just e, Just c)
@@ -531,7 +532,7 @@ pointsShades' minExt ps = case (expa, toInterior ctr) of
                                   ++ pointsShades' minExt unreachable
  where (ctr,(inc'd,unreachable)) = pseudoECM ([]::[x]) $ NE.fromList ps
        expa = ( (<>minExt) . spanVariance . map (^/ fromIntegral (length ps)) )
-              <$> mapM (.-~.ctr) ps
+              <$> mapM ((.-~.ctr) . fst) ps
        
 
 -- | Attempt to reduce the number of shades to fewer (ideally, a single one).
