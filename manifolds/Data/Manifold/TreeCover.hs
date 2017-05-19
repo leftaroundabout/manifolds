@@ -45,7 +45,7 @@ module Data.Manifold.TreeCover (
        , Refinable, subShade', refineShade', convolveShade', coerceShade
        , mixShade's
        -- * Shade trees
-       , ShadeTree, fromLeafPoints, fromLeafPoints_, onlyLeaves
+       , ShadeTree, fromLeafPoints, fromLeafPoints_, onlyLeaves, onlyLeaves_
        , indexShadeTree, positionIndex
        -- ** View helpers
        , onlyNodes, trunkBranches, nLeaves
