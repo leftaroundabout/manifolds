@@ -401,6 +401,10 @@ instance (Semimanifold (f p), Semimanifold (g p))
   fromInterior = id
   toInterior = pure
   translateP = Tagged (^+^)
+instance (PseudoAffine (f p), PseudoAffine (g p))
+    => PseudoAffine (NeedleProductSpace f g p) where
+  p.-~.q = Just $ p.-.q
+  (.-~!) = (.-.)
 instance ( Semimanifold (f p), Semimanifold (g p)
          , HasBasis (Needle (f p)), HasBasis (Needle (g p))
          , Scalar (Needle (f p)) ~ Scalar (Needle (g p)) )
@@ -435,6 +439,22 @@ instance ∀ f g p . (Semimanifold (f p), Semimanifold (g p))
              (Tagged tf, Tagged tg)
                -> \(InteriorProductSpace pf pg) (NeedleProductSpace vf vg)
                     -> InteriorProductSpace (tf pf vf) (tg pg vg)
+instance ∀ f g p . (PseudoAffine (f p), PseudoAffine (g p))
+    => PseudoAffine (InteriorProductSpace f g p) where
+  (.-~.) = case
+     ( pseudoAffineWitness :: PseudoAffineWitness (f p)
+     , pseudoAffineWitness :: PseudoAffineWitness (g p) ) of
+             ( PseudoAffineWitness (SemimanifoldWitness _)
+              ,PseudoAffineWitness (SemimanifoldWitness _) )
+               -> \(InteriorProductSpace pf pg) (InteriorProductSpace qf qg)
+                 -> NeedleProductSpace <$> pf.-~.qf <*> pg.-~.qg
+  (.-~!) = case
+     ( pseudoAffineWitness :: PseudoAffineWitness (f p)
+     , pseudoAffineWitness :: PseudoAffineWitness (g p) ) of
+             ( PseudoAffineWitness (SemimanifoldWitness _)
+              ,PseudoAffineWitness (SemimanifoldWitness _) )
+               -> \(InteriorProductSpace pf pg) (InteriorProductSpace qf qg)
+                 -> NeedleProductSpace (pf.-~!qf) (pg.-~!qg)
 
 
 newtype GenericNeedle x = GenericNeedle {getGenericNeedle :: Needle (Gnrx.Rep x ())}
@@ -510,3 +530,26 @@ instance ∀ f g p . (Semimanifold (f p), Semimanifold (g p))
                     -> InteriorProductSpace (tf pf vf) (tg pg vg)
 
 
+
+
+instance ∀ a s . PseudoAffine a => PseudoAffine (Gnrx.Rec0 a s) where
+  pseudoAffineWitness = case pseudoAffineWitness :: PseudoAffineWitness a of
+           PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+               -> PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+  Gnrx.K1 p .-~. Gnrx.K1 q = p .-~. q
+  Gnrx.K1 p .-~! Gnrx.K1 q = p .-~! q
+instance ∀ f p i c . PseudoAffine (f p) => PseudoAffine (Gnrx.M1 i c f p) where
+  pseudoAffineWitness = case pseudoAffineWitness :: PseudoAffineWitness (f p) of
+           PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+               -> PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+  Gnrx.M1 p .-~. Gnrx.M1 q = p .-~. q
+  Gnrx.M1 p .-~! Gnrx.M1 q = p .-~! q
+instance ∀ f g p . (PseudoAffine (f p), PseudoAffine (g p))
+         => PseudoAffine ((f :*: g) p) where
+  pseudoAffineWitness = case ( pseudoAffineWitness :: PseudoAffineWitness (f p)
+                             , pseudoAffineWitness :: PseudoAffineWitness (g p) ) of
+           ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+            ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
+               -> PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+  (pf:*:pg) .-~. (qf:*:qg) = NeedleProductSpace <$> (pf.-~.qf) <*> (pg.-~.qg)
+  (pf:*:pg) .-~! (qf:*:qg) = NeedleProductSpace     (pf.-~!qf)     (pg.-~!qg)
