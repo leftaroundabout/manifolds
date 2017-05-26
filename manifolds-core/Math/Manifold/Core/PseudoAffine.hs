@@ -475,6 +475,9 @@ instance AdditiveGroup (Needle (Gnrx.Rep x ())) => Semimanifold (GenericNeedle x
   fromInterior = id
   toInterior = pure
   translateP = Tagged (^+^)
+instance AdditiveGroup (Needle (Gnrx.Rep x ())) => PseudoAffine (GenericNeedle x) where
+  GenericNeedle v .-~. GenericNeedle w = Just $ GenericNeedle (v ^-^ w)
+  GenericNeedle v .-~! GenericNeedle w = GenericNeedle (v ^-^ w)
 
 
 newtype GenericInterior x = GenericInterior {getGenericInterior :: Interior (Gnrx.Rep x ())}
@@ -488,6 +491,15 @@ instance Semimanifold (Gnrx.Rep x ()) => Semimanifold (GenericInterior x) where
   translateP = Tagged $ case translateP :: Tagged (Gnrx.Rep x ())
        (Interior (Gnrx.Rep x ()) -> Needle (Gnrx.Rep x ()) -> Interior (Gnrx.Rep x ())) of
          Tagged tp -> \(GenericInterior p) (GenericNeedle v) -> GenericInterior $ tp p v
+instance ∀ x . PseudoAffine (Gnrx.Rep x ()) => PseudoAffine (GenericInterior x) where
+  (.-~.) = case pseudoAffineWitness :: PseudoAffineWitness (Gnrx.Rep x ()) of
+      PseudoAffineWitness (SemimanifoldWitness _)
+          -> \(GenericInterior v) (GenericInterior w)
+                               -> GenericNeedle <$> (v .-~. w)
+  (.-~!) = case pseudoAffineWitness :: PseudoAffineWitness (Gnrx.Rep x ()) of
+      PseudoAffineWitness (SemimanifoldWitness _)
+          -> \(GenericInterior v) (GenericInterior w)
+                               -> GenericNeedle (v .-~! w)
 
 
 
