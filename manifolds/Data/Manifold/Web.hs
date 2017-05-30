@@ -212,17 +212,26 @@ makeLenses ''NodeInWeb
 type MetricChoice x = Shade x -> Metric x
 
 pumpHalfspace :: ∀ v . (SimpleSpace v, Scalar v ~ ℝ)
-                => Norm v -> v -> (DualVector v, [v]) -> Maybe (DualVector v)
+     => Norm v
+     -> v                    -- ^ A vector @v@ for which we want @dv<.>^v ≥ 0@.
+     -> (DualVector v, [v])  -- ^ A plane @dv₀@ and some vectors @ws@ with @dv₀<.>^w ≥ 0@,
+                             --   which should also fulfill @dv<.>^w ≥ 0@.
+     -> Maybe (DualVector v) -- ^ The plane @dv@ fulfilling these properties, if possible.
 pumpHalfspace rieM v (prevPlane, ws) = case dualSpaceWitness :: DualSpaceWitness v of
  DualSpaceWitness -> 
   let    ϑs = fmap (\u -> let x = prevPlane<.>^u
-                              y = thisPlane<.>^u in atan2 x y) $ v:ws
+                              y = thisPlane<.>^u
+                          in atan2 (x-y) (x+y)) $ v:ws
+          -- ϑ = 0 means we are mid-between the planes, ϑ > π/2 means we are past
+          -- `thisPlane`, ϑ < -π/2 we are past `prevPlane`. In other words, positive ϑ
+          -- mean we should mix in more of `prevPlane`, negative more of `thisPlane`.
          [ϑmin, ϑmax] = [minimum, maximum] <*> [ϑs]
          δϑ = ϑmax - ϑmin
          dv = rieM<$|v
          thisPlane = dv ^/ (dv<.>^v)
+         cas ϑ = cos $ ϑ - pi/2
   in if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
-                             in prevPlane^*cos ϑbest ^+^ thisPlane^*sin ϑbest
+                             in prevPlane^*cas ϑbest ^+^ thisPlane^*cas (-ϑbest)
                  else Nothing
 
 fromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
