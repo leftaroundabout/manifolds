@@ -229,7 +229,7 @@ pumpHalfspace rieM v (prevPlane, ws) = case dualSpaceWitness :: DualSpaceWitness
          δϑ = ϑmax - ϑmin
          dv = rieM<$|v
          thisPlane = dv ^/ (dv<.>^v)
-         cas ϑ = cos $ ϑ - pi/2
+         cas ϑ = cos $ ϑ - pi/4
   in if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
                              in prevPlane^*cas ϑbest ^+^ thisPlane^*cas (-ϑbest)
                  else Nothing
