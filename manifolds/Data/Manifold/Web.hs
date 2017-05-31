@@ -150,7 +150,7 @@ data WebLocally x y = LocalWebInfo {
     , _thisNodeId :: WebNodeId
     , _nodeNeighbours :: [(WebNodeId, (Needle x, WebLocally x y))]
     , _nodeLocalScalarProduct :: Metric x
-    , _nodeIsOnBoundary :: Bool
+    , _webBoundingPlane :: Maybe (Needle' x)
     } deriving (Generic)
 makeLenses ''WebLocally
 
@@ -339,10 +339,10 @@ unsafeIndexWebData web i = case indexWeb web i of
               Just (x,y) -> y
 
 
-webBoundary :: WithField ℝ Manifold x => PointsWeb x y -> [(x,y)]
+webBoundary :: WithField ℝ Manifold x => PointsWeb x y -> [(Cutplane x, y)]
 webBoundary = webLocalInfo >>> Hask.toList >>> Hask.concatMap`id`
-        \info -> [ (info^.thisNodeCoord, info^.thisNodeData)
-                 | info^.nodeIsOnBoundary ]
+        \info -> [ (Cutplane (info^.thisNodeCoord) (Stiefel1 wall), info^.thisNodeData)
+                 | Just wall <- [info^.webBoundingPlane] ]
 
 
 coerceWebDomain :: ∀ a b y
@@ -564,7 +564,7 @@ webLocalInfo = runIdentity . traverseNodesInEnvi (Identity . linkln)
                                           Just δx = xn .-~. x
                                           Neighbourhood ngb _ _ _ = linkln ngbNode ]
                 , _nodeLocalScalarProduct = metric
-                , _nodeIsOnBoundary = isJust nBoundary
+                , _webBoundingPlane = nBoundary
                 }
         where i = foldr ((+) . snd) 0 envis
 
@@ -801,7 +801,7 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
    ( DualSpaceWitness,DualSpaceWitness,BoundarylessWitness
     , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
      -> \f info
-          -> if info^.nodeIsOnBoundary
+          -> if isJust $ info^.webBoundingPlane
               then return $ info^.thisNodeData
               else let xc = info^.thisNodeCoord
                        yc = info^.thisNodeData.shadeCtr
@@ -951,7 +951,7 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
            >>> fmap (id &&& rescanPDELocally f . fmap (shading>-$))
            >>> localFocusWeb >>> Hask.traverse ( \((_,(me,updShy)), ngbs)
           -> let oldValue = me^.thisNodeData :: iy
-             in if me ^. nodeIsOnBoundary
+             in if isJust $ me ^. webBoundingPlane
                  then return oldValue
                  else case updShy of
               Just shy -> case ngbs of
@@ -1018,7 +1018,7 @@ filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y
           -> let oldValue = me^.thisNodeData :: iy
                  badHere = badness $ me^.thisNodeCoord
                  oldBadness = badHere oldValue
-             in if me ^. nodeIsOnBoundary
+             in if isJust $ me ^. webBoundingPlane
                  then return oldValue
                  else case me^.nodeNeighbours of
                   [] -> pure oldValue
