@@ -281,22 +281,31 @@ autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
                  -> (NodeInWeb x y, [[(WebNodeIdOffset, (x, Neighbourhood x y))]])
                  -> Neighbourhood x y
        fetchNgbs alreadyFound
-                 ( NodeInWeb (x, Neighbourhood y aprNgbs locMetr (Just wall)) _
+                 ( NodeInWeb (x, Neighbourhood y aprNgbs locMetr (Just wall))
+                             layersAroundThis
                  , enviLayers )
          | (δi, (v, nh)) : _ <- newNgbCandidates
-             = Neighbourhood y (UArr.cons δi aprNgbs) locMetr
-                  $ pumpHalfspace locMetr v (wall, snd<$>alreadyFound)
+             = fetchNgbs
+                ((δi, v) : alreadyFound)
+                ( NodeInWeb (x, Neighbourhood y (UArr.cons δi aprNgbs) locMetr
+                                  $ pumpHalfspace locMetr v (wall, snd<$>alreadyFound))
+                            layersAroundThis
+                , enviLayers )
         where newNgbCandidates
                   = [ (δi, (v, nh))
                     | envi <- enviLayers
                     , (δi, ((v,_), nh)) <- sortBy (comparing $ snd . fst . snd)
-                                  [ (δi, ((v,dist), nh))
+                                  [ (δi, ((v, distSq / max 0 (distSq-wallDist^2)), nh))
                                   | (δi,(xp,nh)) <- envi
                                   , let Just v = xp.-~.x
-                                  , wall<.>^v >= 0
+                                        distSq = normSq locMetr v
+                                        wallDist = walln<.>^v
+                                  , wallDist >= 0
                                   , not . any (==δi) $ UArr.toList aprNgbs
                                                         ++ map fst alreadyFound
-                                  , let dist = normSq locMetr v ] ]
+                                  ] ]
+              locMetr' = dualNorm locMetr
+              walln = wall ^/ (- (locMetr'|$|wall))
        fetchNgbs _ (NodeInWeb (_, d) _, _) = d
        findEnviPts (iw,wedgeSize) (NodeInWeb tr ((envi,iSpl):envis))
                   = (zip [-iw-iSpl ..] preds ++ zip [wedgeSize-iw ..] succs)
