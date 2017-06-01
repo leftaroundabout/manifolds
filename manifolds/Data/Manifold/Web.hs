@@ -273,6 +273,20 @@ unlinkedFromShaded metricf = PointsWeb<<<fmap `id` \y
  where nm = metricf $notImplemented
        dv = head $ normSpanningSystem nm
 
+
+
+linkingUndesirability :: ℝ -- ^ Absolute-square distance (euclidean norm squared)
+                      -> ℝ -- ^ Directional distance (distance from wall containing
+                           --   all already known neighbours)
+                      -> ℝ -- ^ “Badness” of this point as the next neighbour to link to.
+                           --   This is large if the point is far away, but also if it is
+                           --   right normal to the wall. The reason we punish this is that
+                           --   adding two points directly opposed to each other would lead
+                           --   to an ill-defined wall orientation, i.e. wrong normals
+                           --   on the web boundary.
+linkingUndesirability distSq wallDist = distSq / max 0 (distSq-wallDist^2)
+
+
 autoLinkWeb :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                 => PointsWeb x y -> PointsWeb x y
 autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
@@ -295,7 +309,7 @@ autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
                   = [ (δi, (v, nh))
                     | envi <- enviLayers
                     , (δi, ((v,_), nh)) <- sortBy (comparing $ snd . fst . snd)
-                                  [ (δi, ((v, distSq / max 0 (distSq-wallDist^2)), nh))
+                                  [ (δi, ((v, linkingUndesirability distSq wallDist), nh))
                                   | (δi,(xp,nh)) <- envi
                                   , let Just v = xp.-~.x
                                         distSq = normSq locMetr v
