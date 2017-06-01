@@ -63,6 +63,7 @@ module Data.Manifold.TreeCover (
        , DifferentialEqn, LocalDifferentialEqn(..)
        , propagateDEqnSolution_loc, LocalDataPropPlan(..)
        , rangeOnGeodesic
+       , unsafeFmapTree
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild
        , AutoTriang, breakdownAutoTriang

@@ -97,7 +97,7 @@ import Data.Manifold.Types.Primitive
 
 import Data.CoNat
 
-import qualified Prelude
+import qualified Prelude as Hask
 import qualified Control.Applicative as Hask
 
 import Control.Category.Constrained.Prelude hiding ((^))
@@ -135,8 +135,22 @@ class ( Semimanifold x, Semimanifold ξ, LSpace (Needle x), LSpace (Needle ξ)
   --   ≡ locallyTrivialDiffeomorphism p .+~^ 'coerceNeedle' v
   -- @
   locallyTrivialDiffeomorphism :: x -> ξ
-  coerceNeedle :: Functor p (->) (->) => p (x,ξ) -> (Needle x -+> Needle ξ)
-  coerceNeedle' :: Functor p (->) (->) => p (x,ξ) -> (Needle' x -+> Needle' ξ)
+  coerceNeedle :: Hask.Functor p => p (x,ξ) -> (Needle x -+> Needle ξ)
+  coerceNeedle' :: Hask.Functor p => p (x,ξ) -> (Needle' x -+> Needle' ξ)
+  coerceNorm :: Hask.Functor p => p (x,ξ) -> Metric x -> Metric ξ
+  coerceNorm p = case ( oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x
+                      , dualSpaceWitness :: DualSpaceWitness (Needle x)
+                      , dualSpaceWitness :: DualSpaceWitness (Needle ξ) ) of
+    (CanonicalDiffeomorphism, DualSpaceWitness, DualSpaceWitness)
+          -> case ( coerceNeedle (swap<$>p), coerceNeedle' p ) of
+              (f, f') -> \(Norm n) -> Norm $ f' . n . f
+  coerceVariance :: Hask.Functor p => p (x,ξ) -> Metric' x -> Metric' ξ
+  coerceVariance p = case ( oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x
+                          , dualSpaceWitness :: DualSpaceWitness (Needle x)
+                          , dualSpaceWitness :: DualSpaceWitness (Needle ξ) ) of
+    (CanonicalDiffeomorphism, DualSpaceWitness, DualSpaceWitness)
+          -> case ( coerceNeedle p, coerceNeedle' (swap<$>p) ) of
+              (f, f') -> \(Norm n) -> Norm $ f . n . f'
   oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x
   default oppositeLocalCoercion :: LocallyCoercible ξ x => CanonicalDiffeomorphism ξ x
   oppositeLocalCoercion = CanonicalDiffeomorphism

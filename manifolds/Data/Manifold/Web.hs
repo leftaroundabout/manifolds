@@ -336,21 +336,12 @@ fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      -> PointsWeb x y
 fromTopShaded metricf shd = $notImplemented
 
-cullNeighbours :: ∀ x y . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
-      => Metric x -> (Int, (x,[(Int,Needle x)])) -> Neighbourhood x y
-cullNeighbours = $notImplemented
-              
 
 -- | Re-calculate the links in a web, so as to give each point a satisfyingly
 --   “complete-spanning” environment.
 smoothenWebTopology :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
 smoothenWebTopology mc = $notImplemented
-
-makeIndexLinksSymmetric
-       :: Arr.Vector (y, Neighbourhood x y)
-       -> (Arr.Vector (y, Neighbourhood x y), Set.Set (WebNodeId,WebNodeId))
-makeIndexLinksSymmetric orig = $notImplemented
 
 indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
 indexWeb (PointsWeb rsc) i = case indexShadeTree rsc i of
@@ -371,7 +362,16 @@ webBoundary = webLocalInfo >>> Hask.toList >>> Hask.concatMap`id`
 coerceWebDomain :: ∀ a b y
      . (Manifold a, Manifold b, LocallyCoercible a b, SimpleSpace (Needle b))
                                  => PointsWeb a y -> PointsWeb b y
-coerceWebDomain = $notImplemented
+coerceWebDomain (PointsWeb web) = PointsWeb
+     $ unsafeFmapTree ( fmap $ \(x, Neighbourhood y ngbs lscl bndry)
+                            -> ( locallyTrivialDiffeomorphism x
+                               , Neighbourhood y ngbs
+                                       (coerceNorm ([]::[(a,b)]) lscl)
+                                       (fmap crcNeedle' bndry) ) )
+                      crcNeedle' coerceShade web
+ where crcNeedle' = case ( dualSpaceWitness :: DualSpaceWitness (Needle a)
+                         , dualSpaceWitness :: DualSpaceWitness (Needle b) ) of
+           (DualSpaceWitness, DualSpaceWitness) -> arr $ coerceNeedle' ([]::[(a,b)])
 
 
 data InterpolationIv y = InterpolationIv {
@@ -595,16 +595,15 @@ webLocalInfo = runIdentity . traverseNodesInEnvi (Identity . linkln)
 hardbakeChunk :: WebChunk x y -> PointsWeb x y
 hardbakeChunk = _thisChunk
 
-aroundChunk :: (PointsWeb x y -> PointsWeb x z) -> WebChunk x y -> WebChunk x z
-aroundChunk f (WebChunk origWeb outlayers) = case f origWeb of
-         newWeb -> $notImplemented
-
 entireWeb :: PointsWeb x y -> WebChunk x y
 entireWeb web = WebChunk web []
 
 localFocusWeb :: WithField ℝ Manifold x
                    => PointsWeb x y -> PointsWeb x ((x,y), [(Needle x, y)])
-localFocusWeb (PointsWeb rsc) = PointsWeb $notImplemented
+localFocusWeb = webLocalInfo >>> fmap `id`\n
+           -> ( (n^.thisNodeCoord, n^.thisNodeData)
+              , [ (δx, ngb^.thisNodeData)
+                | (_, (δx, ngb)) <- n^.nodeNeighbours ] )
 
 
 
@@ -677,9 +676,21 @@ webOnions :: ∀ x y . WithField ℝ Manifold x
 webOnions = localFmapWeb (map (map $ _thisNodeCoord&&&_thisNodeData <<< snd)
                                 . (`localOnion`[]))
 
-nearestNeighbour :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
+nearestNeighbour :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                       => PointsWeb x y -> x -> Maybe (x,y)
-nearestNeighbour (PointsWeb rsc) x = fmap $notImplemented (positionIndex empty rsc x)
+nearestNeighbour = webLocalInfo >>> \(PointsWeb rsc) x
+                 -> fmap (fine x) (positionIndex empty rsc x)
+ where fine :: x -> (Int, ( [Shaded x (Neighbourhood x (WebLocally x y))]
+                          , (x, Neighbourhood x (WebLocally x y)) ))
+                 -> (x,y)
+       fine x (_, (_, (xc, (Neighbourhood c _ locMetr _))))
+           = snd . minimumBy (comparing fst)
+              . map (first $ (c^.nodeLocalScalarProduct|$|)
+                           . (^-^vc))
+              $ (zeroV, (xc, c^.thisNodeData))
+                : [ (δx, (ngb^.thisNodeCoord, ngb^.thisNodeData))
+                  | (_, (δx, ngb)) <- c^.nodeNeighbours ]
+        where Just vc = x.-~.xc
 
 
 
