@@ -50,7 +50,7 @@
 
 module Data.Manifold.PseudoAffine (
             -- * Manifold class
-              Manifold
+              Manifold(inInterior)
             , Semimanifold(..), Needle'
             , PseudoAffine(..)
             -- * Type definitions
@@ -118,6 +118,9 @@ class (PseudoAffine m, LSpace (Needle m)) => Manifold m where
   boundarylessWitness :: BoundarylessWitness m
   default boundarylessWitness :: (m ~ Interior m) => BoundarylessWitness m
   boundarylessWitness = BoundarylessWitness
+  inInterior :: m -> Interior m
+  default inInterior :: (m ~ Interior m) => m -> Interior m
+  inInterior = id
 instance (PseudoAffine m, LSpace (Needle m), Interior m ~ m) => Manifold m
 
 
