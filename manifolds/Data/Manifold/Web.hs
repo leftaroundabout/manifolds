@@ -59,7 +59,7 @@ module Data.Manifold.Web (
             , PropagationInconsistency(..)
               -- * Misc
             , ConvexSet(..), ellipsoid, ellipsoidSet, coerceWebDomain
-            , rescanPDELocally, webOnions
+            , rescanPDELocally, webOnions, knitShortcuts
             ) where
 
 
@@ -343,6 +343,37 @@ smoothenWebTopology :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
 smoothenWebTopology mc = $notImplemented
 
+-- | Consider at each node not just the connections to already known neighbours, but
+--   also the connections to /their/ neighbours. If these next-neighbours turn out
+--   to be actually situated closer, link to them directly.
+knitShortcuts :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
+             => MetricChoice x -> PointsWeb x y -> PointsWeb x y
+knitShortcuts metricf = webLocalInfo >>> fmapNodesInEnvi`id`
+     \(NodeInWeb (x₀, Neighbourhood me _ lm wall) _)
+         -> let lm' = metricf . Shade (inInterior x₀) $ dualNorm lm
+            in Neighbourhood (me^.thisNodeData)
+                             (pickNewNeighbours (lm', dualNorm lm') me) lm' wall
+ where pickNewNeighbours :: (Metric x, Metric' x)
+                    -> WebLocally x y -> UArr.Vector WebNodeIdOffset
+       pickNewNeighbours (lm', lm) me = UArr.fromList $ go zeroV [] candidates
+        where go wall prev cs = case map snd $ sortBy (comparing fst)
+                                  [ ( linkingUndesirability (normSq lm' δx) wallDist
+                                    , (i,δx) )
+                                  | (i,δx) <- cs
+                                  , let wallDist = - wall<.>^δx
+                                  , wallDist >= 0 ] of
+                  [] -> []
+                  (i,δx) : cs'
+                    | δi <- i - me^.thisNodeId
+                       -> case pumpHalfspace lm' δx (wall,prev) of
+                          Nothing -> [δi]
+                          Just wall' -> δi : go (wall'^/(lm|$|wall')) (δx:prev) cs'
+              candidates :: [(WebNodeId, Needle x)]
+              c₀ : candidates = sortBy (comparing $ (lm'|$|) . snd)
+                   . fastNubBy (comparing fst) $ do
+                  (i₁, (δx₁, ngb₁)) <- me^.nodeNeighbours
+                  (i₁, δx₁) : (second fst <$> ngb₁^.nodeNeighbours)
+
 indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
 indexWeb (PointsWeb rsc) i = case indexShadeTree rsc i of
        Right (_, (x, Neighbourhood y _ _ _)) -> Just (x, y)
@@ -504,6 +535,10 @@ traverseNodesInEnvi f = traverseInnermostChunks fc
         where fn ((i, (x, ngbh)), nearbyLeaves)
                = (x,) <$> f (NodeInWeb (x,ngbh)
                                      $ (PlainLeaves nearbyLeaves, i) : outlayers)
+
+fmapNodesInEnvi :: ( WithField ℝ Manifold x, LSpace (Needle x) )
+           => (NodeInWeb x y -> Neighbourhood x z) -> PointsWeb x y -> (PointsWeb x z)
+fmapNodesInEnvi f = runIdentity . traverseNodesInEnvi (Identity . f)
 
 ixedFoci :: [a] -> [((Int, a), [a])]
 ixedFoci = go 0
