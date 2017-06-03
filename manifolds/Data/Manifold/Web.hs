@@ -121,7 +121,7 @@ import Data.Traversable.Constrained (Traversable, traverse)
 
 import Control.Comonad (Comonad(..))
 import Control.Comonad.Cofree
-import Control.Lens ((&), (%~), (^.), (.~), (+~))
+import Control.Lens ((&), (%~), (^.), (.~), (+~), ix)
 import Control.Lens.TH
 
 import GHC.Generics (Generic)
@@ -593,18 +593,30 @@ zoomoutWebChunk δi (WebChunk chunk ((outlayer, olp) : outlayers))
 zoomoutWebChunk δi ch = (ch, δi)
 
 pickNodeInWeb :: PointsWeb x y -> WebNodeId -> NodeInWeb x y
+pickNodeInWeb (PointsWeb w) i
+  | i<0 || i>=n  = error
+     $ "Trying to pick node #"++show i++" in web with "++show n++" nodes."
+ where n = nLeaves w
 pickNodeInWeb (PointsWeb (PlainLeaves lvs)) i
-  | i>0, (preds, node:succs)<-splitAt i lvs
+  | (preds, node:succs)<-splitAt i lvs
                    = NodeInWeb node [(PlainLeaves $ preds++succs, i)]
-pickNodeInWeb (PointsWeb (OverlappingBranches nw ew (DBranch dir (Hourglass u d):|[]))) i
+pickNodeInWeb (PointsWeb (OverlappingBranches nw ew (DBranch dir (Hourglass u d):|brs))) i
   | i < nu     = pickNodeInWeb (PointsWeb u) i
-                      & layersAroundNode %~ ((OverlappingBranches nw ew
-                                               (DBranch dir (Hourglass gap d):|[]),0):)
-  | otherwise  = pickNodeInWeb (PointsWeb d) (i-nu)
-                      & layersAroundNode %~ ((OverlappingBranches nw ew
-                                               (DBranch dir (Hourglass u gap):|[]),0):)
+                      & layersAroundNode %~ ((OverlappingBranches (nw-nu) ew
+                                               (DBranch dir (Hourglass gap d):|brs) ,0):)
+  | i < nu+nd  = pickNodeInWeb (PointsWeb d) (i-nu)
+                      & layersAroundNode %~ ((OverlappingBranches (nw-nd) ew
+                                               (DBranch dir (Hourglass u gap):|brs) ,nu):)
+  | (b:rs)<-brs
+    = pickNodeInWeb (PointsWeb $ OverlappingBranches (nw-nu-nd) ew (b:|rs)) (i-nu-nd)
+                      & layersAroundNode . ix 0
+                           %~ \(OverlappingBranches nwe ewe brse, ne)
+                                 -> ( OverlappingBranches (nwe+nu+nd) ewe
+                                       $ NE.cons (DBranch dir (Hourglass u d)) brse
+                                    , ne+nu+nd )
  where gap = PlainLeaves []
-       nu = nLeaves u
+       [nu,nd] = nLeaves<$>[u,d]
+
 
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x (WebLocally x y)
