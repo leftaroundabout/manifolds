@@ -38,7 +38,7 @@ instance VectorSpace (ZeroDim s) where
   type Scalar (ZeroDim s) = s
   _ *^ Origin = Origin
 instance HasBasis (ZeroDim s) where
-  type Basis (ZeroDim k) = Void
+  type Basis (ZeroDim s) = Void
   basisValue = absurd
   decompose Origin = []
   decompose' Origin = absurd
