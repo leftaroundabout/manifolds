@@ -29,6 +29,7 @@ import Data.Basis
 
 import Data.Tagged
 import Data.Fixed (mod')
+import Data.Void
 
 import Math.Manifold.Core.Types
 import Math.Manifold.VectorSpace.ZeroDimensional
@@ -104,9 +105,10 @@ class AdditiveGroup (Needle x) => Semimanifold x where
   fromInterior p = p .+~^ zeroV 
   
   toInterior :: x -> Maybe (Interior x)
-  default toInterior :: (Generic x, Semimanifold (Gnrx.Rep x ()))
-                            => x -> Maybe (GenericInterior x)
-  toInterior p = fmap GenericInterior $ toInterior (Gnrx.from p :: Gnrx.Rep x ())
+  default toInterior :: ( Generic x, Semimanifold (VRep x)
+                        , Interior x ~ GenericInterior x )
+                            => x -> Maybe (Interior x)
+  toInterior p = fmap GenericInterior $ toInterior (Gnrx.from p :: VRep x)
   
   -- | The signature of '.+~^' should really be @'Interior' x -> 'Needle' x -> 'Interior' x@,
   --   only, this is not possible because it only consists of non-injective type families.
@@ -114,10 +116,11 @@ class AdditiveGroup (Needle x) => Semimanifold x where
   --   why '.+~^' has the stronger, but easier usable signature. Without boundary, these
   --   functions should be equivalent, i.e. @translateP = Tagged (.+~^)@.
   translateP :: Tagged x (Interior x -> Needle x -> Interior x)
-  default translateP :: (Generic x, Semimanifold (Gnrx.Rep x ()))
-        => Tagged x (GenericInterior x -> GenericNeedle x -> GenericInterior x)
-  translateP = Tagged $ case translateP :: Tagged (Gnrx.Rep x ())
-     (Interior (Gnrx.Rep x ()) -> Needle (Gnrx.Rep x ()) -> Interior (Gnrx.Rep x ())) of
+  default translateP :: ( Generic x, Semimanifold (VRep x)
+                        , Interior x ~ GenericInterior x, Needle x ~ GenericNeedle x )
+        => Tagged x (Interior x -> Needle x -> Interior x)
+  translateP = Tagged $ case translateP :: Tagged (VRep x)
+     (Interior (VRep x) -> Needle (VRep x) -> Interior (VRep x)) of
           Tagged tp -> \(GenericInterior p) (GenericNeedle v) -> GenericInterior $ tp p v
   
   -- | Shorthand for @\\p v -> p .+~^ 'negateV' v@, which should obey the /asymptotic/ law
@@ -457,50 +460,50 @@ instance ∀ f g p . (PseudoAffine (f p), PseudoAffine (g p))
                  -> NeedleProductSpace (pf.-~!qf) (pg.-~!qg)
 
 
-newtype GenericNeedle x = GenericNeedle {getGenericNeedle :: Needle (Gnrx.Rep x ())}
+newtype GenericNeedle x = GenericNeedle {getGenericNeedle :: Needle (VRep x)}
     deriving (Generic)
 
-instance AdditiveGroup (Needle (Gnrx.Rep x ())) => AdditiveGroup (GenericNeedle x) where
+instance AdditiveGroup (Needle (VRep x)) => AdditiveGroup (GenericNeedle x) where
   GenericNeedle v ^+^ GenericNeedle w = GenericNeedle $ v ^+^ w
   negateV = GenericNeedle . negateV . getGenericNeedle
   zeroV = GenericNeedle zeroV
-instance VectorSpace (Needle (Gnrx.Rep x ())) => VectorSpace (GenericNeedle x) where
-  type Scalar (GenericNeedle x) = Scalar (Needle (Gnrx.Rep x ()))
+instance VectorSpace (Needle (VRep x)) => VectorSpace (GenericNeedle x) where
+  type Scalar (GenericNeedle x) = Scalar (Needle (VRep x))
   (*^) μ = GenericNeedle . (*^) μ . getGenericNeedle
-instance InnerSpace (Needle (Gnrx.Rep x ())) => InnerSpace (GenericNeedle x) where
+instance InnerSpace (Needle (VRep x)) => InnerSpace (GenericNeedle x) where
   GenericNeedle v <.> GenericNeedle w = v <.> w
-instance AdditiveGroup (Needle (Gnrx.Rep x ())) => AffineSpace (GenericNeedle x) where
+instance AdditiveGroup (Needle (VRep x)) => AffineSpace (GenericNeedle x) where
   type Diff (GenericNeedle x) = GenericNeedle x
   (.-.) = (^-^)
   (.+^) = (^+^)
-instance AdditiveGroup (Needle (Gnrx.Rep x ())) => Semimanifold (GenericNeedle x) where
+instance AdditiveGroup (Needle (VRep x)) => Semimanifold (GenericNeedle x) where
   type Needle (GenericNeedle x) = GenericNeedle x
   type Interior (GenericNeedle x) = GenericNeedle x
   fromInterior = id
   toInterior = pure
   translateP = Tagged (^+^)
-instance AdditiveGroup (Needle (Gnrx.Rep x ())) => PseudoAffine (GenericNeedle x) where
+instance AdditiveGroup (Needle (VRep x)) => PseudoAffine (GenericNeedle x) where
   GenericNeedle v .-~. GenericNeedle w = Just $ GenericNeedle (v ^-^ w)
   GenericNeedle v .-~! GenericNeedle w = GenericNeedle (v ^-^ w)
 
 
-newtype GenericInterior x = GenericInterior {getGenericInterior :: Interior (Gnrx.Rep x ())}
+newtype GenericInterior x = GenericInterior {getGenericInterior :: Interior (VRep x)}
     deriving (Generic)
 
-instance Semimanifold (Gnrx.Rep x ()) => Semimanifold (GenericInterior x) where
+instance Semimanifold (VRep x) => Semimanifold (GenericInterior x) where
   type Needle (GenericInterior x) = GenericNeedle x
   type Interior (GenericInterior x) = GenericInterior x
   fromInterior = id
   toInterior = pure
-  translateP = Tagged $ case translateP :: Tagged (Gnrx.Rep x ())
-       (Interior (Gnrx.Rep x ()) -> Needle (Gnrx.Rep x ()) -> Interior (Gnrx.Rep x ())) of
+  translateP = Tagged $ case translateP :: Tagged (VRep x)
+       (Interior (VRep x) -> Needle (VRep x) -> Interior (VRep x)) of
          Tagged tp -> \(GenericInterior p) (GenericNeedle v) -> GenericInterior $ tp p v
-instance ∀ x . PseudoAffine (Gnrx.Rep x ()) => PseudoAffine (GenericInterior x) where
-  (.-~.) = case pseudoAffineWitness :: PseudoAffineWitness (Gnrx.Rep x ()) of
+instance ∀ x . PseudoAffine (VRep x) => PseudoAffine (GenericInterior x) where
+  (.-~.) = case pseudoAffineWitness :: PseudoAffineWitness (VRep x) of
       PseudoAffineWitness (SemimanifoldWitness _)
           -> \(GenericInterior v) (GenericInterior w)
                                -> GenericNeedle <$> (v .-~. w)
-  (.-~!) = case pseudoAffineWitness :: PseudoAffineWitness (Gnrx.Rep x ()) of
+  (.-~!) = case pseudoAffineWitness :: PseudoAffineWitness (VRep x) of
       PseudoAffineWitness (SemimanifoldWitness _)
           -> \(GenericInterior v) (GenericInterior w)
                                -> GenericNeedle (v .-~! w)
@@ -569,3 +572,6 @@ instance ∀ f g p . (PseudoAffine (f p), PseudoAffine (g p))
                -> PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
   (pf:*:pg) .-~. (qf:*:qg) = NeedleProductSpace <$> (pf.-~.qf) <*> (pg.-~.qg)
   (pf:*:pg) .-~! (qf:*:qg) = NeedleProductSpace     (pf.-~!qf)     (pg.-~!qg)
+
+
+type VRep x = Gnrx.Rep x Void
