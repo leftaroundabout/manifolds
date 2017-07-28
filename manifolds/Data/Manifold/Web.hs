@@ -573,14 +573,20 @@ webAroundChunk (WebChunk (PointsWeb chunk)
                                           (DBranch dir (Hourglass u chunk) :| brs))
                                envi
 webAroundChunk (WebChunk chunk
-                         ((OverlappingBranches nw ew (br₀@(DBranch _ (Hourglass u d))
-                                                         :|br₁:brs), i) : envi))
+                         (( OverlappingBranches nw ew (br₀@(DBranch _ (Hourglass u d))
+                                                          :|br₁:brs)
+                          , i) : envi))
   = case webAroundChunk (WebChunk chunk [(OverlappingBranches nw ew (br₁:|brs), i')])
       of PointsWeb (OverlappingBranches nw' ew' (br₁':|brs'))
            -> webAroundChunk $ WebChunk
                     (PointsWeb $ OverlappingBranches nw' ew' (br₀:|br₁':brs'))
                     envi
- where i' = i + nLeaves u + nLeaves d
+ where i' = i - nLeaves u - nLeaves d
+webAroundChunk (WebChunk _ ((OverlappingBranches nw ew branches, i):_))
+    = error $ "Environment with branch sizes "++show (fmap nLeaves . Hask.toList<$>(Hask.toList branches))
+                ++" does not have a gap at #"++show i
+webAroundChunk (WebChunk _ ((PlainLeaves _, _):_))
+    = error "Encountered non-PlainLeaves chunk in a PlainLeaves environment."
 
 
 zoomoutWebChunk :: WebNodeIdOffset -> WebChunk x y -> (WebChunk x y, WebNodeId)
@@ -590,7 +596,6 @@ zoomoutWebChunk δi (WebChunk chunk ((outlayer, olp) : outlayers))
                                       outlayers)
  where δi' | δi < 0     = δi + olp
            | otherwise  = δi + olp - nLeaves outlayer
-zoomoutWebChunk δi ch = (ch, δi)
 
 pickNodeInWeb :: PointsWeb x y -> WebNodeId -> NodeInWeb x y
 pickNodeInWeb (PointsWeb w) i
