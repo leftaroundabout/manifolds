@@ -40,7 +40,7 @@ Source-Repository head
 
 Library
   Build-Depends:     base>=4.5 && < 6
-                     , manifolds-core == 0.4.2.0
+                     , manifolds-core == 0.4.3.0
                      , transformers
                      , vector-space>=0.8
                      , free-vector-spaces>=0.1.1
