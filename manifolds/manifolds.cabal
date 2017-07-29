@@ -91,6 +91,7 @@ Library
                    Data.CoNat
                    Data.Embedding
                    Data.Manifold.Function.Quadratic
+                   Data.Manifold.Web.DataStructure
                    Data.Function.Differentiable.Data
                    Control.Monad.Trans.OuterMaybe
                    Util.Associate
