@@ -94,7 +94,7 @@ import Data.Manifold.Riemannian
 import Data.Manifold.Atlas
 import Data.Manifold.Function.Quadratic
 import Data.Function.Affine
-import Data.Manifold.Web.DataStructure
+import Data.Manifold.Web.Internal
 import Data.Embedding
     
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
@@ -429,42 +429,6 @@ sampleEntireWeb_2Dcartesian_lin web nx ny
        y₁ = maximum (snd<$>pts)
        pts = fst . fst <$> toList (localFocusWeb web)
 
-
-traverseInnermostChunks :: ∀ f x y z . ( Hask.Applicative f
-                                       , WithField ℝ Manifold x, LSpace (Needle x) )
-          => (WebChunk x y -> f (PointsWeb x z)) -> PointsWeb x y -> f (PointsWeb x z)
-traverseInnermostChunks f = go []
- where go :: [(x`Shaded`Neighbourhood x y, WebNodeId)] -> PointsWeb x y -> f (PointsWeb x z)
-       go outlayers (w@(PointsWeb (PlainLeaves _)))
-         = f (WebChunk w outlayers) 
-       go outlayers (PointsWeb w) = PointsWeb <$> traverseTrunkBranchChoices travel w
-        where travel :: (Int, (Shaded x (Neighbourhood x y)))
-                 -> Shaded x (Neighbourhood x y)
-                 -> f (Shaded x (Neighbourhood x z))
-              travel (i₀, br) obrs
-                  = webNodeRsc <$> go ((obrs,i₀) : outlayers) (PointsWeb br)
-
-traverseNodesInEnvi :: ∀ f x y z . ( Hask.Applicative f
-                                   , WithField ℝ Manifold x, LSpace (Needle x) )
-           => (NodeInWeb x y -> f (Neighbourhood x z))
-             -> PointsWeb x y -> f (PointsWeb x z)
-traverseNodesInEnvi f = traverseInnermostChunks fc
- where fc :: WebChunk x y -> f (PointsWeb x z)
-       fc (WebChunk (PointsWeb (PlainLeaves lvs)) outlayers)
-            = PointsWeb . PlainLeaves <$> Hask.traverse fn (ixedFoci lvs)
-        where fn ((i, (x, ngbh)), nearbyLeaves)
-               = (x,) <$> f (NodeInWeb (x,ngbh)
-                                     $ (PlainLeaves nearbyLeaves, i) : outlayers)
-
-fmapNodesInEnvi :: ( WithField ℝ Manifold x, LSpace (Needle x) )
-           => (NodeInWeb x y -> Neighbourhood x z) -> PointsWeb x y -> (PointsWeb x z)
-fmapNodesInEnvi f = runIdentity . traverseNodesInEnvi (Identity . f)
-
-ixedFoci :: [a] -> [((Int, a), [a])]
-ixedFoci = go 0
- where go _ [] = []
-       go i (x:xs) = ((i,x), xs) : map (second (x:)) (go (i+1) xs)
- 
 
 jumpNodeOffset :: WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
 jumpNodeOffset 0 node = node

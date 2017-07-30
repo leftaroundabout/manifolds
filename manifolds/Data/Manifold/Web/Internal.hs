@@ -1,5 +1,5 @@
 -- |
--- Module      : Data.Manifold.Web.DataStructure
+-- Module      : Data.Manifold.Web.Internal
 -- Copyright   : (c) Justus Sagemüller 2017
 -- License     : GPL v3
 -- 
@@ -19,11 +19,13 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE UnicodeSyntax              #-}
 
 
-module Data.Manifold.Web.DataStructure where
+module Data.Manifold.Web.Internal where
 
 
 import qualified Data.Vector.Unboxed as UArr
@@ -34,11 +36,13 @@ import Data.Manifold.Shade
 import Data.Manifold.TreeCover
 import Data.Function.Affine
 import Data.VectorSpace (Scalar)
-import Math.LinearMap.Category (SimpleSpace)
+import Math.LinearMap.Category (SimpleSpace, LSpace)
     
 import qualified Data.Foldable       as Hask
 import qualified Data.Traversable as Hask
 import qualified Data.Foldable.Constrained as CCt
+import Data.Functor.Identity
+import Control.Arrow
 
 import Control.DeepSeq
 
@@ -131,4 +135,41 @@ makeLenses ''NodeInWeb
 
 type MetricChoice x = Shade x -> Metric x
 
+
+traverseInnermostChunks :: ∀ f x y z . ( Applicative f
+                                       , WithField ℝ Manifold x, LSpace (Needle x) )
+          => (WebChunk x y -> f (PointsWeb x z)) -> PointsWeb x y -> f (PointsWeb x z)
+traverseInnermostChunks f = go []
+ where go :: [(x`Shaded`Neighbourhood x y, WebNodeId)] -> PointsWeb x y -> f (PointsWeb x z)
+       go outlayers (w@(PointsWeb (PlainLeaves _)))
+         = f (WebChunk w outlayers) 
+       go outlayers (PointsWeb w) = PointsWeb <$> traverseTrunkBranchChoices travel w
+        where travel :: (Int, (Shaded x (Neighbourhood x y)))
+                 -> Shaded x (Neighbourhood x y)
+                 -> f (Shaded x (Neighbourhood x z))
+              travel (i₀, br) obrs
+                  = webNodeRsc <$> go ((obrs,i₀) : outlayers) (PointsWeb br)
+
+traverseNodesInEnvi :: ∀ f x y z . ( Applicative f
+                                   , WithField ℝ Manifold x, LSpace (Needle x) )
+           => (NodeInWeb x y -> f (Neighbourhood x z))
+             -> PointsWeb x y -> f (PointsWeb x z)
+traverseNodesInEnvi f = traverseInnermostChunks fc
+ where fc :: WebChunk x y -> f (PointsWeb x z)
+       fc (WebChunk (PointsWeb (PlainLeaves lvs)) outlayers)
+            = PointsWeb . PlainLeaves <$> Hask.traverse fn (ixedFoci lvs)
+        where fn ((i, (x, ngbh)), nearbyLeaves)
+               = (x,) <$> f (NodeInWeb (x,ngbh)
+                                     $ (PlainLeaves nearbyLeaves, i) : outlayers)
+
+fmapNodesInEnvi :: ( WithField ℝ Manifold x, LSpace (Needle x) )
+           => (NodeInWeb x y -> Neighbourhood x z) -> PointsWeb x y -> (PointsWeb x z)
+fmapNodesInEnvi f = runIdentity . traverseNodesInEnvi (Identity . f)
+
+
+ixedFoci :: [a] -> [((Int, a), [a])]
+ixedFoci = go 0
+ where go _ [] = []
+       go i (x:xs) = ((i,x), xs) : map (second (x:)) (go (i+1) xs)
+ 
 
