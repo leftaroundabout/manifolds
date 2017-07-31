@@ -112,4 +112,6 @@ test-suite test
     , tasty >= 0.7
     , tasty-hunit
     , manifolds
+    , vector-space
+    , linearmap-category
 
