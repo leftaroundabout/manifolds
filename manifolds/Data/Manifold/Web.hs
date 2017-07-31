@@ -128,7 +128,6 @@ import Control.Lens.TH
 import GHC.Generics (Generic)
 
 import Development.Placeholders
-import Debug.Trace as Debug
 
 
 pumpHalfspace :: ∀ v . (SimpleSpace v, Scalar v ~ ℝ)
@@ -430,103 +429,6 @@ sampleEntireWeb_2Dcartesian_lin web nx ny
        pts = fst . fst <$> toList (localFocusWeb web)
 
 
-jumpNodeOffset :: WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
-jumpNodeOffset 0 node = node
-jumpNodeOffset δi (NodeInWeb x environment)
-   = case zoomoutWebChunk δi $ WebChunk (PointsWeb $ PlainLeaves [x]) environment of
-       (WebChunk bigChunk envi', δi') -> case pickNodeInWeb bigChunk δi' of
-              NodeInWeb x' envi'' -> NodeInWeb x' $ envi'' ++ envi'
-
-webAroundChunk :: WebChunk x y -> PointsWeb x y
-webAroundChunk (WebChunk chunk []) = chunk
-webAroundChunk (WebChunk (PointsWeb (PlainLeaves lvs))
-                         ((PlainLeaves lvsAround, i) : envi))
-   = webAroundChunk $ WebChunk (PointsWeb . PlainLeaves $ lvsBefore++lvs++lvsAfter) envi
- where (lvsBefore, lvsAfter) = splitAt i lvsAround
-webAroundChunk (WebChunk (PointsWeb chunk)
-                         ((OverlappingBranches nw ew (DBranch dir
-                            (Hourglass (PlainLeaves[]) d) :| brs), 0) : envi))
-   = webAroundChunk $ WebChunk (PointsWeb $ OverlappingBranches nw ew
-                                          (DBranch dir (Hourglass chunk d) :| brs))
-                               envi
-webAroundChunk (WebChunk (PointsWeb chunk)
-                         ((OverlappingBranches nw ew (DBranch dir
-                            (Hourglass u (PlainLeaves[])) :| brs), i) : envi))
- | i==nLeaves u
-   = webAroundChunk $ WebChunk (PointsWeb $ OverlappingBranches nw ew
-                                          (DBranch dir (Hourglass u chunk) :| brs))
-                               envi
-webAroundChunk (WebChunk chunk
-                         (( OverlappingBranches nw ew (br₀@(DBranch _ (Hourglass u d))
-                                                          :|br₁:brs)
-                          , i) : envi))
-  = case webAroundChunk (WebChunk chunk [(OverlappingBranches nw ew (br₁:|brs), i')])
-      of PointsWeb (OverlappingBranches nw' ew' (br₁':|brs'))
-           -> webAroundChunk $ WebChunk
-                    (PointsWeb $ OverlappingBranches nw' ew' (br₀:|br₁':brs'))
-                    envi
- where i' = i - nLeaves u - nLeaves d
-webAroundChunk (WebChunk _ ((OverlappingBranches nw ew branches, i):_))
-    = error $ "Environment with branch sizes "++show (fmap nLeaves . Hask.toList<$>(Hask.toList branches))
-                ++" does not have a gap at #"++show i
-webAroundChunk (WebChunk _ ((PlainLeaves _, _):_))
-    = error "Encountered non-PlainLeaves chunk in a PlainLeaves environment."
-
-
-zoomoutWebChunk :: WebNodeIdOffset -> WebChunk x y -> (WebChunk x y, WebNodeId)
-zoomoutWebChunk δi (WebChunk chunk ((outlayer, olp) : outlayers))
-  | δi < 0 || δi >= nLeaves outlayer
-      = zoomoutWebChunk δi' (WebChunk (webAroundChunk $ WebChunk chunk [(outlayer,olp)])
-                                      outlayers)
- where δi' | δi < 0     = δi + olp
-           | otherwise  = δi + olp - nLeaves outlayer
-
-pickNodeInWeb :: PointsWeb x y -> WebNodeId -> NodeInWeb x y
-pickNodeInWeb (PointsWeb w) i
-  | i<0 || i>=n  = error
-     $ "Trying to pick node #"++show i++" in web with "++show n++" nodes."
- where n = nLeaves w
-pickNodeInWeb (PointsWeb (PlainLeaves lvs)) i
-  | (preds, node:succs)<-splitAt i lvs
-                   = NodeInWeb node [(PlainLeaves $ preds++succs, i)]
-pickNodeInWeb (PointsWeb (OverlappingBranches nw ew (DBranch dir (Hourglass u d):|brs))) i
-  | i < nu     = pickNodeInWeb (PointsWeb u) i
-                      & layersAroundNode %~ ((OverlappingBranches (nw-nu) ew
-                                               (DBranch dir (Hourglass gap d):|brs) ,0):)
-  | i < nu+nd  = pickNodeInWeb (PointsWeb d) (i-nu)
-                      & layersAroundNode %~ ((OverlappingBranches (nw-nd) ew
-                                               (DBranch dir (Hourglass u gap):|brs) ,nu):)
-  | (b:rs)<-brs
-    = pickNodeInWeb (PointsWeb $ OverlappingBranches (nw-nu-nd) ew (b:|rs)) (i-nu-nd)
-                      & layersAroundNode . ix 0
-                           %~ \(OverlappingBranches nwe ewe brse, ne)
-                                 -> ( OverlappingBranches (nwe+nu+nd) ewe
-                                       $ NE.cons (DBranch dir (Hourglass u d)) brse
-                                    , ne+nu+nd )
- where gap = PlainLeaves []
-       [nu,nd] = nLeaves<$>[u,d]
-
-
-webLocalInfo :: ∀ x y . WithField ℝ Manifold x
-            => PointsWeb x y -> PointsWeb x (WebLocally x y)
-webLocalInfo = runIdentity . traverseNodesInEnvi (Identity . linkln)
- where linkln :: NodeInWeb x y -> Neighbourhood x (WebLocally x y)
-       linkln node@(NodeInWeb (x, locloc@(Neighbourhood y ngbs metric nBoundary)) envis)
-           = locloc & dataAtNode .~ LocalWebInfo {
-                  _thisNodeCoord = x
-                , _thisNodeData = y
-                , _thisNodeId = i
-                , _nodeNeighbours = [ (i + δi, (δx, ngb))
-                                    | δi <- UArr.toList ngbs
-                                    , let ngbNode@(NodeInWeb (xn, _) _)
-                                              = jumpNodeOffset δi node
-                                          Just δx = xn .-~. x
-                                          Neighbourhood ngb _ _ _ = linkln ngbNode ]
-                , _nodeLocalScalarProduct = metric
-                , _webBoundingPlane = nBoundary
-                }
-        where i = foldr ((+) . snd) 0 envis
-
 
 hardbakeChunk :: WebChunk x y -> PointsWeb x y
 hardbakeChunk = _thisChunk
@@ -629,21 +531,6 @@ nearestNeighbour = webLocalInfo >>> \(PointsWeb rsc) x
         where Just vc = x.-~.xc
 
 
-
-instance Hask.Functor (WebLocally x) where
-  fmap f (LocalWebInfo co dt id ng sp bn)
-       = LocalWebInfo co (f dt) id (map (second . second $ fmap f) ng) sp bn
-instance WithField ℝ Manifold x => Comonad (WebLocally x) where
-  extract = _thisNodeData
-  extend f this@(LocalWebInfo co _ id ng sp bn)
-      = LocalWebInfo co (f this) id (map (second . second $ extend f) ng) sp bn
-  duplicate this@(LocalWebInfo co _ id ng sp bn)
-      = LocalWebInfo co this id (map (second $ second duplicate) ng) sp bn
-
--- ^ 'fmap' from the co-Kleisli category of 'WebLocally'.
-localFmapWeb :: WithField ℝ Manifold x
-                => (WebLocally x y -> z) -> PointsWeb x y -> PointsWeb x z
-localFmapWeb f = webLocalInfo >>> fmap f
 
 -- ^ 'fmap' from the co-Kleisli category of 'WebLocally'.
 localTraverseWeb :: (WithField ℝ Manifold x, Hask.Applicative m)
