@@ -114,4 +114,5 @@ test-suite test
     , manifolds
     , vector-space
     , linearmap-category
+    , lens
 
