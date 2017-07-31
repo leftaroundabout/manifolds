@@ -7,6 +7,9 @@
 -- Stability   : experimental
 -- Portability : portable
 -- 
+
+{-# LANGUAGE OverloadedLists #-}
+
 module Main where
 
 import Data.Manifold.Types
@@ -26,13 +29,40 @@ main = defaultMain tests
 
 tests :: TestTree
 tests = testGroup "Tests"
-  [ testCase "Manually defining an empty web."
-    $ toList (fst $ toGraph (PointsWeb (PlainLeaves []) :: PointsWeb ℝ⁰ ())) @?= []
-  , testCase "Manually defining a single-point web."
-    $ toList (fst $ toGraph (PointsWeb (
-         PlainLeaves [ (zeroV, Neighbourhood () mempty euclideanNorm Nothing) ]
-       ) :: PointsWeb ℝ⁰ ())) @?= [[]]
+ [ testGroup "Graph structure of webs"
+  [ testCase "Manually-defined empty web."
+    $ toList (fst $ toGraph emptyWeb) @?= []
+  , testCase "Manually-defined single-point web."
+    $ toList (fst $ toGraph singletonWeb) @?= [[]]
+  , testCase "Manually-defined simple triangular web."
+    $ toList (fst $ toGraph triangularWeb) @?= [[1,2],[0,2],[0,1]]
+  , testCase "Manually-defined simple quadratic web."
+    $ toList (fst $ toGraph quadraticWeb) @?= [[1,2],[0,3],[0,3],[1,2]]
   ]
+ ]
+
+emptyWeb, singletonWeb, triangularWeb, quadraticWeb :: PointsWeb ℝ⁰ ()
+
+emptyWeb = PointsWeb $ PlainLeaves []
+
+singletonWeb = PointsWeb $
+         PlainLeaves [ (o, Neighbourhood () mempty euclideanNorm Nothing) ]
+
+triangularWeb = PointsWeb $
+         PlainLeaves [ (o, Neighbourhood () [1,2] euclideanNorm Nothing)
+                     , (o, Neighbourhood () [-1,1] euclideanNorm Nothing)
+                     , (o, Neighbourhood () [-2,-1] euclideanNorm Nothing)
+                     ]
+
+quadraticWeb = PointsWeb $
+        OverlappingBranches 6 (Shade o mempty) (pure . DBranch o $ Hourglass
+         (PlainLeaves [ (o, Neighbourhood () [1,2] euclideanNorm Nothing)
+                      , (o, Neighbourhood () [-1,2] euclideanNorm Nothing)
+                      ])
+         (PlainLeaves [ (o, Neighbourhood () [-2,1] euclideanNorm Nothing)
+                      , (o, Neighbourhood () [-2,-1] euclideanNorm Nothing)
+                      ])
+         )
 
 
-
+o = zeroV :: ℝ⁰
