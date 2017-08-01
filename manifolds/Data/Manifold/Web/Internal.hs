@@ -184,10 +184,11 @@ ixedFoci = go 0
 jumpNodeOffset :: WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
 jumpNodeOffset 0 node = node
 jumpNodeOffset δi (NodeInWeb x environment)
-   = Debug.trace ("Pick node #"++show δi++" in environment...")
+   = Debug.trace ("Pick node δ"++show δi++" in environment with "
+                          ++show (length environment)++" layers...")
      $ case zoomoutWebChunk δie $ WebChunk (PointsWeb $ PlainLeaves [x]) environment of
        (WebChunk bigChunk envi', δi')
-           -> Debug.trace ("Being node "++show δi++" of local chunk (with "
+           -> Debug.trace ("Being node "++show δi'++" of local chunk (with "
                               ++show (nLeaves $ webNodeRsc bigChunk)++" nodes total)")
           $ case pickNodeInWeb bigChunk δi' of
               NodeInWeb x' envi'' -> NodeInWeb x' $ envi'' ++ envi'
@@ -235,7 +236,8 @@ zoomoutWebChunk δi (WebChunk chunk ((outlayer, olp) : outlayers))
   | δi < -olp || δi >= nLeaves outlayer - olp
       = zoomoutWebChunk δiOut $ WebChunk widerChunk outlayers
   | otherwise  = Debug.trace ("Zoomed out to range with "++show (nLeaves outlayer)
-                              ++" nodes around chunk with "++show (nLeaves $ webNodeRsc chunk)
+                              ++" nodes around size "++show (nLeaves $ webNodeRsc chunk)
+                              ++" chunk at #"++show olp
                               ++", being interested in #"++show δi)
                        (WebChunk widerChunk outlayers, δiIn)
  where δiOut | δi < 0     = δi + olp
@@ -243,6 +245,9 @@ zoomoutWebChunk δi (WebChunk chunk ((outlayer, olp) : outlayers))
        δiIn | δi < 0     = δi + olp
             | otherwise  = δi + olp + nLeaves (webNodeRsc chunk)
        widerChunk = webAroundChunk $ WebChunk chunk [(outlayer,olp)]
+zoomoutWebChunk δi (WebChunk _ e)
+    = error $ "Can't zoom out δ"++show δi
+       ++" from a chunk with "++show (length e)++" environment layers."
 
 pickNodeInWeb :: PointsWeb x y -> WebNodeId -> NodeInWeb x y
 pickNodeInWeb (PointsWeb w) i
