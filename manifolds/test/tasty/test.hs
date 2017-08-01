@@ -42,16 +42,20 @@ tests = testGroup "Tests"
     $ toList (fst $ toGraph quadraticWeb) @?= [[1,2],[0,3],[0,3],[1,2]]
   , testCase "Envi-aware traversal over simple quadratic web."
     $ toList (fst . toGraph $ dummyWebFmap quadraticWeb) @?= [[1,2],[0,3],[0,3],[1,2]]
-  , testCase "Next-neighbours in empty web."
-    $ toList (nextNeighbours emptyWeb) @?= []
-  , testCase "Next-neighbours in single-point web."
-    $ toList (nextNeighbours singletonWeb) @?= [[]]
-  , testCase "Next-neighbours in simple triangular web."
-    $ toList (nextNeighbours triangularWeb) @?=
-     [[(1,()),(2,())],[(0,()),(2,())],[(0,()),(1,())]]
+  , testCase "Direct neighbours in empty web."
+    $ toList (directNeighbours emptyWeb) @?= []
+  , testCase "Direct neighbours in single-point web."
+    $ toList (directNeighbours singletonWeb) @?= [[]]
+  , testCase "Direct neighbours in simple triangular web."
+    $ toList (directNeighbours triangularWeb) @?= [[1,2],[0,2],[0,1]]
+  , testCase "Direct neighbours in simple quadratic web."
+    $ toList (directNeighbours quadraticWeb) @?= [[1,2],[0,3],[0,3],[1,2]]
   , testCase "Next-neighbours in simple quadratic web."
     $ toList (nextNeighbours quadraticWeb) @?=
-     [[(1,()),(2,())],[(0,()),(3,())],[(0,()),(3,())],[(1,()),(2,())]]
+      [ [(1,[0,3]),(2,[0,3])]
+      , [(0,[1,2]),(3,[1,2])]
+      , [(0,[1,2]),(3,[1,2])]
+      , [(1,[0,3]),(2,[0,3])] ]
   ]
  ]
 
@@ -84,6 +88,11 @@ o = zeroV :: ℝ⁰
 dummyWebFmap :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ a
 dummyWebFmap = localFmapWeb $ \info -> info^.thisNodeData
 
-nextNeighbours :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ [(Int, a)]
+directNeighbours :: PointsWeb ℝ⁰ () -> PointsWeb ℝ⁰ [WebNodeId]
+directNeighbours = localFmapWeb $
+     \info -> fst <$> info^.nodeNeighbours
+
+nextNeighbours :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ [(WebNodeId, [WebNodeId])]
 nextNeighbours = localFmapWeb $
-     \info -> second (\(_, ngb)->ngb^.thisNodeData) <$> info^.nodeNeighbours
+     \info -> second (\(_, nInfo) -> fst <$> nInfo^.nodeNeighbours)
+                              <$> info^.nodeNeighbours
