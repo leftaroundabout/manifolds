@@ -235,6 +235,9 @@ zoomoutWebChunk δi (WebChunk chunk ((outlayer, olp) : outlayers))
        δiIn | δi < 0     = δi + olp
             | otherwise  = δi + olp + nLeaves (webNodeRsc chunk)
        widerChunk = webAroundChunk $ WebChunk chunk [(outlayer,olp)]
+zoomoutWebChunk δi (WebChunk _ e)
+    = error $ "Can't zoom out δ"++show δi
+       ++" from a chunk with "++show (length e)++" environment layers."
 
 pickNodeInWeb :: PointsWeb x y -> WebNodeId -> NodeInWeb x y
 pickNodeInWeb (PointsWeb w) i
