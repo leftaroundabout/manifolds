@@ -182,10 +182,12 @@ ixedFoci = go 0
 jumpNodeOffset :: WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
 jumpNodeOffset 0 node = node
 jumpNodeOffset δi (NodeInWeb x environment)
-   = case zoomoutWebChunk δi $ WebChunk (PointsWeb $ PlainLeaves [x]) environment of
+   = case zoomoutWebChunk δie $ WebChunk (PointsWeb $ PlainLeaves [x]) environment of
        (WebChunk bigChunk envi', δi')
            -> case pickNodeInWeb bigChunk δi' of
               NodeInWeb x' envi'' -> NodeInWeb x' $ envi'' ++ envi'
+ where δie | δi < 0     = δi
+           | otherwise  = δi - 1
 
 webAroundChunk :: WebChunk x y -> PointsWeb x y
 webAroundChunk (WebChunk chunk []) = chunk
@@ -225,13 +227,14 @@ webAroundChunk (WebChunk _ ((PlainLeaves _, _):_))
 
 zoomoutWebChunk :: WebNodeIdOffset -> WebChunk x y -> (WebChunk x y, WebNodeId)
 zoomoutWebChunk δi (WebChunk chunk ((outlayer, olp) : outlayers))
-  | δi < 0 || δi >= nLeaves outlayer
-      = zoomoutWebChunk δi' (WebChunk (webAroundChunk $ WebChunk chunk [(outlayer,olp)])
-                                      outlayers)
-  | otherwise  = (WebChunk (webAroundChunk $ WebChunk chunk [(outlayer,olp)])
-                           outlayers, δi)
- where δi' | δi < 0     = δi + olp
-           | otherwise  = δi + olp - nLeaves outlayer
+  | δi < -olp || δi >= nLeaves outlayer - olp
+      = zoomoutWebChunk δiOut $ WebChunk widerChunk outlayers
+  | otherwise  = (WebChunk widerChunk outlayers, δiIn)
+ where δiOut | δi < 0     = δi + olp
+             | otherwise  = δi + olp - nLeaves outlayer
+       δiIn | δi < 0     = δi + olp
+            | otherwise  = δi + olp + nLeaves (webNodeRsc chunk)
+       widerChunk = webAroundChunk $ WebChunk chunk [(outlayer,olp)]
 
 pickNodeInWeb :: PointsWeb x y -> WebNodeId -> NodeInWeb x y
 pickNodeInWeb (PointsWeb w) i

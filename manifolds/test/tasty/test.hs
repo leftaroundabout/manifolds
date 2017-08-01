@@ -47,7 +47,8 @@ tests = testGroup "Tests"
   , testCase "Next-neighbours in single-point web."
     $ toList (nextNeighbours singletonWeb) @?= [[]]
   , testCase "Next-neighbours in simple triangular web."
-    $ toList (nextNeighbours triangularWeb) @?= [[]]
+    $ toList (nextNeighbours triangularWeb) @?=
+     [[(1,()),(2,())],[(0,()),(2,())],[(0,()),(1,())]]
   , testCase "Next-neighbours in simple quadratic web."
     $ toList (nextNeighbours quadraticWeb) @?=
      [[(1,()),(2,())],[(0,()),(3,())],[(0,()),(3,())],[(1,()),(2,())]]
