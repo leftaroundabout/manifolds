@@ -56,10 +56,16 @@ tests = testGroup "Tests"
       , [(0,[1,2]),(3,[1,2])]
       , [(0,[1,2]),(3,[1,2])]
       , [(1,[0,3]),(2,[0,3])] ]
+  , testCase "Next-neighbours in nested web."
+    $ toList (nextNeighbours nestedWeb) @?=
+      [ [(1,[0,3]),(2,[0,3])]
+      , [(0,[1,2]),(3,[1,2])]
+      , [(0,[1,2]),(3,[1,2])]
+      , [(1,[0,3]),(2,[0,3])] ]
   ]
  ]
 
-emptyWeb, singletonWeb, triangularWeb, quadraticWeb :: PointsWeb ℝ⁰ ()
+emptyWeb, singletonWeb, triangularWeb, quadraticWeb, nestedWeb :: PointsWeb ℝ⁰ ()
 
 emptyWeb = PointsWeb $ PlainLeaves []
 
@@ -81,6 +87,26 @@ quadraticWeb = PointsWeb $
                       , (o, Neighbourhood () [-2,-1] euclideanNorm Nothing)
                       ])
          )
+
+nestedWeb = PointsWeb $
+        OverlappingBranches 6 (Shade o mempty) (pure . DBranch o $ Hourglass
+         (OverlappingBranches 6 (Shade o mempty) (pure . DBranch o $ Hourglass
+          (PlainLeaves [ (o, Neighbourhood () [1,2] euclideanNorm Nothing)
+                       , (o, Neighbourhood () [-1,2,3] euclideanNorm Nothing)
+                       ])
+          (PlainLeaves [ (o, Neighbourhood () [-2,1] euclideanNorm Nothing)
+                       , (o, Neighbourhood () [-2,3] euclideanNorm Nothing)
+                       ])
+         ))
+         (OverlappingBranches 6 (Shade o mempty) (pure . DBranch o $ Hourglass
+          (PlainLeaves [ (o, Neighbourhood () [-3,1,2] euclideanNorm Nothing)
+                       , (o, Neighbourhood () [-1,2] euclideanNorm Nothing)
+                       ])
+          (PlainLeaves [ (o, Neighbourhood () [-3,-2,1] euclideanNorm Nothing)
+                       , (o, Neighbourhood () [-2,-1] euclideanNorm Nothing)
+                       ])
+         ))
+        )
 
 
 o = zeroV :: ℝ⁰
