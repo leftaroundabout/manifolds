@@ -56,6 +56,9 @@ tests = testGroup "Tests"
       , [(0,[1,2]),(3,[1,2])]
       , [(0,[1,2]),(3,[1,2])]
       , [(1,[0,3]),(2,[0,3])] ]
+  , testCase "Layers in a nested web"
+    $ toList (pointsLocInEnvi nestedWeb) @?=
+      []
   , testCase "Next-neighbours in nested web."
     $ toList (nextNeighbours nestedWeb) @?=
       [ [(1,[0,3]),(2,[0,3])]
@@ -122,3 +125,7 @@ nextNeighbours :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ [(WebNodeId, [WebNodeId
 nextNeighbours = localFmapWeb $
      \info -> second (\(_, nInfo) -> fst <$> nInfo^.nodeNeighbours)
                               <$> info^.nodeNeighbours
+
+pointsLocInEnvi :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ [(Int, WebNodeId)]
+pointsLocInEnvi = fmapNodesInEnvi $
+     \(NodeInWeb (_, orig) env) -> fmap (const $ first nLeaves <$> env) orig
