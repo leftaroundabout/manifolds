@@ -50,7 +50,7 @@ module Data.Manifold.TreeCover (
        -- ** View helpers
        , onlyNodes, trunkBranches, nLeaves
        -- ** Auxiliary types
-       , SimpleTree, Trees, NonEmptyTree, GenericTree(..)
+       , SimpleTree, Trees, NonEmptyTree, GenericTree(..), 朳
        -- * Misc
        , HasFlatView(..), shadesMerge, smoothInterpolate
        , allTwigs, twigsWithEnvirons, Twig, TwigEnviron, seekPotentialNeighbours
@@ -929,8 +929,14 @@ instance (Hask.MonadPlus c) => Semigroup (GenericTree c b x) where
 instance (Hask.MonadPlus c) => Monoid (GenericTree c b x) where
   mempty = GenericTree Hask.mzero
   mappend = (<>)
-deriving instance Show (c (x, GenericTree b b x)) => Show (GenericTree c b x)
+instance Show (c (x, GenericTree b b x)) => Show (GenericTree c b x) where
+  showsPrec p (GenericTree t) = showParen (p>9) $ ('朳':) . showsPrec 10 t
 deriving instance Eq (c (x, GenericTree b b x)) => Eq (GenericTree c b x)
+
+-- | @U+6733 CJK UNIFIED IDEOGRAPH tree@.
+--  The main purpose of this is to give 'GenericTree' a more concise 'Show' instance.
+朳 :: c (x, GenericTree b b x) -> GenericTree c b x
+朳 = GenericTree
 
 -- | Imitate the specialised 'ShadeTree' structure with a simpler, generic tree.
 onlyNodes :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
