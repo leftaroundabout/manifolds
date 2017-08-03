@@ -114,7 +114,7 @@ triangularWeb = PointsWeb $
                      ]
 
 quadraticWeb = PointsWeb $
-        OverlappingBranches 6 (Shade o mempty) (pure . DBranch o $ Hourglass
+        OverlappingBranches 4 (Shade o mempty) (pure . DBranch o $ Hourglass
          (PlainLeaves [ (o, Neighbourhood () [1,2] euclideanNorm Nothing)
                       , (o, Neighbourhood () [-1,2] euclideanNorm Nothing)
                       ])
@@ -124,8 +124,8 @@ quadraticWeb = PointsWeb $
          )
 
 nestedWeb = PointsWeb $
-        OverlappingBranches 6 (Shade o mempty) (pure . DBranch o $ Hourglass
-         (OverlappingBranches 6 (Shade o mempty) (pure . DBranch o $ Hourglass
+        OverlappingBranches 8 (Shade o mempty) (pure . DBranch o $ Hourglass
+         (OverlappingBranches 4 (Shade o mempty) (pure . DBranch o $ Hourglass
           (PlainLeaves [ (o, Neighbourhood () [1,2] euclideanNorm Nothing)
                        , (o, Neighbourhood () [-1,2,3] euclideanNorm Nothing)
                        ])
@@ -133,7 +133,7 @@ nestedWeb = PointsWeb $
                        , (o, Neighbourhood () [-2,3] euclideanNorm Nothing)
                        ])
          ))
-         (OverlappingBranches 6 (Shade o mempty) (pure . DBranch o $ Hourglass
+         (OverlappingBranches 4 (Shade o mempty) (pure . DBranch o $ Hourglass
           (PlainLeaves [ (o, Neighbourhood () [-3,1,2] euclideanNorm Nothing)
                        , (o, Neighbourhood () [-1,2] euclideanNorm Nothing)
                        ])
