@@ -204,14 +204,14 @@ webAroundChunk (WebChunk (PointsWeb (PlainLeaves lvs))
 webAroundChunk (WebChunk (PointsWeb chunk)
                          ((OverlappingBranches nw ew (DBranch dir
                             (Hourglass (PlainLeaves[]) d) :| brs), 0) : envi))
-   = webAroundChunk $ WebChunk (PointsWeb $ OverlappingBranches nw ew
+   = webAroundChunk $ WebChunk (PointsWeb $ OverlappingBranches (nw+nLeaves chunk) ew
                                           (DBranch dir (Hourglass chunk d) :| brs))
                                envi
 webAroundChunk (WebChunk (PointsWeb chunk)
                          ((OverlappingBranches nw ew (DBranch dir
                             (Hourglass u (PlainLeaves[])) :| brs), i) : envi))
  | i==nLeaves u
-   = webAroundChunk $ WebChunk (PointsWeb $ OverlappingBranches nw ew
+   = webAroundChunk $ WebChunk (PointsWeb $ OverlappingBranches (nw+nLeaves chunk) ew
                                           (DBranch dir (Hourglass u chunk) :| brs))
                                envi
 webAroundChunk (WebChunk chunk
