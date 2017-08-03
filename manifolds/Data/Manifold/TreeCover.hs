@@ -930,6 +930,7 @@ instance (Hask.MonadPlus c) => Monoid (GenericTree c b x) where
   mempty = GenericTree Hask.mzero
   mappend = (<>)
 deriving instance Show (c (x, GenericTree b b x)) => Show (GenericTree c b x)
+deriving instance Eq (c (x, GenericTree b b x)) => Eq (GenericTree c b x)
 
 -- | Imitate the specialised 'ShadeTree' structure with a simpler, generic tree.
 onlyNodes :: ∀ x . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
