@@ -48,7 +48,7 @@ module Data.Manifold.TreeCover (
        , ShadeTree, fromLeafPoints, fromLeafPoints_, onlyLeaves, onlyLeaves_
        , indexShadeTree, positionIndex
        -- ** View helpers
-       , onlyNodes, trunkBranches, nLeaves
+       , entireTree, onlyNodes, trunkBranches, nLeaves
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..), 朳
        -- * Misc
@@ -109,6 +109,7 @@ import qualified Control.Monad       as Hask hiding(forM_, sequence)
 import Data.Functor.Identity
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
+import Control.Monad.Trans.List
 import Control.Monad.Trans.OuterMaybe
 import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
@@ -895,6 +896,8 @@ type Trees = GenericTree [] []
 -- 'NonEmptyTree' x &#x2245; (x, 'Trees' x)
 -- @
 type NonEmptyTree = GenericTree NonEmpty []
+
+type LeafyTree x y = GenericTree [] (ListT (Either y)) x
     
 newtype GenericTree c b x = GenericTree { treeBranches :: c (x,GenericTree b b x) }
  deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
@@ -924,6 +927,23 @@ onlyNodes (DisjointBranches _ brs) = Hask.foldMap onlyNodes brs
 onlyNodes (OverlappingBranches _ (Shade ctr _) brs)
               = GenericTree [ ( fromInterior ctr
                               , Hask.foldMap (Hask.foldMap onlyNodes) brs ) ]
+
+entireTree :: ∀ x y . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
+              => x`Shaded`y -> LeafyTree x y
+entireTree (PlainLeaves lvs)
+    = let (ctr,_) = pseudoECM ([]::[x]) $ NE.fromList lvs
+      in  GenericTree [ (ctr, GenericTree . ListT $ Right
+                                [ (x, GenericTree . lift $ Left y)
+                                | (x,y)<-lvs ] )
+                      ]
+entireTree (DisjointBranches _ brs)
+    = GenericTree [ (x, GenericTree subt)
+                  | GenericTree sub <- NE.toList $ fmap entireTree brs
+                  , (x, GenericTree subt) <- sub ]
+entireTree (OverlappingBranches _ (Shade ctr _) brs)
+    = GenericTree [ ( fromInterior ctr
+                    , GenericTree . ListT . Right
+                       $ Hask.foldMap (Hask.foldMap $ treeBranches . entireTree) brs ) ]
 
 
 -- | Left (and, typically, also right) inverse of 'fromLeafNodes'.
