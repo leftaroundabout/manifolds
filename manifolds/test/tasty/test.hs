@@ -193,11 +193,21 @@ directNeighbours = localFmapWeb $
      \info -> fst <$> info^.nodeNeighbours
 
 nextNeighbours :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ [(WebNodeId, [WebNodeId])]
-nextNeighbours = localFmapWeb $
-     \info -> second (\(_, nInfo) -> fst <$> nInfo^.nodeNeighbours)
-                              <$> info^.nodeNeighbours
+nextNeighbours = webLocalInfo >>> localFmapWeb `id`
+     \info -> [ ( nId ≡! nId' ≡! (nInfo^.thisNodeId) ≡! (nInfo'^.thisNodeId)
+                , (fst<$>nInfo^.nodeNeighbours) ≡! (fst<$>nInfo'^.nodeNeighbours) )
+              | ((nId,(_,nInfo)),(nId',(_,nInfo')))
+                    <- zip (info^.nodeNeighbours)
+                           (info^.thisNodeData.nodeNeighbours)
+              ]
 
 pointsLocInEnvi :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ [((Int, Trees ℝ⁰), WebNodeId)]
 pointsLocInEnvi = fmapNodesInEnvi $
      \(NodeInWeb (_, orig) env)
          -> fmap (const $ first ((nLeaves&&&onlyNodes) . fmap (const ())) <$> env) orig
+
+
+infixl 4 ≡!
+(≡!) :: (Eq a, Show a) => a -> a -> a
+x ≡! y | x==y       = x
+       | otherwise  = error $ show x++" ≠ "++show y
