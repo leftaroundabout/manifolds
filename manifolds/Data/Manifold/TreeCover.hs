@@ -48,7 +48,7 @@ module Data.Manifold.TreeCover (
        , ShadeTree, fromLeafPoints, fromLeafPoints_, onlyLeaves, onlyLeaves_
        , indexShadeTree, positionIndex
        -- ** View helpers
-       , entireTree, onlyNodes, trunkBranches, nLeaves
+       , entireTree, onlyNodes, trunkBranches, nLeaves, treeDepth
        -- ** Auxiliary types
        , SimpleTree, Trees, NonEmptyTree, GenericTree(..), 朳
        -- * Misc
@@ -501,6 +501,12 @@ nLeaves :: x`Shaded`y -> Int
 nLeaves (PlainLeaves lvs) = length lvs
 nLeaves (DisjointBranches n _) = n
 nLeaves (OverlappingBranches n _ _) = n
+
+treeDepth :: x`Shaded`y -> Int
+treeDepth (PlainLeaves lvs) = 0
+treeDepth (DisjointBranches _ brs) = 1 + maximum (treeDepth<$>brs)
+treeDepth (OverlappingBranches _ _ brs)
+     = 1 + maximum (maximum . fmap treeDepth<$>brs)
 
 
 
