@@ -181,16 +181,18 @@ ixedFoci = go 0
  
 
 
-jumpNodeOffset :: WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
-jumpNodeOffset 0 node = node
-jumpNodeOffset δi (NodeInWeb x environment)
-   = Debug.trace ("Pick node δ"++show δi++" in environment with "
+jumpNodeOffset :: WebNodeId -> WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
+jumpNodeOffset _ 0 node = node
+jumpNodeOffset i δi (NodeInWeb x environment)
+   = Debug.trace ("Pick node δ"++show δi++" (from #"++show i++") in environment with "
                           ++show (length environment)++" layers...")
      $ case zoomoutWebChunk δie $ WebChunk (PointsWeb $ PlainLeaves [x]) environment of
        (WebChunk bigChunk envi', δi')
-           -> Debug.trace ("Being node "++show δi'++" of local chunk (with "
-                              ++show (nLeaves $ webNodeRsc bigChunk)++" nodes total)")
-          $ case pickNodeInWeb bigChunk δi' of
+        | nbc <- nLeaves $ webNodeRsc bigChunk
+        , δi'<0 || δi'>=nbc
+             -> error $ "Trying to adress node #"++show δi'
+                           ++" in web with"++ show nbc++" nodes."
+        | otherwise -> case pickNodeInWeb bigChunk δi' of
               NodeInWeb x' envi'' -> NodeInWeb x' $ envi'' ++ envi'
  where δie | δi < 0     = δi
            | otherwise  = δi - 1
@@ -218,6 +220,7 @@ webAroundChunk (WebChunk chunk
                          (( OverlappingBranches nw ew (br₀@(DBranch _ (Hourglass u d))
                                                           :|br₁:brs)
                           , i) : envi))
+ | i' >= 0
   = case webAroundChunk (WebChunk chunk [(OverlappingBranches nw ew (br₁:|brs), i')])
       of PointsWeb (OverlappingBranches nw' ew' (br₁':|brs'))
            -> webAroundChunk $ WebChunk
@@ -227,8 +230,14 @@ webAroundChunk (WebChunk chunk
 webAroundChunk (WebChunk _ ((OverlappingBranches nw ew branches, i):_))
     = error $ "Environment with branch sizes "++show (fmap nLeaves . Hask.toList<$>(Hask.toList branches))
                 ++" does not have a gap at #"++show i
-webAroundChunk (WebChunk _ ((PlainLeaves _, _):_))
-    = error "Encountered non-PlainLeaves chunk in a PlainLeaves environment."
+webAroundChunk (WebChunk chk ((PlainLeaves lvs, _):_))
+    = error $ "Encountered non-PlainLeaves chunk (size "++show (nLeaves $ webNodeRsc chk)
+              ++", depth "++show (treeDepth $ webNodeRsc chk)
+              ++") in a PlainLeaves environment ("++show (length lvs)++" leaves)."
+              ++"\nStructure: "++show (onlyNodes . unsafeFmapTree
+                                         (fmap $ const (Origin,()))
+                                         (const Origin)
+                                         (const $ Shade Origin mempty) $ webNodeRsc chk)
 
 
 zoomoutWebChunk :: WebNodeIdOffset -> WebChunk x y -> (WebChunk x y, WebNodeId)
@@ -287,7 +296,7 @@ webLocalInfo = runIdentity . traverseNodesInEnvi (Identity . linkln)
                 , _nodeNeighbours = [ (i + δi, (δx, ngb))
                                     | δi <- UArr.toList ngbs
                                     , let ngbNode@(NodeInWeb (xn, _) _)
-                                              = jumpNodeOffset δi node
+                                              = jumpNodeOffset i δi node
                                           Just δx = xn .-~. x
                                           Neighbourhood ngb _ _ _ = linkln ngbNode ]
                 , _nodeLocalScalarProduct = metric
@@ -319,6 +328,9 @@ tweakWebGeometry metricf reknit = webLocalInfo >>> fmapNodesInEnvi`id`
          \(NodeInWeb (x₀, (Neighbourhood info _ lm bound)) _)
              -> let lm' = metricf . Shade (inInterior x₀) $ dualNorm lm
                 in Neighbourhood (info^.thisNodeData)
-                            (UArr.fromList . map (subtract $ info^.thisNodeId)
+                            (trace ("At node "++show (info^.thisNodeId)
+                                    ++": re-knit "++show(fst<$>info^.nodeNeighbours)
+                                    ++" to "++show(reknit info))
+                              $ UArr.fromList . map (subtract $ info^.thisNodeId)
                                      $ reknit info)
                             lm' bound
