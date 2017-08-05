@@ -208,6 +208,8 @@ nextNeighbours = webLocalInfo >>> localFmapWeb `id`
               | ((nId,(_,nInfo)),(nId',(_,nInfo')))
                     <- zip (info^.nodeNeighbours)
                            (info^.thisNodeData.nodeNeighbours)
+              , all (==Origin) [ nInfo''^.thisNodeCoord
+                               | (_,(_,nInfo''))<-nInfo'^.nodeNeighbours ]
               ]
 
 pointsLocInEnvi :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ [((Int, Trees ℝ⁰), WebNodeId)]
