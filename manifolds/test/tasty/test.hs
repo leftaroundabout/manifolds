@@ -59,6 +59,11 @@ tests = testGroup "Tests"
       , [(0,[1,2]),(3,[1,2])]
       , [(0,[1,2]),(3,[1,2])]
       , [(1,[0,3]),(2,[0,3])] ]
+  , testCase "Next-neighbours in triangular web (after scrambling)"
+    $ toList (nextNeighbours $ scrambleKnitting triangularWeb) @?=
+      [ [(2,[1,0]),(1,[2,0])]
+      , [(2,[1,0]),(0,[2,1])]
+      , [(1,[2,0]),(0,[2,1])] ]
   , testCase "Layers in a nested web"
     $ toList (pointsLocInEnvi nestedWeb) @?=
       [ [((1, 朳[(o,朳[            {-LEAF-} (o,朳[])                              ])]), 0)
@@ -206,6 +211,13 @@ pointsLocInEnvi = fmapNodesInEnvi $
      \(NodeInWeb (_, orig) env)
          -> fmap (const $ first ((nLeaves&&&onlyNodes) . fmap (const ())) <$> env) orig
 
+
+scrambleKnitting :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ a
+scrambleKnitting = tweakWebGeometry euclideanMetric
+         $ \info -> [ i'
+                    | (_, (_, nInfo)) <- info^.nodeNeighbours
+                    , (i',_) <- nInfo^.nodeNeighbours
+                    , i' /= info^.thisNodeId ]
 
 infixl 4 ≡!
 (≡!) :: (Eq a, Show a) => a -> a -> a
