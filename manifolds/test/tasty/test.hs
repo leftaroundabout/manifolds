@@ -23,6 +23,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Data.Foldable (toList)
+import Data.List (nub)
 import Control.Arrow
 import Control.Lens
 
@@ -119,6 +120,9 @@ tests = testGroup "Tests"
        , [ (0,[5])    , (1,[2,3,0])  , (6,[5])                  ]
        , [ (5,[0,1,6])                                          ]
        , [ (4,[5])    , (6,[5])                                 ] ]
+  , testCase "Neighbours in unsymmetric web after scrambling."
+    $ toList (directNeighbours $ scrambleKnitting unsymmetricWeb) @?=
+       [ [1,6], [4,3,2,5], [5,4,1], [5,4,0,1,6,2], [0,1,6], [2,3,0], [0,1], [5] ]
   ]
  ]
 
@@ -214,10 +218,10 @@ pointsLocInEnvi = fmapNodesInEnvi $
 
 scrambleKnitting :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ a
 scrambleKnitting = tweakWebGeometry euclideanMetric
-         $ \info -> [ i'
-                    | (_, (_, nInfo)) <- info^.nodeNeighbours
-                    , (i',_) <- nInfo^.nodeNeighbours
-                    , i' /= info^.thisNodeId ]
+         $ \info -> nub [ i'
+                        | (_, (_, nInfo)) <- info^.nodeNeighbours
+                        , (i',_) <- nInfo^.nodeNeighbours
+                        , i' /= info^.thisNodeId ]
 
 infixl 4 ≡!
 (≡!) :: (Eq a, Show a) => a -> a -> a
