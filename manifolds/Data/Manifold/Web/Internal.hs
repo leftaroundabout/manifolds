@@ -36,7 +36,7 @@ import Data.Manifold.Shade
 import Data.Manifold.TreeCover
 import Data.Function.Affine
 import Data.VectorSpace (Scalar)
-import Math.LinearMap.Category (SimpleSpace, LSpace)
+import Math.LinearMap.Category (SimpleSpace, LSpace, dualNorm)
     
 import qualified Data.Foldable       as Hask
 import qualified Data.Traversable as Hask
@@ -301,3 +301,14 @@ localFmapWeb :: WithField ℝ Manifold x
                 => (WebLocally x y -> z) -> PointsWeb x y -> PointsWeb x z
 localFmapWeb f = webLocalInfo >>> fmap f
 
+
+tweakWebGeometry :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
+         => MetricChoice x -> (WebLocally x y -> [WebNodeId])
+                        -> PointsWeb x y -> PointsWeb x y
+tweakWebGeometry metricf reknit = webLocalInfo >>> fmapNodesInEnvi`id`
+         \(NodeInWeb (x₀, (Neighbourhood info _ lm bound)) _)
+             -> let lm' = metricf . Shade (inInterior x₀) $ dualNorm lm
+                in Neighbourhood (info^.thisNodeData)
+                            (UArr.fromList . map (subtract $ info^.thisNodeId)
+                                     $ reknit info)
+                            lm' bound

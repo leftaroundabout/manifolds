@@ -267,15 +267,12 @@ smoothenWebTopology mc = $notImplemented
 --   to be actually situated closer, link to them directly.
 knitShortcuts :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
-knitShortcuts metricf = webLocalInfo >>> fmapNodesInEnvi`id`
-     \(NodeInWeb (x₀, Neighbourhood me _ lm wall) _)
-         -> let lm' = metricf . Shade (inInterior x₀) $ dualNorm lm
-            in Neighbourhood (me^.thisNodeData)
-                             (pickNewNeighbours (lm', dualNorm lm') me) lm' wall
- where pickNewNeighbours :: (Metric x, Metric' x)
-                    -> WebLocally x y -> UArr.Vector WebNodeIdOffset
-       pickNewNeighbours (lm', lm) me = UArr.fromList $ go zeroV [] candidates
-        where go wall prev cs = case map snd $ sortBy (comparing fst)
+knitShortcuts metricf = tweakWebGeometry metricf pickNewNeighbours
+ where pickNewNeighbours :: WebLocally x y -> [WebNodeId]
+       pickNewNeighbours me = go zeroV [] candidates
+        where lm' = me^.nodeLocalScalarProduct :: Metric x
+              lm = dualNorm lm' :: Metric' x
+              go wall prev cs = case map snd $ sortBy (comparing fst)
                                   [ ( linkingUndesirability (normSq lm' δx) wallDist
                                     , (i,δx) )
                                   | (i,δx) <- cs
@@ -283,10 +280,9 @@ knitShortcuts metricf = webLocalInfo >>> fmapNodesInEnvi`id`
                                   , wallDist >= 0 ] of
                   [] -> []
                   (i,δx) : cs'
-                    | δi <- i - me^.thisNodeId
-                       -> case pumpHalfspace lm' δx (wall,prev) of
-                          Nothing -> [δi]
-                          Just wall' -> δi : go (wall'^/(lm|$|wall')) (δx:prev) cs'
+                    -> case pumpHalfspace lm' δx (wall,prev) of
+                          Nothing -> [i]
+                          Just wall' -> i : go (wall'^/(lm|$|wall')) (δx:prev) cs'
               candidates :: [(WebNodeId, Needle x)]
               c₀ : candidates = sortBy (comparing $ (lm'|$|) . snd)
                    . fastNubBy (comparing fst) $ do
