@@ -268,14 +268,14 @@ pickNodeInWeb (PointsWeb (PlainLeaves lvs)) i
                    = NodeInWeb node [(PlainLeaves $ preds++succs, i)]
 pickNodeInWeb (PointsWeb (OverlappingBranches nw ew (DBranch dir (Hourglass u d):|brs))) i
   | i < nu     = pickNodeInWeb (PointsWeb u) i
-                      & layersAroundNode %~ ((OverlappingBranches (nw-nu) ew
-                                               (DBranch dir (Hourglass gap d):|brs) ,0):)
+                      & layersAroundNode %~ (++[(OverlappingBranches (nw-nu) ew
+                                                 (DBranch dir (Hourglass gap d):|brs) ,0)])
   | i < nu+nd  = pickNodeInWeb (PointsWeb d) (i-nu)
-                      & layersAroundNode %~ ((OverlappingBranches (nw-nd) ew
-                                               (DBranch dir (Hourglass u gap):|brs) ,nu):)
+                      & layersAroundNode %~ (++[(OverlappingBranches (nw-nd) ew
+                                                 (DBranch dir (Hourglass u gap):|brs) ,nu)])
   | (b:rs)<-brs
     = pickNodeInWeb (PointsWeb $ OverlappingBranches (nw-nu-nd) ew (b:|rs)) (i-nu-nd)
-                      & layersAroundNode . ix 0
+                      & layersAroundNode . _last
                            %~ \(OverlappingBranches nwe ewe brse, ne)
                                  -> ( OverlappingBranches (nwe+nu+nd) ewe
                                        $ NE.cons (DBranch dir (Hourglass u d)) brse
