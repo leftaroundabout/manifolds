@@ -259,29 +259,32 @@ zoomoutWebChunk δi (WebChunk _ e)
        ++" from a chunk with "++show (length e)++" environment layers."
 
 pickNodeInWeb :: PointsWeb x y -> WebNodeId -> NodeInWeb x y
-pickNodeInWeb (PointsWeb w) i
-  | i<0 || i>=n  = error
-     $ "Trying to pick node #"++show i++" in web with "++show n++" nodes."
- where n = nLeaves w
-pickNodeInWeb (PointsWeb (PlainLeaves lvs)) i
-  | (preds, node:succs)<-splitAt i lvs
-                   = NodeInWeb node [(PlainLeaves $ preds++succs, i)]
-pickNodeInWeb (PointsWeb (OverlappingBranches nw ew (DBranch dir (Hourglass u d):|brs))) i
-  | i < nu     = pickNodeInWeb (PointsWeb u) i
-                      & layersAroundNode %~ (++[(OverlappingBranches (nw-nu) ew
-                                                 (DBranch dir (Hourglass gap d):|brs) ,0)])
-  | i < nu+nd  = pickNodeInWeb (PointsWeb d) (i-nu)
-                      & layersAroundNode %~ (++[(OverlappingBranches (nw-nd) ew
-                                                 (DBranch dir (Hourglass u gap):|brs) ,nu)])
-  | (b:rs)<-brs
-    = pickNodeInWeb (PointsWeb $ OverlappingBranches (nw-nu-nd) ew (b:|rs)) (i-nu-nd)
-                      & layersAroundNode . _last
-                           %~ \(OverlappingBranches nwe ewe brse, ne)
-                                 -> ( OverlappingBranches (nwe+nu+nd) ewe
-                                       $ NE.cons (DBranch dir (Hourglass u d)) brse
-                                    , ne+nu+nd )
- where gap = PlainLeaves []
-       [nu,nd] = nLeaves<$>[u,d]
+pickNodeInWeb = go [] id
+ where go _ _ (PointsWeb w) i
+        | i<0 || i>=n  = error
+           $ "Trying to pick node #"++show i++" in web with "++show n++" nodes."
+        where n = nLeaves w
+       go lyrsAcc lMod (PointsWeb (PlainLeaves lvs)) i
+        | (preds, node:succs)<-splitAt i lvs
+                   = NodeInWeb node $ lMod (PlainLeaves $ preds++succs, i) : lyrsAcc
+       go lyrsAcc lMod
+            (PointsWeb (OverlappingBranches nw ew (DBranch dir (Hourglass u d):|brs))) i
+        | i < nu     = go (lMod (OverlappingBranches (nw-nu) ew
+                                      (DBranch dir (Hourglass gap d):|brs), 0) : lyrsAcc)
+                          id (PointsWeb u) i
+        | i < nu+nd  = go (lMod (OverlappingBranches (nw-nd) ew
+                                      (DBranch dir (Hourglass u gap):|brs), nu) : lyrsAcc)
+                          id (PointsWeb d) (i-nu)
+        | (b:rs)<-brs  = go
+                          lyrsAcc
+                          (lMod . \(OverlappingBranches nwe ewe brse, ne)
+                                   -> ( OverlappingBranches (nwe+nu+nd) ewe
+                                         $ NE.cons (DBranch dir (Hourglass u d)) brse
+                                      , ne+nu+nd ) )
+                          (PointsWeb $ OverlappingBranches (nw-nu-nd) ew (b:|rs))
+                          (i-nu-nd)
+        where gap = PlainLeaves []
+              [nu,nd] = nLeaves<$>[u,d]
 
 
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
