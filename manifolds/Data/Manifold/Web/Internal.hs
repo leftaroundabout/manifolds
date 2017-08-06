@@ -289,7 +289,7 @@ pickNodeInWeb = go [] id
 
 webLocalInfo :: ∀ x y . WithField ℝ Manifold x
             => PointsWeb x y -> PointsWeb x (WebLocally x y)
-webLocalInfo = runIdentity . traverseNodesInEnvi (Identity . linkln)
+webLocalInfo = fmapNodesInEnvi linkln
  where linkln :: NodeInWeb x y -> Neighbourhood x (WebLocally x y)
        linkln node@(NodeInWeb (x, locloc@(Neighbourhood y ngbs metric nBoundary)) envis)
            = locloc & dataAtNode .~ LocalWebInfo {
