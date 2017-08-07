@@ -264,8 +264,8 @@ smoothenWebTopology mc = $notImplemented
 
 
 bestNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
-                => Norm v -> [(i,v)] -> ([i], Maybe (DualVector v))
-bestNeighbours lm' ((c₀i,c₀δx) : candidates)
+                => Norm v -> [v] -> [(i,v)] -> ([i], Maybe (DualVector v))
+bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
   = case dualSpaceWitness :: DualSpaceWitness v of
      DualSpaceWitness
        -> let lm = dualNorm lm' :: Variance v
@@ -276,10 +276,10 @@ bestNeighbours lm' ((c₀i,c₀δx) : candidates)
                                   | (i,δx) <- cs
                                   , let wallDist = - wall<.>^δx
                                   , wallDist >= 0 ] of
-                  [] -> ([c₀i], Nothing)
+                  [] -> ([], Just wall)
                   (i,δx) : cs'
-                    -> case pumpHalfspace lm' δx (wall,prev) of
-                          Nothing ->  ([c₀i], Just wall)
+                    -> case pumpHalfspace lm' δx (wall,aprioriN++prev) of
+                          Nothing ->  ([i], Nothing)
                           Just wall' -> first (i:) $ go (wall'^/(lm|$|wall')) (δx:prev) cs'
               wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
                where w₀ = lm'<$|c₀δx
@@ -292,7 +292,7 @@ knitShortcuts :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
 knitShortcuts metricf = tweakWebGeometry metricf pickNewNeighbours
  where pickNewNeighbours :: WebLocally x y -> [WebNodeId]
-       pickNewNeighbours me = fst `id` bestNeighbours lm' candidates
+       pickNewNeighbours me = fst `id` bestNeighbours lm' [] candidates
         where lm' = me^.nodeLocalScalarProduct :: Metric x
               candidates :: [(WebNodeId, Needle x)]
               candidates = sortBy (comparing $ (lm'|$|) . snd)
