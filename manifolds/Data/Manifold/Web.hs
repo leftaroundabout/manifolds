@@ -269,9 +269,10 @@ knitShortcuts :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
 knitShortcuts metricf = tweakWebGeometry metricf pickNewNeighbours
  where pickNewNeighbours :: WebLocally x y -> [WebNodeId]
-       pickNewNeighbours me = go zeroV [] candidates
+       pickNewNeighbours me = c₀i : go wall₀ [c₀δx] candidates
         where lm' = me^.nodeLocalScalarProduct :: Metric x
               lm = dualNorm lm' :: Metric' x
+              go :: Needle' x -> [Needle x] -> [(WebNodeId, Needle x)] -> [WebNodeId]
               go wall prev cs = case map snd $ sortBy (comparing fst)
                                   [ ( linkingUndesirability (normSq lm' δx) wallDist
                                     , (i,δx) )
@@ -284,10 +285,14 @@ knitShortcuts metricf = tweakWebGeometry metricf pickNewNeighbours
                           Nothing -> [i]
                           Just wall' -> i : go (wall'^/(lm|$|wall')) (δx:prev) cs'
               candidates :: [(WebNodeId, Needle x)]
-              c₀ : candidates = sortBy (comparing $ (lm'|$|) . snd)
+              (c₀i,c₀δx) : candidates = sortBy (comparing $ (lm'|$|) . snd)
                    . fastNubBy (comparing fst) $ do
                   (i₁, (δx₁, ngb₁)) <- me^.nodeNeighbours
-                  (i₁, δx₁) : (second fst <$> ngb₁^.nodeNeighbours)
+                  (i₁, δx₁) : [ (i, δx)
+                              | (i, (δx, _)) <- ngb₁^.nodeNeighbours
+                              , i /= me^.thisNodeId ]
+              wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
+               where w₀ = lm'<$|c₀δx
 
 indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
 indexWeb (PointsWeb rsc) i = case indexShadeTree rsc i of
