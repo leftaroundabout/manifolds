@@ -262,6 +262,29 @@ smoothenWebTopology :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
 smoothenWebTopology mc = $notImplemented
 
+
+bestNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
+                => Norm v -> [(i,v)] -> ([i], Maybe (DualVector v))
+bestNeighbours lm' ((c₀i,c₀δx) : candidates)
+  = case dualSpaceWitness :: DualSpaceWitness v of
+     DualSpaceWitness
+       -> let lm = dualNorm lm' :: Variance v
+              go :: DualVector v -> [v] -> [(i, v)] -> ([i], Maybe (DualVector v))
+              go wall prev cs = case map snd $ sortBy (comparing fst)
+                                  [ ( linkingUndesirability (normSq lm' δx) wallDist
+                                    , (i,δx) )
+                                  | (i,δx) <- cs
+                                  , let wallDist = - wall<.>^δx
+                                  , wallDist >= 0 ] of
+                  [] -> ([c₀i], Nothing)
+                  (i,δx) : cs'
+                    -> case pumpHalfspace lm' δx (wall,prev) of
+                          Nothing ->  ([c₀i], Just wall)
+                          Just wall' -> first (i:) $ go (wall'^/(lm|$|wall')) (δx:prev) cs'
+              wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
+               where w₀ = lm'<$|c₀δx
+          in go wall₀ [c₀δx] candidates
+
 -- | Consider at each node not just the connections to already known neighbours, but
 --   also the connections to /their/ neighbours. If these next-neighbours turn out
 --   to be actually situated closer, link to them directly.
@@ -269,30 +292,15 @@ knitShortcuts :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
 knitShortcuts metricf = tweakWebGeometry metricf pickNewNeighbours
  where pickNewNeighbours :: WebLocally x y -> [WebNodeId]
-       pickNewNeighbours me = c₀i : go wall₀ [c₀δx] candidates
+       pickNewNeighbours me = fst `id` bestNeighbours lm' candidates
         where lm' = me^.nodeLocalScalarProduct :: Metric x
-              lm = dualNorm lm' :: Metric' x
-              go :: Needle' x -> [Needle x] -> [(WebNodeId, Needle x)] -> [WebNodeId]
-              go wall prev cs = case map snd $ sortBy (comparing fst)
-                                  [ ( linkingUndesirability (normSq lm' δx) wallDist
-                                    , (i,δx) )
-                                  | (i,δx) <- cs
-                                  , let wallDist = - wall<.>^δx
-                                  , wallDist >= 0 ] of
-                  [] -> []
-                  (i,δx) : cs'
-                    -> case pumpHalfspace lm' δx (wall,prev) of
-                          Nothing -> [i]
-                          Just wall' -> i : go (wall'^/(lm|$|wall')) (δx:prev) cs'
               candidates :: [(WebNodeId, Needle x)]
-              (c₀i,c₀δx) : candidates = sortBy (comparing $ (lm'|$|) . snd)
+              candidates = sortBy (comparing $ (lm'|$|) . snd)
                    . fastNubBy (comparing fst) $ do
                   (i₁, (δx₁, ngb₁)) <- me^.nodeNeighbours
                   (i₁, δx₁) : [ (i, δx)
                               | (i, (δx, _)) <- ngb₁^.nodeNeighbours
                               , i /= me^.thisNodeId ]
-              wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
-               where w₀ = lm'<$|c₀δx
 
 indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
 indexWeb (PointsWeb rsc) i = case indexShadeTree rsc i of
