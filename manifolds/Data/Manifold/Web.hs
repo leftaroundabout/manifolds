@@ -283,7 +283,7 @@ bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
                           Just wall' -> first (i:) $ go (wall'^/(lm|$|wall')) (δx:prev) cs'
               wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
                where w₀ = lm'<$|c₀δx
-          in go wall₀ [c₀δx] candidates
+          in first (c₀i:) $ go wall₀ [c₀δx] candidates
 
 -- | Consider at each node not just the connections to already known neighbours, but
 --   also the connections to /their/ neighbours. If these next-neighbours turn out
