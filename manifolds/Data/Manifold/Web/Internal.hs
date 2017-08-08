@@ -35,16 +35,20 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.Shade
 import Data.Manifold.TreeCover
 import Data.Function.Affine
-import Data.VectorSpace (Scalar)
-import Math.LinearMap.Category (SimpleSpace, LSpace, dualNorm)
+import Data.VectorSpace (Scalar, (^+^), (^/), (^*))
+import Math.LinearMap.Category ( SimpleSpace, LSpace, DualVector, Norm, Variance
+                               , (<.>^), dualNorm, (<$|), (|$|), normSq
+                               , dualSpaceWitness, DualSpaceWitness(..) )
     
 import qualified Data.Foldable       as Hask
 import qualified Data.Traversable as Hask
+import Data.List (sortBy)
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.Foldable.Constrained as CCt
 import Data.Functor.Identity
 import Data.Function ((&))
+import Data.Ord (comparing)
 import Control.Arrow
 import Control.Comonad
 
@@ -315,3 +319,63 @@ tweakWebGeometry metricf reknit = webLocalInfo >>> fmapNodesInEnvi`id`
                             (UArr.fromList . map (subtract $ info^.thisNodeId)
                                      $ reknit info)
                             lm' bound
+
+
+pumpHalfspace :: ∀ v . (SimpleSpace v, Scalar v ~ ℝ)
+     => Norm v
+     -> v                    -- ^ A vector @v@ for which we want @dv<.>^v ≥ 0@.
+     -> (DualVector v, [v])  -- ^ A plane @dv₀@ and some vectors @ws@ with @dv₀<.>^w ≥ 0@,
+                             --   which should also fulfill @dv<.>^w ≥ 0@.
+     -> Maybe (DualVector v) -- ^ The plane @dv@ fulfilling these properties, if possible.
+pumpHalfspace rieM v (prevPlane, ws) = case dualSpaceWitness :: DualSpaceWitness v of
+ DualSpaceWitness -> 
+  let    ϑs = fmap (\u -> let x = prevPlane<.>^u
+                              y = thisPlane<.>^u
+                          in atan2 (x-y) (x+y)) $ v:ws
+          -- ϑ = 0 means we are mid-between the planes, ϑ > π/2 means we are past
+          -- `thisPlane`, ϑ < -π/2 we are past `prevPlane`. In other words, positive ϑ
+          -- mean we should mix in more of `prevPlane`, negative more of `thisPlane`.
+         [ϑmin, ϑmax] = [minimum, maximum] <*> [ϑs]
+         δϑ = ϑmax - ϑmin
+         dv = rieM<$|v
+         thisPlane = dv ^/ (dv<.>^v)
+         cas ϑ = cos $ ϑ - pi/4
+  in if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
+                             in prevPlane^*cas ϑbest ^+^ thisPlane^*cas (-ϑbest)
+                 else Nothing
+
+
+linkingUndesirability :: ℝ -- ^ Absolute-square distance (euclidean norm squared)
+                      -> ℝ -- ^ Directional distance (distance from wall containing
+                           --   all already known neighbours)
+                      -> ℝ -- ^ “Badness” of this point as the next neighbour to link to.
+                           --   This is large if the point is far away, but also if it is
+                           --   right normal to the wall. The reason we punish this is that
+                           --   adding two points directly opposed to each other would lead
+                           --   to an ill-defined wall orientation, i.e. wrong normals
+                           --   on the web boundary.
+linkingUndesirability distSq wallDist = distSq / max 0 (distSq-wallDist^2)
+
+
+bestNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
+                => Norm v -> [v] -> [(i,v)] -> ([i], Maybe (DualVector v))
+bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
+  = case dualSpaceWitness :: DualSpaceWitness v of
+     DualSpaceWitness
+       -> let lm = dualNorm lm' :: Variance v
+              go :: DualVector v -> [v] -> [(i, v)] -> ([i], Maybe (DualVector v))
+              go wall prev cs = case map snd $ sortBy (comparing fst)
+                                  [ ( linkingUndesirability (normSq lm' δx) wallDist
+                                    , (i,δx) )
+                                  | (i,δx) <- cs
+                                  , let wallDist = - wall<.>^δx
+                                  , wallDist >= 0 ] of
+                  [] -> ([], Just wall)
+                  (i,δx) : cs'
+                    -> case pumpHalfspace lm' δx (wall,aprioriN++prev) of
+                          Nothing ->  ([i], Nothing)
+                          Just wall' -> first (i:) $ go (wall'^/(lm|$|wall')) (δx:prev) cs'
+              wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
+               where w₀ = lm'<$|c₀δx
+          in first (c₀i:) $ go wall₀ [c₀δx] candidates
+
