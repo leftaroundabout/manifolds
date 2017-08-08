@@ -124,6 +124,18 @@ tests = testGroup "Tests"
     $ toList (directNeighbours $ scrambleKnitting unsymmetricWeb) @?=
        [ [1,6], [4,3,2,5], [5,4,1], [5,4,0,1,6,2], [0,1,6], [2,3,0], [0,1], [5] ]
   ]
+ , testGroup "Neighbour-search for web knitting."
+    [ testCase "Best neighbours in a triangle in the x≥0 half plane"
+       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+               [(0, (1,0)), (1, (0,1)), (2, (0,-1))]
+               @?= ([0,1,2], Just (1,0))
+    , testCase "Best neighbours in a quadratic grid"
+       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+               [               (1, (0,-1)), (2, (1,-1))
+               , (3, (-1,0)),               (4, (1,0))
+               , (5, (-1,1)),  (6, (0,1)),  (7, (1,1)) ]
+               @?= ([1,4,6,3], Nothing)
+    ]
  ]
 
 emptyWeb, singletonWeb, triangularWeb, quadraticWeb, nestedWeb, unsymmetricWeb
