@@ -128,13 +128,13 @@ tests = testGroup "Tests"
     [ testCase "Best neighbours in a triangle in the x≥0 half plane"
        $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
                [(0, (1,0)), (1, (0,1)), (2, (0,-1))]
-               @?= ([0,1,2], Just (1,0))
+               @?= ([0,1,2], Nothing)
     , testCase "Best neighbours in a quadratic grid"
        $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
                [               (1, (0,-1)), (2, (1,-1))
                , (3, (-1,0)),               (4, (1,0))
                , (5, (-1,1)),  (6, (0,1)),  (7, (1,1)) ]
-               @?= ([1,4,6,3], Nothing)
+               @?= ([1,3,4], Nothing)
     ]
  ]
 

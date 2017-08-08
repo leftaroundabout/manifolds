@@ -340,7 +340,8 @@ pumpHalfspace rieM v (prevPlane, ws) = case dualSpaceWitness :: DualSpaceWitness
          dv = rieM<$|v
          thisPlane = dv ^/ (dv<.>^v)
          cas ϑ = cos $ ϑ - pi/4
-  in if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
+  in if δϑ < pi - 1e-8
+                 then Just $ let ϑbest = ϑmin + δϑ/2
                              in prevPlane^*cas ϑbest ^+^ thisPlane^*cas (-ϑbest)
                  else Nothing
 
@@ -366,10 +367,16 @@ bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
               go :: DualVector v -> [v] -> [(i, v)] -> ([i], Maybe (DualVector v))
               go wall prev cs = case map snd $ sortBy (comparing fst)
                                   [ ( linkingUndesirability (normSq lm' δx) wallDist
+                                        / βmin
                                     , (i,δx) )
                                   | (i,δx) <- cs
                                   , let wallDist = - wall<.>^δx
-                                  , wallDist >= 0 ] of
+                                  , wallDist >= 0
+                                  , let βmin = minimum
+                                          [ (acos $ (lm'<$|δx)<.>^δxo)
+                                             / sqrt (normSq lm' δx*normSq lm' δxo)
+                                          | δxo <- prev ]
+                                  ] of
                   [] -> ([], Just wall)
                   (i,δx) : cs'
                     -> case pumpHalfspace lm' δx (wall,aprioriN++prev) of
