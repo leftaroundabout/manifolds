@@ -372,8 +372,10 @@ bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
                                   , let wallDist = - wall<.>^δx
                                   , wallDist >= 0
                                   , let βmin = minimum
-                                          [ acos $ ((lm'<$|δx)<.>^δxo)
+                                          [ 1 - ((lm'<$|δx)<.>^δxo)
                                                   / sqrt (normSq lm' δx*normSq lm' δxo)
+                                            -- β behaves basically like ϑ², where ϑ is
+                                            -- the angle between two neighbour candidates.
                                           | δxo <- prev ]
                                   ] of
                   [] -> ([], Just wall)
