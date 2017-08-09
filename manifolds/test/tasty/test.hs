@@ -133,12 +133,35 @@ tests = testGroup "Tests"
        $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
                [(0, (1,0)), (1, (0,1)), (2, (0,-1))]
                @?= ([0,1,2], Just (1,0))
-    , testCase "Best neighbours in a quadratic grid"
+    , testCase "Best neighbours in a quadratic surrounding"
        $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
                [               (1, (0,-1)), (2, (1,-1))
                , (3, (-1,0)),               (4, (1,0))
                , (5, (-1,1)),  (6, (0,1)),  (7, (1,1)) ]
                @?= ([1,3,4,5], Nothing)
+    , testCase "Best neighbours to the corner of a rectangular grid"
+       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+               [             ( 1,(1,0)), ( 2,(2,0)), ( 3,(3,0))
+               , (10,(0,1)), (11,(1,1)), (12,(2,1)), (13,(3,1))
+               , (20,(0,2)), (21,(1,2)), (22,(2,2)), (23,(3,2)) ]
+               @?= ([1,10], Just (sqrt 2/2, sqrt 2/2))
+    , testCase "Best neighbours in a rectangular grid"
+       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+           ((id&&&id) <$> (1,0):
+               [ (-2,-1), (-1,-1), ( 0,-1), ( 1,-1), ( 2,-1)
+               , (-2, 0), (-1, 0),{-ORIGIN-}{-1, 0-} ( 2, 0)
+               , (-2, 1), (-1, 1), ( 0, 1), ( 1, 1), ( 2, 1) ])
+          @?= ([(1,0), (0,-1), (0,1), (-1,-1)], Nothing)
+    , testCase "Best neighbours in a big rectangular grid"
+       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+           ((id&&&id) <$> (1,0):
+               [ (-3,-3), (-2,-3), (-1,-3), ( 0,-3), ( 1,-3), ( 2,-3), ( 3,-3)
+               , (-3,-2), (-2,-2), (-1,-2), ( 0,-2), ( 1,-2), ( 2,-2), ( 3,-2)
+               , (-3,-1), (-2,-1), (-1,-1), ( 0,-1), ( 1,-1), ( 2,-1), ( 3,-1)
+               , (-2, 0), (-1, 0),{-ORIGIN-}{-1, 0-} ( 2, 0), ( 2, 0), ( 3, 0)
+               , (-2, 1), (-1, 1), ( 0, 1), ( 1, 1), ( 2, 1), ( 2, 1), ( 3, 1)
+               , (-2, 2), (-1, 2), ( 0, 2), ( 1, 2), ( 2, 2), ( 2, 2), ( 3, 2) ])
+          @?= ([(1,0), (0,-1), (0,1), (-1,-1)], Nothing)
     ]
  ]
 
