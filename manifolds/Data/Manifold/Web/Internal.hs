@@ -35,7 +35,7 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.Shade
 import Data.Manifold.TreeCover
 import Data.Function.Affine
-import Data.VectorSpace (Scalar, (^+^), (^/), (^*))
+import Data.VectorSpace (Scalar, (^+^), (^/), (^*), sumV)
 import Math.LinearMap.Category ( SimpleSpace, LSpace, DualVector, Norm, Variance
                                , (<.>^), dualNorm, (<$|), (|$|), normSq
                                , dualSpaceWitness, DualSpaceWitness(..) )
@@ -337,13 +337,22 @@ pumpHalfspace rieM v (prevPlane, ws) = case dualSpaceWitness :: DualSpaceWitness
           -- mean we should mix in more of `prevPlane`, negative more of `thisPlane`.
          [ϑmin, ϑmax] = [minimum, maximum] <*> [ϑs]
          δϑ = ϑmax - ϑmin
-         dv = rieM<$|v
-         thisPlane = dv ^/ (dv<.>^v)
+         vNudged = v ^+^ sumV (zipWith (^*) ws smallPseudorandSeq)
+                    -- Introduce a tiny contribution from the other vectors to avoid
+                    -- a degenerate 1D-situation in which @thisPlane ∝ prevPlane@.
+         dv = rieM<$|vNudged
+         thisPlane = dv ^/ (dv<.>^vNudged)
          cas ϑ = cos $ ϑ - pi/4
-  in if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
+  in if δϑ <= pi && minimum (abs<$>ϑs) < pi/2
+                 then Just $ let ϑbest = ϑmin + δϑ/2
                              in prevPlane^*cas ϑbest ^+^ thisPlane^*cas (-ϑbest)
                  else Nothing
 
+smallPseudorandSeq :: [ℝ]
+smallPseudorandSeq = (*2^^(-45)) . fromIntegral <$> lcg 293633
+ where lcg x = x : lcg ((a*x)`mod`m)
+       m = 2^31 - 1
+       a = 963345    :: Int  -- revised Park-Miller
 
 data LinkingBadness r = LinkingBadness
     { gatherDirectionsBadness :: !r -- ^ Prefer picking neighbours at right angles

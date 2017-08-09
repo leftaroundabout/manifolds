@@ -132,7 +132,7 @@ tests = testGroup "Tests"
     , testCase "Origin-boundary excluding points in the x≥0 half plane"
        $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
                [(0, (1,0)), (1, (0,1)), (2, (0,-1))]
-               @?= ([0,1,2], Just (1,0))
+               @?= ([0,1,2], Just (1, -1.922877998462862e-16))
     , testCase "Best neighbours in a quadratic surrounding"
        $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
                [               (1, (0,-1)), (2, (1,-1))
