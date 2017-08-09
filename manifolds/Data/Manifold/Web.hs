@@ -193,7 +193,9 @@ autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
                   = [ (δi, (v, nh))
                     | envi <- enviLayers
                     , (δi, ((v,_), nh)) <- sortBy (comparing $ snd . fst . snd)
-                                  [ (δi, ((v, linkingUndesirability distSq wallDist), nh))
+                                  [ (δi, ((v, gatherDirectionsBadness
+                                               $ linkingUndesirability distSq wallDist
+                                                 ), nh))
                                   | (δi,(xp,nh)) <- envi
                                   , let Just v = xp.-~.x
                                         distSq = normSq locMetr v

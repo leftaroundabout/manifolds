@@ -345,16 +345,33 @@ pumpHalfspace rieM v (prevPlane, ws) = case dualSpaceWitness :: DualSpaceWitness
                  else Nothing
 
 
+data LinkingBadness r = LinkingBadness
+    { gatherDirectionsBadness :: !r -- ^ Prefer picking neighbours at right angles
+                                    --   to the currently-explored-boundary. This
+                                    --   is needed while we still have to link to
+                                    --   points in different spatial directions.
+    , closeSystemBadness :: !r      -- ^ Prefer points directly opposed to the
+                                    --   current boundary. This is useful when the
+                                    --   system of directions is already complete
+                                    --   and we want a nicely symmetric “ball” of
+                                    --   neighbours around each point.
+    } deriving (Functor)
+
 linkingUndesirability :: ℝ -- ^ Absolute-square distance (euclidean norm squared)
                       -> ℝ -- ^ Directional distance (distance from wall containing
                            --   all already known neighbours)
-                      -> ℝ -- ^ “Badness” of this point as the next neighbour to link to.
-                           --   This is large if the point is far away, but also if it is
+                      -> LinkingBadness ℝ
+                           -- ^ “Badness” of this point as the next neighbour to link to.
+                           --   In gatherDirections mode this is large if
+                           --   the point is far away, but also if it is
                            --   right normal to the wall. The reason we punish this is that
                            --   adding two points directly opposed to each other would lead
                            --   to an ill-defined wall orientation, i.e. wrong normals
                            --   on the web boundary.
-linkingUndesirability distSq wallDist = distSq^2 / max 0 (distSq-wallDist^2)
+linkingUndesirability distSq wallDist = LinkingBadness
+   { gatherDirectionsBadness = distSq^2 / max 0 (distSq-wallDist^2)
+   , closeSystemBadness = distSq - wallDist^2/2
+   }
 
 
 bestNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
@@ -364,9 +381,9 @@ bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
      DualSpaceWitness
        -> let lm = dualNorm lm' :: Variance v
               go :: DualVector v -> [v] -> [(i, v)] -> ([i], Maybe (DualVector v))
-              go wall prev cs = case map snd $ sortBy (comparing fst)
-                                  [ ( linkingUndesirability (normSq lm' δx) wallDist
-                                        / βmin
+              go wall prev cs = case sortBy (comparing $ gatherDirectionsBadness.fst)
+                                  [ ((/βmin)
+                                      <$> linkingUndesirability (normSq lm' δx) wallDist
                                     , (i,δx) )
                                   | (i,δx) <- cs
                                   , let wallDist = - wall<.>^δx
@@ -379,10 +396,11 @@ bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
                                           | δxo <- prev ]
                                   ] of
                   [] -> ([], Just wall)
-                  (i,δx) : cs'
-                    -> case pumpHalfspace lm' δx (wall,aprioriN++prev) of
-                          Nothing ->  ([i], Nothing)
-                          Just wall' -> first (i:) $ go (wall'^/(lm|$|wall')) (δx:prev) cs'
+                  (_,(i,δx)) : cs'
+                   | Just wall' <- pumpHalfspace lm' δx (wall,aprioriN++prev)
+                          -> first (i:) $ go (wall'^/(lm|$|wall')) (δx:prev) (snd<$>cs')
+                  cs' | (_,(i,_)):_ <- sortBy (comparing $ closeSystemBadness.fst) cs'
+                          ->  ([i], Nothing)
               wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
                where w₀ = lm'<$|c₀δx
           in first (c₀i:) $ go wall₀ [c₀δx] candidates
