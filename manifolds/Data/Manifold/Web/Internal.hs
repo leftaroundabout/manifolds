@@ -354,7 +354,7 @@ linkingUndesirability :: ℝ -- ^ Absolute-square distance (euclidean norm squar
                            --   adding two points directly opposed to each other would lead
                            --   to an ill-defined wall orientation, i.e. wrong normals
                            --   on the web boundary.
-linkingUndesirability distSq wallDist = distSq / max 0 (distSq-wallDist^2)
+linkingUndesirability distSq wallDist = distSq^2 / max 0 (distSq-wallDist^2)
 
 
 bestNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
