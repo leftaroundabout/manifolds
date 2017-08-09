@@ -399,8 +399,11 @@ bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
                   (_,(i,δx)) : cs'
                    | Just wall' <- pumpHalfspace lm' δx (wall,aprioriN++prev)
                           -> first (i:) $ go (wall'^/(lm|$|wall')) (δx:prev) (snd<$>cs')
-                  cs' | (_,(i,_)):_ <- sortBy (comparing $ closeSystemBadness.fst) cs'
-                          ->  ([i], Nothing)
+                  cs' -> let closeSys ((_,(i,δx)):_)
+                               | Nothing <- pumpHalfspace lm' δx (wall,aprioriN++prev)
+                                   = ([i], Nothing)
+                             closeSys (_:cs'') = closeSys cs''
+                         in closeSys $ sortBy (comparing $ closeSystemBadness.fst) cs'
               wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
                where w₀ = lm'<$|c₀δx
           in first (c₀i:) $ go wall₀ [c₀δx] candidates
