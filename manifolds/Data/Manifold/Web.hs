@@ -244,8 +244,9 @@ knitShortcuts metricf = tweakWebGeometry metricf pickNewNeighbours
                    . fastNubBy (comparing fst) $ do
                   (i₁, (δx₁, ngb₁)) <- me^.nodeNeighbours
                   (i₁, δx₁) : [ (i, δx)
-                              | (i, (δx, _)) <- ngb₁^.nodeNeighbours
-                              , i /= me^.thisNodeId ]
+                              | (i, (_, nngb)) <- ngb₁^.nodeNeighbours
+                              , i /= me^.thisNodeId
+                              , Just δx <- [nngb^.thisNodeCoord .-~. me^.thisNodeCoord] ]
 
 indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
 indexWeb (PointsWeb rsc) i = case indexShadeTree rsc i of
