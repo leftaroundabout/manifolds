@@ -12,6 +12,9 @@ packages:
 - location:
     git: https://github.com/leftaroundabout/linearmap-family.git
     commit: master
+- location:
+    git: https://github.com/conal/vector-space.git
+    commit: 261136006f19039a75e20f16d94c7c95a8dc6f42
 extra-deps:
 - number-show-0.1.0.0
 resolver: lts-8.0
