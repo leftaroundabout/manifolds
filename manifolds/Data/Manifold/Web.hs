@@ -236,6 +236,7 @@ smoothenWebTopology mc = $notImplemented
 knitShortcuts :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
 knitShortcuts metricf = tweakWebGeometry metricf pickNewNeighbours
+                          . bidirectionaliseWebLinks
  where pickNewNeighbours :: WebLocally x y -> [WebNodeId]
        pickNewNeighbours me = fst `id` bestNeighbours lm' [] candidates
         where lm' = me^.nodeLocalScalarProduct :: Metric x
