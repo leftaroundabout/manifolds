@@ -145,8 +145,7 @@ makeLenses ''NodeInWeb
 type MetricChoice x = Shade x -> Metric x
 
 
-traverseInnermostChunks :: ∀ f x y z . ( Applicative f
-                                       , WithField ℝ Manifold x, LSpace (Needle x) )
+traverseInnermostChunks :: ∀ f x y z . Applicative f
           => (WebChunk x y -> f (PointsWeb x z)) -> PointsWeb x y -> f (PointsWeb x z)
 traverseInnermostChunks f = go []
  where go :: [(x`Shaded`Neighbourhood x y, WebNodeId)] -> PointsWeb x y -> f (PointsWeb x z)
@@ -159,8 +158,7 @@ traverseInnermostChunks f = go []
               travel (i₀, br) obrs
                   = webNodeRsc <$> go ((obrs,i₀) : outlayers) (PointsWeb br)
 
-traverseNodesInEnvi :: ∀ f x y z . ( Applicative f
-                                   , WithField ℝ Manifold x, LSpace (Needle x) )
+traverseNodesInEnvi :: ∀ f x y z . Applicative f
            => (NodeInWeb x y -> f (Neighbourhood x z))
              -> PointsWeb x y -> f (PointsWeb x z)
 traverseNodesInEnvi f = traverseInnermostChunks fc
@@ -171,8 +169,7 @@ traverseNodesInEnvi f = traverseInnermostChunks fc
                = (x,) <$> f (NodeInWeb (x,ngbh)
                                      $ (PlainLeaves nearbyLeaves, i) : outlayers)
 
-fmapNodesInEnvi :: ( WithField ℝ Manifold x, LSpace (Needle x) )
-           => (NodeInWeb x y -> Neighbourhood x z) -> PointsWeb x y -> (PointsWeb x z)
+fmapNodesInEnvi :: (NodeInWeb x y -> Neighbourhood x z) -> PointsWeb x y -> PointsWeb x z
 fmapNodesInEnvi f = runIdentity . traverseNodesInEnvi (Identity . f)
 
 

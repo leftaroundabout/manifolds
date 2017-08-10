@@ -275,7 +275,7 @@ traverseDirectionChoices f dbs
 
 
 
-traverseTrunkBranchChoices :: ( AdditiveGroup (Needle' x), Hask.Applicative f )
+traverseTrunkBranchChoices :: Hask.Applicative f
                => ( (Int, x`Shaded`y) -> x`Shaded`y -> f (x`Shaded`z) )
                  -> x`Shaded`y -> f (x`Shaded`z)
 traverseTrunkBranchChoices f (OverlappingBranches n sh bs)
