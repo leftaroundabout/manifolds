@@ -45,10 +45,12 @@ import qualified Data.Traversable as Hask
 import Data.List (sortBy)
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty((:|)))
+import qualified Data.Map as Map
 import qualified Data.Foldable.Constrained as CCt
 import Data.Functor.Identity
 import Data.Function ((&))
 import Data.Ord (comparing)
+import Data.List.FastNub (fastNub)
 import Control.Arrow
 import Control.Comonad
 
@@ -316,6 +318,21 @@ tweakWebGeometry metricf reknit = webLocalInfo >>> fmapNodesInEnvi`id`
                             (UArr.fromList . map (subtract $ info^.thisNodeId)
                                      $ reknit info)
                             lm' bound
+
+
+bidirectionaliseWebLinks :: ∀ x y . PointsWeb x y -> PointsWeb x y
+bidirectionaliseWebLinks web@(PointsWeb wnrsrc) = fmapNodesInEnvi bdse web
+ where bdse :: NodeInWeb x y -> Neighbourhood x y
+       bdse (NodeInWeb (x, Neighbourhood y outgn lm bound) envis)
+                = Neighbourhood y (UArr.fromList . fastNub $ incmn ++ UArr.toList outgn)
+                      lm bound
+        where i = foldr ((+) . snd) 0 envis
+              Just incmn = i `Map.lookup` incoming
+       incoming = Map.fromListWith (++) $ Hask.foldl'
+                   (\(i,acc) (Neighbourhood _ outgn _ _)
+                        -> (i+1, acc . (((,[i])<$>UArr.toList outgn)++)) )
+                     (0,id) wnrsrc `snd` []
+
 
 
 pumpHalfspace :: ∀ v . (SimpleSpace v, Scalar v ~ ℝ)

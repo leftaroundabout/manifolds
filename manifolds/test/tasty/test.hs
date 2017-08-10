@@ -51,6 +51,11 @@ tests = testGroup "Tests"
     $ toList (directNeighbours triangularWeb) @?= [[1,2],[0,2],[0,1]]
   , testCase "Direct neighbours in simple quadratic web."
     $ toList (directNeighbours quadraticWeb) @?= [[1,2],[0,3],[0,3],[1,2]]
+  , testCase "Direct neighbours in quadratic web with one-direction diagonals."
+    $ toList (directNeighbours unidirDiagonalLinkedWeb) @?= [[1,2,3],[0,3],[0,1,3],[1,2]]
+  , testCase "Direct neighbours in 1-dir diag quadratic web after bidirectionalisation."
+    $ toList (directNeighbours $ bidirectionaliseWebLinks unidirDiagonalLinkedWeb)
+          @?= [[1,2,3],[0,2,3],[0,1,3],[0,1,2]]
   , testCase "Direct neighbours in unsymmetric web."
     $ toList (directNeighbours unsymmetricWeb)
          @?= [[5],[2,3,0],[4,3],[4,2,5,1],[5],[0,1,6],[5],[4,6]]
@@ -193,6 +198,7 @@ tests = testGroup "Tests"
  ]
 
 emptyWeb, singletonWeb, triangularWeb, quadraticWeb, nestedWeb, unsymmetricWeb
+  , unidirDiagonalLinkedWeb
     :: PointsWeb ℝ⁰ ()
 
 emptyWeb = PointsWeb $ PlainLeaves []
@@ -255,6 +261,16 @@ unsymmetricWeb = PointsWeb $
                        ])
          ))
         )
+
+unidirDiagonalLinkedWeb = PointsWeb $
+        OverlappingBranches 4 (Shade o mempty) (pure . DBranch o $ Hourglass
+         (PlainLeaves [ (o, Neighbourhood () [1,2,3] euclideanNorm Nothing)
+                      , (o, Neighbourhood () [-1,2] euclideanNorm Nothing)
+                      ])
+         (PlainLeaves [ (o, Neighbourhood () [-2,-1,1] euclideanNorm Nothing)
+                      , (o, Neighbourhood () [-2,-1] euclideanNorm Nothing)
+                      ])
+         )
 
 
 
