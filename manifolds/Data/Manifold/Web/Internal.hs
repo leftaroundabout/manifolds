@@ -327,10 +327,12 @@ bidirectionaliseWebLinks web@(PointsWeb wnrsrc) = fmapNodesInEnvi bdse web
                 = Neighbourhood y (UArr.fromList . fastNub $ incmn ++ UArr.toList outgn)
                       lm bound
         where i = foldr ((+) . snd) 0 envis
-              Just incmn = i `Map.lookup` incoming
+              incmn = case i `Map.lookup` incoming of
+                Just o -> subtract i<$>o
+                Nothing -> []
        incoming = Map.fromListWith (++) $ Hask.foldl'
                    (\(i,acc) (Neighbourhood _ outgn _ _)
-                        -> (i+1, acc . (((,[i])<$>UArr.toList outgn)++)) )
+                        -> (i+1, acc . (((,[i]).(+i)<$>UArr.toList outgn)++)) )
                      (0,id) wnrsrc `snd` []
 
 
