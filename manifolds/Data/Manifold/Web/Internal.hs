@@ -419,6 +419,7 @@ bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
                                             -- β behaves basically like ϑ², where ϑ is
                                             -- the angle between two neighbour candidates.
                                           | δxo <- prev ]
+                                  , βmin > 0
                                   ] of
                   [] -> ([], Just wall)
                   (_,(i,δx)) : cs'
