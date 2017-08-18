@@ -235,9 +235,20 @@ smoothenWebTopology mc = $notImplemented
 --   to be actually situated closer, link to them directly.
 knitShortcuts :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
-knitShortcuts metricf = tweakWebGeometry metricf pickNewNeighbours
-                          . bidirectionaliseWebLinks
- where pickNewNeighbours :: WebLocally x y -> [WebNodeId]
+knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
+ where pseudoFixMaximise oldBadness oldSt
+         | newBadness < oldBadness  = pseudoFixMaximise newBadness newSt
+         | otherwise                = newSt
+        where newSt = tweakWebGeometry metricf pickNewNeighbours
+                          $ bidirectionaliseWebLinks oldSt
+              newBadness = rateLinkings newSt
+       rateLinkings :: PointsWeb x y -> Double
+       rateLinkings = geometricMeanOf rateNode . webLocalInfo
+       rateNode :: WebLocally x y -> Double
+       rateNode info = geometricMeanOf
+             (\(_, (δx,_)) -> info^.nodeLocalScalarProduct|$|δx)
+             $ info^.nodeNeighbours
+       pickNewNeighbours :: WebLocally x y -> [WebNodeId]
        pickNewNeighbours me = fst `id` bestNeighbours lm' [] candidates
         where lm' = me^.nodeLocalScalarProduct :: Metric x
               candidates :: [(WebNodeId, Needle x)]
@@ -248,6 +259,15 @@ knitShortcuts metricf = tweakWebGeometry metricf pickNewNeighbours
                               | (i, (_, nngb)) <- ngb₁^.nodeNeighbours
                               , i /= me^.thisNodeId
                               , Just δx <- [nngb^.thisNodeCoord .-~. me^.thisNodeCoord] ]
+
+meanOf :: (Hask.Foldable f, Fractional n) => (a -> n) -> f a -> n
+meanOf f = renormalise . Hask.foldl' accs (0, 0::Int)
+ where renormalise (acc,n) = acc/fromIntegral n
+       accs (acc,n) x = (acc+f x, succ n)
+
+geometricMeanOf :: (Hask.Foldable f, Floating n) => (a -> n) -> f a -> n
+geometricMeanOf f = exp . meanOf (log . f)
+
 
 indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
 indexWeb (PointsWeb rsc) i = case indexShadeTree rsc i of
