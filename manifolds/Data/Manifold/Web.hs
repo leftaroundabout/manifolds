@@ -157,7 +157,7 @@ fromShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                               --   Riemannian metric).
      -> (x`Shaded`y)          -- ^ Source tree.
      -> PointsWeb x y
-fromShaded metricf = autoLinkWeb . unlinkedFromShaded metricf
+fromShaded metricf = knitShortcuts metricf . autoLinkWeb . unlinkedFromShaded metricf
 
 toShaded :: WithField ℝ PseudoAffine x => PointsWeb x y -> (x`Shaded`y)
 toShaded (PointsWeb shd) = fmap _dataAtNode shd
@@ -227,7 +227,7 @@ fromTopShaded metricf shd = $notImplemented
 --   “complete-spanning” environment.
 smoothenWebTopology :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
-smoothenWebTopology mc = $notImplemented
+smoothenWebTopology = knitShortcuts
 
 
 -- | Consider at each node not just the connections to already known neighbours, but
