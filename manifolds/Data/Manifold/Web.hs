@@ -78,7 +78,7 @@ import Data.Semigroup
 import Control.DeepSeq
 
 import Data.VectorSpace
-import Math.LinearMap.Category
+import Math.LinearMap.Category hiding (trace)
 
 import Data.Tagged
 import Data.Function (on)
@@ -128,6 +128,8 @@ import Control.Lens.TH
 import GHC.Generics (Generic)
 
 import Development.Placeholders
+
+import Debug.Trace
 
 
 fromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
@@ -249,8 +251,16 @@ knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
              (\(_, (δx,_)) -> info^.nodeLocalScalarProduct|$|δx)
              $ info^.nodeNeighbours
        pickNewNeighbours :: WebLocally x y -> [WebNodeId]
-       pickNewNeighbours me = fst `id` bestNeighbours lm' [] candidates
-        where lm' = me^.nodeLocalScalarProduct :: Metric x
+       pickNewNeighbours me = go candidates
+        where go cs = case bestNeighbours lm' [] candidates of
+                        (links, Nothing) -> links
+                        (links, Just newWall)
+                         | Just _ <- me^.webBoundingPlane -> links
+                         | otherwise  -> trace ("New neighbours "++show links
+                                                 ++" (formerly "
+                                                 ++show (fst <$> me^.nodeNeighbours)
+                                                 ++") are topologically defect!") links
+              lm' = me^.nodeLocalScalarProduct :: Metric x
               candidates :: [(WebNodeId, Needle x)]
               candidates = sortBy (comparing $ (lm'|$|) . snd)
                    . fastNubBy (comparing fst) $ do
