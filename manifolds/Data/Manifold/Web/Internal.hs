@@ -403,10 +403,19 @@ bestNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
                 => Norm v -> [v] -> [(i,v)] -> ([i], Maybe (DualVector v))
 bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
   = case dualSpaceWitness :: DualSpaceWitness v of
-     DualSpaceWitness
-       -> let lm = dualNorm lm' :: Variance v
-              go :: DualVector v -> [v] -> [(i, v)] -> ([i], Maybe (DualVector v))
-              go wall prev cs = case sortBy (comparing $ gatherDirectionsBadness.fst)
+     DualSpaceWitness ->
+       let wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
+            where w₀ = lm'<$|c₀δx
+           lm = dualNorm lm' :: Variance v
+       in first (c₀i:) $ gatherGoodNeighbours lm' lm wall₀ aprioriN [c₀δx] candidates
+
+gatherGoodNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
+            => Norm v -> Variance v
+               -> DualVector v -> [v] -> [v] -> [(i, v)] -> ([i], Maybe (DualVector v))
+gatherGoodNeighbours lm' lm wall aprioriN prev cs
+ = case dualSpaceWitness :: DualSpaceWitness v of
+    DualSpaceWitness ->
+     case sortBy (comparing $ gatherDirectionsBadness.fst)
                                   [ ((/βmin)
                                       <$> linkingUndesirability (normSq lm' δx) wallDist
                                     , (i,δx) )
@@ -424,13 +433,12 @@ bestNeighbours lm' aprioriN ((c₀i,c₀δx) : candidates)
                   [] -> ([], Just wall)
                   (_,(i,δx)) : cs'
                    | Just wall' <- pumpHalfspace lm' δx (wall,aprioriN++prev)
-                          -> first (i:) $ go (wall'^/(lm|$|wall')) (δx:prev) (snd<$>cs')
+                          -> first (i:)
+                       $ gatherGoodNeighbours lm' lm (wall'^/(lm|$|wall'))
+                               aprioriN (δx:prev) (snd<$>cs')
                   cs' -> let closeSys ((_,(i,δx)):_)
                                | Nothing <- pumpHalfspace lm' δx (wall,aprioriN++prev)
                                    = ([i], Nothing)
                              closeSys (_:cs'') = closeSys cs''
                          in closeSys $ sortBy (comparing $ closeSystemBadness.fst) cs'
-              wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
-               where w₀ = lm'<$|c₀δx
-          in first (c₀i:) $ go wall₀ [c₀δx] candidates
 
