@@ -129,6 +129,19 @@ tests = testGroup "Tests"
     $ toList (directNeighbours $ scrambleKnitting unsymmetricWeb) @?=
        [ [1,6], [4,3,2,5], [5,4,1], [5,4,0,1,6,2], [0,1,6], [2,3,0], [0,1], [5] ]
   ]
+ , testGroup "Adjacency layers around points in a web"
+  [ testCase "Onions in nested web"
+     $ toList (webOnions $ localFmapWeb _thisNodeId nestedWeb)
+      @?= [ [[(o,0)],[(o,1),(o,2)],[(o,3),(o,4)],[(o,6),(o,5)],[(o,7)]]
+          , [[(o,1)],[(o,0),(o,3),(o,4)],[(o,6),(o,2),(o,5)],[(o,7)]]
+          , [[(o,2)],[(o,0),(o,3)],[(o,1),(o,6)],[(o,4),(o,7)],[(o,5)]]
+          , [[(o,3)],[(o,1),(o,6)],[(o,4),(o,0),(o,7)],[(o,5),(o,2)]]
+          , [[(o,4)],[(o,1),(o,5),(o,6)],[(o,3),(o,7),(o,0)],[(o,2)]]
+          , [[(o,5)],[(o,4),(o,7)],[(o,6),(o,1)],[(o,3),(o,0)],[(o,2)]]
+          , [[(o,6)],[(o,3),(o,4),(o,7)],[(o,1),(o,5)],[(o,0)],[(o,2)]]
+          , [[(o,7)],[(o,5),(o,6)],[(o,4),(o,3)],[(o,1)],[(o,0)],[(o,2)]]
+          ]
+  ]
  , testGroup "Neighbour-search for web knitting."
     [ testCase "Origin-boundary excluding two points on the x- and y-axes"
        $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
