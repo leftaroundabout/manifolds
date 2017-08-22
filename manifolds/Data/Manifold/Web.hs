@@ -129,8 +129,6 @@ import GHC.Generics (Generic)
 
 import Development.Placeholders
 
-import Debug.Trace
-
 
 fromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                     => (MetricChoice x) -> [(x,y)] -> PointsWeb x y
@@ -251,24 +249,26 @@ knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
              (\(_, (δx,_)) -> info^.nodeLocalScalarProduct|$|δx)
              $ info^.nodeNeighbours
        pickNewNeighbours :: WebLocally x y -> [WebNodeId]
-       pickNewNeighbours me = go candidates
-        where go cs = case bestNeighbours lm' [] candidates of
+       pickNewNeighbours me = fst <$> go Nothing [] candidates
+        where go Nothing prevs (cs:ccs) = case bestNeighbours' lm' [] cs of
                         (links, Nothing) -> links
                         (links, Just newWall)
                          | Just _ <- me^.webBoundingPlane -> links
-                         | otherwise  -> trace ("New neighbours "++show links
-                                                 ++" (formerly "
-                                                 ++show (fst <$> me^.nodeNeighbours)
-                                                 ++") are topologically defect!") links
+                         | otherwise  -> go (Just newWall) ((snd<$>links) ++ prevs) ccs
+              go (Just wall) prevs (cs:ccs) = case gatherGoodNeighbours
+                               lm' lm wall [] prevs cs of
+                        (links, Nothing) -> links
+                        (links, Just newWall)
+                         | Nothing <- me^.webBoundingPlane
+                         , (_:_) <-ccs -> go (Just newWall) ((snd<$>links) ++ prevs) ccs
+                         | otherwise   -> links
               lm' = me^.nodeLocalScalarProduct :: Metric x
-              candidates :: [(WebNodeId, Needle x)]
-              candidates = sortBy (comparing $ (lm'|$|) . snd)
-                   . fastNubBy (comparing fst) $ do
-                  (i₁, (δx₁, ngb₁)) <- me^.nodeNeighbours
-                  (i₁, δx₁) : [ (i, δx)
-                              | (i, (_, nngb)) <- ngb₁^.nodeNeighbours
-                              , i /= me^.thisNodeId
-                              , Just δx <- [nngb^.thisNodeCoord .-~. me^.thisNodeCoord] ]
+              lm = dualNorm lm'
+              candidates :: [[(WebNodeId, Needle x)]]
+              candidates = preferred : other
+               where _l₀:l₁:l₂:ls = localOnion me []
+                     preferred = first _thisNodeId . swap <$> (l₁++l₂)
+                     other = map (first _thisNodeId . swap) <$> ls
 
 meanOf :: (Hask.Foldable f, Fractional n) => (a -> n) -> f a -> n
 meanOf f = renormalise . Hask.foldl' accs (0, 0::Int)
