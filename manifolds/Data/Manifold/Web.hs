@@ -201,6 +201,7 @@ autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
                                         distSq = normSq locMetr v
                                         wallDist = walln<.>^v
                                   , wallDist >= 0
+                                  , distSq > wallDist^2
                                   , not . any (==δi) $ UArr.toList aprNgbs
                                                         ++ map fst alreadyFound
                                   ] ]
