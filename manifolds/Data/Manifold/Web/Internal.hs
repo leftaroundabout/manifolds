@@ -420,7 +420,7 @@ gatherGoodNeighbours lm' lm wall aprioriN prev cs
  = case dualSpaceWitness :: DualSpaceWitness v of
     DualSpaceWitness ->
      case sortBy (comparing $ gatherDirectionsBadness.fst)
-                                  [ ((/βmin)
+                                  [ ((/(max 0 βmin+1e-8))
                                       <$> linkingUndesirability (normSq lm' δx) wallDist
                                     , (i,δx) )
                                   | (i,δx) <- cs
@@ -432,7 +432,6 @@ gatherGoodNeighbours lm' lm wall aprioriN prev cs
                                             -- β behaves basically like ϑ², where ϑ is
                                             -- the angle between two neighbour candidates.
                                           | δxo <- prev ]
-                                  , βmin > 0
                                   ] of
                   [] -> ([], Just wall)
                   (_,(i,δx)) : cs'
