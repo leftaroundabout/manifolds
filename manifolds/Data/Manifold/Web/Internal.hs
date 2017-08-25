@@ -405,13 +405,16 @@ bestNeighbours lm' aprioriN = first (map fst) . bestNeighbours' lm' aprioriN
 
 bestNeighbours' :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
                 => Norm v -> [v] -> [(i,v)] -> ([(i,v)], Maybe (DualVector v))
-bestNeighbours' lm' aprioriN ((c₀i,c₀δx) : candidates)
-  = case dualSpaceWitness :: DualSpaceWitness v of
+bestNeighbours' lm' aprioriN = map (id &&& normSq lm' . snd)
+                               >>> sortBy (comparing snd)
+                               >>> map fst
+                               >>>
+    \((c₀i,c₀δx) : candidates) -> case dualSpaceWitness :: DualSpaceWitness v of
      DualSpaceWitness ->
        let wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
             where w₀ = lm'<$|c₀δx
-           lm = dualNorm lm' :: Variance v
        in first ((c₀i,c₀δx):) $ gatherGoodNeighbours lm' lm wall₀ aprioriN [c₀δx] candidates
+ where lm = dualNorm lm' :: Variance v
 
 gatherGoodNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
             => Norm v -> Variance v
