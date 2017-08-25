@@ -17,6 +17,7 @@
 -- scalings, and we prefer that definition since it doesn't require a notion of
 -- unit length (which is only defined in inner-product spaces).
 
+{-# LANGUAGE StandaloneDeriving, FlexibleContexts, UndecidableInstances #-}
 
 
 
@@ -45,3 +46,4 @@ import Data.Foldable.Constrained
 
 
 newtype Stiefel1 v = Stiefel1 { getStiefel1N :: DualVector v }
+deriving instance (Show (DualVector v)) => Show (Stiefel1 v)

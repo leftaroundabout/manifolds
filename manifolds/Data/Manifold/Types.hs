@@ -319,6 +319,7 @@ data Line x = Line { lineHandle :: x
 --   behave locally as a plane, globally as an (/n/−1)-dimensional submanifold.
 data Cutplane x = Cutplane { sawHandle :: x
                            , cutNormal :: Stiefel1 (Needle x) }
+deriving instance (Show x, Show (Needle' x)) => Show (Cutplane x)
 
 normalPlane :: x         -- ^ Some point lying in the desired plane.
             -> Needle' x -- ^ Co-vector perpendicular to the plane. Must be nonzero.
