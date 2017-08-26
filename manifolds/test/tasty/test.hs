@@ -206,7 +206,7 @@ tests = testGroup "Tests"
                ,                   (-3,5),                         (3,5)
 
                ,                                               (2,6),        (5,6),(6,6) ])
-          @?= ([(1,-1), (-2,-2), (1,3)], Nothing)
+          @?= ([(1,-1), (-2,-2), (2,1), (-2,1)], Nothing)
     , testCase "Best neighbours in degenerate near-boundary constellation"
        $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
            ((id &&& (^-^(3.6, 3.0))) <$> reverse
@@ -218,7 +218,7 @@ tests = testGroup "Tests"
                                       , (3.45,2.6), (3.6,2.6), (3.75,2.6), (3.9,2.6)
                , (3.15,2.2)
                ])
-          @?= ([(3.45,3.2), (3.6,3.2), (3.6,2.8), (3.75,2.8)], Nothing)
+          @?= ([(3.6,2.8), (3.3,3.0), (3.6,3.2), (3.75,2.8)], Nothing)
     ]
  ]
 

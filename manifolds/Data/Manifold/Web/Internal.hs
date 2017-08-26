@@ -393,10 +393,12 @@ linkingUndesirability :: ℝ -- ^ Absolute-square distance (euclidean norm squar
                            --   adding two points directly opposed to each other would lead
                            --   to an ill-defined wall orientation, i.e. wrong normals
                            --   on the web boundary.
-linkingUndesirability distSq wallDist = LinkingBadness
+linkingUndesirability distSq wallDist
+  | wallDist >= 0  = LinkingBadness
    { gatherDirectionsBadness = distSq^2 / max 0 (distSq-wallDist^2)
    , closeSystemBadness = distSq - wallDist^2/2
    }
+  | otherwise     = LinkingBadness (1/0) (1/0) 
 
 
 bestNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
@@ -422,14 +424,15 @@ gatherGoodNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
 gatherGoodNeighbours lm' lm wall aprioriN prev cs
  = case dualSpaceWitness :: DualSpaceWitness v of
     DualSpaceWitness ->
-     case sortBy (comparing $ gatherDirectionsBadness.fst)
-                                  [ ((/(max 0 βmin+1e-8))
-                                      <$> linkingUndesirability (normSq lm' δx) wallDist
+     case dropWhile ((<0) . snd . fst)
+        $ sortBy (comparing $ gatherDirectionsBadness . fst . fst)
+                                  [ ( ( (/(max 0 βmin+1e-8))
+                                        <$> linkingUndesirability (normSq lm' δx) wallDist
+                                      , wallDist )
                                     , (i,δx) )
                                   | (i,δx) <- cs
                                   , let wallDist = - wall<.>^δx
-                                  , wallDist >= 0
-                                  , let βmin = minimum
+                                        βmin = minimum
                                           [ 1 - ((lm'<$|δx)<.>^δxo)
                                                   / sqrt (normSq lm' δx*normSq lm' δxo)
                                             -- β behaves basically like ϑ², where ϑ is
@@ -446,5 +449,5 @@ gatherGoodNeighbours lm' lm wall aprioriN prev cs
                                | Nothing <- pumpHalfspace lm' δx (wall,aprioriN++prev)
                                    = ([(i,δx)], Nothing)
                              closeSys (_:cs'') = closeSys cs''
-                         in closeSys $ sortBy (comparing $ closeSystemBadness.fst) cs'
+                         in closeSys $ sortBy (comparing $ closeSystemBadness.fst.fst) cs'
 
