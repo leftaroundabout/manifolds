@@ -255,13 +255,15 @@ knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
                         (links, Nothing) -> links
                         (links, Just newWall)
                          | Just _ <- me^.webBoundingPlane -> links
-                         | otherwise  -> go (Just newWall) ((snd<$>links) ++ prevs) ccs
+                         | otherwise  ->
+                             links ++ go (Just newWall) ((snd<$>links) ++ prevs) ccs
               go (Just wall) prevs (cs:ccs) = case gatherGoodNeighbours
                                lm' lm wall [] prevs cs of
                         (links, Nothing) -> links
                         (links, Just newWall)
                          | Nothing <- me^.webBoundingPlane
-                         , (_:_) <-ccs -> go (Just newWall) ((snd<$>links) ++ prevs) ccs
+                         , (_:_) <-ccs ->
+                             links ++ go (Just newWall) ((snd<$>links) ++ prevs) ccs
                          | otherwise   -> links
               lm' = me^.nodeLocalScalarProduct :: Metric x
               lm = dualNorm lm'
