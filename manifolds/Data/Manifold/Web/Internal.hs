@@ -28,9 +28,12 @@
 module Data.Manifold.Web.Internal where
 
 
+import Prelude hiding ((^))
+
 import qualified Data.Vector.Unboxed as UArr
 
 import Data.Manifold.Types
+import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Shade
 import Data.Manifold.TreeCover
@@ -457,8 +460,10 @@ gatherGoodNeighbours lm' lm wall aprioriN prev preserved cs
                    [ ((i,δx), badness)
                    | (i,δx) <- preserved++cs
                    , let wallDist = - wall<.>^δx
+                         distSq = normSq lm' δx
                    , wallDist > 0
-                   , let badness = linkingUndesirability (normSq lm' δx) wallDist ]
+                   , wallDist^2 > 1e-3 * distSq
+                   , let badness = linkingUndesirability distSq wallDist ]
               in closeSys . map fst $
                    sortBy (comparing $ closeSystemBadness . snd) closureCandidates
 
