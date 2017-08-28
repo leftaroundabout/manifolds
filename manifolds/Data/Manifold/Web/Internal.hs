@@ -435,7 +435,7 @@ gatherGoodNeighbours lm' lm wall aprioriN prev preserved cs
                                             -- β behaves basically like ϑ², where ϑ is
                                             -- the angle between two neighbour candidates.
                                    | δxo <- prev ]
-                guard (wallDist >= 0 && βmin > 0)
+                guard (wallDist >= 0 && βmin > 1e-3)
                 return $ gatherDirectionsBadness
                            (linkingUndesirability (normSq lm' δx) wallDist) / βmin )
             cs of
