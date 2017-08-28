@@ -52,6 +52,7 @@ import Data.Function ((&))
 import Data.Ord (comparing)
 import Data.List.FastNub (fastNub)
 import Control.Arrow
+import Control.Monad (guard)
 import Control.Comonad
 
 import Control.DeepSeq
@@ -415,39 +416,59 @@ bestNeighbours' lm' aprioriN = map (id &&& normSq lm' . snd)
      DualSpaceWitness ->
        let wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
             where w₀ = lm'<$|c₀δx
-       in first ((c₀i,c₀δx):) $ gatherGoodNeighbours lm' lm wall₀ aprioriN [c₀δx] candidates
+       in first ((c₀i,c₀δx):)
+              $ gatherGoodNeighbours lm' lm wall₀ aprioriN [c₀δx] [] candidates
  where lm = dualNorm lm' :: Variance v
 
 gatherGoodNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
             => Norm v -> Variance v
-               -> DualVector v -> [v] -> [v] -> [(i, v)] -> ([(i,v)], Maybe (DualVector v))
-gatherGoodNeighbours lm' lm wall aprioriN prev cs
+               -> DualVector v -> [v] -> [v] -> [(i,v)]
+                    -> [(i, v)] -> ([(i,v)], Maybe (DualVector v))
+gatherGoodNeighbours lm' lm wall aprioriN prev preserved cs
  = case dualSpaceWitness :: DualSpaceWitness v of
     DualSpaceWitness ->
-     case dropWhile ((<0) . snd . fst)
-        $ sortBy (comparing $ gatherDirectionsBadness . fst . fst)
-                                  [ ( ( (/(max 0 βmin+1e-8))
-                                        <$> linkingUndesirability (normSq lm' δx) wallDist
-                                      , wallDist )
-                                    , (i,δx) )
-                                  | (i,δx) <- cs
-                                  , let wallDist = - wall<.>^δx
-                                        βmin = minimum
-                                          [ 1 - ((lm'<$|δx)<.>^δxo)
+     case extractSmallestOn
+            (\(_,δx) -> do
+                let wallDist = - wall<.>^δx
+                    βmin = minimum [ 1 - ((lm'<$|δx)<.>^δxo)
                                                   / sqrt (normSq lm' δx*normSq lm' δxo)
                                             -- β behaves basically like ϑ², where ϑ is
                                             -- the angle between two neighbour candidates.
-                                          | δxo <- prev ]
-                                  ] of
-                  [] -> ([], Just wall)
-                  (_,(i,δx)) : cs'
-                   | Just wall' <- pumpHalfspace lm' δx (wall,aprioriN++prev)
+                                   | δxo <- prev ]
+                guard (wallDist >= 0 && βmin > 0)
+                return $ gatherDirectionsBadness
+                           (linkingUndesirability (normSq lm' δx) wallDist) / βmin )
+            cs of
+         Just ((i,δx), cs')
+           | Just wall' <- pumpHalfspace lm' δx (wall,aprioriN++prev)
                           -> first ((i,δx):)
                        $ gatherGoodNeighbours lm' lm (wall'^/(lm|$|wall'))
-                               aprioriN (δx:prev) (snd<$>cs')
-                  cs' -> let closeSys ((_,(i,δx)):_)
-                               | Nothing <- pumpHalfspace lm' δx (wall,aprioriN++prev)
-                                   = ([(i,δx)], Nothing)
-                             closeSys (_:cs'') = closeSys cs''
-                         in closeSys $ sortBy (comparing $ closeSystemBadness.fst.fst) cs'
+                               aprioriN (δx:prev) [] (preserved++cs')
+           | (_:_)<-cs'  -> gatherGoodNeighbours lm' lm wall
+                               aprioriN prev ((i,δx):preserved) cs'
+         _ -> let closeSys ((i,δx):_)
+                    | Nothing <- pumpHalfspace lm' δx (wall,aprioriN++prev)
+                        = ([(i,δx)], Nothing)
+                  closeSys (_:cs'') = closeSys cs''
+                  closeSys []
+                   | null closureCandidates  = ([], Just wall)
+                   | otherwise  = ([], Nothing)
+                  closureCandidates = 
+                   [ ((i,δx), badness)
+                   | (i,δx) <- preserved++cs
+                   , let wallDist = - wall<.>^δx
+                   , wallDist > 0
+                   , let badness = linkingUndesirability (normSq lm' δx) wallDist ]
+              in closeSys . map fst $
+                   sortBy (comparing $ closeSystemBadness . snd) closureCandidates
 
+
+extractSmallestOn :: Ord b => (a -> Maybe b) -> [a] -> Maybe (a, [a])
+extractSmallestOn f = extract . map (id &&& f)
+ where extract [] = Nothing
+       extract ((x, Just o):cs) = Just $ go (o,x) cs
+       extract ((x, Nothing):cs) = second (x:) <$> extract cs
+       go (_,refx) [] = (refx, [])
+       go (ref,refx) ((x, Just o):cs)
+        | o < ref   = second (refx:) $ go (o,x) cs
+       go ref ((x, _):cs) = second (x:) $ go ref cs
