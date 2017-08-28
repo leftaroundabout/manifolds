@@ -363,8 +363,7 @@ pumpHalfspace rieM v (prevPlane, ws) = case dualSpaceWitness :: DualSpaceWitness
          dv = rieM<$|vNudged
          thisPlane = dv ^/ (dv<.>^vNudged)
          cas ϑ = cos $ ϑ - pi/4
-  in if δϑ <= pi && minimum (abs<$>ϑs) < pi/2
-                 then Just $ let ϑbest = ϑmin + δϑ/2
+  in if δϑ <= pi then Just $ let ϑbest = ϑmin + δϑ/2
                              in prevPlane^*cas ϑbest ^+^ thisPlane^*cas (-ϑbest)
                  else Nothing
 
