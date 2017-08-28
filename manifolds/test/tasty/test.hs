@@ -144,34 +144,34 @@ tests = testGroup "Tests"
   ]
  , testGroup "Neighbour-search for web knitting."
     [ testCase "Origin-boundary excluding two points on the x- and y-axes"
-       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+       $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
                [(0, (1,0)), (1, (0,1))]
                @?= ([0,1], Just (sqrt 2/2, sqrt 2/2))
     , testCase "Origin-boundary excluding points in the x≥0 half plane"
-       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+       $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
                [(0, (1,0)), (1, (0,1)), (2, (0,-1))]
                @?= ([0,1,2], Just (1, -1.922877998462862e-16))
     , testCase "Best neighbours in a quadratic surrounding"
-       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+       $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
                [               (1, (0,-1)), (2, (1,-1))
                , (3, (-1,0)),               (4, (1,0))
                , (5, (-1,1)),  (6, (0,1)),  (7, (1,1)) ]
                @?= ([1,3,4,6], Nothing)
     , testCase "Best neighbours to the corner of a rectangular grid"
-       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+       $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
                [             ( 1,(1,0)), ( 2,(2,0)), ( 3,(3,0))
                , (10,(0,1)), (11,(1,1)), (12,(2,1)), (13,(3,1))
                , (20,(0,2)), (21,(1,2)), (22,(2,2)), (23,(3,2)) ]
                @?= ([1,10], Just (sqrt 2/2, sqrt 2/2))
     , testCase "Best neighbours in a rectangular grid"
-       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+       $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
            ((id&&&id) <$>
                [ (-2,-1), (-1,-1), ( 0,-1), ( 1,-1), ( 2,-1)
                , (-2, 0), (-1, 0),{-ORIGIN-}( 1, 0), ( 2, 0)
                , (-2, 1), (-1, 1), ( 0, 1), ( 1, 1), ( 2, 1) ])
           @?= ([(0,-1), (-1,0), (1,0), (0,1)], Nothing)
     , testCase "Best neighbours in a big rectangular grid"
-       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+       $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
            ((id&&&id) <$>
                [ (-3,-3), (-2,-3), (-1,-3), ( 0,-3), ( 1,-3), ( 2,-3), ( 3,-3)
                , (-3,-2), (-2,-2), (-1,-2), ( 0,-2), ( 1,-2), ( 2,-2), ( 3,-2)
@@ -181,7 +181,7 @@ tests = testGroup "Tests"
                , (-3, 2), (-2, 2), (-1, 2), ( 0, 2), ( 1, 2), ( 2, 2), ( 3, 2) ])
           @?= ([(0,-1), (-1,0), (1,0), (0,1)], Nothing)
     , testCase "Best neighbours in an irregular point-cloud"
-       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+       $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
            ((id&&&id) <$>
                [                               (-1,-6)
 
@@ -208,7 +208,7 @@ tests = testGroup "Tests"
                ,                                               (2,6),        (5,6),(6,6) ])
           @?= ([(1,-1), (-2,-2), (2,1), (-6,-3), (-2,1)], Nothing)
     , testCase "Best neighbours in degenerate near-boundary constellation"
-       $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+       $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
            ((id &&& (^-^(3.6, 3.0))) <$> reverse
                [ (3.15,3.6)
                           , (3.29,3.4)
@@ -220,7 +220,7 @@ tests = testGroup "Tests"
                ])
           @?= ([(3.6,2.8), (3.3,3.0), (3.6,3.2), (3.75,2.8)], Nothing)
     , testCase "Best neighbours in point selection from almost-rectangular grid"
-        $ bestNeighbours euclideanNorm ([]::[(ℝ,ℝ)])
+        $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
            ([ (235,(0.0,-0.2))
             , (248,(-0.7499999999999996,0.0))
             , (267,(0.0,0.2))

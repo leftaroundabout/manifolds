@@ -406,12 +406,12 @@ linkingUndesirability distSq wallDist
 
 
 bestNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
-                => Norm v -> [v] -> [(i,v)] -> ([i], Maybe (DualVector v))
-bestNeighbours lm' aprioriN = first (map fst) . bestNeighbours' lm' aprioriN
+                => Norm v -> [(i,v)] -> ([i], Maybe (DualVector v))
+bestNeighbours lm' = first (map fst) . bestNeighbours' lm'
 
 bestNeighbours' :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
-                => Norm v -> [v] -> [(i,v)] -> ([(i,v)], Maybe (DualVector v))
-bestNeighbours' lm' aprioriN = map (id &&& normSq lm' . snd)
+                => Norm v -> [(i,v)] -> ([(i,v)], Maybe (DualVector v))
+bestNeighbours' lm' = map (id &&& normSq lm' . snd)
                                >>> sortBy (comparing snd)
                                >>> map fst
                                >>>
@@ -420,14 +420,14 @@ bestNeighbours' lm' aprioriN = map (id &&& normSq lm' . snd)
        let wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
             where w₀ = lm'<$|c₀δx
        in first ((c₀i,c₀δx):)
-              $ gatherGoodNeighbours lm' lm wall₀ aprioriN [c₀δx] [] candidates
+              $ gatherGoodNeighbours lm' lm wall₀ [c₀δx] [] candidates
  where lm = dualNorm lm' :: Variance v
 
 gatherGoodNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
             => Norm v -> Variance v
-               -> DualVector v -> [v] -> [v] -> [(i,v)]
+               -> DualVector v -> [v] -> [(i,v)]
                     -> [(i, v)] -> ([(i,v)], Maybe (DualVector v))
-gatherGoodNeighbours lm' lm wall aprioriN prev preserved cs
+gatherGoodNeighbours lm' lm wall prev preserved cs
  = case dualSpaceWitness :: DualSpaceWitness v of
     DualSpaceWitness ->
      case extractSmallestOn
@@ -443,14 +443,14 @@ gatherGoodNeighbours lm' lm wall aprioriN prev preserved cs
                            (linkingUndesirability (normSq lm' δx) wallDist) / βmin )
             cs of
          Just ((i,δx), cs')
-           | Just wall' <- pumpHalfspace lm' δx (wall,aprioriN++prev)
+           | Just wall' <- pumpHalfspace lm' δx (wall,prev)
                           -> first ((i,δx):)
                        $ gatherGoodNeighbours lm' lm (wall'^/(lm|$|wall'))
-                               aprioriN (δx:prev) [] (preserved++cs')
+                               (δx:prev) [] (preserved++cs')
            | (_:_)<-cs'  -> gatherGoodNeighbours lm' lm wall
-                               aprioriN prev ((i,δx):preserved) cs'
+                               prev ((i,δx):preserved) cs'
          _ -> let closeSys ((i,δx):_)
-                    | Nothing <- pumpHalfspace lm' δx (wall,aprioriN++prev)
+                    | Nothing <- pumpHalfspace lm' δx (wall,prev)
                         = ([(i,δx)], Nothing)
                   closeSys (_:cs'') = closeSys cs''
                   closeSys []

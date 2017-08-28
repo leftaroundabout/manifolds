@@ -251,14 +251,14 @@ knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
              $ info^.nodeNeighbours
        pickNewNeighbours :: WebLocally x y -> [WebNodeId]
        pickNewNeighbours me = fst <$> go Nothing [] candidates
-        where go Nothing prevs (cs:ccs) = case bestNeighbours' lm' [] cs of
+        where go Nothing prevs (cs:ccs) = case bestNeighbours' lm' cs of
                         (links, Nothing) -> links
                         (links, Just newWall)
                          | Just _ <- me^.webBoundingPlane -> links
                          | otherwise  ->
                              links ++ go (Just newWall) ((snd<$>links) ++ prevs) ccs
               go (Just wall) prevs (cs:ccs) = case gatherGoodNeighbours
-                               lm' lm wall [] prevs [] cs of
+                               lm' lm wall prevs [] cs of
                         (links, Nothing) -> links
                         (links, Just newWall)
                          | Nothing <- me^.webBoundingPlane
