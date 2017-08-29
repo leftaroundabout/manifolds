@@ -429,14 +429,15 @@ gatherGoodNeighbours lm' lm wall prev preserved cs
      case extractSmallestOn
             (\(_,δx) -> do
                 let wallDist = - wall<.>^δx
-                    βmin = minimum [ 1 - ((lm'<$|δx)<.>^δxo)
-                                                  / sqrt (normSq lm' δx*normSq lm' δxo)
+                    dx = lm' <$| δx
+                    distSq = dx<.>^δx
+                    βmin = minimum [ 1 - (dx<.>^δxo) / sqrt (distSq*distSqo)
                                             -- β behaves basically like ϑ², where ϑ is
                                             -- the angle between two neighbour candidates.
-                                   | δxo <- prev ]
+                                   | (δxo, distSqo) <- prevWMag ]
                 guard (wallDist >= 0 && βmin > 1e-3)
                 return $ gatherDirectionsBadness
-                           (linkingUndesirability (normSq lm' δx) wallDist) / βmin )
+                           (linkingUndesirability distSq wallDist) / βmin )
             cs of
          Just ((i,δx), cs')
            | Just wall' <- pumpHalfspace lm' δx (wall,prev)
@@ -462,6 +463,7 @@ gatherGoodNeighbours lm' lm wall prev preserved cs
                    , let badness = linkingUndesirability distSq wallDist ]
               in closeSys . map fst $
                    sortBy (comparing $ closeSystemBadness . snd) closureCandidates
+ where prevWMag = map (id &&& normSq lm') prev
 
 
 extractSmallestOn :: Ord b => (a -> Maybe b) -> [a] -> Maybe (a, [a])
