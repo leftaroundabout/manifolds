@@ -193,8 +193,10 @@ autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
                   = [ (δi, (v, nh))
                     | envi <- enviLayers
                     , (δi, ((v,_), nh)) <- sortBy (comparing $ snd . fst . snd)
-                                  [ (δi, ((v, gatherDirectionsBadness
-                                               $ linkingUndesirability distSq wallDist
+                                  [ (δi, ((v, if dimension > 1
+                                               then gatherDirectionsBadness
+                                                 $ linkingUndesirability distSq wallDist
+                                               else distSq
                                                  ), nh))
                                   | (δi,(xp,nh)) <- envi
                                   , let Just v = xp.-~.x
@@ -202,6 +204,9 @@ autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
                                         wallDist = walln<.>^v
                                   , wallDist >= 0
                                   , distSq > wallDist^2
+                                     || dimension==1 -- in 1D, we must allow linking
+                                                     -- to the direct opposite
+                                                     -- (there IS no other direction)
                                   , not . any (==δi) $ UArr.toList aprNgbs
                                                         ++ map fst alreadyFound
                                   ] ]
@@ -214,6 +219,7 @@ autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
                                    (NodeInWeb tr envis)
                where (preds, succs) = splitAt iSpl $ onlyLeaves envi
        findEnviPts _ _ = []
+       dimension = subbasisDimension (entireBasis :: SubBasis (Needle x))
 
 fromTopShaded :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
      => (MetricChoice x)
