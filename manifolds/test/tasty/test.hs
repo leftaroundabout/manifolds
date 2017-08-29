@@ -8,11 +8,12 @@
 -- Portability : portable
 -- 
 
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedLists, TypeFamilies #-}
 
 module Main where
 
 import Data.Manifold.Types
+import Data.Manifold.PseudoAffine
 import Data.Manifold.TreeCover
 import Data.Manifold.Web
 import Data.Manifold.Web.Internal
@@ -233,6 +234,14 @@ tests = testGroup "Tests"
             ])
           @?= ([271,235,268,267], Nothing)
     ]
+ , testGroup "Automatically building webs"
+    [ testCase "Linear 1D “web”"
+        $ toList (directNeighbours (fromWebNodes euclideanMetric
+                                       [(x, ()) | x<-[0, 0.1 .. 2]] :: PointsWeb ℝ () ))
+          @?= [ [1,9], [0,2], [1,3], [2,4], [3], [6,12], [5,7], [6,8], [7,9], [0,8], [11,15]
+              , [10,12],[11,5],[14,20],[13,15],[10,14],[17],[16,18],[17,19],[18,20],[13,19]
+              ]
+    ]
  ]
 
 emptyWeb, singletonWeb, triangularWeb, quadraticWeb, nestedWeb, unsymmetricWeb
@@ -317,7 +326,7 @@ o = zeroV :: ℝ⁰
 dummyWebFmap :: PointsWeb ℝ⁰ a -> PointsWeb ℝ⁰ a
 dummyWebFmap = localFmapWeb $ \info -> info^.thisNodeData
 
-directNeighbours :: PointsWeb ℝ⁰ () -> PointsWeb ℝ⁰ [WebNodeId]
+directNeighbours :: WithField ℝ Manifold v => PointsWeb v () -> PointsWeb v [WebNodeId]
 directNeighbours = localFmapWeb $
      \info -> fst <$> info^.nodeNeighbours
 
