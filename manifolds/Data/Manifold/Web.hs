@@ -340,7 +340,13 @@ sliceWeb_lin :: ∀ x y . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
                         , Geodesic x, Geodesic y )
                => PointsWeb x y -> Cutplane x -> [(x,y)]
 sliceWeb_lin web = sliceEdgs
- where edgs = $notImplemented :: [((x,y),(x,y))]
+ where edgs :: [((x,y),(x,y))]
+       edgs = [ (gnodes i₀, gnodes i₁)
+              | (i₀,i₁) <- fastNub [ (i₀,i₁)
+                                   | (il,ir) <- edges graph
+                                   , let [i₀,i₁] = sort [il,ir] ]
+              ]
+       (graph, gnodes) = toGraph web
        sliceEdgs cp = [ (xi d, yi d)  -- Brute-force search through all edges
                       | ((x₀,y₀), (x₁,y₁)) <- edgs
                       , Just d <- [cutPosBetween cp (x₀,x₁)]
