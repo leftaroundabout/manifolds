@@ -410,11 +410,8 @@ bestNeighbours lm' = first (map fst) . bestNeighbours' lm'
 
 bestNeighbours' :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
                 => Norm v -> [(i,v)] -> ([(i,v)], Maybe (DualVector v))
-bestNeighbours' lm' = map (id &&& normSq lm' . snd)
-                               >>> sortBy (comparing snd)
-                               >>> map fst
-                               >>>
-    \((c₀i,c₀δx) : candidates) -> case dualSpaceWitness :: DualSpaceWitness v of
+bestNeighbours' lm' = extractSmallestOn (\(_,v) -> Just $ lm'|$|v) >>>
+    \(Just ((c₀i,c₀δx), candidates)) -> case dualSpaceWitness :: DualSpaceWitness v of
      DualSpaceWitness ->
        let wall₀ = w₀ ^/ (lm|$|w₀) -- sqrt (w₀<.>^c₀δx)
             where w₀ = lm'<$|c₀δx

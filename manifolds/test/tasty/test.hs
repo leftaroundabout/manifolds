@@ -236,7 +236,7 @@ tests = testGroup "Tests"
             , (268,(0.15,0.0))
             , (271,(-0.14999,0.0))
             ])
-          @?= ([271,235,268,267], Nothing)
+          @?= ([271,267,268,235], Nothing)
     , testCase "Best neighbours in point selection of 1D web test"
         $ bestNeighbours (euclideanNorm :: Norm ℝ)
            ((id &&& (^-^467)) <$>
