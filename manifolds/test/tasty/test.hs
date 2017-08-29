@@ -260,8 +260,6 @@ tests = testGroup "Tests"
                                                       , 565.5193483520385 ]
                                        ] :: PointsWeb ℝ () ))
           @?= [ [1], [0,2], [1,3], [4,2], [3] ]
-             -- [[],[3,2,0],[0,4,3,1],[4,2],[3]] before knitShortcuts
-             -- [[1],[0,3], [1,3], [4,0], [3] ] after
     , QC.testProperty "Random 1D web should be strongly connected"
        $ \ps -> length ps >= 2 ==>
                  length (Graph.scc . fst

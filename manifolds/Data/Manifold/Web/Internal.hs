@@ -41,7 +41,8 @@ import Data.Function.Affine
 import Data.VectorSpace (Scalar, (^+^), (^/), (^*), sumV)
 import Math.LinearMap.Category ( SimpleSpace, LSpace, DualVector, Norm, Variance
                                , (<.>^), dualNorm, (<$|), (|$|), normSq
-                               , dualSpaceWitness, DualSpaceWitness(..) )
+                               , dualSpaceWitness, DualSpaceWitness(..)
+                               , FiniteDimensional (..) )
     
 import qualified Data.Foldable       as Hask
 import qualified Data.Traversable as Hask
@@ -424,7 +425,17 @@ gatherGoodNeighbours :: ∀ i v . (SimpleSpace v, Scalar v ~ ℝ)
                -> DualVector v -> [v] -> [(i,v)]
                     -> [(i, v)] -> ([(i,v)], Maybe (DualVector v))
 gatherGoodNeighbours lm' lm wall prev preserved cs
- = case dualSpaceWitness :: DualSpaceWitness v of
+ | dimension == 1  = case extractSmallestOn
+                       (\(_,δx) -> do
+                          let wallDist = - wall<.>^δx
+                          guard (wallDist > 0)
+                          return wallDist
+                       ) cs of
+     Just (r, _) -> ([r], Nothing)
+     Nothing -> ([], Just wall)
+ where dimension = subbasisDimension (entireBasis :: SubBasis v)
+gatherGoodNeighbours lm' lm wall prev preserved cs
+  = case dualSpaceWitness :: DualSpaceWitness v of
     DualSpaceWitness ->
      case extractSmallestOn
             (\(_,δx) -> do
