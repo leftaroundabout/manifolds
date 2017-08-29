@@ -271,6 +271,7 @@ knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
                          , (_:_) <-ccs ->
                              links ++ go (Just newWall) ((snd<$>links) ++ prevs) ccs
                          | otherwise   -> links
+              go _ _ [] = []
               lm' = me^.nodeLocalScalarProduct :: Metric x
               lm = dualNorm lm'
               candidates :: [[(WebNodeId, Needle x)]]
