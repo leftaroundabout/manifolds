@@ -22,9 +22,13 @@ import Math.LinearMap.Category
 
 import Test.Tasty
 import Test.Tasty.HUnit
+import qualified Test.Tasty.QuickCheck as QC
+import Test.Tasty.QuickCheck ((==>))
 
 import Data.Foldable (toList)
 import Data.List (nub)
+import qualified Data.Graph as Graph
+import qualified Data.Set as Set
 import Control.Arrow
 import Control.Lens
 
@@ -241,6 +245,12 @@ tests = testGroup "Tests"
           @?= [ [1,9], [0,2], [1,3], [2,4], [3], [6,12], [5,7], [6,8], [7,9], [0,8], [11,15]
               , [10,12],[11,5],[14,20],[13,15],[10,14],[17],[16,18],[17,19],[18,20],[13,19]
               ]
+    , QC.testProperty "Random 1D web should be strongly connected"
+       $ \ps -> length ps >= 2 ==>
+                 length (Graph.scc . fst
+                          $ toGraph ( fromWebNodes euclideanMetric
+                                        [(x, ()) | x<-Set.toList ps] :: PointsWeb ℝ () )
+                      ) == 1
     ]
  ]
 
