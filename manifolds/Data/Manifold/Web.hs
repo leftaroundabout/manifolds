@@ -276,8 +276,10 @@ knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
               candidates :: [[(WebNodeId, Needle x)]]
               candidates = preferred : other
                where _l₀:l₁:l₂:ls = localOnion me []
-                     preferred = first _thisNodeId . swap <$> (l₁++l₂)
-                     other = map (first _thisNodeId . swap) <$> ls
+                     (preferred, other) = case localOnion me [] of
+                       _l₀:l₁:l₂:ls -> ( first _thisNodeId . swap <$> (l₁++l₂)
+                                       , map (first _thisNodeId . swap) <$> ls )
+                       [_l₀,l₁] -> (first _thisNodeId . swap <$> l₁, [])
 
 meanOf :: (Hask.Foldable f, Fractional n) => (a -> n) -> f a -> n
 meanOf f = renormalise . Hask.foldl' accs (0, 0::Int)
