@@ -237,6 +237,12 @@ tests = testGroup "Tests"
             , (271,(-0.14999,0.0))
             ])
           @?= ([271,235,268,267], Nothing)
+    , testCase "Best neighbours in point selection of 1D web test"
+        $ bestNeighbours (euclideanNorm :: Norm ℝ)
+           ((id &&& (^-^467)) <$>
+            [ 565.5193483520385, 254.62827644949562
+            , 203.3896874080876, 214.87356399193985 ])
+          @?= ([565.5193483520385, 254.62827644949562], Nothing)
     ]
  , testGroup "Automatically building webs"
     [ testCase "Linear 1D “web”"
@@ -245,6 +251,17 @@ tests = testGroup "Tests"
           @?= [ [1,9], [0,2], [1,3], [2,4], [3], [6,12], [5,7], [6,8], [7,9], [0,8], [11,15]
               , [10,12],[11,5],[14,20],[13,15],[10,14],[17],[16,18],[17,19],[18,20],[13,19]
               ]
+    , testCase "Small linear 1D web with nonuniform spacing"
+        $ toList (directNeighbours (fromWebNodes euclideanMetric
+                                       [ (x, ()) | x<-[ 203.3896874080876
+                                                      , 214.87356399193985
+                                                      , 254.62827644949562
+                                                      , 467.0
+                                                      , 565.5193483520385 ]
+                                       ] :: PointsWeb ℝ () ))
+          @?= [ [1], [0,2], [1,3], [4,2], [3] ]
+             -- [[],[3,2,0],[0,4,3,1],[4,2],[3]] before knitShortcuts
+             -- [[1],[0,3], [1,3], [4,0], [3] ] after
     , QC.testProperty "Random 1D web should be strongly connected"
        $ \ps -> length ps >= 2 ==>
                  length (Graph.scc . fst
