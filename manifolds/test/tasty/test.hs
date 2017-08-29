@@ -143,7 +143,11 @@ tests = testGroup "Tests"
           ]
   ]
  , testGroup "Neighbour-search for web knitting."
-    [ testCase "Origin-boundary excluding two points on the x- and y-axes"
+    [ testCase "1D line of points"
+       $ bestNeighbours (euclideanNorm :: Norm ℝ)
+               (zip [0..] [-1, -0.7 .. 1])
+               @?= ([3,4], Nothing)
+    , testCase "Origin-boundary excluding two points on the x- and y-axes"
        $ bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
                [(0, (1,0)), (1, (0,1))]
                @?= ([0,1], Just (sqrt 2/2, sqrt 2/2))
