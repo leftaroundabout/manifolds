@@ -842,8 +842,7 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                               (ngb^.thisNodeData.shadeNarrowness)] of
                         LocalDifferentialEqn rescan -> fst
                              ( rescan (info^.thisNodeData)
-                                      (differentiateUncertainWebLocally info)
-                                      (differentiate²UncertainWebLocally info) )
+                                      (differentiateUncertainWebLocally info) )
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))

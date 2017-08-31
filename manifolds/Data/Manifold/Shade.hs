@@ -124,7 +124,6 @@ data Shade' x = Shade' { _shade'Ctr :: !(Interior x)
 
 newtype LocalDifferentialEqn x y = LocalDifferentialEqn {
       _rescanDifferentialEqn :: Shade' y -> Shade' (LocalLinear x y)
-                             -> Shade' (LocalBilinear x y)
                              -> (Maybe (Shade' y), Maybe (Shade' (LocalLinear x y)))
     }
 makeLenses ''LocalDifferentialEqn
@@ -1063,7 +1062,7 @@ propagateDEqnSolution_loc f propPlan
              (GeodesicWitness _)
           | Nothing <- jacobian  = Nothing
           | otherwise            = pure result
-         where (_,jacobian) = (f shxy ^. rescanDifferentialEqn) shy shð shð²
+         where (_,jacobian) = (f shxy ^. rescanDifferentialEqn) shy shð
                Just (Shade' j₀ jExpa) = jacobian
                jacobianSh :: Shade (LocalLinear x y)
                Just jacobianSh = dualShade' <$> jacobian

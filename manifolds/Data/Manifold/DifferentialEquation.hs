@@ -103,7 +103,7 @@ constLinearDEqn = case ( linearManifoldWitness :: LinearManifoldWitness x
     ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt'inv bwt' ->
         \(Shade (_x,y) δxy) -> LocalDifferentialEqn
          { _rescanDifferentialEqn
-            = \shy shjApriori _
+            = \shy shjApriori
                 -> ( mixShade's $ shy
                              :| [ projectShade
                                    (Embedding (arr bwt'inv)
@@ -127,9 +127,9 @@ constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
     ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt' ->
     let bwt'inv = pseudoInverse bwt'
     in \(Shade (_x,y) δxy) -> LocalDifferentialEqn
-            (\shy _ _ -> ( pure shy
-                         , return $ projectShade (Embedding (arr bwt')
-                                                            (arr bwt'inv)) shy )
+            (\shy _ -> ( pure shy
+                       , return $ projectShade (Embedding (arr bwt')
+                                                          (arr bwt'inv)) shy )
             )
 
 
