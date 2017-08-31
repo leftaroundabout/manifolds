@@ -69,8 +69,8 @@ uncertainFunctionSamplesT n shx f = case ( dualSpaceWitness :: DualNeedleWitness
       domainSpls <- replicateM n $ rvarT shx
       pts <- forM domainSpls $ \x -> do
          y <- rvarT $ f x
-         return (WithAny y x)
-      let t₀ = fromLeafPoints pts
+         return (x,y)
+      let t₀ = fromLeafPoints_ pts
           ntwigs = length $ twigsWithEnvirons t₀
           nPerTwig = fromIntegral n / fromIntegral ntwigs
           ensureThickness :: Shade' (x,y)
