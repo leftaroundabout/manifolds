@@ -92,6 +92,7 @@ import Data.Manifold.TreeCover
 import Data.SetLike.Intersection
 import Data.Manifold.Riemannian
 import Data.Manifold.Atlas
+import Data.Manifold.Function.LocalModel
 import Data.Manifold.Function.Quadratic
 import Data.Function.Affine
 import Data.Manifold.Web.Internal

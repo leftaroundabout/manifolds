@@ -58,11 +58,7 @@ module Data.Manifold.TreeCover (
        , Shaded(..), fmapShaded
        , constShaded, zipTreeWithList
        , stiAsIntervalMapping, spanShading
-       , estimateLocalJacobian
        , DBranch, DBranch'(..), Hourglass(..)
-       , DifferentialEqn, LocalDifferentialEqn(..)
-       , propagateDEqnSolution_loc, LocalDataPropPlan(..)
-       , rangeOnGeodesic
        , unsafeFmapTree
        -- ** Triangulation-builders
        , TriangBuild, doTriangBuild

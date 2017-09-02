@@ -58,6 +58,7 @@ import Data.Basis
 
 import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
+import Data.Manifold.Function.LocalModel
 import Data.Function.Differentiable
 import Data.Function.Differentiable.Data
 import Data.Manifold.TreeCover
