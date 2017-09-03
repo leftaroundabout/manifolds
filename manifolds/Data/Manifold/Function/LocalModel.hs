@@ -16,6 +16,7 @@
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE TemplateHaskell          #-}
+{-# LANGUAGE ConstraintKinds          #-}
 
 module Data.Manifold.Function.LocalModel (
     -- ** Local data fit models
@@ -26,6 +27,8 @@ module Data.Manifold.Function.LocalModel (
     , propagateDEqnSolution_loc, LocalDataPropPlan(..)
     -- ** Range interpolation
     , rangeWithinVertices
+    -- * Misc
+    , p²Dimension
     ) where
 
 
@@ -99,6 +102,8 @@ data QuadraticModel x y = QuadraticModel {
        , _quadraticModelLCoeff :: Shade ( Needle x  +>Needle y)
        , _quadraticModelQCoeff :: Shade (Needle x⊗〃+>Needle y)
        }
+makeLenses ''QuadraticModel
+
 type QModelTup s x y = ( Needle y, (Needle x+>Needle y
                                  , SymmetricTensor s (Needle x)+>(Needle y)) )
 
@@ -178,9 +183,7 @@ propagationCenteredQuadraticModel propPlan = estimateLocalHessian ptsFromCenter
                                : propPlan^.relatedData
                         ]
 
-propagateDEqnSolution_loc :: ∀ x y . ( WithField ℝ Manifold x
-                                       , Refinable y, Geodesic y
-                                       , FlatSpace (Needle x), FlatSpace (Needle y) )
+propagateDEqnSolution_loc :: ∀ x y . ModellableRelation x y
            => DifferentialEqn x y
                -> LocalDataPropPlan x (Shade' y) (Shade' y)
                -> Maybe (Shade' y)
@@ -226,3 +229,32 @@ propagateDEqnSolution_loc f propPlan
                 where δyb = j₀ $ δx
                δx = propPlan^.targetPosOffset
 
+
+type ModellableRelation x y = ( WithField ℝ Manifold x
+                              , Refinable y, Geodesic y
+                              , FlatSpace (Needle x), FlatSpace (Needle y) )
+
+class LocalModel ㄇ where
+  fitLocally :: ModellableRelation x y
+                  => [(Local x, Shade' y)] -> Maybe (ㄇ x y)
+  tweakLocalOffset :: ModellableRelation x y
+                  => Lens' (ㄇ x y) (Shade y)
+
+modelParametersOverdetMargin :: Int -> Int
+modelParametersOverdetMargin n = n + round (sqrt $ fromIntegral n)
+
+
+-- | Dimension of the space of quadratic functions on @v@.
+p²Dimension :: ∀ v p . FiniteDimensional v => p v -> Int
+p²Dimension _ = 1 + d + (d*(d+1))`div`2
+ where d = subbasisDimension (entireBasis :: SubBasis v)
+
+instance LocalModel QuadraticModel where
+  fitLocally = qFitL
+   where qFitL :: ∀ x y . ModellableRelation x y
+                    => [(Local x, Shade' y)] -> Maybe (QuadraticModel x y)
+         qFitL dataPts
+          | (p₀:ps, pω:_) <- splitAt (modelParametersOverdetMargin
+                                        $ p²Dimension ([]::[Needle x])) dataPts
+                 = Just $ estimateLocalHessian (p₀:|ps++[pω])
+  tweakLocalOffset = quadraticModelOffset

@@ -565,11 +565,6 @@ differentiateUncertainWebLocally info
                _      -> Shade' zeroV mempty
 
 
--- | Dimension of the space of quadratic functions on @v@.
-p²Dimension :: ∀ v p . FiniteDimensional v => p v -> Int
-p²Dimension _ = 1 + d + (d*(d+1))`div`2
- where d = subbasisDimension (entireBasis :: SubBasis v)
-
 differentiateUncertainWebFunction :: ∀ x y
    . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
      , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
