@@ -61,14 +61,14 @@ makeLenses ''LocalDifferentialEqn
 
 type DifferentialEqn x y = Shade (x,y) -> LocalDifferentialEqn x y
 
-data LocalDataPropPlan x ym yr = LocalDataPropPlan
+data LocalDataPropPlan x y = LocalDataPropPlan
        { _sourcePosition :: !(Interior x)
        , _targetPosOffset :: !(Needle x)
-       , _sourceData, _targetAPrioriData :: !ym
-       , _relatedData :: [(Needle x, yr)]
+       , _sourceData, _targetAPrioriData :: !y
+       , _relatedData :: [(Needle x, y)]
        }
-deriving instance (Show (Interior x), Show ym, Show yr, Show (Needle x))
-             => Show (LocalDataPropPlan x ym yr)
+deriving instance (Show (Interior x), Show y, Show (Needle x))
+             => Show (LocalDataPropPlan x y)
 
 makeLenses ''LocalDataPropPlan
 
@@ -173,7 +173,7 @@ estimateLocalHessian pts = quadratic_linearRegression $ first getLocalOffset <$>
 propagationCenteredQuadraticModel :: ∀ x y .
                          ( WithField ℝ Manifold x, Refinable y, Geodesic y
                          , FlatSpace (Needle x), FlatSpace (Needle y) )
-         => LocalDataPropPlan x (Shade' y) (Shade' y) -> QuadraticModel x y
+         => LocalDataPropPlan x (Shade' y) -> QuadraticModel x y
 propagationCenteredQuadraticModel propPlan = estimateLocalHessian ptsFromCenter
  where ctrOffset = propPlan^.targetPosOffset^/2
        ptsFromCenter = (Local $ negateV ctrOffset :: Local x, propPlan^.sourceData)
@@ -185,7 +185,7 @@ propagationCenteredQuadraticModel propPlan = estimateLocalHessian ptsFromCenter
 
 propagateDEqnSolution_loc :: ∀ x y . ModellableRelation x y
            => DifferentialEqn x y
-               -> LocalDataPropPlan x (Shade' y) (Shade' y)
+               -> LocalDataPropPlan x (Shade' y)
                -> Maybe (Shade' y)
 propagateDEqnSolution_loc f propPlan
                   = pdesl (dualSpaceWitness :: DualNeedleWitness x)
