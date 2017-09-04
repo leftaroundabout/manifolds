@@ -19,8 +19,10 @@
 {-# LANGUAGE ConstraintKinds          #-}
 
 module Data.Manifold.Function.LocalModel (
+    -- * The model class
+      LocalModel (..)
     -- ** Local data fit models
-      estimateLocalJacobian, estimateLocalHessian
+    , estimateLocalJacobian, estimateLocalHessian
     , propagationCenteredQuadraticModel, QuadraticModel(..), quadraticModel_derivatives
     -- ** Differential equations
     , DifferentialEqn, LocalDifferentialEqn(..)
@@ -53,13 +55,13 @@ import Control.Lens
 import Control.Lens.TH
 
 
-newtype LocalDifferentialEqn x y = LocalDifferentialEqn {
-      _rescanDifferentialEqn :: Shade' y -> Shade' (LocalLinear x y)
+newtype LocalDifferentialEqn ㄇ x y = LocalDifferentialEqn {
+      _rescanDifferentialEqn :: ㄇ x y
                              -> (Maybe (Shade' y), Maybe (Shade' (LocalLinear x y)))
     }
 makeLenses ''LocalDifferentialEqn
 
-type DifferentialEqn x y = Shade (x,y) -> LocalDifferentialEqn x y
+type DifferentialEqn ㄇ x y = Shade (x,y) -> LocalDifferentialEqn ㄇ x y
 
 data LocalDataPropPlan x y = LocalDataPropPlan
        { _sourcePosition :: !(Interior x)
@@ -170,11 +172,13 @@ estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y, Geode
 estimateLocalHessian pts = quadratic_linearRegression $ first getLocalOffset <$> pts
 
 
-propagationCenteredQuadraticModel :: ∀ x y .
+propagationCenteredModel :: ∀ x y ㄇ .
                          ( WithField ℝ Manifold x, Refinable y, Geodesic y
-                         , FlatSpace (Needle x), FlatSpace (Needle y) )
-         => LocalDataPropPlan x (Shade' y) -> QuadraticModel x y
-propagationCenteredQuadraticModel propPlan = estimateLocalHessian ptsFromCenter
+                         , FlatSpace (Needle x), FlatSpace (Needle y)
+                         , LocalModel ㄇ )
+         => LocalDataPropPlan x (Shade' y) -> ㄇ x y
+propagationCenteredModel propPlan = case fitLocally (NE.toList ptsFromCenter) of
+                                       Just ㄇ->ㄇ
  where ctrOffset = propPlan^.targetPosOffset^/2
        ptsFromCenter = (Local $ negateV ctrOffset :: Local x, propPlan^.sourceData)
                      :| [(Local $ δx^-^ctrOffset, shy)
@@ -183,8 +187,16 @@ propagationCenteredQuadraticModel propPlan = estimateLocalHessian ptsFromCenter
                                : propPlan^.relatedData
                         ]
 
-propagateDEqnSolution_loc :: ∀ x y . ModellableRelation x y
-           => DifferentialEqn x y
+
+propagationCenteredQuadraticModel :: ∀ x y .
+                         ( WithField ℝ Manifold x, Refinable y, Geodesic y
+                         , FlatSpace (Needle x), FlatSpace (Needle y) )
+         => LocalDataPropPlan x (Shade' y) -> QuadraticModel x y
+propagationCenteredQuadraticModel = propagationCenteredModel
+
+
+propagateDEqnSolution_loc :: ∀ x y ㄇ . (ModellableRelation x y, LocalModel ㄇ)
+           => DifferentialEqn ㄇ x y
                -> LocalDataPropPlan x (Shade' y)
                -> Maybe (Shade' y)
 propagateDEqnSolution_loc f propPlan
@@ -198,12 +210,11 @@ propagateDEqnSolution_loc f propPlan
              (GeodesicWitness _)
           | Nothing <- jacobian  = Nothing
           | otherwise            = pure result
-         where (_,jacobian) = (f shxy ^. rescanDifferentialEqn) shy shð
+         where (_,jacobian) = f shxy ^. rescanDifferentialEqn
+                               $ propagationCenteredModel propPlan
                Just (Shade' j₀ jExpa) = jacobian
                jacobianSh :: Shade (LocalLinear x y)
                Just jacobianSh = dualShade' <$> jacobian
-               (shy, (shð,shð²)) = quadraticModel_derivatives
-                                   $ propagationCenteredQuadraticModel propPlan
                mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2 :: x
                (Shade _ expax' :: Shade x)
                     = coverAllAround (propPlan^.sourcePosition)

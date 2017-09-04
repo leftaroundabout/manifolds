@@ -58,6 +58,7 @@ import Data.Basis
 
 import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
+import Data.Manifold.Shade
 import Data.Manifold.Function.LocalModel
 import Data.Function.Differentiable
 import Data.Function.Differentiable.Data
@@ -90,12 +91,12 @@ import Data.Traversable.Constrained (Traversable, traverse)
 --   be an arbitrary one-dimensional space (i.e. basically real intervals or 'S¹').
 --   In these cases, there is always only one partial derivative: that which we
 --   integrate over, in the only possible direction for propagation.
-type ODE x y = DifferentialEqn x y
+type ODE x y = DifferentialEqn QuadraticModel x y
 
 constLinearDEqn :: ∀ x y . ( SimpleSpace x
                            , SimpleSpace y, AffineManifold y
                            , Scalar x ~ ℝ, Scalar y ~ ℝ )
-              => (y +> (x +> y)) -> ((x +> y) +> y) -> DifferentialEqn x y
+              => (y +> (x +> y)) -> ((x +> y) +> y) -> DifferentialEqn QuadraticModel x y
 constLinearDEqn = case ( linearManifoldWitness :: LinearManifoldWitness x
                        , dualSpaceWitness :: DualSpaceWitness x
                        , linearManifoldWitness :: LinearManifoldWitness y
@@ -104,8 +105,10 @@ constLinearDEqn = case ( linearManifoldWitness :: LinearManifoldWitness x
     ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt'inv bwt' ->
         \(Shade (_x,y) δxy) -> LocalDifferentialEqn
          { _rescanDifferentialEqn
-            = \shy shjApriori
-                -> ( mixShade's $ shy
+            = \(QuadraticModel shy' shj'Apriori _) ->
+               let shy = dualShade shy'
+                   shjApriori = dualShade shj'Apriori
+                in ( mixShade's $ shy
                              :| [ projectShade
                                    (Embedding (arr bwt'inv)
                                               (arr bwt'))
@@ -128,7 +131,9 @@ constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
     ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt' ->
     let bwt'inv = pseudoInverse bwt'
     in \(Shade (_x,y) δxy) -> LocalDifferentialEqn
-            (\shy _ -> ( pure shy
+            (\(QuadraticModel shy' _ _) ->
+                    let shy = dualShade shy'
+                    in ( pure shy
                        , return $ projectShade (Embedding (arr bwt')
                                                           (arr bwt'inv)) shy )
             )

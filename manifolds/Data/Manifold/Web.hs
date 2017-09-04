@@ -647,10 +647,10 @@ differentiate²UncertainWebFunction :: ∀ x y
           -> PointsWeb x (Shade' (Needle x ⊗〃+> Needle y)) 
 differentiate²UncertainWebFunction = localFmapWeb differentiate²UncertainWebLocally
 
-rescanPDELocally :: ∀ x y .
+rescanPDELocally :: ∀ x y ㄇ .
      ( WithField ℝ Manifold x, FlatSpace (Needle x)
      , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
-         => DifferentialEqn x y -> WebLocally x (Shade' y) -> Maybe (Shade' y)
+         => DifferentialEqn ㄇ x y -> WebLocally x (Shade' y) -> Maybe (Shade' y)
 rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                         , dualSpaceWitness :: DualNeedleWitness y
                         , boundarylessWitness :: BoundarylessWitness x
@@ -668,8 +668,7 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                      , v <- normSpanningSystem'
                                               (ngb^.thisNodeData.shadeNarrowness)] of
                         LocalDifferentialEqn rescan -> fst
-                             ( rescan (info^.thisNodeData)
-                                      (differentiateUncertainWebLocally info) )
+                             ( rescan ($notImplemented) )
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
@@ -770,10 +769,11 @@ deriving instance Hask.Functor (InconsistencyStrategy m x)
 
 iterateFilterDEqn_static :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
                             , Refinable y, Geodesic y, FlatSpace (Needle y)
-                            , Hask.MonadPlus m )
+                            , Hask.MonadPlus m
+                            , LocalModel ㄇ )
        => InformationMergeStrategy [] m (x,Shade' y) iy
            -> Embedding (->) (Shade' y) iy
-           -> DifferentialEqn x y
+           -> DifferentialEqn ㄇ x y
                  -> PointsWeb x (Shade' y) -> Cofree m (PointsWeb x (Shade' y))
 iterateFilterDEqn_static strategy shading f
                            = fmap (fmap (shading >-$))
@@ -783,11 +783,12 @@ iterateFilterDEqn_static strategy shading f
 
 iterateFilterDEqn_static_selective :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
                                       , Refinable y, Geodesic y, FlatSpace (Needle y)
-                                      , Hask.MonadPlus m, badness ~ ℝ )
+                                      , Hask.MonadPlus m, badness ~ ℝ
+                                      , LocalModel ㄇ )
        => InformationMergeStrategy [] m (x,Shade' y) iy
            -> Embedding (->) (Shade' y) iy
            -> (x -> iy -> badness)
-           -> DifferentialEqn x y
+           -> DifferentialEqn ㄇ x y
                  -> PointsWeb x (Shade' y) -> Cofree m (PointsWeb x (Shade' y))
 iterateFilterDEqn_static_selective strategy shading badness f
       = fmap (fmap (shading >-$))
@@ -795,12 +796,13 @@ iterateFilterDEqn_static_selective strategy shading badness f
       . fmap (shading $->)
 
 
-filterDEqnSolutions_static :: ∀ x y iy m .
+filterDEqnSolutions_static :: ∀ x y ㄇ iy m .
                               ( WithField ℝ Manifold x, FlatSpace (Needle x)
                               , Refinable y, Geodesic y, FlatSpace (Needle y)
-                              , Hask.MonadPlus m )
+                              , Hask.MonadPlus m
+                              , LocalModel ㄇ )
        => InformationMergeStrategy [] m  (x,Shade' y) iy -> Embedding (->) (Shade' y) iy
-          -> DifferentialEqn x y -> PointsWeb x iy -> m (PointsWeb x iy)
+          -> DifferentialEqn ㄇ x y -> PointsWeb x iy -> m (PointsWeb x iy)
 filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
    GeodesicWitness _ -> \strategy shading f
        -> webLocalInfo
@@ -852,13 +854,14 @@ average (Average w a) = a / fromIntegral w
 averaging :: VectorSpace a => [a] -> Average a
 averaging l = Average (length l) (sumV l)
 
-filterDEqnSolutions_static_selective :: ∀ x y iy m badness .
+filterDEqnSolutions_static_selective :: ∀ x y ㄇ iy m badness .
                               ( WithField ℝ Manifold x, FlatSpace (Needle x)
                               , Refinable y, Geodesic y, FlatSpace (Needle y)
-                              , Hask.MonadPlus m, badness ~ ℝ )
+                              , Hask.MonadPlus m, badness ~ ℝ
+                              , LocalModel ㄇ )
        => InformationMergeStrategy [] m  (x,Shade' y) iy -> Embedding (->) (Shade' y) iy
           -> (x -> iy -> badness)
-          -> DifferentialEqn x y
+          -> DifferentialEqn ㄇ x y
           -> PointsWeb x iy -> m (PointsWeb x iy)
 filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y of
    GeodesicWitness _ -> \strategy shading badness f
@@ -958,13 +961,14 @@ oldAndNew' (Just x, l) = (True, x) : fmap (False,) l
 oldAndNew' (_, l) = (False,) <$> l
 
 
-filterDEqnSolutions_adaptive :: ∀ x y ð badness m
+filterDEqnSolutions_adaptive :: ∀ x y ㄇ ð badness m
         . ( WithField ℝ Manifold x, FlatSpace (Needle x)
           , WithField ℝ AffineManifold y, Refinable y, Geodesic y, FlatSpace (Needle y)
-          , badness ~ ℝ, Hask.Monad m )
+          , badness ~ ℝ, Hask.Monad m
+          , LocalModel ㄇ )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m x (Shade' y)
-       -> DifferentialEqn x y
+       -> DifferentialEqn ㄇ x y
        -> (x -> Shade' y -> badness)
              -> PointsWeb x (SolverNodeState x y)
                         -> m (PointsWeb x (SolverNodeState x y))
@@ -1149,10 +1153,10 @@ recomputeJacobian = webLocalInfo
 iterateFilterDEqn_adaptive
      :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
         , WithField ℝ AffineManifold y, Refinable y, Geodesic y, FlatSpace (Needle y)
-        , Hask.Monad m )
+        , LocalModel ㄇ, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m x (Shade' y)
-       -> DifferentialEqn x y
+       -> DifferentialEqn ㄇ x y
        -> (x -> Shade' y -> ℝ) -- ^ Badness function for local results.
              -> PointsWeb x (Shade' y) -> [PointsWeb x (Shade' y)]
 iterateFilterDEqn_adaptive mf strategy f badness
