@@ -166,7 +166,7 @@ toShaded (PointsWeb shd) = fmap _dataAtNode shd
 unlinkedFromShaded :: ∀ x y . SimpleSpace (Needle x)
                  => MetricChoice x -> (x`Shaded`y) -> PointsWeb x y
 unlinkedFromShaded metricf = PointsWeb<<<fmap `id` \y
-                -> Neighbourhood y mempty (metricf $notImplemented) (Just dv)
+                -> Neighbourhood y mempty nm (Just dv)
  where nm = metricf $notImplemented
        dv = head $ normSpanningSystem nm
 
@@ -649,7 +649,8 @@ differentiate²UncertainWebFunction = localFmapWeb differentiate²UncertainWebLo
 
 rescanPDELocally :: ∀ x y ㄇ .
      ( WithField ℝ Manifold x, FlatSpace (Needle x)
-     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
+     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y)
+     , LocalModel ㄇ )
          => DifferentialEqn ㄇ x y -> WebLocally x (Shade' y) -> Maybe (Shade' y)
 rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                         , dualSpaceWitness :: DualNeedleWitness y
@@ -668,7 +669,9 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                      , v <- normSpanningSystem'
                                               (ngb^.thisNodeData.shadeNarrowness)] of
                         LocalDifferentialEqn rescan -> fst
-                             ( rescan ($notImplemented) )
+                             ( rescan $ case fitLocally $ map (Local *** _thisNodeData)
+                                               =<< (localOnion info []) of
+                                 Just ㄇ -> ㄇ)
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
