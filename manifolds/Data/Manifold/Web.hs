@@ -585,17 +585,15 @@ differentiate²UncertainWebLocally = d²uwl
  where d²uwl ( PseudoAffineWitness (SemimanifoldWitness _)
              , PseudoAffineWitness (SemimanifoldWitness _)
              , DualSpaceWitness, DualSpaceWitness ) info
-          = case estimateLocalHessian $
+          = case fitLocally $
                           (\(δx,ngb) -> (Local δx :: Local x, ngb^.thisNodeData) )
-                          <$> (zeroV,info) :| envi
+                          <$> (zeroV,info) : envi
                           of
-               QuadraticModel _ _ h -> linIsoTransformShade (2*^id) $ dualShade h
+               Just (QuadraticModel _ _ h) -> linIsoTransformShade (2*^id) $ dualShade h
         where xVol :: SymmetricTensor ℝ (Needle x)
               xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
               _:directEnvi:remoteEnvi = localOnion info []
-              envi = directEnvi ++ take (nMinNeighbours - length directEnvi)
-                                        (concat remoteEnvi)
-       nMinNeighbours = p²Dimension ([] :: [Needle x])
+              envi = directEnvi ++ concat remoteEnvi
 
 
 selectQuadraticFittableEnvironment :: ∀ x y

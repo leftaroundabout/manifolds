@@ -166,6 +166,7 @@ quadraticModel_derivatives (QuadraticModel sh shð shð²)
              = (dualShade sh, ( dualShade shð
                               , linIsoTransformShade (2*^id) $ dualShade shð² ))
 
+{-# DEPRECATED estimateLocalHessian "Use `fitLocally`" #-}
 estimateLocalHessian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y, Geodesic y
                                 , FlatSpace (Needle x), FlatSpace (Needle y) )
             => NonEmpty (Local x, Shade' y) -> QuadraticModel x y
@@ -267,5 +268,6 @@ instance LocalModel QuadraticModel where
          qFitL dataPts
           | (p₀:ps, pω:_) <- splitAt (modelParametersOverdetMargin
                                         $ p²Dimension ([]::[Needle x])) dataPts
-                 = Just $ estimateLocalHessian (p₀:|ps++[pω])
+                 = Just . quadratic_linearRegression
+                     $ first getLocalOffset <$> (p₀:|ps++[pω])
   tweakLocalOffset = quadraticModelOffset
