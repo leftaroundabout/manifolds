@@ -75,6 +75,7 @@ deriving instance (Show (Interior x), Show y, Show (Needle x))
 makeLenses ''LocalDataPropPlan
 
 
+{-# DEPRECATED estimateLocalJacobian "Use `fitLocally`" #-}
 estimateLocalJacobian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
                                  , SimpleSpace (Needle x), SimpleSpace (Needle y) )
             => Metric x -> [(Local x, Shade' y)]
@@ -97,6 +98,13 @@ estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
                = mixShade's =<< (:|) <$> estimateLocalJacobian mex ps 
                              <*> sequenceA [estimateLocalJacobian mex [po,pi] | pi<-ps]
        elj _ _ _ = return $ Shade' zeroV mempty
+
+
+data AffineModel x y = AffineModel {
+         _affineModelOffset :: Shade                      y
+       , _affineModelLCoeff :: Shade ( Needle x  +>Needle y)
+       }
+makeLenses ''AffineModel
 
 
 data QuadraticModel x y = QuadraticModel {
@@ -258,10 +266,32 @@ modelParametersOverdetMargin :: Int -> Int
 modelParametersOverdetMargin n = n + round (sqrt $ fromIntegral n)
 
 
+-- | Dimension of the space of affine functions on @v@.
+p¹Dimension :: ∀ v p . FiniteDimensional v => p v -> Int
+p¹Dimension _ = 1 + d
+ where d = subbasisDimension (entireBasis :: SubBasis v)
+
 -- | Dimension of the space of quadratic functions on @v@.
 p²Dimension :: ∀ v p . FiniteDimensional v => p v -> Int
 p²Dimension _ = 1 + d + (d*(d+1))`div`2
  where d = subbasisDimension (entireBasis :: SubBasis v)
+
+instance LocalModel AffineModel where
+  fitLocally = aFitL dualSpaceWitness
+   where aFitL :: ∀ x y . ModellableRelation x y
+                    => DualSpaceWitness (Needle y)
+                      -> [(Local x, Shade' y)] -> Maybe (AffineModel x y)
+         aFitL DualSpaceWitness dataPts
+          | (p₀:ps, pω:_) <- splitAt (modelParametersOverdetMargin
+                                        $ p¹Dimension ([]::[Needle x])) dataPts
+                 = Just . gLinearRegression
+                            (\δx -> lfun $ \(b,a) -> (a $ δx) ^+^ b )
+                            (\cmy (bBest, aBest) σ
+                               -> let (σb, σa) = summandSpaceNorms σ
+                                  in AffineModel (Shade (cmy⊙+^bBest $ ([]::[y])) σb)
+                                                 (Shade aBest σa) )
+                     $ first getLocalOffset <$> (p₀:|ps++[pω])
+  tweakLocalOffset = affineModelOffset
 
 instance LocalModel QuadraticModel where
   fitLocally = qFitL
