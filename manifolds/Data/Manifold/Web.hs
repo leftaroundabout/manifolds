@@ -578,21 +578,15 @@ differentiate²UncertainWebLocally :: ∀ x y
             => WebLocally x (Shade' y)
              -> Shade' (Needle x ⊗〃+> Needle y)
 differentiate²UncertainWebLocally = d²uwl
-                ( pseudoAffineWitness :: PseudoAffineWitness x
-                , pseudoAffineWitness :: PseudoAffineWitness y
-                , dualSpaceWitness :: DualSpaceWitness (Needle x)
+                ( dualSpaceWitness :: DualSpaceWitness (Needle x)
                 , dualSpaceWitness :: DualSpaceWitness (Needle y) )
- where d²uwl ( PseudoAffineWitness (SemimanifoldWitness _)
-             , PseudoAffineWitness (SemimanifoldWitness _)
-             , DualSpaceWitness, DualSpaceWitness ) info
+ where d²uwl (DualSpaceWitness, DualSpaceWitness) info
           = case fitLocally $
                           (\(δx,ngb) -> (Local δx :: Local x, ngb^.thisNodeData) )
                           <$> (zeroV,info) : envi
                           of
                Just (QuadraticModel _ _ h) -> linIsoTransformShade (2*^id) $ dualShade h
-        where xVol :: SymmetricTensor ℝ (Needle x)
-              xVol = squareVs $ fst.snd<$>info^.nodeNeighbours
-              _:directEnvi:remoteEnvi = localOnion info []
+        where _:directEnvi:remoteEnvi = localOnion info []
               envi = directEnvi ++ concat remoteEnvi
 
 
