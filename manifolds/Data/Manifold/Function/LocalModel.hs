@@ -109,49 +109,51 @@ makeLenses ''QuadraticModel
 type QModelTup s x y = ( Needle y, (Needle x+>Needle y
                                  , SymmetricTensor s (Needle x)+>(Needle y)) )
 
+
+
 quadratic_linearRegression :: ∀ s x y .
                       ( WithField s PseudoAffine x
                       , WithField s PseudoAffine y, Geodesic y
                       , SimpleSpace (Needle x), SimpleSpace (Needle y) )
             => NE.NonEmpty (Needle x, Shade' y) -> QuadraticModel x y
-quadratic_linearRegression = qlr
-                  ( dualSpaceWitness, pseudoAffineWitness
-                  , linearManifoldWitness, dualSpaceWitness
-                  , geodesicWitness )
- where qlr :: ( DualSpaceWitness (Needle x)
-              , PseudoAffineWitness y, LinearManifoldWitness (Needle y)
-              , DualSpaceWitness (Needle y)
-              , GeodesicWitness y )
-                   -> NE.NonEmpty (Needle x, Shade' y) -> QuadraticModel x y
-       qlr ( DualSpaceWitness
-           , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-           , LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
-           , GeodesicWitness _ ) ps
-                 = QuadraticModel
-                    (Shade (cmy.+~^cBest) σc)
-                    (Shade bBest σb)
-                    (Shade aBest σa)
+quadratic_linearRegression = case ( dualSpaceWitness :: DualSpaceWitness (Needle x)
+                                  , dualSpaceWitness :: DualSpaceWitness (Needle y) ) of
+    (DualSpaceWitness, DualSpaceWitness) -> gLinearRegression
+         (\δx -> lfun $ \(c,(b,a)) -> (a $ squareV δx) ^+^ (b $ δx) ^+^ c )
+         (\cmy (cBest, (bBest, aBest)) σ
+            -> let (σc, (σb, σa)) = second summandSpaceNorms $ summandSpaceNorms σ
+               in QuadraticModel (Shade (cmy⊙+^cBest $ ([]::[y])) σc)
+                              (Shade bBest σb)
+                              (Shade aBest σa) )
+
+gLinearRegression :: ∀ s x y ㄇ ψ.
+                      ( WithField s PseudoAffine x
+                      , WithField s PseudoAffine y, Geodesic y
+                      , SimpleSpace (Needle x), SimpleSpace (Needle y)
+                      , SimpleSpace ψ, Scalar ψ ~ s )
+            => (Needle x -> ψ -+> Needle y)
+               -> (Interior y -> ψ -> Variance ψ -> ㄇ x y)
+               -> NE.NonEmpty (Needle x, Shade' y) -> ㄇ x y
+gLinearRegression fwdCalc analyse = qlr (pseudoAffineWitness, geodesicWitness)
+ where qlr :: (PseudoAffineWitness y, GeodesicWitness y)
+                   -> NE.NonEmpty (Needle x, Shade' y) -> ㄇ x y
+       qlr (PseudoAffineWitness (SemimanifoldWitness _), GeodesicWitness _) ps
+                 = analyse cmy ψ σψ
         where Just cmy = pointsBarycenter $ _shade'Ctr.snd<$>ps
               Just vsxy = Hask.mapM (\(x, Shade' y ey) -> (x,).(,ey)<$>y.-~.cmy) ps
-              (cBest, (bBest, aBest)) = linearFit_bestModel regResult
-              (σc, (σb, σa)) = second summandSpaceNorms . summandSpaceNorms
-                                . dualNorm
-                                . (case linearFit_χν² regResult of
+              ψ = linearFit_bestModel regResult
+              σψ = dualNorm . (case linearFit_χν² regResult of
                                      χν² | χν² > 0, recip χν² > 0
                                             -> scaleNorm (recip $ 1 + sqrt χν²)
-                                     _ -> {-Dbg.trace ("Fit for quadratic model requires"
+                                     _ -> {-Dbg.trace ("Fit for regression model requires"
                ++" well-defined χν² (which needs positive number of degrees of freedom)."
                ++"\n Data: "++show (length ps
                                 * subbasisDimension (entireBasis :: SubBasis (Needle y)))
                ++"\n Model parameters: "++show (subbasisDimension
-                                        (entireBasis :: SubBasis (QModelTup s x y))) )-}
+                                        (entireBasis :: SubBasis ψ)) )-}
                                           id)
                                 $ linearFit_modelUncertainty regResult
-              regResult :: LinearRegressionResult (Needle x) (Needle y) (QModelTup s x y)
-                        = linearRegression
-                           (\δx -> lfun $ \(c,(b,a)) -> (a $ squareV δx)
-                                                      ^+^ (b $ δx) ^+^ c )
-                           (NE.toList vsxy)
+              regResult = linearRegression (arr . fwdCalc) (NE.toList vsxy)
 
 quadraticModel_derivatives :: ∀ x y .
           ( PseudoAffine x, PseudoAffine y

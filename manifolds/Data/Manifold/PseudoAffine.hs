@@ -55,7 +55,7 @@ module Data.Manifold.PseudoAffine (
             , PseudoAffine(..)
             -- * Type definitions
             -- ** Needles
-            , Local(..)
+            , Local(..), (⊙+^)
             -- ** Metrics
             , Metric, Metric'
             , RieMetric, RieMetric'
@@ -460,3 +460,10 @@ instance ImpliesMetric Norm where
 
 type DualNeedleWitness x = DualSpaceWitness (Needle x)
 
+
+
+infix 6 ⊙+^
+-- | Proxy-version of `translateP`.
+(⊙+^) :: ∀ x proxy . Semimanifold x => Interior x -> Needle x -> proxy x -> Interior x
+(⊙+^) x v _ = tp x v
+ where Tagged tp = translateP :: Tagged x (Interior x -> Needle x -> Interior x)
