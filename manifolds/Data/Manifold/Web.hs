@@ -550,24 +550,26 @@ localTraverseWebChunk f (WebChunk this outlayers)
       = fmap (\c -> WebChunk c outlayers) $ localTraverseWeb f this
 
 differentiateUncertainWebLocally :: ∀ x y
-   . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-     , WithField ℝ Refinable y, SimpleSpace (Needle y) )
+   . ( WithField ℝ Manifold x, FlatSpace (Needle x)
+     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
             => WebLocally x (Shade' y)
              -> Shade' (LocalLinear x y)
-differentiateUncertainWebLocally info
-          = case estimateLocalJacobian
-                          (info^.nodeLocalScalarProduct)
-                          [ ( Local δx :: Local x, ngb^.thisNodeData )
-                          | (δx,ngb) <- (zeroV, info)
-                                      : (snd<$>info^.nodeNeighbours)
-                          ] of
-               Just j -> j
-               _      -> Shade' zeroV mempty
+differentiateUncertainWebLocally = duwl
+                ( dualSpaceWitness :: DualSpaceWitness (Needle x)
+                , dualSpaceWitness :: DualSpaceWitness (Needle y) )
+ where duwl (DualSpaceWitness, DualSpaceWitness) info
+          = case fitLocally $
+                          (\(δx,ngb) -> (Local δx :: Local x, ngb^.thisNodeData) )
+                          <$> (zeroV,info) : envi
+                          of
+               Just (AffineModel _ j) -> dualShade j
+        where _:directEnvi:remoteEnvi = localOnion info []
+              envi = directEnvi ++ concat remoteEnvi
 
 
 differentiateUncertainWebFunction :: ∀ x y
-   . ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-     , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
+   . ( WithField ℝ Manifold x, FlatSpace (Needle x)
+     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
             => PointsWeb x (Shade' y)
              -> PointsWeb x (Shade' (LocalLinear x y))
 differentiateUncertainWebFunction = localFmapWeb differentiateUncertainWebLocally
@@ -1134,8 +1136,8 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                             , let Just vOld = ngb^.thisNodeCoord .-~. xOld
                                             ]
                               
-recomputeJacobian :: ( WithField ℝ Manifold x, SimpleSpace (Needle x)
-                     , WithField ℝ Manifold y, SimpleSpace (Needle y), Refinable y )
+recomputeJacobian :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
+                     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
              => PointsWeb x (SolverNodeState x y)
              -> PointsWeb x (SolverNodeState x y)
 recomputeJacobian = webLocalInfo
