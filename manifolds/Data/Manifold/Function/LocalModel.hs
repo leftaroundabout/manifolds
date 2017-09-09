@@ -24,6 +24,7 @@ module Data.Manifold.Function.LocalModel (
     -- ** Local data fit models
     , AffineModel(..), QuadraticModel(..)
     , estimateLocalJacobian, estimateLocalHessian
+    , propagationCenteredModel
     , propagationCenteredQuadraticModel
     , quadraticModel_derivatives
     -- ** Differential equations

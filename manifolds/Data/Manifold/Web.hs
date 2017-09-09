@@ -603,21 +603,21 @@ selectQuadraticFittableEnvironment me
 --   require here!) this corresponds to the vector quantities of an Arakawa type C/D
 --   grid (cf. A. Arakawa, V.R. Lamb (1977):
 --   Computational design of the basic dynamical processes of the UCLA general circulation model)
-localModels_CGrid :: ∀ x y . ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                             , Refinable y, Geodesic y, FlatSpace (Needle y) )
-          => PointsWeb x (Shade' y) -> [(x, QuadraticModel x y)]
+localModels_CGrid :: ∀ x y ㄇ . ( WithField ℝ Manifold x, FlatSpace (Needle x)
+                                , Refinable y, Geodesic y, FlatSpace (Needle y)
+                                , LocalModel ㄇ )
+          => PointsWeb x (Shade' y) -> [(x, ㄇ x y)]
 localModels_CGrid = Hask.concatMap theCGrid . Hask.toList . webLocalInfo
- where theCGrid :: WebLocally x (Shade' y) -> [(x, QuadraticModel x y)]
+ where theCGrid :: WebLocally x (Shade' y) -> [(x, ㄇ x y)]
        theCGrid node = [ ( pn .-~^ δx^/2
-                         , propagationCenteredQuadraticModel
+                         , propagationCenteredModel
                              ( LocalDataPropPlan
                                     pn
                                     (negateV δx)
                                     (ngbNode^.thisNodeData)
                                     (node^.thisNodeData)
                                     (fmap (second _thisNodeData)
-                                      $ selectQuadraticFittableEnvironment
-                                                    ngbNode [node^.thisNodeId] )
+                                      . concat $ localOnion ngbNode [node^.thisNodeId] )
                                           ) )
                        | (nid, (δx, ngbNode)) <- node^.nodeNeighbours
                        , nid > node^.thisNodeId
