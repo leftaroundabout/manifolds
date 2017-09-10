@@ -32,8 +32,6 @@ module Data.Manifold.Function.LocalModel (
     , propagateDEqnSolution_loc, LocalDataPropPlan(..)
     -- ** Range interpolation
     , rangeWithinVertices
-    -- * Misc
-    , p²Dimension
     ) where
 
 

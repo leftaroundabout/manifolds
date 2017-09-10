@@ -592,12 +592,6 @@ differentiate²UncertainWebLocally = d²uwl
               envi = directEnvi ++ concat remoteEnvi
 
 
-selectQuadraticFittableEnvironment :: ∀ x y
-           . (WithField ℝ Manifold x, SimpleSpace (Needle x))
-                => WebLocally x y -> [WebNodeId] -> [(Needle x, WebLocally x y)]
-selectQuadraticFittableEnvironment me
-       = take (p²Dimension ([] :: [Needle x]) + 1) . concat . localOnion me
-
 -- | Calculate a quadratic fit with uncertainty margin centered around the connection
 --   between any two adjacent nodes. In case of a regular grid (which we by no means
 --   require here!) this corresponds to the vector quantities of an Arakawa type C/D
@@ -824,8 +818,8 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
                                              ngbShyð
                                              shy
                                              (fmap (second ((shading>-$) . _thisNodeData))
-                                               $ selectQuadraticFittableEnvironment
-                                                          ngbInfo [me^.thisNodeId])
+                                               . concat $ localOnion ngbInfo
+                                                                     [me^.thisNodeId])
                                           )
                                   | (δx, (ngbInfo,sj)) <- ngbs
                                   ]
@@ -892,7 +886,7 @@ filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y
                                              (shading >-$ ngbInfo^.thisNodeData)
                                              (shading >-$ oldValue)
                                              (fmap (second ((shading>-$) . _thisNodeData))
-                                               $ selectQuadraticFittableEnvironment
+                                               . concat $ localOnion
                                                         ngbInfo [me^.thisNodeId] )
                                           )
                                   | (_, (δx, ngbInfo)) <- me^.nodeNeighbours
