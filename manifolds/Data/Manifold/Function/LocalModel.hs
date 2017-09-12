@@ -20,7 +20,7 @@
 
 module Data.Manifold.Function.LocalModel (
     -- * The model class
-      LocalModel (..)
+      LocalModel (..), ModellableRelation
     -- ** Local data fit models
     , AffineModel(..), QuadraticModel(..)
     , estimateLocalJacobian, estimateLocalHessian
@@ -185,9 +185,7 @@ estimateLocalHessian pts = quadratic_linearRegression $ first getLocalOffset <$>
 
 
 propagationCenteredModel :: ∀ x y ㄇ .
-                         ( WithField ℝ Manifold x, Refinable y, Geodesic y
-                         , FlatSpace (Needle x), FlatSpace (Needle y)
-                         , LocalModel ㄇ )
+                         ( ModellableRelation x y, LocalModel ㄇ )
          => LocalDataPropPlan x (Shade' y) -> ㄇ x y
 propagationCenteredModel propPlan = case fitLocally (NE.toList ptsFromCenter) of
                                        Just ㄇ->ㄇ
@@ -201,8 +199,7 @@ propagationCenteredModel propPlan = case fitLocally (NE.toList ptsFromCenter) of
 
 
 propagationCenteredQuadraticModel :: ∀ x y .
-                         ( WithField ℝ Manifold x, Refinable y, Geodesic y
-                         , FlatSpace (Needle x), FlatSpace (Needle y) )
+                         ( ModellableRelation x y )
          => LocalDataPropPlan x (Shade' y) -> QuadraticModel x y
 propagationCenteredQuadraticModel = propagationCenteredModel
 

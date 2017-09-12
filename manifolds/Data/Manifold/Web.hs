@@ -550,8 +550,7 @@ localTraverseWebChunk f (WebChunk this outlayers)
       = fmap (\c -> WebChunk c outlayers) $ localTraverseWeb f this
 
 differentiateUncertainWebLocally :: ∀ x y
-   . ( WithField ℝ Manifold x, FlatSpace (Needle x)
-     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
+   . ( ModellableRelation x y )
             => WebLocally x (Shade' y)
              -> Shade' (LocalLinear x y)
 differentiateUncertainWebLocally = duwl
@@ -568,15 +567,13 @@ differentiateUncertainWebLocally = duwl
 
 
 differentiateUncertainWebFunction :: ∀ x y
-   . ( WithField ℝ Manifold x, FlatSpace (Needle x)
-     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
+   . ( ModellableRelation x y )
             => PointsWeb x (Shade' y)
              -> PointsWeb x (Shade' (LocalLinear x y))
 differentiateUncertainWebFunction = localFmapWeb differentiateUncertainWebLocally
 
 differentiate²UncertainWebLocally :: ∀ x y
-   . ( WithField ℝ Manifold x, FlatSpace (Needle x)
-     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
+   . ( ModellableRelation x y )
             => WebLocally x (Shade' y)
              -> Shade' (Needle x ⊗〃+> Needle y)
 differentiate²UncertainWebLocally = d²uwl
@@ -597,9 +594,7 @@ differentiate²UncertainWebLocally = d²uwl
 --   require here!) this corresponds to the vector quantities of an Arakawa type C/D
 --   grid (cf. A. Arakawa, V.R. Lamb (1977):
 --   Computational design of the basic dynamical processes of the UCLA general circulation model)
-localModels_CGrid :: ∀ x y ㄇ . ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                                , Refinable y, Geodesic y, FlatSpace (Needle y)
-                                , LocalModel ㄇ )
+localModels_CGrid :: ∀ x y ㄇ . ( ModellableRelation x y, LocalModel ㄇ )
           => PointsWeb x (Shade' y) -> [(x, ㄇ x y)]
 localModels_CGrid = Hask.concatMap theCGrid . Hask.toList . webLocalInfo
  where theCGrid :: WebLocally x (Shade' y) -> [(x, ㄇ x y)]
@@ -629,16 +624,13 @@ acoSnd = case ( linearManifoldWitness :: LinearManifoldWitness v
 
 
 differentiate²UncertainWebFunction :: ∀ x y
-   . ( WithField ℝ Manifold x, FlatSpace (Needle x)
-     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
+   . ( ModellableRelation x y )
          => PointsWeb x (Shade' y)
           -> PointsWeb x (Shade' (Needle x ⊗〃+> Needle y)) 
 differentiate²UncertainWebFunction = localFmapWeb differentiate²UncertainWebLocally
 
 rescanPDELocally :: ∀ x y ㄇ .
-     ( WithField ℝ Manifold x, FlatSpace (Needle x)
-     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y)
-     , LocalModel ㄇ )
+     ( ModellableRelation x y, LocalModel ㄇ )
          => DifferentialEqn ㄇ x y -> WebLocally x (Shade' y) -> Maybe (Shade' y)
 rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                         , dualSpaceWitness :: DualNeedleWitness y
@@ -758,10 +750,7 @@ data InconsistencyStrategy m x y where
 deriving instance Hask.Functor (InconsistencyStrategy m x)
 
 
-iterateFilterDEqn_static :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                            , Refinable y, Geodesic y, FlatSpace (Needle y)
-                            , Hask.MonadPlus m
-                            , LocalModel ㄇ )
+iterateFilterDEqn_static :: ( ModellableRelation x y, Hask.MonadPlus m, LocalModel ㄇ )
        => InformationMergeStrategy [] m (x,Shade' y) iy
            -> Embedding (->) (Shade' y) iy
            -> DifferentialEqn ㄇ x y
@@ -772,8 +761,7 @@ iterateFilterDEqn_static strategy shading f
                            . fmap (shading $->)
 
 
-iterateFilterDEqn_static_selective :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                                      , Refinable y, Geodesic y, FlatSpace (Needle y)
+iterateFilterDEqn_static_selective :: ( ModellableRelation x y
                                       , Hask.MonadPlus m, badness ~ ℝ
                                       , LocalModel ㄇ )
        => InformationMergeStrategy [] m (x,Shade' y) iy
@@ -788,10 +776,7 @@ iterateFilterDEqn_static_selective strategy shading badness f
 
 
 filterDEqnSolutions_static :: ∀ x y ㄇ iy m .
-                              ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                              , Refinable y, Geodesic y, FlatSpace (Needle y)
-                              , Hask.MonadPlus m
-                              , LocalModel ㄇ )
+                     ( ModellableRelation x y, Hask.MonadPlus m, LocalModel ㄇ )
        => InformationMergeStrategy [] m  (x,Shade' y) iy -> Embedding (->) (Shade' y) iy
           -> DifferentialEqn ㄇ x y -> PointsWeb x iy -> m (PointsWeb x iy)
 filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
@@ -846,8 +831,7 @@ averaging :: VectorSpace a => [a] -> Average a
 averaging l = Average (length l) (sumV l)
 
 filterDEqnSolutions_static_selective :: ∀ x y ㄇ iy m badness .
-                              ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                              , Refinable y, Geodesic y, FlatSpace (Needle y)
+                              ( ModellableRelation x y
                               , Hask.MonadPlus m, badness ~ ℝ
                               , LocalModel ㄇ )
        => InformationMergeStrategy [] m  (x,Shade' y) iy -> Embedding (->) (Shade' y) iy
@@ -953,8 +937,7 @@ oldAndNew' (_, l) = (False,) <$> l
 
 
 filterDEqnSolutions_adaptive :: ∀ x y ㄇ ð badness m
-        . ( WithField ℝ Manifold x, FlatSpace (Needle x)
-          , WithField ℝ AffineManifold y, Refinable y, Geodesic y, FlatSpace (Needle y)
+        . ( ModellableRelation x y, AffineManifold y
           , badness ~ ℝ, Hask.Monad m
           , LocalModel ㄇ )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
@@ -1130,8 +1113,7 @@ filterDEqnSolutions_adaptive mf strategy f badness' oldState
                                             , let Just vOld = ngb^.thisNodeCoord .-~. xOld
                                             ]
                               
-recomputeJacobian :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
-                     , WithField ℝ Refinable y, Geodesic y, FlatSpace (Needle y) )
+recomputeJacobian :: ( ModellableRelation x y )
              => PointsWeb x (SolverNodeState x y)
              -> PointsWeb x (SolverNodeState x y)
 recomputeJacobian = webLocalInfo
@@ -1142,8 +1124,7 @@ recomputeJacobian = webLocalInfo
 
 
 iterateFilterDEqn_adaptive
-     :: ( WithField ℝ Manifold x, FlatSpace (Needle x)
-        , WithField ℝ AffineManifold y, Refinable y, Geodesic y, FlatSpace (Needle y)
+     :: ( ModellableRelation x y, AffineManifold y
         , LocalModel ㄇ, Hask.Monad m )
        => MetricChoice x      -- ^ Scalar product on the domain, for regularising the web.
        -> InconsistencyStrategy m x (Shade' y)
