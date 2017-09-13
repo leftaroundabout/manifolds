@@ -277,8 +277,7 @@ knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
               lm = dualNorm lm'
               candidates :: [[(WebNodeId, Needle x)]]
               candidates = preferred : other
-               where _l₀:l₁:l₂:ls = localOnion me []
-                     (preferred, other) = case localOnion me [] of
+               where (preferred, other) = case localOnion me [] of
                        _l₀:l₁:l₂:ls -> ( first _thisNodeId . swap <$> (l₁++l₂)
                                        , map (first _thisNodeId . swap) <$> ls )
                        [_l₀,l₁] -> (first _thisNodeId . swap <$> l₁, [])
@@ -606,7 +605,8 @@ localModels_CGrid = Hask.concatMap theCGrid . Hask.toList . webLocalInfo
                                     (ngbNode^.thisNodeData)
                                     (node^.thisNodeData)
                                     (fmap (second _thisNodeData)
-                                      . concat $ localOnion ngbNode [node^.thisNodeId] )
+                                      . concat . tail
+                                           $ localOnion ngbNode [node^.thisNodeId] )
                                           ) )
                        | (nid, (δx, ngbNode)) <- node^.nodeNeighbours
                        , nid > node^.thisNodeId
@@ -803,7 +803,7 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
                                              ngbShyð
                                              shy
                                              (fmap (second ((shading>-$) . _thisNodeData))
-                                               . concat $ localOnion ngbInfo
+                                               . concat . tail $ localOnion ngbInfo
                                                                      [me^.thisNodeId])
                                           )
                                   | (δx, (ngbInfo,sj)) <- ngbs
@@ -870,7 +870,7 @@ filterDEqnSolutions_static_selective = case geodesicWitness :: GeodesicWitness y
                                              (shading >-$ ngbInfo^.thisNodeData)
                                              (shading >-$ oldValue)
                                              (fmap (second ((shading>-$) . _thisNodeData))
-                                               . concat $ localOnion
+                                               . concat . tail $ localOnion
                                                         ngbInfo [me^.thisNodeId] )
                                           )
                                   | (_, (δx, ngbInfo)) <- me^.nodeNeighbours
