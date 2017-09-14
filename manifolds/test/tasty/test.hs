@@ -266,6 +266,11 @@ tests = testGroup "Tests"
                           $ toGraph ( fromWebNodes euclideanMetric
                                         [(x, ()) | x<-Set.toList ps] :: PointsWeb ℝ () )
                       ) == 1
+    , QC.testProperty "Random 1D web should have only 2 boundary-points"
+       $ \ps -> length ps >= 2 ==>
+                 length (webBoundary (fromWebNodes euclideanMetric
+                                        [(x, ()) | x<-Set.toList ps] :: PointsWeb ℝ () )
+                      ) == 2
     ]
  ]
 
