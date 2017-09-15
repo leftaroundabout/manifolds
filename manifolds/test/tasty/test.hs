@@ -245,7 +245,14 @@ tests = testGroup "Tests"
           @?= ([565.5193483520385, 254.62827644949562], Nothing)
     ]
  , testGroup "Automatically building webs"
-    [ testCase "Linear 1D “web”"
+    [ testCase "Minimal, 3-point 1D “web”"
+        $ let web = fromWebNodes euclideanMetric [(x, ()) | x<-[0,1,2]]
+                         :: PointsWeb ℝ ()
+          in toList (localFmapWeb (\info
+                       -> ( fst <$> info^.nodeNeighbours
+                          , info^.webBoundingPlane ) ) web)
+               @?= [([1], Just 1), ([0,2], Nothing), ([1], Just $ -1)]
+    , testCase "Linear 1D “web”"
         $ toList (directNeighbours (fromWebNodes euclideanMetric
                                        [(x, ()) | x<-[0, 0.1 .. 2]] :: PointsWeb ℝ () ))
           @?= [ [1,9], [0,2], [1,3], [2,4], [3], [6,12], [5,7], [6,8], [7,9], [0,8], [11,15]
