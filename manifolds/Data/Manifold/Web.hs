@@ -187,7 +187,13 @@ autoLinkWeb = runIdentity . traverseNodesInEnvi ( pure . fetchNgbs []
              = fetchNgbs
                 ((δi, v) : alreadyFound)
                 ( NodeInWeb (x, Neighbourhood y (UArr.cons δi aprNgbs) locMetr
-                                  $ pumpHalfspace locMetr v (wall, snd<$>alreadyFound))
+                                  $ if dimension > 1
+                                     then pumpHalfspace locMetr v
+                                                 (wall, snd<$>alreadyFound)
+                                     else case alreadyFound of
+                                            [] -> Just $ locMetr<$|v
+                                            [_] -> Nothing
+                                                 )
                             layersAroundThis
                 , enviLayers )
         where newNgbCandidates
