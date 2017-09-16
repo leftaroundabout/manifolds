@@ -221,7 +221,6 @@ propagateDEqnSolution_loc f propPlan
           | otherwise            = pure result
          where (_,jacobian) = f shxy ^. rescanDifferentialEqn
                                $ propagationCenteredModel propPlan
-               Just (Shade' j₀ jExpa) = jacobian
                jacobianSh :: Shade (LocalLinear x y)
                Just jacobianSh = dualShade' <$> jacobian
                mx = propPlan^.sourcePosition .+~^ propPlan^.targetPosOffset ^/ 2 :: x
@@ -240,13 +239,8 @@ propagateDEqnSolution_loc f propPlan
                                               (propPlan^.targetAPrioriData.shadeCtr)
                expax = dualNorm expax'
                result :: Shade' y
-               Just result = wellDefinedShade' $ convolveShade'
-                        (case wellDefinedShade' $ propPlan^.sourceData of {Just s->s})
-                        (case wellDefinedShade' . dualShade
-                               . linearProjectShade (lfun ($ δx))
-                                $ jacobianSh
-                           of {Just s->s})
-                where δyb = j₀ $ δx
+               result = convolveShade' (propPlan^.sourceData)
+                             (dualShade . linearProjectShade (lfun ($ δx)) $ jacobianSh)
                δx = propPlan^.targetPosOffset
 
 
