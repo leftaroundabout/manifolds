@@ -8,7 +8,7 @@
 -- Portability : portable
 -- 
 
-{-# LANGUAGE OverloadedLists, TypeFamilies #-}
+{-# LANGUAGE OverloadedLists, TypeFamilies, FlexibleContexts, UndecidableInstances #-}
 
 module Main where
 
@@ -279,6 +279,12 @@ tests = testGroup "Tests"
                                         [(x, ()) | x<-Set.toList ps] :: PointsWeb ℝ () )
                       ) == 2
     ]
+ , testGroup "Function models for uncertain data"
+    [ testCase "Equality of `Shade`s"
+       $ (1 :± [1]) @?≈ (1 :± [1] :: Shade ℝ)
+    , testCase "Equality of `Shade'`s"
+       $ ((1,0)|±|[(1,-2),(3,4)]) @?≈ ((1,0)|±|[(1,-2),(3,4)] :: Shade' (ℝ,ℝ))
+    ]
  ]
 
 emptyWeb, singletonWeb, triangularWeb, quadraticWeb, nestedWeb, unsymmetricWeb
@@ -395,3 +401,35 @@ infixl 4 ≡!
 (≡!) :: (Eq a, Show a) => a -> a -> a
 x ≡! y | x==y       = x
        | otherwise  = error $ show x++" ≠ "++show y
+
+
+infix 4 ≈
+class AEq e where
+  (≈) :: e -> e -> Bool
+instance (SimpleSpace v, Needle v~v, Interior v~v, Floating (Scalar v))
+             => AEq (Shade' v) where
+  Shade' c₀ σ₀ ≈ Shade' c₁ σ₁
+    = (σ₀|$|δ) < ε && (σ₀|$|δ) < ε
+     && all (is1 . (σ₀|$|)) (normSpanningSystem' σ₁)
+     && all (is1 . (σ₁|$|)) (normSpanningSystem' σ₀)
+   where δ = c₁ ^-^ c₀
+         ε = 1e-8
+         is1 x = abs (x-1) < ε
+instance ( SimpleSpace v, DualVector (Needle' v) ~ v, Interior v ~ v
+         , InnerSpace (Scalar v), Scalar (Needle' v) ~ Scalar v )
+              => AEq (Shade v) where
+  Shade c₀ σ₀ ≈ Shade c₁ σ₁
+    = (dualNorm σ₀|$|δ) < ε && (dualNorm σ₀|$|δ) < ε
+     && all (is1 . (dualNorm σ₀|$|)) (normSpanningSystem σ₁)
+     && all (is1 . (dualNorm σ₁|$|)) (normSpanningSystem σ₀)
+   where δ = c₁ ^-^ c₀
+         ε = 1e-8
+         is1 x = abs (x-1) < ε
+                                        
+infix 1 @?≈       
+(@?≈) :: (AEq e, Show e) => e -> e -> Assertion
+a@?≈b
+ | a≈b        = return ()
+ | otherwise  = assertFailure $ "Expected "++show b++", but got "++show a
+
+
