@@ -289,6 +289,9 @@ instance LocalModel AffineModel where
                                -> let (σb, σa) = summandSpaceNorms σ
                                   in AffineModel (Shade (cmy⊙+^bBest $ ([]::[y]))
                                                         $ scaleNorm 2 σb)
+                               -- The magic factor 2 seems dubious ↗, but testing indicates
+                               -- that this is necessary to not overrate the accuracy.
+                               --   TODO:  check the algorithms in linearmap-category.
                                                  (Shade aBest σa) )
                      $ (p₀:|ps++[pω])
           | otherwise  = Nothing
