@@ -21,7 +21,8 @@ import Data.Manifold.Web.Internal
 import Data.Manifold.Function.LocalModel
 import Data.VectorSpace
 import Math.LinearMap.Category
-import Prelude hiding (fst, snd)
+import Prelude hiding (id, fst, snd)
+import Control.Category.Constrained (id)
 import Control.Arrow.Constrained (fst,snd)
 
 import Test.Tasty
@@ -288,6 +289,17 @@ tests = testGroup "Tests"
        $ (1 :± [1]) @?≈ (1 :± [1] :: Shade ℝ)
     , testCase "Equality of `Shade'`s"
        $ ((1,0)|±|[(1,-2),(3,4)]) @?≈ ((1,0)|±|[(1,-2),(3,4)] :: Shade' (ℝ,ℝ))
+    , testCase "Fitting a 1D affine model to constant data"
+       $ fitLocally [ (-1, 5|±|[1]), (0, 5|±|[1]), (1, 5|±|[1]) ]
+          @?≈ Just (
+               AffineModel (5:±[1.15]) (zeroV:±[id^/sqrt 2]) :: AffineModel ℝ ℝ )
+    , testCase "Fitting a 2D affine model to constant data"
+       $ fitLocally [                    ((0,1), 5|±|[1])
+                    , ((-1,0), 5|±|[1]), ((0,0), 5|±|[1]), ((1,0), 5|±|[1])
+                    ,                    ((0,-1), 5|±|[1])                  ]
+          @?≈ Just (
+               AffineModel (5:±[0.9]) (zeroV:±((^/sqrt 2)<$>[fst, snd]))
+                  :: AffineModel (ℝ,ℝ) ℝ )
     ]
  ]
 
@@ -417,7 +429,7 @@ instance (SimpleSpace v, Needle v~v, Interior v~v, Floating (Scalar v))
      && all (is1 . (σ₀|$|)) (normSpanningSystem' σ₁)
      && all (is1 . (σ₁|$|)) (normSpanningSystem' σ₀)
    where δ = c₁ ^-^ c₀
-         ε = 1e-8
+         ε = 1e-2
          is1 x = abs (x-1) < ε
 instance ( SimpleSpace v, DualVector (Needle' v) ~ v, Interior v ~ v
          , InnerSpace (Scalar v), Scalar (Needle' v) ~ Scalar v )
@@ -427,7 +439,7 @@ instance ( SimpleSpace v, DualVector (Needle' v) ~ v, Interior v ~ v
      && all (is1 . (dualNorm σ₀|$|)) (normSpanningSystem σ₁)
      && all (is1 . (dualNorm σ₁|$|)) (normSpanningSystem σ₀)
    where δ = c₁ ^-^ c₀
-         ε = 1e-8
+         ε = 1e-2
          is1 x = abs (x-1) < ε
 instance AEq a => AEq (Maybe a) where
   Just x ≈ Just y = x ≈ y
