@@ -20,6 +20,7 @@ before_install:
 install:
   - stack +RTS -N2 -RTS setup
   - stack +RTS -N2 -RTS build
+  - stack +RTS -N2 -RTS test
 
 # Disable default cabal build step
 script: true
