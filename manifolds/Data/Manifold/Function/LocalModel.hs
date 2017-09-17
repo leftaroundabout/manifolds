@@ -13,6 +13,7 @@
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE TypeFamilies             #-}
+{-# LANGUAGE UndecidableInstances     #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE TemplateHaskell          #-}
@@ -105,6 +106,8 @@ data AffineModel x y = AffineModel {
          _affineModelOffset :: Shade                      y
        , _affineModelLCoeff :: Shade ( Needle x  +>Needle y)
        }
+deriving instance (Show (Shade y), Show (Shade (Needle x+>Needle y)))
+              => Show (AffineModel x y)
 makeLenses ''AffineModel
 
 
@@ -113,6 +116,10 @@ data QuadraticModel x y = QuadraticModel {
        , _quadraticModelLCoeff :: Shade ( Needle x  +>Needle y)
        , _quadraticModelQCoeff :: Shade (Needle x⊗〃+>Needle y)
        }
+deriving instance ( Show (Shade y)
+                  , Show (Shade (Needle x+>Needle y))
+                  , Show (Shade (Needle x⊗〃+>Needle y)) )
+              => Show (QuadraticModel x y)
 makeLenses ''QuadraticModel
 
 type QModelTup s x y = ( Needle y, (Needle x+>Needle y

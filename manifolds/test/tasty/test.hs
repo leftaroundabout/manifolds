@@ -9,6 +9,7 @@
 -- 
 
 {-# LANGUAGE OverloadedLists, TypeFamilies, FlexibleContexts, UndecidableInstances #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Main where
 
@@ -17,8 +18,11 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.TreeCover
 import Data.Manifold.Web
 import Data.Manifold.Web.Internal
+import Data.Manifold.Function.LocalModel
 import Data.VectorSpace
 import Math.LinearMap.Category
+import Prelude hiding (fst, snd)
+import Control.Arrow.Constrained (fst,snd)
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -425,6 +429,13 @@ instance ( SimpleSpace v, DualVector (Needle' v) ~ v, Interior v ~ v
    where δ = c₁ ^-^ c₀
          ε = 1e-8
          is1 x = abs (x-1) < ε
+instance AEq a => AEq (Maybe a) where
+  Just x ≈ Just y = x ≈ y
+  Nothing ≈ Nothing = True
+  _ ≈ _ = False
+instance (AEq (Shade y), AEq (Shade (Needle x +> Needle y)))
+              => AEq (AffineModel x y) where
+  AffineModel b₀ a₀ ≈ AffineModel b₁ a₁ = b₀ ≈ b₁ && a₀ ≈ a₁
                                         
 infix 1 @?≈       
 (@?≈) :: (AEq e, Show e) => e -> e -> Assertion

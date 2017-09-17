@@ -116,6 +116,7 @@ test-suite test
     , manifolds
     , containers
     , vector-space
+    , constrained-categories
     , linearmap-category
     , lens
 
