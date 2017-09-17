@@ -291,6 +291,7 @@ instance LocalModel AffineModel where
                                                         $ scaleNorm 2 σb)
                                                  (Shade aBest σa) )
                      $ (p₀:|ps++[pω])
+          | otherwise  = Nothing
   tweakLocalOffset = affineModelOffset
 
 instance LocalModel QuadraticModel where
@@ -302,4 +303,5 @@ instance LocalModel QuadraticModel where
                                         $ p²Dimension ([]::[Needle x])) dataPts
                  = Just . quadratic_linearRegression
                      $ (p₀:|ps++[pω])
+          | otherwise  = Nothing
   tweakLocalOffset = quadraticModelOffset
