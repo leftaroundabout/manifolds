@@ -563,10 +563,10 @@ differentiateUncertainWebLocally = duwl
                 , dualSpaceWitness :: DualSpaceWitness (Needle y) )
  where duwl (DualSpaceWitness, DualSpaceWitness) info
           = case fitLocally $
-                          (\(δx,ngb) -> (Local δx :: Local x, ngb^.thisNodeData) )
+                          (\(δx,ngb) -> (δx, ngb^.thisNodeData) )
                           <$> (zeroV,info) : envi
                           of
-               Just (AffineModel _ j) -> dualShade j
+               Just (AffineModel _ j :: AffineModel x y) -> dualShade j
         where _:directEnvi:remoteEnvi = localOnion info []
               envi = directEnvi ++ concat remoteEnvi
 
@@ -586,10 +586,11 @@ differentiate²UncertainWebLocally = d²uwl
                 , dualSpaceWitness :: DualSpaceWitness (Needle y) )
  where d²uwl (DualSpaceWitness, DualSpaceWitness) info
           = case fitLocally $
-                          (\(δx,ngb) -> (Local δx :: Local x, ngb^.thisNodeData) )
+                          (\(δx,ngb) -> (δx, ngb^.thisNodeData) )
                           <$> (zeroV,info) : envi
                           of
-               Just (QuadraticModel _ _ h) -> linIsoTransformShade (2*^id) $ dualShade h
+               Just (QuadraticModel _ _ h :: QuadraticModel x y)
+                        -> linIsoTransformShade (2*^id) $ dualShade h
         where _:directEnvi:remoteEnvi = localOnion info []
               envi = directEnvi ++ concat remoteEnvi
 
@@ -655,7 +656,7 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                      , v <- normSpanningSystem'
                                               (ngb^.thisNodeData.shadeNarrowness)] of
                         LocalDifferentialEqn rescan -> fst
-                             ( rescan $ case fitLocally $ map (Local *** _thisNodeData)
+                             ( rescan $ case fitLocally $ map (id *** _thisNodeData)
                                                =<< (localOnion info []) of
                                  Just ㄇ -> ㄇ)
 

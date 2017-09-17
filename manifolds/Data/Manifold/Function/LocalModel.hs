@@ -190,8 +190,8 @@ propagationCenteredModel :: ∀ x y ㄇ .
 propagationCenteredModel propPlan = case fitLocally (NE.toList ptsFromCenter) of
                                        Just ㄇ->ㄇ
  where ctrOffset = propPlan^.targetPosOffset^/2
-       ptsFromCenter = (Local $ negateV ctrOffset :: Local x, propPlan^.sourceData)
-                     :| [(Local $ δx^-^ctrOffset, shy)
+       ptsFromCenter = (negateV ctrOffset, propPlan^.sourceData)
+                     :| [(δx^-^ctrOffset, shy)
                         | (δx, shy)
                             <- (propPlan^.targetPosOffset, propPlan^.targetAPrioriData)
                                : propPlan^.relatedData
@@ -250,7 +250,7 @@ type ModellableRelation x y = ( WithField ℝ Manifold x
 
 class LocalModel ㄇ where
   fitLocally :: ModellableRelation x y
-                  => [(Local x, Shade' y)] -> Maybe (ㄇ x y)
+                  => [(Needle x, Shade' y)] -> Maybe (ㄇ x y)
   tweakLocalOffset :: ModellableRelation x y
                   => Lens' (ㄇ x y) (Shade y)
 
@@ -272,7 +272,7 @@ instance LocalModel AffineModel where
   fitLocally = aFitL dualSpaceWitness
    where aFitL :: ∀ x y . ModellableRelation x y
                     => DualSpaceWitness (Needle y)
-                      -> [(Local x, Shade' y)] -> Maybe (AffineModel x y)
+                      -> [(Needle x, Shade' y)] -> Maybe (AffineModel x y)
          aFitL DualSpaceWitness dataPts
           | (p₀:ps, pω:_) <- splitAt (modelParametersOverdetMargin
                                         $ p¹Dimension ([]::[Needle x])) dataPts
@@ -280,18 +280,19 @@ instance LocalModel AffineModel where
                             (\δx -> lfun $ \(b,a) -> (a $ δx) ^+^ b )
                             (\cmy (bBest, aBest) σ
                                -> let (σb, σa) = summandSpaceNorms σ
-                                  in AffineModel (Shade (cmy⊙+^bBest $ ([]::[y])) σb)
+                                  in AffineModel (Shade (cmy⊙+^bBest $ ([]::[y]))
+                                                        $ scaleNorm 2 σb)
                                                  (Shade aBest σa) )
-                     $ first getLocalOffset <$> (p₀:|ps++[pω])
+                     $ (p₀:|ps++[pω])
   tweakLocalOffset = affineModelOffset
 
 instance LocalModel QuadraticModel where
   fitLocally = qFitL
    where qFitL :: ∀ x y . ModellableRelation x y
-                    => [(Local x, Shade' y)] -> Maybe (QuadraticModel x y)
+                    => [(Needle x, Shade' y)] -> Maybe (QuadraticModel x y)
          qFitL dataPts
           | (p₀:ps, pω:_) <- splitAt (modelParametersOverdetMargin
                                         $ p²Dimension ([]::[Needle x])) dataPts
                  = Just . quadratic_linearRegression
-                     $ first getLocalOffset <$> (p₀:|ps++[pω])
+                     $ (p₀:|ps++[pω])
   tweakLocalOffset = quadraticModelOffset
