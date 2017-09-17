@@ -262,7 +262,7 @@ class LocalModel ㄇ where
                   => Lens' (ㄇ x y) (Shade y)
 
 modelParametersOverdetMargin :: Int -> Int
-modelParametersOverdetMargin n = n + round (sqrt $ fromIntegral n)
+modelParametersOverdetMargin n = n + round (sqrt $ fromIntegral n) - 1
 
 
 -- | Dimension of the space of affine functions on @v@.
