@@ -300,6 +300,14 @@ tests = testGroup "Tests"
           @?≈ Just (
                AffineModel (5:±[0.9]) (zeroV:±((^/sqrt 2)<$>[fst, snd]))
                   :: AffineModel (ℝ,ℝ) ℝ )
+    , testCase "Fitting a 1D affine model to rising-uncertainty data"
+       $ fitLocally [ (-1, 3|±|[0.1]), (0, 4|±|[0.5]), (1, 5|±|[1]) ]
+          @?≈ Just (
+               AffineModel (4:±[1/sqrt 2]) (id:±[id^*0.36]) :: AffineModel ℝ ℝ )
+    , testCase "Fitting a 1D affine model to quadratic data"
+       $ fitLocally [ (-1, 3|±|[0.1]), (0, 0|±|[0.1]), (1, 3|±|[0.1]) ]
+          @?≈ Just (
+               AffineModel (2:±[2.94]) (zeroV:±[id^*1.8]) :: AffineModel ℝ ℝ )
     ]
  ]
 
