@@ -92,6 +92,7 @@ import Control.Monad.Constrained hiding (forM)
 import GHC.Generics (Generic)
 
 import Text.Show.Number
+import qualified Text.Show.Pragmatic as SP
 
 
 -- | A 'Shade' is a very crude description of a region within a manifold. It
@@ -990,6 +991,10 @@ extractJust f (x:xs) | Just r <- f x  = (Just r, xs)
 prettyShowShade' :: LtdErrorShow x => Shade' x -> String
 prettyShowShade' sh = prettyShowsPrecShade' 0 sh []
 
+instance LtdErrorShow x => SP.Show (Shade' x) where
+  showsPrec = prettyShowsPrecShade'
+instance LtdErrorShow x => SP.Show (Shade x) where
+  showsPrec = prettyShowsPrecShade
 
 
 wellDefinedShade' :: LinearSpace (Needle x) => Shade' x -> Maybe (Shade' x)
@@ -1007,6 +1012,16 @@ class Refinable m => LtdErrorShow m where
                          => LtdErrorShowWitness m
   ltdErrorShowWitness = LtdErrorShowWitness pseudoAffineWitness
   showsPrecShade'_errorLtdC :: Int -> Shade' m -> ShowS
+  prettyShowsPrecShade :: Int -> Shade m -> ShowS
+  prettyShowsPrecShade p sh@(Shade c e')
+              = showParen (p>6) $ v
+                   . (":±["++) . flip (foldr id) (intersperse (',':) u) . (']':)
+   where v = showsPrecShade'_errorLtdC 6 (Shade' c e :: Shade' m)
+         u :: [ShowS] = case ltdErrorShowWitness :: LtdErrorShowWitness m of
+           LtdErrorShowWitness (PseudoAffineWitness (SemimanifoldWitness _)) ->
+             [ showsPrecShade'_errorLtdC 6 (Shade' δ e :: Shade' (Needle m))
+             | δ <- varianceSpanningSystem e']
+         e = dualNorm' e'
   prettyShowsPrecShade' :: Int -> Shade' m -> ShowS
   prettyShowsPrecShade' p sh@(Shade' c e)
               = showParen (p>6) $ v

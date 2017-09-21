@@ -59,6 +59,7 @@ Library
                      , placeholders
                      , lens
                      , constrained-categories >= 0.2.3 && < 0.3.1
+                     , pragmatic-show
   other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
