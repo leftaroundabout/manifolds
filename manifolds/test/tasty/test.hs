@@ -37,6 +37,8 @@ import qualified Data.Set as Set
 import Control.Arrow
 import Control.Lens
 
+import qualified Text.Show.Pragmatic as SP
+
 
 main = defaultMain tests
 
@@ -284,12 +286,20 @@ tests = testGroup "Tests"
                                         [(x, ()) | x<-Set.toList ps] :: PointsWeb ℝ () )
                       ) == 2
     ]
- , testGroup "Function models for uncertain data"
+ , testGroup "Shades"
     [ testCase "Equality of `Shade`s"
        $ (1 :± [1]) @?≈ (1 :± [1] :: Shade ℝ)
     , testCase "Equality of `Shade'`s"
        $ ((1,0)|±|[(1,-2),(3,4)]) @?≈ ((1,0)|±|[(1,-2),(3,4)] :: Shade' (ℝ,ℝ))
-    , testCase "Fitting a 1D affine model to constant data"
+    , testCase "Pragmatically showing"
+       $ SP.show ((1,0)|±|[(1,-2),(3,4)] :: Shade' (ℝ,ℝ))
+                 @?= "(1,0)|±|[(5,2),(0,2)]"
+    , testCase "Pragmatically showing (with orthogonal span)"
+       $ SP.show ((1,0)|±|[(6,0),(0,2)] :: Shade' (ℝ,ℝ))
+                 @?= "(1,0)|±|[(6,0),(0,2)]"
+    ]
+ , testGroup "Function models for uncertain data"
+    [ testCase "Fitting a 1D affine model to constant data"
        $ fitLocally [ (-1, 5|±|[1]), (0, 5|±|[1]), (1, 5|±|[1]) ]
           @?≈ Just (
                AffineModel (5:±[1.15]) (zeroV:±[id^/sqrt 2]) :: AffineModel ℝ ℝ )
