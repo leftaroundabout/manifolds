@@ -659,6 +659,7 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                              ( rescan $ case fitLocally $ map (id *** _thisNodeData)
                                                =<< (localOnion info []) of
                                  Just ㄇ -> ㄇ)
+                                 >>= intersectShade's . (:|[info^.thisNodeData])
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
