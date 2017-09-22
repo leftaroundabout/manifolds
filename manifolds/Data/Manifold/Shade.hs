@@ -1078,6 +1078,25 @@ instance ∀ x y .
    where (shx,shy) = factoriseShade sh
          shshx = showsPrecShade'_errorLtdC 0 shx 
          shshy = showsPrecShade'_errorLtdC 0 shy 
+
+instance ∀ v .
+    (HilbertSpace v, SemiInner v, FiniteDimensional v, LtdErrorShow v, Scalar v ~ ℝ)
+              => LtdErrorShow (LinearMap ℝ v ℝ) where
+  showsPrecShade'_errorLtdC p sh = showParen (p>7) $
+         ("().<"++) . showsPrecShade'_errorLtdC 7
+                        (linIsoTransformShade (arr fromLinearForm) sh :: Shade' v)
+instance ∀ v .
+    (HilbertSpace v, SemiInner v, FiniteDimensional v, LtdErrorShow v, Scalar v ~ ℝ)
+              => LtdErrorShow (LinearMap ℝ v (ℝ,ℝ)) where
+  showsPrecShade'_errorLtdC p sh = showParen (p>7) $
+         (   "Left ().<"++) . showsPrecShade'_errorLtdC 7 shx
+       . ("^+^Right().<"++) . showsPrecShade'_errorLtdC 7 shy
+   where (shx,shy) = factoriseShade
+                        (linIsoTransformShade (lfun $ \f
+                                                -> ( fromLinearForm $ fst . f
+                                                   , fromLinearForm $ snd . f ) ) sh
+                             :: Shade' (v,v))
+        
                        
 instance LtdErrorShow x => Show (Shade' x) where
   showsPrec = prettyShowsPrecShade'
