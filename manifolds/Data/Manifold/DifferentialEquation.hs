@@ -83,6 +83,7 @@ import Control.Monad.Constrained hiding (forM)
 import Data.Foldable.Constrained
 import Data.Traversable.Constrained (Traversable, traverse)
 
+import Control.Lens
 
 -- | An ordinary differential equation is one that does not need any a-priori
 --   partial derivatives to compute the derivative for integration in some
@@ -133,7 +134,7 @@ constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
     in \(Shade (_x,y) δxy) -> LocalDifferentialEqn
             (\(AffineModel shy' _) ->
                     let shy = dualShade shy'
-                    in ( pure shy
+                    in ( return $ shy & shadeNarrowness %~ scaleNorm 0.01
                        , return $ projectShade (Embedding (arr bwt')
                                                           (arr bwt'inv)) shy )
             )
