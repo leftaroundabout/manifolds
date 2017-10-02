@@ -55,6 +55,8 @@ import Data.Functor.Identity
 import Data.Function ((&))
 import Data.Ord (comparing)
 import Data.List.FastNub (fastNub)
+import qualified Data.IntSet as ℤSet
+import Data.IntSet (IntSet)
 import Control.Arrow
 import Control.Monad (guard)
 import Control.Comonad
@@ -66,6 +68,7 @@ import GHC.Generics (Generic)
 import Control.Lens
 import Control.Lens.TH
 
+import Data.CallStack (HasCallStack)
 
 
 type WebNodeId = Int
@@ -149,6 +152,13 @@ data NodeInWeb x y = NodeInWeb {
    }
 makeLenses ''NodeInWeb
 
+data PathStep x y = PathStep {
+     _pathStepStart :: WebLocally x y
+   , _pathStepEnd :: WebLocally x y
+   }
+makeLenses ''PathStep
+
+
 type MetricChoice x = Shade x -> Metric x
 
 
@@ -185,6 +195,15 @@ ixedFoci = go 0
  where go _ [] = []
        go i (x:xs) = ((i,x), xs) : map (second (x:)) (go (i+1) xs)
  
+
+indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
+indexWeb (PointsWeb rsc) i = case indexShadeTree rsc i of
+       Right (_, (x, Neighbourhood y _ _ _)) -> Just (x, y)
+       _ -> Nothing
+
+unsafeIndexWebData :: PointsWeb x y -> WebNodeId -> y
+unsafeIndexWebData web i = case indexWeb web i of
+              Just (x,y) -> y
 
 
 jumpNodeOffset :: WebNodeIdOffset -> NodeInWeb x y -> NodeInWeb x y
@@ -486,3 +505,49 @@ extractSmallestOn f = extract . map (id &&& f)
        go (ref,refx) ((x, Just o):cs)
         | o < ref   = second (refx:) $ go (o,x) cs
        go ref ((x, _):cs) = second (x:) $ go ref cs
+
+
+traversePathsTowards :: ∀ f x y z
+         . (WithField ℝ Manifold x, Applicative f, HasCallStack)
+     => WebNodeId -> (PathStep x y -> [z] -> f z)
+           -> PointsWeb x y -> [[x]] -- f (PointsWeb x z)
+traversePathsTowards target f web
+  | Nothing <- sn  = error $ "Node "++show target++" not in web."
+  | otherwise      = map (indexWeb web >>> \(Just (x,_))->x) <$> paths
+ where envied = webLocalInfo $ bidirectionaliseWebLinks web
+       sn@(Just (targetPos,targetNode)) = indexWeb envied target
+       paths = go ℤSet.empty [[target]] []
+        where go :: IntSet -> [[WebNodeId]] -> [[WebNodeId]] -> [[WebNodeId]]
+              go visitedNodes workers finishedThreads
+               = case continue visitedNodes workers of
+                  (_, [], _, newFinished) -> newFinished ++ finishedThreads
+                  (visited', continuation, alternatives, newFinished)
+                       -> let newThreads = filter (`ℤSet.notMember`visited')
+                                                  (ℤSet.toList alternatives)
+                          in go (ℤSet.union visited' alternatives)
+                                (continuation ++ fmap pure newThreads)
+                                (newFinished ++ finishedThreads)
+              continue :: IntSet -> [[WebNodeId]]
+                             -> (IntSet, [[WebNodeId]], IntSet, [[WebNodeId]])
+              continue visitedNodes [] = (visitedNodes, [], ℤSet.empty, [])
+              continue visitedNodes ((cursor:nds):paths)
+                  = case fst <$> sortBy (comparing snd) candidates of
+                       (preferred:alts)
+                          -> case continue (ℤSet.insert preferred visitedNodes) paths of
+                               (visited'', contin'', alts', newFin)
+                                 -> ( visited''
+                                    , (preferred:cursor:nds):contin''
+                                    , ℤSet.union (ℤSet.fromList alts) alts'
+                                    , newFin )
+                       [] -> case continue visitedNodes paths of
+                               (visited'', contin'', alts', newFin)
+                                 -> ( visited''
+                                    , contin''
+                                    , alts'
+                                    , (cursor:nds):newFin )
+               where Just (cursorPos,cursorNode) = indexWeb envied cursor
+                     tgtOpp = cursorNode^.nodeLocalScalarProduct
+                                  <$| targetPos .-~! cursorPos
+                     candidates = [ (ngb, tgtOpp<.>^δn)
+                                  | (ngb, (δn, _)) <- cursorNode^.nodeNeighbours
+                                  , ngb`ℤSet.notMember`visitedNodes ]

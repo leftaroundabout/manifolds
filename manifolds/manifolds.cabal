@@ -58,6 +58,7 @@ Library
                      , deepseq
                      , placeholders
                      , lens
+                     , call-stack
                      , constrained-categories >= 0.2.3 && < 0.3.1
                      , pragmatic-show
   other-extensions:  FlexibleInstances

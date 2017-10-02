@@ -65,7 +65,6 @@ module Data.Manifold.Web (
 
 import Data.List hiding (filter, all, foldr1)
 import Data.Maybe
-import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.Vector as Arr
 import qualified Data.Vector.Mutable as MArr
@@ -296,15 +295,6 @@ meanOf f = renormalise . Hask.foldl' accs (0, 0::Int)
 geometricMeanOf :: (Hask.Foldable f, Floating n) => (a -> n) -> f a -> n
 geometricMeanOf f = exp . meanOf (log . f)
 
-
-indexWeb :: PointsWeb x y -> WebNodeId -> Maybe (x,y)
-indexWeb (PointsWeb rsc) i = case indexShadeTree rsc i of
-       Right (_, (x, Neighbourhood y _ _ _)) -> Just (x, y)
-       _ -> Nothing
-
-unsafeIndexWebData :: PointsWeb x y -> WebNodeId -> y
-unsafeIndexWebData web i = case indexWeb web i of
-              Just (x,y) -> y
 
 
 webBoundary :: WithField ℝ Manifold x => PointsWeb x y -> [(Cutplane x, y)]
