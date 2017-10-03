@@ -516,34 +516,38 @@ traversePathsTowards target f web
   | otherwise      = map (indexWeb web >>> \(Just (x,_))->x) <$> paths
  where envied = webLocalInfo $ bidirectionaliseWebLinks web
        sn@(Just (targetPos,targetNode)) = indexWeb envied target
-       paths = go ℤSet.empty [[target]] []
-        where go :: IntSet -> [[WebNodeId]] -> [[WebNodeId]] -> [[WebNodeId]]
-              go visitedNodes workers finishedThreads
-               = case continue visitedNodes workers of
+       paths = go ℤSet.empty False [[target]] []
+        where go :: IntSet -> Bool -> [[WebNodeId]] -> [[WebNodeId]] -> [[WebNodeId]]
+              go visitedNodes boundaryCreepingInhibitor workers finishedThreads
+               = case continue visitedNodes boundaryCreepingInhibitor workers of
                   (_, [], _, newFinished) -> newFinished ++ finishedThreads
                   (visited', continuation, alternatives, newFinished)
                        -> let newThreads = filter (`ℤSet.notMember`visited')
                                                   (ℤSet.toList alternatives)
                           in go (ℤSet.union visited' alternatives)
+                                True
                                 (continuation ++ fmap pure newThreads)
                                 (newFinished ++ finishedThreads)
-              continue :: IntSet -> [[WebNodeId]]
+              continue :: IntSet -> Bool -> [[WebNodeId]]
                              -> (IntSet, [[WebNodeId]], IntSet, [[WebNodeId]])
-              continue visitedNodes [] = (visitedNodes, [], ℤSet.empty, [])
-              continue visitedNodes ((cursor:nds):paths)
+              continue visitedNodes _ [] = (visitedNodes, [], ℤSet.empty, [])
+              continue visitedNodes boundaryCreepingInhibitor ((cursor:nds):paths)
                   = case fst <$> sortBy (comparing snd) candidates of
                        (preferred:alts)
-                          -> case continue (ℤSet.insert preferred visitedNodes) paths of
+                         | Nothing <- guard boundaryCreepingInhibitor
+                                       >> cursorNode ^. webBoundingPlane
+                          -> case continue (ℤSet.insert preferred visitedNodes)
+                                         boundaryCreepingInhibitor paths of
                                (visited'', contin'', alts', newFin)
                                  -> ( visited''
                                     , (preferred:cursor:nds):contin''
                                     , ℤSet.union (ℤSet.fromList alts) alts'
                                     , newFin )
-                       [] -> case continue visitedNodes paths of
+                       alts -> case continue visitedNodes boundaryCreepingInhibitor paths of
                                (visited'', contin'', alts', newFin)
                                  -> ( visited''
                                     , contin''
-                                    , alts'
+                                    , ℤSet.union (ℤSet.fromList alts) alts'
                                     , (cursor:nds):newFin )
                where Just (cursorPos,cursorNode) = indexWeb envied cursor
                      tgtOpp = cursorNode^.nodeLocalScalarProduct
