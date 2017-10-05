@@ -538,8 +538,8 @@ traversePathsTowards target f web
               continue _ visitedNodes _ [] = (visitedNodes, [], ℤSet.empty, [])
               continue dfsDepth visitedNodes boundaryCreepingInhibitor ((cursor:nds):paths)
                   = case fst <$> sortBy (comparing snd)
-                          (goDfs dfsDepth visitedNodes []
-                             $ pure . fst <$> sortBy (comparing snd) candidates) of
+                          [ goDfs dfsDepth (ℤSet.insert i visitedNodes) [] [i]
+                          | i <- candidates ] of
                        ((preferred, (visited', pAlts)):alts)
                          | Nothing <- guard boundaryCreepingInhibitor
                                        >> cursorNode ^. webBoundingPlane
@@ -565,28 +565,26 @@ traversePathsTowards target f web
                where Just (cursorPos,cursorNode) = indexWeb envied cursor
                      tgtOpp = cursorNode^.nodeLocalScalarProduct
                                   <$| targetPos .-~! cursorPos
-                     candidates = [ (ngb, tgtOpp<.>^δn)
-                                  | (ngb, (δn, _)) <- cursorNode^.nodeNeighbours
+                     candidates = [ ngb
+                                  | (ngb, (_, _)) <- cursorNode^.nodeNeighbours
                                   , ngb`ℤSet.notMember`visitedNodes ]
-                     goDfs :: Int -> NodeSet -> [WebNodeId] -> [WNIPath]
-                                -> [((WNIPath, (NodeSet, [WebNodeId])), ℝ)]
-                     goDfs _ _ _ [] = []
-                     goDfs d2go visited' oldAlts ((p:old):cps)
+                     goDfs :: Int -> NodeSet -> [WebNodeId] -> WNIPath
+                                -> ((WNIPath, (NodeSet, [WebNodeId])), ℝ)
+                     goDfs d2go visited' oldAlts (p:old)
                             = case sortBy (comparing snd) candidates of
                                 ((preferred,oppositionQ):alts)
                                   -> let visited'' = ℤSet.insert preferred visited'
-                                         alts' = (fst<$>alts)++oldAlts
+                                         alts' = filter (/=preferred) oldAlts
+                                                    ++ (fst<$>alts)
                                      in if d2go>1
                                             && isNothing (exploreNode^.webBoundingPlane)
                                          then goDfs (d2go-1) visited'' alts'
-                                                   ((preferred:p:old):cps)
+                                                   (preferred:p:old)
                                          else ( (preferred:p:old, (visited'', alts'))
                                               , oppositionQ )
-                                                 : goDfs dfsDepth visited'' [] cps
                                 [] -> let δn = explorePos .-~! cursorPos
                                           oppositionQ = tgtOpp<.>^δn
                                       in ((p:old, (visited', oldAlts)), oppositionQ)
-                                          : goDfs dfsDepth visited' [] cps
                       where Just (explorePos,exploreNode) = indexWeb envied p
                             candidates = [ (ngb, tgtOpp<.>^δn)
                                          | (ngb, (_, ngbN)) <- exploreNode^.nodeNeighbours
