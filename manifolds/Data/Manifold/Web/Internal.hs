@@ -57,6 +57,7 @@ import Data.Ord (comparing)
 import Data.List.FastNub (fastNub)
 import qualified Data.IntSet as ℤSet
 import Data.IntSet (IntSet)
+import Data.Maybe (isNothing)
 import Control.Arrow
 import Control.Monad (guard)
 import Control.Comonad
@@ -506,6 +507,8 @@ extractSmallestOn f = extract . map (id &&& f)
         | o < ref   = second (refx:) $ go (o,x) cs
        go ref ((x, _):cs) = second (x:) $ go ref cs
 
+type WNIPath = [WebNodeId]
+type NodeSet = ℤSet.IntSet
 
 traversePathsTowards :: ∀ f x y z
          . (WithField ℝ Manifold x, Applicative f, HasCallStack)
@@ -516,42 +519,76 @@ traversePathsTowards target f web
   | otherwise      = map (indexWeb web >>> \(Just (x,_))->x) <$> paths
  where envied = webLocalInfo $ bidirectionaliseWebLinks web
        sn@(Just (targetPos,targetNode)) = indexWeb envied target
-       paths = go ℤSet.empty False [[target]] []
-        where go :: IntSet -> Bool -> [[WebNodeId]] -> [[WebNodeId]] -> [[WebNodeId]]
-              go visitedNodes boundaryCreepingInhibitor workers finishedThreads
-               = case continue visitedNodes boundaryCreepingInhibitor workers of
+       paths = go 0 ℤSet.empty False [[target]] []
+        where go :: Int -> NodeSet -> Bool -> [WNIPath] -> [WNIPath] -> [WNIPath]
+              go targetDist visitedNodes boundaryCreepingInhibitor workers finishedThreads
+               = case continue (round (sqrt $ fromIntegral targetDist :: Double))
+                        visitedNodes boundaryCreepingInhibitor workers of
                   (_, [], _, newFinished) -> newFinished ++ finishedThreads
                   (visited', continuation, alternatives, newFinished)
                        -> let newThreads = filter (`ℤSet.notMember`visited')
                                                   (ℤSet.toList alternatives)
-                          in go (ℤSet.union visited' alternatives)
+                          in go (targetDist+1)
+                                (ℤSet.union visited' alternatives)
                                 True
                                 (continuation ++ fmap pure newThreads)
                                 (newFinished ++ finishedThreads)
-              continue :: IntSet -> Bool -> [[WebNodeId]]
-                             -> (IntSet, [[WebNodeId]], IntSet, [[WebNodeId]])
-              continue visitedNodes _ [] = (visitedNodes, [], ℤSet.empty, [])
-              continue visitedNodes boundaryCreepingInhibitor ((cursor:nds):paths)
-                  = case fst <$> sortBy (comparing snd) candidates of
-                       (preferred:alts)
+              continue :: Int -> NodeSet -> Bool -> [WNIPath]
+                             -> (NodeSet, [WNIPath], NodeSet, [WNIPath])
+              continue _ visitedNodes _ [] = (visitedNodes, [], ℤSet.empty, [])
+              continue dfsDepth visitedNodes boundaryCreepingInhibitor ((cursor:nds):paths)
+                  = case fst <$> sortBy (comparing snd)
+                          (goDfs dfsDepth visitedNodes []
+                             $ pure . fst <$> sortBy (comparing snd) candidates) of
+                       ((preferred, (visited', pAlts)):alts)
                          | Nothing <- guard boundaryCreepingInhibitor
                                        >> cursorNode ^. webBoundingPlane
-                          -> case continue (ℤSet.insert preferred visitedNodes)
+                          -> case continue dfsDepth visited'
                                          boundaryCreepingInhibitor paths of
                                (visited'', contin'', alts', newFin)
                                  -> ( visited''
-                                    , (preferred:cursor:nds):contin''
-                                    , ℤSet.union (ℤSet.fromList alts) alts'
+                                    , (preferred++cursor:nds):contin''
+                                    , ℤSet.union (ℤSet.fromList
+                                                   $ pAlts ++ (last . fst <$> alts))
+                                                 alts'
                                     , newFin )
-                       alts -> case continue visitedNodes boundaryCreepingInhibitor paths of
+                       alts -> case continue dfsDepth visitedNodes
+                                           boundaryCreepingInhibitor paths of
                                (visited'', contin'', alts', newFin)
                                  -> ( visited''
                                     , contin''
-                                    , ℤSet.union (ℤSet.fromList alts) alts'
-                                    , (cursor:nds):newFin )
+                                    , ℤSet.union (ℤSet.fromList
+                                                   $ last . fst <$> alts)
+                                                 alts'
+                                    , if null nds then newFin
+                                                  else (cursor:nds):newFin )
                where Just (cursorPos,cursorNode) = indexWeb envied cursor
                      tgtOpp = cursorNode^.nodeLocalScalarProduct
                                   <$| targetPos .-~! cursorPos
                      candidates = [ (ngb, tgtOpp<.>^δn)
                                   | (ngb, (δn, _)) <- cursorNode^.nodeNeighbours
                                   , ngb`ℤSet.notMember`visitedNodes ]
+                     goDfs :: Int -> NodeSet -> [WebNodeId] -> [WNIPath]
+                                -> [((WNIPath, (NodeSet, [WebNodeId])), ℝ)]
+                     goDfs _ _ _ [] = []
+                     goDfs d2go visited' oldAlts ((p:old):cps)
+                            = case sortBy (comparing snd) candidates of
+                                ((preferred,oppositionQ):alts)
+                                  -> let visited'' = ℤSet.insert preferred visited'
+                                         alts' = (fst<$>alts)++oldAlts
+                                     in if d2go>1
+                                            && isNothing (exploreNode^.webBoundingPlane)
+                                         then goDfs (d2go-1) visited'' alts'
+                                                   ((preferred:p:old):cps)
+                                         else ( (preferred:p:old, (visited'', alts'))
+                                              , oppositionQ )
+                                                 : goDfs dfsDepth visited'' [] cps
+                                [] -> let δn = explorePos .-~! cursorPos
+                                          oppositionQ = tgtOpp<.>^δn
+                                      in ((p:old, (visited', oldAlts)), oppositionQ)
+                                          : goDfs dfsDepth visited' [] cps
+                      where Just (explorePos,exploreNode) = indexWeb envied p
+                            candidates = [ (ngb, tgtOpp<.>^δn)
+                                         | (ngb, (_, ngbN)) <- exploreNode^.nodeNeighbours
+                                         , ngb`ℤSet.notMember`visited'
+                                         , let δn = ngbN^.thisNodeCoord .-~! cursorPos ]
