@@ -16,6 +16,7 @@
 {-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE Rank2Types                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeOperators              #-}
@@ -59,8 +60,9 @@ import qualified Data.IntSet as ℤSet
 import Data.IntSet (IntSet)
 import Data.Maybe (isNothing)
 import Control.Arrow
-import Control.Monad (guard)
+import Control.Monad (guard, forM_)
 import Control.Comonad
+import Control.Monad.Trans.State
 
 import Control.DeepSeq
 
@@ -510,13 +512,35 @@ extractSmallestOn f = extract . map (id &&& f)
 type WNIPath = [WebNodeId]
 type NodeSet = ℤSet.IntSet
 
-traversePathsTowards :: ∀ f x y z
-         . (WithField ℝ Manifold x, Applicative f, HasCallStack)
-     => WebNodeId -> (PathStep x y -> [z] -> f z)
-           -> PointsWeb x y -> [[x]] -- f (PointsWeb x z)
-traversePathsTowards target f web
+traversePathInIWeb :: ∀ φ x y . (WithField ℝ Manifold x, Monad φ, HasCallStack)
+     => [WebNodeId] -> (PathStep x y -> φ y)
+              -> PointsWeb x (WebLocally x y) -> φ (PointsWeb x (WebLocally x y))
+traversePathInIWeb path f = go path
+ where go [] web = pure web
+       go [_] web = pure web
+       go (i₀:i₁:is) web = do
+                   y' <- f $ PathStep p₀ p₁
+                   let Right (Identity web')
+                         = treeLeaf i₁ (dataAtNode . thisNodeData . const $ pure y')
+                              $ webNodeRsc web
+                   go (i₁:is) $ PointsWeb web'
+        where Just (_, p₀) = indexWeb web i₀
+              Just (_, p₁) = indexWeb web i₁
+
+traversePathsTowards :: ∀ f φ x y
+         . (WithField ℝ Manifold x, Monad φ, Monad f, HasCallStack)
+     => WebNodeId  -- ^ The node towards which the paths should converge.
+       -> (PathStep x y -> φ y)
+                   -- ^ The action which to traverse along each path.
+       -> (∀ υ . WebLocally x y -> φ υ -> f υ)
+                   -- ^ Initialisation/evaluation for each path-traversal.
+       -> PointsWeb x y -> f (PointsWeb x y)
+traversePathsTowards target pathTravF routeInitF web
   | Nothing <- sn  = error $ "Node "++show target++" not in web."
-  | otherwise      = map (indexWeb web >>> \(Just (x,_))->x) <$> paths
+  | otherwise      = fmap (fmap _thisNodeData) . (`execStateT`envied) . forM_ paths
+                       $ \path@(p₀:_) -> StateT $ \webState -> do
+                 let Just (_, node₀) = indexWeb webState p₀
+                 ((),) <$> routeInitF node₀ (traversePathInIWeb path pathTravF webState)
  where envied = webLocalInfo $ bidirectionaliseWebLinks web
        sn@(Just (targetPos,targetNode)) = indexWeb envied target
        paths = go 0 ℤSet.empty False [[target]] []
