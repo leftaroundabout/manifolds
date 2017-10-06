@@ -46,7 +46,7 @@ module Data.Manifold.TreeCover (
        , mixShade's
        -- * Shade trees
        , ShadeTree, fromLeafPoints, fromLeafPoints_, onlyLeaves, onlyLeaves_
-       , indexShadeTree, positionIndex
+       , indexShadeTree, treeLeaf, positionIndex
        -- ** View helpers
        , entireTree, onlyNodes, trunkBranches, nLeaves, treeDepth
        -- ** Auxiliary types
@@ -356,6 +356,27 @@ indexShadeTree sh@(OverlappingBranches n _ brs) i
                          ) (Left i) (toList brs>>=toList)
     | otherwise  = Left $ i-n
 
+treeLeaf :: ∀ x y f . Hask.Functor f
+        => Int -> (y -> f y) -> x`Shaded`y -> Either Int (f (x`Shaded`y))
+treeLeaf i _ _
+    | i<0        = Left i
+treeLeaf i f sh@(PlainLeaves lvs) = case length lvs of
+  n | i<n
+    , (pre, (x,node):post) <- splitAt i lvs
+              -> Right . fmap (PlainLeaves . (pre++) . (:post) . (x,)) $ f node
+    | otherwise -> Left $ i-n
+treeLeaf i f (DisjointBranches n brs)
+    | i<n        = foldl (\case 
+                             Left i' -> (treeLeaf i' f)
+                             result  -> return result
+                         ) (Left i) brs
+    | otherwise  = Left $ i-n
+treeLeaf i f sh@(OverlappingBranches n _ brs)
+    | i<n        = foldl (\case 
+                             Left i' -> (treeLeaf i' f)
+                             result  -> return result
+                         ) (Left i) (toList brs>>=toList)
+    | otherwise  = Left $ i-n
 
 -- | “Inverse indexing” of a tree. This is roughly a nearest-neighbour search,
 --   but not guaranteed to give the correct result unless evaluated at the
