@@ -577,7 +577,6 @@ traversePathsTowards target f web
                                          alts' = filter (/=preferred) oldAlts
                                                     ++ (fst<$>alts)
                                      in if d2go>1
-                                            && isNothing (exploreNode^.webBoundingPlane)
                                          then goDfs (d2go-1) visited'' alts'
                                                    (preferred:p:old)
                                          else ( (preferred:p:old, (visited'', alts'))
@@ -589,4 +588,5 @@ traversePathsTowards target f web
                             candidates = [ (ngb, tgtOpp<.>^δn)
                                          | (ngb, (_, ngbN)) <- exploreNode^.nodeNeighbours
                                          , ngb`ℤSet.notMember`visited'
+                                         , isNothing (ngbN^.webBoundingPlane)
                                          , let δn = ngbN^.thisNodeCoord .-~! cursorPos ]
