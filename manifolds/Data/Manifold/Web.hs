@@ -248,7 +248,8 @@ smoothenWebTopology = knitShortcuts
 --   to be actually situated closer, link to them directly.
 knitShortcuts :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
              => MetricChoice x -> PointsWeb x y -> PointsWeb x y
-knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
+knitShortcuts metricf w₀ = tweakWebGeometry metricf closeObtuseAngles
+                             $ pseudoFixMaximise (rateLinkings w₀) w₀
  where pseudoFixMaximise oldBadness oldSt
          | newBadness < oldBadness  = pseudoFixMaximise newBadness newSt
          | otherwise                = newSt
@@ -286,6 +287,24 @@ knitShortcuts metricf w₀ = pseudoFixMaximise (rateLinkings w₀) w₀
                        _l₀:l₁:l₂:ls -> ( first _thisNodeId . swap <$> (l₁++l₂)
                                        , map (first _thisNodeId . swap) <$> ls )
                        [_l₀,l₁] -> (first _thisNodeId . swap <$> l₁, [])
+       closeObtuseAngles :: WebLocally x y -> [WebNodeId]
+       closeObtuseAngles me = go [ v ^/ (me^.nodeLocalScalarProduct|$|v)
+                                 | (i,(v,_)) <- me^.nodeNeighbours ]
+                                . fmap (second $ \(ψ,ν) -> ψ^/sqrt ν)
+                                . sortBy (comparing $ snd . snd)
+                                $ second (id&&&uncurry (<.>^)
+                                          <<< (me^.nodeLocalScalarProduct<$|)&&&id)
+                                   <$> candidates
+        where go :: [Needle x]
+                     -> [(WebNodeId, (Needle' x, Needle x))] -> [WebNodeId]
+              go existing [] = fst <$> me^.nodeNeighbours
+              go existing ((i,(dv,v)):news)
+               | any ((>0.7) . (dv<.>^)) existing  = go existing news
+               | otherwise  = i : go (v:existing) news
+              candidates :: [(WebNodeId, Needle x)]
+              candidates = case localOnion me [] of
+                       _l₀:_l₁:l₂:_ -> first _thisNodeId . swap <$> l₂
+                       _ -> []
 
 meanOf :: (Hask.Foldable f, Fractional n) => (a -> n) -> f a -> n
 meanOf f = renormalise . Hask.foldl' accs (0, 0::Int)
