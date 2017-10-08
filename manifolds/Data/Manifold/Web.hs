@@ -243,6 +243,12 @@ smoothenWebTopology :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
 smoothenWebTopology = knitShortcuts
 
 
+
+type OSNeedle x = (Needle' x, Needle x)
+type OSNode x y = (OSNeedle x, WebLocally x y)
+type CPCone x = (Needle' x, ℝ)
+
+
 -- | Consider at each node not just the connections to already known neighbours, but
 --   also the connections to /their/ neighbours. If these next-neighbours turn out
 --   to be actually situated closer, link to them directly.
@@ -262,6 +268,7 @@ knitShortcuts metricf w₀ = tweakWebGeometry metricf closeObtuseAngles
        rateNode info = geometricMeanOf
              (\(_, (δx,_)) -> info^.nodeLocalScalarProduct|$|δx)
              $ info^.nodeNeighbours
+       
        pickNewNeighbours :: WebLocally x y -> [WebNodeId]
        pickNewNeighbours me = fst <$> go Nothing [] candidates
         where go Nothing prevs (cs:ccs) = case bestNeighbours' lm' cs of
@@ -287,24 +294,57 @@ knitShortcuts metricf w₀ = tweakWebGeometry metricf closeObtuseAngles
                        _l₀:l₁:l₂:ls -> ( first _thisNodeId . swap <$> (l₁++l₂)
                                        , map (first _thisNodeId . swap) <$> ls )
                        [_l₀,l₁] -> (first _thisNodeId . swap <$> l₁, [])
+       
        closeObtuseAngles :: WebLocally x y -> [WebNodeId]
-       closeObtuseAngles me = go [ v ^/ (me^.nodeLocalScalarProduct|$|v)
-                                 | (i,(v,_)) <- me^.nodeNeighbours ]
-                                . fmap (second $ \(ψ,ν) -> ψ^/sqrt ν)
-                                . sortBy (comparing $ snd . snd)
-                                $ second (id&&&uncurry (<.>^)
-                                          <<< (me^.nodeLocalScalarProduct<$|)&&&id)
-                                   <$> candidates
-        where go :: [Needle x]
-                     -> [(WebNodeId, (Needle' x, Needle x))] -> [WebNodeId]
-              go existing [] = fst <$> me^.nodeNeighbours
-              go existing ((i,(dv,v)):news)
-               | any ((>0.7) . (dv<.>^)) existing  = go existing news
-               | otherwise  = i : go (v:existing) news
-              candidates :: [(WebNodeId, Needle x)]
+       closeObtuseAngles me = go [ (dv,v) ^/ sqrt (dv<.>^v)
+                                 | (i,(v,_)) <- me^.nodeNeighbours
+                                 , let dv = metric<$|v ]
+                                 candidates
+        where go :: [OSNeedle x] -> [OSNode x y] -> [WebNodeId]
+              go existing fillSrc = case constructUninhabitedCone existing of
+                    Nothing -> fst <$> me^.nodeNeighbours
+                    Just cone -> case findInCone cone fillSrc of
+                      Just ((fv,filler),fillSrc')
+                              -> (filler^.thisNodeId) : go (fv:existing) fillSrc'
+                      Nothing -> fst <$> me^.nodeNeighbours
+              constructUninhabitedCone :: [OSNeedle x] -> Maybe (CPCone x)
+              constructUninhabitedCone vs = find (not.(`any`vs).includes)
+                                              $ coneBetween <$> choices dimension vs
+               where coneBetween :: [(Needle' x, a)] -> (Needle' x, ℝ)
+                     coneBetween dvs = (coneDir, (coMetric|$|coneDir)/sqrt 2)
+                      where coneDir = sumV $ fst <$> dvs
+              findInCone :: CPCone x -> [OSNode x y]
+                             -> Maybe (OSNode x y, [OSNode x y])
+              findInCone cone ((po,pn):ps) | cone`includes`po  = Just ((po,pn), ps)
+              findInCone (coneDir, _) ((po,pn):_)
+                | Just wall <- pn^.webBoundingPlane
+                , BoundarylessWitness <- boundarylessWitness :: BoundarylessWitness x
+                , DualSpaceWitness <- dualSpaceWitness :: DualSpaceWitness (Needle x)
+                , testp <- pn^.thisNodeCoord .+~^ (coMetric<$|wall)
+                , (metric |$| testp.-~!me^.thisNodeCoord) > (metric|$|snd po)
+                    = Nothing
+              findInCone cone (p:ps) = second (p:) <$> findInCone cone ps
+              findInCone _ [] = Nothing
+              includes :: CPCone x -> OSNeedle x -> Bool
+              (coneDir, narrowing)`includes`(_, v) = coneDir<.>^v >= narrowing
+              candidates :: [OSNode x y]
               candidates = case localOnion me [] of
-                       _l₀:_l₁:l₂:_ -> first _thisNodeId . swap <$> l₂
+                       _l₀:_l₁:ls -> concat [ snd <$> sortBy (comparing fst)
+                                                [ (distSq, ((dv,v) ^/ sqrt distSq, node))
+                                                | (v, node) <- layer
+                                                , let dv = metric<$|v
+                                                      distSq = dv<.>^v ]
+                                            | layer <- ls ]
                        _ -> []
+              metric = me^.nodeLocalScalarProduct
+              coMetric = dualNorm metric
+       dimension = subbasisDimension (entireBasis :: SubBasis (Needle x))
+
+choices :: Int -> [a] -> [[a]]
+choices n l = go n l id []
+ where go 0 _ f = (f[]:)
+       go _ [] _ = id
+       go n (x:xs) f = go n xs f . go (n-1) xs ((x:).f)
 
 meanOf :: (Hask.Foldable f, Fractional n) => (a -> n) -> f a -> n
 meanOf f = renormalise . Hask.foldl' accs (0, 0::Int)
