@@ -40,6 +40,8 @@ import Control.Arrow
 import qualified GHC.Generics as Gnrx
 import GHC.Generics (Generic, (:*:)(..))
 
+import Data.CallStack (HasCallStack)
+
 
 data BoundarylessWitness m where
   BoundarylessWitness :: (Semimanifold m, Interior m ~ m)
@@ -192,9 +194,11 @@ class Semimanifold x => PseudoAffine x where
   
   -- | Unsafe version of '.-~.'. If the two points lie in disjoint regions,
   --   the behaviour is undefined.
-  (.-~!) :: x -> x -> Needle x
+  (.-~!) :: HasCallStack => x -> x -> Needle x
   p.-~!q = case p.-~.q of
       Just v -> v
+      Nothing -> error "Attempt to calculate vector between points on disjoint manifold-regions."
+  {-# INLINE (.-~!) #-}
   
   pseudoAffineWitness :: PseudoAffineWitness x
   default pseudoAffineWitness ::
