@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                manifolds-core
-version:             0.4.3.0
+version:             0.4.4.0
 synopsis:            The basic classes for the manifolds hierarchy.
 description:         The basic classes for the
                      <http://hackage.haskell.org/package/manifolds manifolds> hierarchy.
