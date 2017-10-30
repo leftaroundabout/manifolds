@@ -28,7 +28,7 @@ Author:              Justus Sagemüller
 Homepage:            https://github.com/leftaroundabout/manifolds
 Maintainer:          (@) sagemueller $ geo.uni-koeln.de
 Build-Type:          Simple
-Cabal-Version:       >=1.10
+Cabal-Version:       >=1.18
 Extra-Doc-Files:     images/examples/*.png,
                      images/examples/ShadeCombinations/2Dconvolution-skewed.png
                      images/examples/TreesAndWebs/*.png
