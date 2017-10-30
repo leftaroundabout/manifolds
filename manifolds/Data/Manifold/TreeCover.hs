@@ -384,7 +384,7 @@ treeLeaf i f sh@(OverlappingBranches n _ brs)
 positionIndex :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
        => Maybe (Metric x)   -- ^ For deciding (at the lowest level) what “close” means;
                              --   this is optional for any tree of depth >1.
-        -> x`Shaded`y        -- ^ The tree to index into
+        -> (x`Shaded`y)      -- ^ The tree to index into
         -> x                 -- ^ Position to look up
         -> Maybe (Int, ([x`Shaded`y], (x,y)))
                    -- ^ Index of the leaf near to the query point, the “path” of
