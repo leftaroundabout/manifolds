@@ -63,6 +63,7 @@ import Control.Arrow
 import Control.Monad (guard, forM_)
 import Control.Comonad
 import Control.Monad.Trans.State
+import Control.Monad.Trans.Writer
 
 import Control.DeepSeq
 
@@ -511,6 +512,16 @@ extractSmallestOn f = extract . map (id &&& f)
 
 type WNIPath = [WebNodeId]
 type NodeSet = ℤSet.IntSet
+
+
+pathsTowards :: ∀ x y . (WithField ℝ Manifold x, HasCallStack)
+     => WebNodeId -> PointsWeb x y -> [[y]]
+pathsTowards target web = execWriter $ traversePathsTowards
+       target
+       (\(PathStep _ y) -> tell [y^.thisNodeData] >> return (y^.thisNodeData))
+       (\startNode (WriterT (Identity (ν, pathTrav)))
+            -> tell [startNode^.thisNodeData : pathTrav] >> return ν)
+       web
 
 traversePathInIWeb :: ∀ φ x y . (WithField ℝ Manifold x, Monad φ, HasCallStack)
      => [WebNodeId] -> (PathStep x y -> φ y)
