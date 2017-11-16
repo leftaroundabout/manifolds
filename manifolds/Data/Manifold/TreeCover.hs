@@ -365,18 +365,31 @@ treeLeaf i f sh@(PlainLeaves lvs) = case length lvs of
     , (pre, (x,node):post) <- splitAt i lvs
               -> Right . fmap (PlainLeaves . (pre++) . (:post) . (x,)) $ f node
     | otherwise -> Left $ i-n
-treeLeaf i f (DisjointBranches n brs)
-    | i<n        = foldl (\case 
-                             Left i' -> (treeLeaf i' f)
-                             result  -> return result
-                         ) (Left i) brs
-    | otherwise  = Left $ i-n
-treeLeaf i f sh@(OverlappingBranches n _ brs)
-    | i<n        = foldl (\case 
-                             Left i' -> (treeLeaf i' f)
-                             result  -> return result
-                         ) (Left i) (toList brs>>=toList)
-    | otherwise  = Left $ i-n
+treeLeaf i f (DisjointBranches n _)
+    | i>=n   = Left $ i-n
+treeLeaf i f (DisjointBranches n (br:|[]))
+        = fmap (DisjointBranches n . pure) <$> treeLeaf i f br
+treeLeaf i f (DisjointBranches n (br:|br':brs))
+        = case treeLeaf i f br of
+            Left overshoot -> fmap (\(DisjointBranches _ (br'':|brs'))
+                                   -> DisjointBranches n (br:|br'':brs'))
+                  <$> treeLeaf overshoot f
+                     (DisjointBranches (n-nLeaves br) $ br':|brs)
+            Right done -> Right $ DisjointBranches n . (:|br':brs) <$> done
+treeLeaf i f (OverlappingBranches n extend (br@(DBranch dir (Hourglass t b)):|brs))
+    | i<nt       = fmap (OverlappingBranches n extend
+                         . (:|brs) . DBranch dir . (`Hourglass`b))
+                    <$> treeLeaf i f t
+    | i<nt+nb    = fmap (OverlappingBranches n extend
+                         . (:|brs) . DBranch dir . ( Hourglass t))
+                    <$> treeLeaf (i-nt) f b
+    | br':brs' <- brs
+                 = fmap (\(OverlappingBranches _ _ (br'':|brs''))
+                         -> OverlappingBranches n extend $ br:|br'':brs'')
+                    <$> treeLeaf (i-nt-nb) f (OverlappingBranches n extend $ br':|brs')
+    | otherwise  = Left $ i - nt - nb
+ where [nt,nb] = nLeaves<$>[t,b]
+
 
 -- | “Inverse indexing” of a tree. This is roughly a nearest-neighbour search,
 --   but not guaranteed to give the correct result unless evaluated at the
