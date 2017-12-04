@@ -870,6 +870,36 @@ filterDEqnSolutions_static = case geodesicWitness :: GeodesicWitness y of
         )
 
 
+filterDEqnSolutions_pathsTowards :: ∀ x y ㄇ iy m .
+                     ( ModellableRelation x y, Hask.MonadPlus m, LocalModel ㄇ )
+       => WebNodeId
+          -> InformationMergeStrategy [] m  (x,Shade' y) iy
+          -> Embedding (->) (Shade' y) iy
+          -> DifferentialEqn ㄇ x y -> PointsWeb x iy -> m (PointsWeb x iy)
+filterDEqnSolutions_pathsTowards = case ( geodesicWitness :: GeodesicWitness y
+                                        , boundarylessWitness :: BoundarylessWitness x ) of
+   (GeodesicWitness _, BoundarylessWitness) -> \targetNode strategy shading f
+       -> traversePathsTowards targetNode
+            (\(PathStep stepStart stepEnd) -> StateT $
+              \odeState ->
+                let apriori = shading >-$ stepEnd^.thisNodeData
+                in  (id&&&(shading>-$)) <$> mergeInformation strategy
+                                                             (stepEnd^.thisNodeData)
+                     `id`case propagateDEqnSolution_loc
+                                f
+                                (LocalDataPropPlan{
+                                   _sourcePosition = stepStart^.thisNodeCoord
+                                 , _targetPosOffset = (stepEnd^.thisNodeCoord)
+                                                        .-~! (stepStart^.thisNodeCoord)
+                                 , _sourceData = odeState
+                                 , _targetAPrioriData = apriori
+                                 }) of
+                          Nothing -> []
+                          Just propd -> [ ( stepEnd^.thisNodeCoord, apriori )
+                                        , ( stepStart^.thisNodeCoord, propd ) ] )
+            (\startPoint pathTrav
+               -> evalStateT pathTrav $ shading >-$ startPoint^.thisNodeData)
+
 
 data Average a = Average { weight :: Int
                          , averageAcc :: a
