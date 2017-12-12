@@ -906,9 +906,7 @@ filterDEqnSolutions_pathsTowards = case ( geodesicWitness :: GeodesicWitness y
             (\(PathStep stepStart stepEnd) -> StateT $
               \odeState ->
                 let apriori = shading >-$ stepEnd^.thisNodeData
-                in  (id&&&(shading>-$)) <$> mergeInformation strategy
-                                                             (stepEnd^.thisNodeData)
-                     `id`case propagateDEqnSolution_loc
+                in case propagateDEqnSolution_loc
                                 f
                                 (LocalDataPropPlan{
                                    _sourcePosition = stepStart^.thisNodeCoord
@@ -919,10 +917,14 @@ filterDEqnSolutions_pathsTowards = case ( geodesicWitness :: GeodesicWitness y
                                  , _relatedData
                                      = (fmap (second ((shading>-$) . _thisNodeData))
                                                . concat . tail $ localOnion stepEnd
-                                                                     [stepStart^.thisNodeId])
+                                                                  [stepStart^.thisNodeId])
                                  }) of
-                          Nothing -> []
-                          Just propd -> [ ( stepEnd^.thisNodeCoord, apriori )
+                          Nothing -> undefined
+                              <$> mergeInformation strategy (stepEnd^.thisNodeData) []
+                          Just propd -> (, propd)
+                                  <$> mergeInformation strategy
+                                        (stepEnd^.thisNodeData)
+                                        [ ( stepEnd^.thisNodeCoord, apriori )
                                         , ( stepStart^.thisNodeCoord, propd ) ] )
             (\startPoint pathTrav
                -> evalStateT pathTrav $ shading >-$ startPoint^.thisNodeData)
