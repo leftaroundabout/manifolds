@@ -49,7 +49,8 @@ module Data.Manifold.Web (
             , localModels_CGrid
               -- * Differential equations
               -- ** Fixed resolution
-            , iterateFilterDEqn_static, iterateFilterDEqn_static_selective
+            , iterateFilterDEqn_static, iterateFilterDEqn_pathwise
+            , iterateFilterDEqn_static_selective
               -- ** Automatic resolution
             , filterDEqnSolutions_adaptive, iterateFilterDEqn_adaptive
               -- ** Configuration
@@ -816,6 +817,28 @@ iterateFilterDEqn_static strategy shading f
                            = fmap (fmap (shading >-$))
                            . coiter (filterDEqnSolutions_static strategy shading f)
                            . fmap (shading $->)
+
+
+iterateFilterDEqn_pathwise
+     :: ( ModellableRelation x y, Hask.MonadPlus m, Hask.Traversable m, LocalModel ㄇ )
+       => InformationMergeStrategy [] m (x,Shade' y) iy
+           -> Embedding (->) (Shade' y) iy
+           -> DifferentialEqn ㄇ x y
+                 -> PointsWeb x (Shade' y) -> Cofree m (PointsWeb x (Shade' y))
+iterateFilterDEqn_pathwise strategy shading f
+            = fmap (fmap (shading >-$))
+            . (`evalState`7438)
+            . unfoldM (\oldWeb -> do
+               r <- get
+               let i = r `mod` nLeaves (webNodeRsc oldWeb)
+                   m = 2^31 - 1
+                   a = 963345    :: Int  -- revised Park-Miller
+               put $ (a*r)`mod`m
+               return ( oldWeb
+                      , filterDEqnSolutions_static strategy shading f
+                       =<<filterDEqnSolutions_pathsTowards i strategy shading f oldWeb
+                      ))
+            . fmap (shading $->)
 
 
 iterateFilterDEqn_static_selective :: ( ModellableRelation x y
