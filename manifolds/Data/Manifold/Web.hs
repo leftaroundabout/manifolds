@@ -893,6 +893,10 @@ filterDEqnSolutions_pathsTowards = case ( geodesicWitness :: GeodesicWitness y
                                                         .-~! (stepStart^.thisNodeCoord)
                                  , _sourceData = odeState
                                  , _targetAPrioriData = apriori
+                                 , _relatedData
+                                     = (fmap (second ((shading>-$) . _thisNodeData))
+                                               . concat . tail $ localOnion stepEnd
+                                                                     [stepStart^.thisNodeId])
                                  }) of
                           Nothing -> []
                           Just propd -> [ ( stepEnd^.thisNodeCoord, apriori )
