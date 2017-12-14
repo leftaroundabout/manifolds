@@ -916,8 +916,8 @@ filterDEqnSolutions_pathsTowards = case ( geodesicWitness :: GeodesicWitness y
                                  , _targetAPrioriData = apriori
                                  , _relatedData
                                      = (fmap (second ((shading>-$) . _thisNodeData))
-                                               . concat . tail $ localOnion stepEnd
-                                                                  [stepStart^.thisNodeId])
+                                               . concat . tail $ localOnion stepStart
+                                                                  [stepEnd^.thisNodeId])
                                  }) of
                           Nothing -> undefined
                               <$> mergeInformation strategy (stepEnd^.thisNodeData) []
