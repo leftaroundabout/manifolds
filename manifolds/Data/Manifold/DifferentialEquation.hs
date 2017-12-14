@@ -92,7 +92,7 @@ import Control.Lens
 --   be an arbitrary one-dimensional space (i.e. basically real intervals or 'S¹').
 --   In these cases, there is always only one partial derivative: that which we
 --   integrate over, in the only possible direction for propagation.
-type ODE x y = DifferentialEqn AffineModel x y
+type ODE x y = DifferentialEqn QuadraticModel x y
 
 constLinearDEqn :: ∀ x y . ( SimpleSpace x
                            , SimpleSpace y, AffineManifold y
@@ -132,7 +132,7 @@ constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
     ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt' ->
     let bwt'inv = pseudoInverse bwt'
     in \(Shade (_x,y) δxy) -> LocalDifferentialEqn
-            (\(AffineModel shy' _) ->
+            (\(QuadraticModel shy' _ _) ->
                     let shy = dualShade shy'
                     in ( return $ shy & shadeNarrowness %~ scaleNorm 0.01
                        , return $ projectShade (Embedding (arr bwt')
