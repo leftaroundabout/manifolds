@@ -60,7 +60,7 @@ module Data.Manifold.Web (
             , PropagationInconsistency(..)
               -- * Misc
             , ConvexSet(..), ellipsoid, ellipsoidSet, coerceWebDomain
-            , rescanPDELocally, webOnions, knitShortcuts
+            , rescanPDELocally, localOnion, webOnions, knitShortcuts
             ) where
 
 

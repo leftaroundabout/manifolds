@@ -80,6 +80,7 @@ Library
                      Data.Manifold.Web.Internal
                      Data.Manifold.DifferentialEquation
                      Data.Manifold.Function.LocalModel
+                     Data.Manifold.Function.Interpolation
                      Data.SimplicialComplex
                      Data.Function.Differentiable
                      Data.Function.Affine
