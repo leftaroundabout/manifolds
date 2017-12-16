@@ -260,6 +260,7 @@ class LocalModel ㄇ where
                   => [(Needle x, Shade' y)] -> Maybe (ㄇ x y)
   tweakLocalOffset :: ModellableRelation x y
                   => Lens' (ㄇ x y) (Shade y)
+  evalLocalModel :: ModellableRelation x y => ㄇ x y -> Needle x -> Shade' y
 
 modelParametersOverdetMargin :: Int -> Int
 modelParametersOverdetMargin n = n + round (sqrt $ fromIntegral n) - 1
@@ -296,6 +297,12 @@ instance LocalModel AffineModel where
                      $ (p₀:|ps++[pω])
           | otherwise  = Nothing
   tweakLocalOffset = affineModelOffset
+  evalLocalModel = aEvL pseudoAffineWitness
+   where aEvL :: ∀ x y . ModellableRelation x y
+                => PseudoAffineWitness y -> AffineModel x y -> Needle x -> Shade' y
+         aEvL (PseudoAffineWitness (SemimanifoldWitness _)) (AffineModel shy₀ shj) δx
+          = convolveShade' (dualShade shy₀)
+                           (dualShade . linearProjectShade (lfun ($ δx)) $ shj)
 
 instance LocalModel QuadraticModel where
   fitLocally = qFitL
@@ -308,3 +315,13 @@ instance LocalModel QuadraticModel where
                      $ (p₀:|ps++[pω])
           | otherwise  = Nothing
   tweakLocalOffset = quadraticModelOffset
+  evalLocalModel = aEvL pseudoAffineWitness
+   where aEvL :: ∀ x y . ModellableRelation x y
+                => PseudoAffineWitness y -> QuadraticModel x y -> Needle x -> Shade' y
+         aEvL (PseudoAffineWitness (SemimanifoldWitness _))
+              (QuadraticModel shy₀ shj shjj) δx
+          = (dualShade shy₀)
+           `convolveShade'`
+            (dualShade . linearProjectShade (lfun ($ δx)) $ shj)
+           `convolveShade'`
+            (dualShade . linearProjectShade (lfun ($ squareV δx)) $ shjj)
