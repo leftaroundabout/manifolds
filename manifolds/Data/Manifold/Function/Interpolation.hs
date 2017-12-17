@@ -26,6 +26,7 @@ module Data.Manifold.Function.Interpolation (
 
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^))
+import Data.Manifold.PseudoAffine
 import Data.Manifold.Shade
 import Data.Manifold.Web
 import Data.Manifold.Web.Internal
@@ -60,3 +61,22 @@ fromPointsWeb = InterpolationFunction . localFmapWeb (
                                   : [ (ngbx, ngb^.thisNodeData)
                                     | (ngbx,ngb) <- concat $ localOnion locInfo []] of
                                  Just locModl -> locModl )
+
+
+adjustMetricToModel :: ∀ x y ㄇ . (ModellableRelation x y, LocalModel ㄇ)
+                 => InterpolationFunction ㄇ x y -> InterpolationFunction ㄇ x y
+adjustMetricToModel = _interpWeb >>> webLocalInfo
+    >>> \(PointsWeb w) -> InterpolationFunction . PointsWeb $ fmap remetricise w
+ where remetricise :: Neighbourhood x (WebLocally x (ㄇ x y))
+             -> Neighbourhood x (ㄇ x y)
+       remetricise nd = nd & dataAtNode .~ localModel
+                           & localScalarProduct .~ newNorm
+        where localModel = nd^.dataAtNode.thisNodeData
+              newNorm = spanNorm
+                  [ dx ^/ ((0.1 + occlusion (ngb^.thisNodeData.tweakLocalOffset)
+                                            (fromInterior ySynth))
+                           * (dx<.>^δx))
+                  | (δx,ngb) <- concat . take 2 $ localOnion (nd^.dataAtNode) []
+                  , let dx = nd^.localScalarProduct<$|δx
+                        Shade' ySynth _ = evalLocalModel localModel δx ]
+                      :: Metric x
