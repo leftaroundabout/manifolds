@@ -55,7 +55,7 @@ module Data.Manifold.PseudoAffine (
             , PseudoAffine(..)
             -- * Type definitions
             -- ** Needles
-            , Local(..), (⊙+^)
+            , Local(..), (⊙+^), (!+~^)
             -- ** Metrics
             , Metric, Metric'
             , RieMetric, RieMetric'
@@ -107,6 +107,7 @@ import Data.Foldable.Constrained
 
 import Control.Lens (Lens', lens, (^.), (&), (%~), (.~))
 
+import Data.CallStack (HasCallStack)
 import GHC.Exts (Constraint)
 
 
@@ -460,6 +461,13 @@ instance ImpliesMetric Norm where
 
 type DualNeedleWitness x = DualSpaceWitness (Needle x)
 
+
+
+infixl 6 !+~^
+-- | Boundary-unsafe version of `.+~^`.
+(!+~^) :: ∀ x . (Semimanifold x, HasCallStack) => x -> Needle x -> x
+p!+~^v = case toInterior p of
+           Just p' -> p'.+~^v
 
 
 infix 6 ⊙+^

@@ -35,6 +35,7 @@ import Data.Manifold.Function.LocalModel
 import Data.VectorSpace
 import Math.LinearMap.Category
 
+import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NE
 
@@ -42,6 +43,7 @@ import qualified Prelude as Hask
 
 import Control.Category.Constrained.Prelude
 import Control.Arrow.Constrained
+import Control.Monad.Constrained
 
 import Control.Lens
 import Control.Lens.TH
@@ -80,3 +82,18 @@ adjustMetricToModel = _interpWeb >>> webLocalInfo
                   , let dx = nd^.localScalarProduct<$|δx
                         Shade' ySynth _ = evalLocalModel localModel δx ]
                       :: Metric x
+
+
+upsampleAtLargeDist :: (ModellableRelation x y, LocalModel ㄇ)
+                 => ℝ -> InterpolationFunction ㄇ x y -> PointsWeb x (Shade' y)
+upsampleAtLargeDist dmax (InterpolationFunction web)
+     = fromWebNodes (\(Shade x _) -> case nearestNeighbour webI (fromInterior x) of
+                         Just (_,nearest) -> nearest ^. nodeLocalScalarProduct) $ do
+          local <- toList webI
+          (local^.thisNodeCoord, evalLocalModel (local^.thisNodeData) zeroV) : do 
+             (ngId, (δx, ngb)) <- local^.nodeNeighbours
+             guard (ngId > local^.thisNodeId
+                   && (local^.nodeLocalScalarProduct|$|δx) > dmax)
+             return ( local^.thisNodeCoord !+~^ δx^/2
+                    , evalLocalModel (local^.thisNodeData) $ δx^/2 )
+ where webI = webLocalInfo web
