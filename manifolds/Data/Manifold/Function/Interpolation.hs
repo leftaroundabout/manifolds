@@ -85,8 +85,9 @@ adjustMetricToModel = _interpWeb >>> webLocalInfo
 
 
 upsampleAtLargeDist :: (ModellableRelation x y, LocalModel ㄇ)
-                 => ℝ -> InterpolationFunction ㄇ x y -> PointsWeb x (Shade' y)
-upsampleAtLargeDist dmax (InterpolationFunction web)
+        => ℝ -> (x -> ㄇ x y -> Needle x -> Shade' y)
+            -> InterpolationFunction ㄇ x y -> PointsWeb x (Shade' y)
+upsampleAtLargeDist dmax gapFillFunc (InterpolationFunction web)
      = fromWebNodes (\(Shade x _) -> case nearestNeighbour webI (fromInterior x) of
                          Just (_,nearest) -> nearest ^. nodeLocalScalarProduct) $ do
           local <- toList webI
@@ -95,5 +96,11 @@ upsampleAtLargeDist dmax (InterpolationFunction web)
              guard (ngId > local^.thisNodeId
                    && (local^.nodeLocalScalarProduct|$|δx) > dmax)
              return ( local^.thisNodeCoord !+~^ δx^/2
-                    , evalLocalModel (local^.thisNodeData) $ δx^/2 )
+                    , gapFillFunc (local^.thisNodeCoord)
+                                  (local^.thisNodeData)
+                                  (δx^/2) )
  where webI = webLocalInfo web
+
+autoUpsampleAtLargeDist :: (ModellableRelation x y, LocalModel ㄇ)
+        => ℝ -> InterpolationFunction ㄇ x y -> PointsWeb x (Shade' y)
+autoUpsampleAtLargeDist dmax = upsampleAtLargeDist dmax $ const evalLocalModel
