@@ -98,49 +98,6 @@ data GraphWindowSpec = GraphWindowSpec {
 
 
 
--- | The ordinary unit sphere.
-data S² = S² { ϑParamS² :: !Double -- ^ Range @[0, π[@.
-             , φParamS² :: !Double -- ^ Range @[-π, π[@.
-             } deriving (Show)
-
-
-
--- | The two-dimensional real projective space, implemented as a unit disk with
---   opposing points on the rim glued together.
-data ℝP² = ℝP² { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
-               , φParamℝP² :: !Double -- ^ Range @[-π, π[@.
-               } deriving (Show)
-
-
-
--- | The standard, closed unit disk. Homeomorphic to the cone over 'S¹', but not in the
---   the obvious, &#x201c;flat&#x201d; way. (And not at all, despite
---   the identical ADT definition, to the projective space 'ℝP²'!)
-data D² = D² { rParamD² :: !Double -- ^ Range @[0, 1]@.
-             , φParamD² :: !Double -- ^ Range @[-π, π[@.
-             } deriving (Show)
-
--- | A (closed) cone over a space @x@ is the product of @x@ with the closed interval 'D¹'
---   of &#x201c;heights&#x201d;,
---   except on its &#x201c;tip&#x201d;: here, @x@ is smashed to a single point.
---   
---   This construct becomes (homeomorphic-to-) an actual geometric cone (and to 'D²') in the
---   special case @x = 'S¹'@.
-data CD¹ x = CD¹ { hParamCD¹ :: !Double -- ^ Range @[0, 1]@
-                 , pParamCD¹ :: !x      -- ^ Irrelevant at @h = 0@.
-                 } deriving (Show)
-
-
--- | An open cone is homeomorphic to a closed cone without the &#x201c;lid&#x201d;,
---   i.e. without the &#x201c;last copy&#x201d; of @x@, at the far end of the height
---   interval. Since that means the height does not include its supremum, it is actually
---   more natural to express it as the entire real ray, hence the name.
-data Cℝay x = Cℝay { hParamCℝay :: !Double -- ^ Range @[0, &#x221e;[@
-                   , pParamCℝay :: !x      -- ^ Irrelevant at @h = 0@.
-                   } deriving (Show)
-
-
-
 
 
 
