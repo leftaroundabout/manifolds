@@ -367,6 +367,32 @@ instance PseudoAffine D¹ where
 
 
 
+instance Semimanifold ℝP⁰ where
+  type Needle ℝP⁰ = ZeroDim ℝ
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
+  p .+~^ Origin = p
+  p .-~^ Origin = p
+instance PseudoAffine ℝP⁰ where
+  ℝPZero .-~. ℝPZero = pure Origin
+
+instance Semimanifold ℝP¹ where
+  type Needle ℝP¹ = ℝ
+  fromInterior = id
+  toInterior = pure
+  translateP = Tagged (.+~^)
+  ℝP¹ r₀ .+~^ δr
+     | r' < -1    = ℝP¹ $ r' + 2
+     | otherwise  = ℝP¹ $ r'
+   where r' = toUnitrange $ r₀ + δr
+instance PseudoAffine ℝP¹ where
+  ℝP¹ φ₁ .-~. ℝP¹ φ₀
+     | δφ > pi     = pure (δφ - 2*pi)
+     | δφ < (-pi)  = pure (δφ + 2*pi)
+     | otherwise   = pure δφ
+   where δφ = φ₁ - φ₀
+
 
 
 
@@ -377,6 +403,9 @@ tau = 2 * pi
 
 toS¹range :: ℝ -> ℝ
 toS¹range φ = (φ+pi)`mod'`tau - pi
+
+toUnitrange :: ℝ -> ℝ
+toUnitrange φ = (φ+1)`mod'`2 - 1
 
 
 

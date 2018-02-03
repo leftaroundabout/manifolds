@@ -34,7 +34,7 @@ module Data.Manifold.Types (
         -- * Index / ASCII names
           Real0, Real1, RealPlus, Real2, Real3
         , Sphere0, Sphere1, Sphere2
-        , Projective1, Projective2
+        , Projective0, Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
         -- * Linear manifolds
         , ZeroDim(..)
@@ -46,7 +46,7 @@ module Data.Manifold.Types (
         , HasUnitSphere(..)
         , S⁰(..), S¹(..), S²(..)
         -- * Projective spaces
-        , ℝP¹,  ℝP²(..)
+        , ℝP⁰(..), ℝP¹(..),  ℝP²(..)
         -- * Intervals\/disks\/cones
         , D¹(..), D²(..)
         , ℝay

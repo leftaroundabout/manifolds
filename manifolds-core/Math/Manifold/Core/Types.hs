@@ -39,6 +39,8 @@ otherHalfSphere :: S⁰ -> S⁰
 otherHalfSphere PositiveHalfSphere = NegativeHalfSphere
 otherHalfSphere NegativeHalfSphere = PositiveHalfSphere
 
+data ℝP⁰ = ℝPZero deriving (Eq, Show)
+
 -- | The unit circle.
 newtype S¹ = S¹ { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
                 } deriving (Show)
@@ -46,7 +48,8 @@ newtype S¹ = S¹ { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
 
 
 
-type ℝP¹ = S¹
+newtype ℝP¹ = ℝP¹ { rParamℝP¹ :: Double -- ^ Range @[-1,1]@.
+                  } deriving (Show)
 
 -- | The ordinary unit sphere.
 data S² = S² { ϑParamS² :: !Double -- ^ Range @[0, π[@.

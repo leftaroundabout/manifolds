@@ -34,7 +34,7 @@ module Data.Manifold.Types.Primitive (
         -- * Index / ASCII names
           Real0, Real1, RealPlus, Real2, Real3
         , Sphere0, Sphere1, Sphere2
-        , Projective1, Projective2
+        , Projective0, Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
         -- * Linear manifolds
         , ZeroDim(..)
@@ -42,7 +42,7 @@ module Data.Manifold.Types.Primitive (
         -- * Hyperspheres
         , S⁰(..), otherHalfSphere, S¹(..), S²(..)
         -- * Projective spaces
-        , ℝP¹,  ℝP²(..)
+        , ℝP⁰(..), ℝP¹(..),  ℝP²(..)
         -- * Intervals\/disks\/cones
         , D¹(..), fromIntv0to1, D²(..)
         , ℝay
@@ -167,6 +167,7 @@ type Sphere0 = S⁰
 type Sphere1 = S¹
 type Sphere2 = S²
 
+type Projective0 = ℝP⁰
 type Projective1 = ℝP¹
 type Projective2 = ℝP²
 
