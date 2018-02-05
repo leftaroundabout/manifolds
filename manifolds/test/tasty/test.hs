@@ -48,9 +48,9 @@ tests :: TestTree
 tests = testGroup "Tests"
  [ testGroup "Semimanifold laws"
   [ testGroup "Asymptotic associativity"
-   [ QC.testProperty "Real vector space" (exactlyAssociative @(ℝ,ℝ))
-   , QC.testProperty "1-sphere" (exactlyAssociative @S¹)
-   , QC.testProperty "2-sphere" (asymptoticAssociative @S²)
+   [ QC.testProperty "Real vector space" (nearlyAssociative @(ℝ,ℝ))
+   , QC.testProperty "1-sphere" (nearlyAssociative @S¹)
+   , QC.testProperty "2-sphere" (QC.expectFailure $ nearlyAssociative @S²)
    ]
   ]
  , testGroup "Graph structure of webs"
@@ -496,11 +496,7 @@ a@?≈b
 instance QC.Arbitrary ℝ² where
   arbitrary = (\(x,y)->V2 x y) <$> QC.arbitrary
 
-exactlyAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
+nearlyAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
                          => m -> Needle m -> Needle m -> Bool
-exactlyAssociative p v w = (p .+~^ v) .+~^ w ≈ (p .+~^ (v^+^w) :: m)
-
-asymptoticAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
-                         => m -> Needle m -> Needle m -> Bool
-asymptoticAssociative p v w = undefined
+nearlyAssociative p v w = (p .+~^ v) .+~^ w ≈ (p .+~^ (v^+^w) :: m)
 
