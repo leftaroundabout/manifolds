@@ -61,7 +61,7 @@ Library
                      , call-stack
                      , constrained-categories >= 0.2.3 && < 0.3.1
                      , pragmatic-show
-                     , QuickCheck >=2.10 && <3
+                     , QuickCheck >=2.8 && <3
   other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
