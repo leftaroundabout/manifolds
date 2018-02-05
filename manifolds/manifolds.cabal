@@ -61,6 +61,7 @@ Library
                      , call-stack
                      , constrained-categories >= 0.2.3 && < 0.3.1
                      , pragmatic-show
+                     , QuickCheck >=2.10 && <3
   other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
@@ -120,6 +121,7 @@ test-suite test
     , pragmatic-show
     , containers
     , vector-space
+    , linear
     , constrained-categories
     , linearmap-category
     , lens

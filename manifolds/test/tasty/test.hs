@@ -9,7 +9,8 @@
 -- 
 
 {-# LANGUAGE OverloadedLists, TypeFamilies, FlexibleContexts, UndecidableInstances #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE TypeOperators, TypeApplications, ScopedTypeVariables, UnicodeSyntax #-}
 
 module Main where
 
@@ -20,6 +21,7 @@ import Data.Manifold.Web
 import Data.Manifold.Web.Internal
 import Data.Manifold.Function.LocalModel
 import Data.VectorSpace
+import Linear.V2 (V2(V2))
 import Math.LinearMap.Category
 import Prelude hiding (id, fst, snd)
 import Control.Category.Constrained (id)
@@ -44,7 +46,14 @@ main = defaultMain tests
 
 tests :: TestTree
 tests = testGroup "Tests"
- [ testGroup "Graph structure of webs"
+ [ testGroup "Semimanifold laws"
+  [ testGroup "Asymptotic associativity"
+   [ QC.testProperty "Real vector space" (exactlyAssociative @(ℝ,ℝ))
+   , QC.testProperty "1-sphere" (exactlyAssociative @S¹)
+   , QC.testProperty "2-sphere" (asymptoticAssociative @S²)
+   ]
+  ]
+ , testGroup "Graph structure of webs"
   [ testCase "Manually-defined empty web."
     $ toList (fst $ toGraph emptyWeb) @?= []
   , testCase "Manually-defined single-point web."
@@ -440,6 +449,10 @@ x ≡! y | x==y       = x
 infix 4 ≈
 class AEq e where
   (≈) :: e -> e -> Bool
+
+instance AEq Double where
+  x ≈ y  = x + abs x*1e-9 >= y
+          && x - abs x*1e-9 <= y
 instance (SimpleSpace v, Needle v~v, Interior v~v, Floating (Scalar v))
              => AEq (Shade' v) where
   Shade' c₀ σ₀ ≈ Shade' c₁ σ₁
@@ -466,6 +479,13 @@ instance AEq a => AEq (Maybe a) where
 instance (AEq (Shade y), AEq (Shade (Needle x +> Needle y)))
               => AEq (AffineModel x y) where
   AffineModel b₀ a₀ ≈ AffineModel b₁ a₁ = b₀ ≈ b₁ && a₀ ≈ a₁
+
+instance (AEq a, AEq b) => (AEq (a,b)) where
+  (x,y) ≈ (ξ,υ) = x≈ξ && y≈υ
+instance AEq S¹ where
+  S¹ φ ≈ S¹ ϕ = abs (φ - ϕ) < 1e-9
+instance AEq S² where
+  S² θ φ ≈ S² ϑ ϕ = abs (θ - ϑ) < 1e-9 && abs (φ - ϕ) < 1e-9
                                         
 infix 1 @?≈       
 (@?≈) :: (AEq e, Show e) => e -> e -> Assertion
@@ -473,4 +493,14 @@ a@?≈b
  | a≈b        = return ()
  | otherwise  = assertFailure $ "Expected "++show b++", but got "++show a
 
+instance QC.Arbitrary ℝ² where
+  arbitrary = (\(x,y)->V2 x y) <$> QC.arbitrary
+
+exactlyAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
+                         => m -> Needle m -> Needle m -> Bool
+exactlyAssociative p v w = (p .+~^ v) .+~^ w ≈ (p .+~^ (v^+^w) :: m)
+
+asymptoticAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
+                         => m -> Needle m -> Needle m -> Bool
+asymptoticAssociative p v w = undefined
 

@@ -67,6 +67,7 @@ import Data.AffineSpace
 import Data.Basis
 import Data.Void
 import Data.Monoid
+import Data.Fixed (mod')
 import Math.LinearMap.Category (type (⊗)())
 
 import Control.Applicative (Const(..), Alternative(..))
@@ -80,7 +81,7 @@ import Control.Arrow.Constrained
 
 import Data.Embedding
 
-
+import qualified Test.QuickCheck as QC
 
 
 
@@ -186,4 +187,16 @@ infixr 8 ^
 (^) = (Prelude.^)
 
 
+
+instance QC.Arbitrary S⁰ where
+  arbitrary = (\hsph -> if hsph then PositiveHalfSphere else NegativeHalfSphere)
+               <$> QC.arbitrary
+
+instance QC.Arbitrary S¹ where
+  arbitrary = S¹ . (pi-) . (`mod'`(2*pi))
+               <$> QC.arbitrary
+
+instance QC.Arbitrary S² where
+  arbitrary = ( \θ φ -> S² (θ`mod'`pi) (pi - (φ`mod'`(2*pi))) )
+               <$> QC.arbitrary<*>QC.arbitrary
 
