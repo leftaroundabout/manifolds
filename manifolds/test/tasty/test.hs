@@ -50,14 +50,18 @@ tests = testGroup "Tests"
   [ testGroup "Asymptotic associativity"
    [ QC.testProperty "Real vector space" (nearlyAssociative @(ℝ,ℝ))
    , QC.testProperty "1-sphere" (nearlyAssociative @S¹)
+   , QC.testProperty "Projective line" (nearlyAssociative @ℝP¹)
    , QC.testProperty "2-sphere" (QC.expectFailure $ nearlyAssociative @S²)
+   , QC.testProperty "Projective plane" (QC.expectFailure $ nearlyAssociative @ℝP²)
    ]
   ]
  , testGroup "Pseudoaffine laws"
   [ testGroup "Displacement cancellation"
    [ QC.testProperty "Real vector space" (originCancellation @(ℝ,ℝ))
    , QC.testProperty "1-sphere" (originCancellation @S¹)
+   , QC.testProperty "Projective line" (originCancellation @ℝP¹)
    , QC.testProperty "2-sphere" (originCancellation @S²)
+   , QC.testProperty "Projective plane" (originCancellation @ℝP²)
    ]
   ]
  , testGroup "Graph structure of webs"
@@ -499,6 +503,22 @@ instance AEq S² where
    | φ > pi/2, ϕ < -pi/2  = S² θ (φ - 2*pi) ≈ S² ϑ ϕ
    | ϕ > pi/2, φ < -pi/2  = S² θ φ ≈ S² ϑ (ϕ - 2*pi)
    | otherwise            = abs (θ - ϑ) < 1e-9 && abs (φ - ϕ) * sin θ < 1e-9
+
+instance AEq ℝP⁰ where
+  ℝPZero ≈ ℝPZero  = True
+instance AEq ℝP¹ where
+  ℝP¹ h ≈ ℝP¹ h'
+   | h > 1/2, h'< -1/2  = S¹ (h - 2) ≈ S¹ h'
+   | h'> 1/2, h < -1/2  = S¹ h ≈ S¹ (h'- 2)
+   | otherwise          = abs (h - h') < 1e-9
+instance AEq ℝP² where
+  ℝP² r φ ≈ ℝP² r' ϕ
+   | φ > pi/2, ϕ < -pi/2  = ℝP² r (φ - 2*pi) ≈ ℝP² r' ϕ
+   | ϕ > pi/2, φ < -pi/2  = ℝP² r φ ≈ ℝP² r' (ϕ - 2*pi)
+   | r < 1                = abs (r - r') < 1e-9 && abs (φ - ϕ) * r < 1e-9
+   | φ > pi/4, ϕ < -pi/4  = ℝP² 1 (φ - pi) ≈ ℝP² 1 ϕ
+   | ϕ > pi/4, φ < -pi/4  = ℝP² 1 φ ≈ ℝP² 1 (ϕ - pi)
+   | otherwise            = abs (φ - ϕ) < 1e-9
                                         
 infix 1 @?≈       
 (@?≈) :: (AEq e, Show e) => e -> e -> Assertion

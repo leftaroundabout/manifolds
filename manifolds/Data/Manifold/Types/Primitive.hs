@@ -200,3 +200,13 @@ instance QC.Arbitrary S² where
   arbitrary = ( \θ φ -> S² (θ`mod'`pi) (pi - (φ`mod'`(2*pi))) )
                <$> QC.arbitrary<*>QC.arbitrary
 
+instance QC.Arbitrary ℝP⁰ where
+  arbitrary = pure ℝPZero
+
+instance QC.Arbitrary ℝP¹ where
+  arbitrary = ( \h -> ℝP¹ (1 - (h`mod'`2)) ) <$> QC.arbitrary
+
+instance QC.Arbitrary ℝP² where
+  arbitrary = ( \r φ -> ℝP² (r`mod'`1) (pi - (φ`mod'`(2*pi))) )
+               <$> QC.arbitrary<*>QC.arbitrary
+
