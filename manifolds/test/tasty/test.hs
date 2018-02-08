@@ -53,6 +53,13 @@ tests = testGroup "Tests"
    , QC.testProperty "2-sphere" (QC.expectFailure $ nearlyAssociative @S²)
    ]
   ]
+ , testGroup "Pseudoaffine laws"
+  [ testGroup "Displacement cancellation"
+   [ QC.testProperty "Real vector space" (originCancellation @(ℝ,ℝ))
+   , QC.testProperty "1-sphere" (originCancellation @S¹)
+   , QC.testProperty "2-sphere" (originCancellation @S²)
+   ]
+  ]
  , testGroup "Graph structure of webs"
   [ testCase "Manually-defined empty web."
     $ toList (fst $ toGraph emptyWeb) @?= []
@@ -483,9 +490,15 @@ instance (AEq (Shade y), AEq (Shade (Needle x +> Needle y)))
 instance (AEq a, AEq b) => (AEq (a,b)) where
   (x,y) ≈ (ξ,υ) = x≈ξ && y≈υ
 instance AEq S¹ where
-  S¹ φ ≈ S¹ ϕ = abs (φ - ϕ) < 1e-9
+  S¹ φ ≈ S¹ ϕ
+   | φ > pi/2, ϕ < -pi/2  = S¹ (φ - 2*pi) ≈ S¹ ϕ
+   | ϕ > pi/2, φ < -pi/2  = S¹ φ ≈ S¹ (ϕ - 2*pi)
+   | otherwise            = abs (φ - ϕ) < 1e-9
 instance AEq S² where
-  S² θ φ ≈ S² ϑ ϕ = abs (θ - ϑ) < 1e-9 && abs (φ - ϕ) < 1e-9
+  S² θ φ ≈ S² ϑ ϕ
+   | φ > pi/2, ϕ < -pi/2  = S² θ (φ - 2*pi) ≈ S² ϑ ϕ
+   | ϕ > pi/2, φ < -pi/2  = S² θ φ ≈ S² ϑ (ϕ - 2*pi)
+   | otherwise            = abs (θ - ϑ) < 1e-9 && abs (φ - ϕ) * sin θ < 1e-9
                                         
 infix 1 @?≈       
 (@?≈) :: (AEq e, Show e) => e -> e -> Assertion
@@ -499,4 +512,10 @@ instance QC.Arbitrary ℝ² where
 nearlyAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
                          => m -> Needle m -> Needle m -> Bool
 nearlyAssociative p v w = (p .+~^ v) .+~^ w ≈ (p .+~^ (v^+^w) :: m)
+
+originCancellation :: ∀ m . (AEq m, Manifold m)
+                         => m -> m -> Bool
+originCancellation p q = case ( boundarylessWitness :: BoundarylessWitness m
+                              , p.-~.q ) of
+      (BoundarylessWitness, Just v) -> q.+~^v ≈ p
 

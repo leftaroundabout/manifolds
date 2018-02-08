@@ -340,14 +340,12 @@ instance Semimanifold S¹ where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  S¹ φ₀ .+~^ δφ
-     | φ' < 0     = S¹ $ φ' + tau
-     | otherwise  = S¹ $ φ'
+  S¹ φ₀ .+~^ δφ  = S¹ $ φ'
    where φ' = toS¹range $ φ₀ + δφ
 instance PseudoAffine S¹ where
   S¹ φ₁ .-~. S¹ φ₀
-     | δφ > pi     = pure (δφ - 2*pi)
-     | δφ < (-pi)  = pure (δφ + 2*pi)
+     | δφ > pi     = pure (δφ - tau)
+     | δφ < (-pi)  = pure (δφ + tau)
      | otherwise   = pure δφ
    where δφ = φ₁ - φ₀
 
