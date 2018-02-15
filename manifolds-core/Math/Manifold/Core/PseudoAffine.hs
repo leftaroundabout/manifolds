@@ -15,6 +15,7 @@
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE DefaultSignatures        #-}
 {-# LANGUAGE DeriveGeneric            #-}
+{-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE TypeOperators            #-}
@@ -209,6 +210,18 @@ class Semimanifold x => PseudoAffine x where
 
   
   
+-- | A fibre bundle combines points in the /base space/ @b@ with points in the /fibre/
+--   @f@. The type @FibreBundle b f@ is thus isomorphic to the tuple space @(b,f)@, but
+--   it can have a different topology, the prime example being 'TangentBundle', where
+--   nearby points may have differently-oriented tangent spaces.
+data FibreBundle b f = FibreBundle
+      { baseSpace :: !(Interior b)
+      , fibreSpace :: !f
+      } deriving (Generic)
+deriving instance (Show (Interior b), Show f) => Show (FibreBundle b f)
+
+-- | Points on a manifold, combined with vectors in the respective tangent space.
+type TangentBundle m = FibreBundle m (Needle m)
   
 
 
