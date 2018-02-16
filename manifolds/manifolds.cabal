@@ -59,7 +59,7 @@ Library
                      , placeholders
                      , lens
                      , call-stack
-                     , constrained-categories >= 0.2.3 && < 0.3.1
+                     , constrained-categories >= 0.3.1 && < 0.4
                      , pragmatic-show
                      , QuickCheck >=2.8 && <3
   other-extensions:  FlexibleInstances
