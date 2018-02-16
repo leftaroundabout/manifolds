@@ -36,6 +36,7 @@ module Data.Manifold.Types.Primitive (
         , Sphere0, Sphere1, Sphere2
         , Projective0, Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
+        , FibreBundle(..), TangentBundle
         -- * Linear manifolds
         , ZeroDim(..)
         , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
@@ -57,6 +58,7 @@ module Data.Manifold.Types.Primitive (
 
 
 import Math.Manifold.Core.Types
+import Math.Manifold.Core.PseudoAffine (FibreBundle(..), TangentBundle)
 
 import Data.VectorSpace
 import Data.VectorSpace.Free
