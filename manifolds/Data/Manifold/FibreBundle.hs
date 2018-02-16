@@ -20,6 +20,7 @@ module Data.Manifold.FibreBundle where
 
 
 import Data.AdditiveGroup
+import Data.VectorSpace
 
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
@@ -32,30 +33,42 @@ import Control.Arrow.Constrained
 import Data.Tagged
 
 
-class (PseudoAffine m, m ~ Interior m, v ~ Needle m)
-           => ParallelTransporting m v f | m -> v where
-  parallelTransport :: m -> v -> f -> f
+class (PseudoAffine m, m ~ Interior m)
+           => ParallelTransporting m f where
+  parallelTransport :: m -> Needle m -> f -> f
 
-instance ParallelTransporting ℝ ℝ ℝ where
+instance (PseudoAffine m, m ~ Interior m, s ~ (Scalar (Needle m)))
+      => ParallelTransporting m (ZeroDim s) where
+  parallelTransport _ _ Origin = Origin
+
+instance ParallelTransporting ℝ ℝ where
   parallelTransport _ _ x = x
 
-instance (ParallelTransporting a va fa, ParallelTransporting b vb fb)
-              => ParallelTransporting (a,b) (va,vb) (fa,fb) where
+instance ParallelTransporting S⁰ ℝ⁰ where
+  parallelTransport _ _ x = x
+instance ParallelTransporting S¹ ℝ where
+  parallelTransport _ _ x = x
+instance ParallelTransporting S² ℝ² where
+  parallelTransport p@(S² θ₀ φ₀) v x = case p.+~^v of
+      S² θ₁ φ₁ -> undefined
+
+instance (ParallelTransporting a fa, ParallelTransporting b fb)
+              => ParallelTransporting (a,b) (fa,fb) where
   parallelTransport (pa,pb) (va,vb) (xa,xb)
        = (parallelTransport pa va xa, parallelTransport pb vb xb)
 
-instance (ParallelTransporting a v f, ParallelTransporting a v g)
-              => ParallelTransporting a v (f,g) where
+instance (ParallelTransporting a f, ParallelTransporting a g)
+              => ParallelTransporting a (f,g) where
   parallelTransport p v (x,y)
        = (parallelTransport p v x, parallelTransport p v y)
 
 
-instance (ParallelTransporting m v f, AdditiveGroup m, AdditiveGroup f)
+instance (ParallelTransporting m f, AdditiveGroup m, AdditiveGroup f)
                 => AdditiveGroup (FibreBundle m f)
 
-instance ∀ m v f .
-         ( ParallelTransporting m v (Interior f), Semimanifold f
-         , ParallelTransporting v (Needle v) (Needle f) )
+instance ∀ m f .
+         ( ParallelTransporting m (Interior f), Semimanifold f
+         , ParallelTransporting (Needle m) (Needle f) )
                 => Semimanifold (FibreBundle m f) where
   type Interior (FibreBundle m f) = FibreBundle m (Interior f)
   type Needle (FibreBundle m f) = FibreBundle (Needle m) (Needle f)
@@ -71,3 +84,17 @@ instance ∀ m v f .
            -> SemimanifoldWitness BoundarylessWitness
   FibreBundle p f .+~^ FibreBundle v δf
       = FibreBundle (p.+~^v) (parallelTransport p v f.+~^δf)
+
+instance ∀ m f .
+         ( ParallelTransporting m f, ParallelTransporting m (Interior f)
+         , PseudoAffine f
+         , ParallelTransporting (Needle m) (Needle f) )
+                => PseudoAffine (FibreBundle m f) where
+  pseudoAffineWitness = case ( pseudoAffineWitness :: PseudoAffineWitness m
+                             , pseudoAffineWitness :: PseudoAffineWitness f ) of
+     ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+      ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
+         -> PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+  FibreBundle p f .-~. FibreBundle q g = case p.-~.q of
+      Nothing -> Nothing
+      Just v  -> FibreBundle v <$> f .-~. parallelTransport p v g
