@@ -533,9 +533,11 @@ nearlyAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
                          => m -> Needle m -> Needle m -> Bool
 nearlyAssociative p v w = (p .+~^ v) .+~^ w ≈ (p .+~^ (v^+^w) :: m)
 
-originCancellation :: ∀ m . (AEq m, Manifold m)
-                         => m -> m -> Bool
+originCancellation :: ∀ m . (AEq m, Manifold m, Show m, Show (Needle m))
+                         => m -> m -> QC.Property
 originCancellation p q = case ( boundarylessWitness :: BoundarylessWitness m
                               , p.-~.q ) of
-      (BoundarylessWitness, Just v) -> q.+~^v ≈ p
+      (BoundarylessWitness, Just v)
+          -> let p' = q.+~^v
+             in QC.counterexample ("v = "++show v++", q+v = "++show p') $ p' ≈ p
 
