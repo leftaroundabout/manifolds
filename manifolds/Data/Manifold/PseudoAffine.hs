@@ -386,22 +386,41 @@ instance Semimanifold S² where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  S² ϑ₀ φ₀ .+~^ δv
-     | ϑ₀ < pi/2  = sphereFold PositiveHalfSphere $ ϑ₀*^embed(S¹ φ₀) ^+^ δv
-     | otherwise  = sphereFold NegativeHalfSphere $ (pi-ϑ₀)*^embed(S¹ φ₀) ^+^ δv
-instance PseudoAffine S² where
-  S² ϑ₁ φ₁ .-~. S² ϑ₀ φ₀
-     | ϑ₀ < pi/2  = pure ( ϑ₁*^embed(S¹ φ₁) ^-^ ϑ₀*^embed(S¹ φ₀) )
-     | otherwise  = pure ( (pi-ϑ₁)*^embed(S¹ φ₁) ^-^ (pi-ϑ₀)*^embed(S¹ φ₀) )
+  S² θ₀ φ₀ .+~^ 𝐯 = S² θ₁ φ₁
+   where -- See images/constructions/sphericoords-needles.svg.
+         S¹ γ = coEmbed 𝐯
+         d = magnitude 𝐯
+         S¹ φ₁ = S¹ φ₀ .+~^ δφ
+         -- Spherical law of cotangents for δφ:
+         -- cos θ₀ · cos (π−γ) = cot d · sin θ₀ − cot δφ · sin (π−γ)
+         -- ⟹  tan δφ = sin (π−γ) / (cot d · sin θ₀ − cos θ₀ · cos (π−γ))
+         --           = sin γ / (cot d · sin θ₀ + cos θ₀ · cos γ)
+         --           = (sin γ · sin d)
+         --               / (cos d · sin θ₀ + sin d · sin θ₀ · cos γ)
+         δφ = atan2 (sin γ * sin d) (cos d * sin θ₀ + sin d * sin θ₀ * cos γ)
+         -- Spherical law of cotangents for θ₁:
+         -- cos θ₀ · cos δφ = cot θ₁ · sin θ₀ − cot (π−γ) · sin δφ
+         -- ⟹  tan θ₁ = sin θ₀ / (cos θ₀ · cos δφ + cot (π−γ) · sin δφ)
+         --           = (sin θ₀ · sin γ) / (sin γ · cos θ₀ · cos δφ − cos γ · sin δφ)
+         θ₁ = atan2 (sin θ₀ * sin γ) (sin γ * cos θ₀ * cos δφ - cos γ * sin δφ)
 
-sphereFold :: S⁰ -> ℝ² -> S²
-sphereFold hfSphere v
-   | ϑ₀ > pi     = S² (inv $ tau - ϑ₀) (toS¹range $ φ₀+pi)
-   | otherwise  = S² (inv ϑ₀) φ₀
- where S¹ φ₀ = coEmbed v
-       ϑ₀ = magnitude v `mod'` tau
-       inv ϑ = case hfSphere of PositiveHalfSphere -> ϑ
-                                NegativeHalfSphere -> pi - ϑ
+instance PseudoAffine S² where
+  S² θ₁ φ₁ .-~! S² θ₀ φ₀ = d *^ embed(S¹ γ)
+   where -- See images/constructions/sphericoords-needles.svg.
+         δφ = S¹ φ₁ .-~! S¹ φ₀
+         -- Spherical law of cotangents for γ:
+         -- cos θ₀ · cos δφ = cot θ₁ · sin θ₀ − cot (π−γ) · sin δφ
+         -- cot (π−γ) · sin δφ = cot θ₁ · sin θ₀ − cos θ₀ · cos δφ
+         -- tan (π−γ) = sin δφ / (cot θ₁ · sin θ₀ − cos θ₀ · cos δφ)
+         --           = (sin δφ · sin θ₁) / (cos θ₁ · sin θ₀ − sin θ₁ · cos θ₀ · cos δφ)
+         γ = pi - atan2 (sin δφ * sin θ₁) (cos θ₁ * sin θ₀ - sin θ₁ * cos θ₀ * cos δφ)
+         -- Spherical law of cotangents for d:
+         -- cos θ₀ · cos (π−γ) = cot d · sin θ₀ − cot δφ · sin (π−γ)
+         -- ⟹  tan d = sin θ₀ / (cot δφ · sin (π−γ) − cos θ₀ · cos (π−γ))
+         --          = (sin θ₀ · sin δφ) / (cos δφ · sin γ + sin δφ · cos θ₀ · cos γ)
+         d = atan2 (sin θ₀ * sin δφ) (cos δφ * sin γ + sin δφ * cos θ₀ * cos γ)
+         
+
 
 
 instance Semimanifold ℝP² where
