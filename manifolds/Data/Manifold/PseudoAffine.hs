@@ -398,11 +398,10 @@ instance Semimanifold S² where
          --           = (sin γ · sin d)
          --               / (cos d · sin θ₀ + sin d · sin θ₀ · cos γ)
          δφ = atan2 (sin γ * sin d) (cos d * sin θ₀ + sin d * sin θ₀ * cos γ)
-         -- Spherical law of cotangents for θ₁:
-         -- cos θ₀ · cos δφ = cot θ₁ · sin θ₀ − cot (π−γ) · sin δφ
-         -- ⟹  tan θ₁ = sin θ₀ / (cos θ₀ · cos δφ + cot (π−γ) · sin δφ)
-         --           = (sin θ₀ · sin γ) / (sin γ · cos θ₀ · cos δφ − cos γ · sin δφ)
-         θ₁ = atan2 (sin θ₀ * sin γ) (sin γ * cos θ₀ * cos δφ - cos γ * sin δφ)
+         -- Spherical law of cosines for θ₁:
+         -- cos θ₁ = cos θ₀·cos d + sin θ₀·sin d·cos (π−γ)
+         --        = cos θ₀·cos d − sin θ₀·sin d·cos γ
+         θ₁ = acos $ cos θ₀*cos d - sin θ₀*sin d*cos γ
 
 instance PseudoAffine S² where
   S² θ₁ φ₁ .-~! S² θ₀ φ₀ = d *^ embed(S¹ γ)
@@ -414,11 +413,9 @@ instance PseudoAffine S² where
          -- tan (π−γ) = sin δφ / (cot θ₁ · sin θ₀ − cos θ₀ · cos δφ)
          --           = (sin δφ · sin θ₁) / (cos θ₁ · sin θ₀ − sin θ₁ · cos θ₀ · cos δφ)
          γ = pi - atan2 (sin δφ * sin θ₁) (cos θ₁ * sin θ₀ - sin θ₁ * cos θ₀ * cos δφ)
-         -- Spherical law of cotangents for d:
-         -- cos θ₀ · cos (π−γ) = cot d · sin θ₀ − cot δφ · sin (π−γ)
-         -- ⟹  tan d = sin θ₀ / (cot δφ · sin (π−γ) − cos θ₀ · cos (π−γ))
-         --          = (sin θ₀ · sin δφ) / (cos δφ · sin γ + sin δφ · cos θ₀ · cos γ)
-         d = atan2 (sin θ₀ * sin δφ) (cos δφ * sin γ + sin δφ * cos θ₀ * cos γ)
+         -- Spherical law of cosines for d:
+         -- cos d = cos θ₀·cos θ₁ + sin θ₀·sin θ₁·cos δφ
+         d = acos $ cos θ₀*cos θ₁ + sin θ₀*sin θ₁*cos δφ
          
 
 
