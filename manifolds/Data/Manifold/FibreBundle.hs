@@ -62,8 +62,9 @@ instance ( ParallelTransporting k a fa, ParallelTransporting k b fb
   parallelTransport (pa,pb) (va,vb)
        = parallelTransport pa va  *** parallelTransport pb vb
 
-instance (ParallelTransporting (->) a f, ParallelTransporting (->) a g)
-              => ParallelTransporting (->) a (f,g) where
+instance ( ParallelTransporting k a f, ParallelTransporting k a g
+         , Morphism k, ObjectPair k f g )
+              => ParallelTransporting k a (f,g) where
   parallelTransport p v
        = parallelTransport p v *** parallelTransport p v
 
@@ -78,7 +79,7 @@ instance ( ParallelTransporting Discrete m f, AdditiveGroup m
 instance ∀ k m f .
          ( ParallelTransporting k m (Interior f), Semimanifold f
          , ParallelTransporting Discrete (Needle m) (Needle f)
-         , EnhancedCat (->) k )
+         , Function k )
                 => Semimanifold (FibreBundle m f) where
   type Interior (FibreBundle m f) = FibreBundle m (Interior f)
   type Needle (FibreBundle m f) = FibreBundle (Needle m) (Needle f)
@@ -99,7 +100,7 @@ instance ∀ k m f .
          ( ParallelTransporting k m f, ParallelTransporting k m (Interior f)
          , PseudoAffine f
          , ParallelTransporting Discrete (Needle m) (Needle f)
-         , EnhancedCat (->) k )
+         , Function k )
                 => PseudoAffine (FibreBundle m f) where
   pseudoAffineWitness = case ( pseudoAffineWitness :: PseudoAffineWitness m
                              , pseudoAffineWitness :: PseudoAffineWitness f ) of
