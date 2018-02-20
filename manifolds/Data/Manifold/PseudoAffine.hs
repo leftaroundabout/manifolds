@@ -388,7 +388,9 @@ instance Semimanifold S² where
   translateP = Tagged (.+~^)
   S² θ₀ φ₀ .+~^ 𝐯 = S² θ₁ φ₁
    where -- See images/constructions/sphericoords-needles.svg.
-         S¹ γ = coEmbed 𝐯
+         S¹ γc = coEmbed 𝐯
+         γ | θ₀ < pi/2   = γc + φ₀
+           | otherwise   = γc - φ₀
          d = magnitude 𝐯
          S¹ φ₁ = S¹ φ₀ .+~^ δφ
          -- Spherical law of cotangents for δφ:
@@ -405,19 +407,43 @@ instance Semimanifold S² where
          θ₁ = acos $ cos θ₀*cos d - sin θ₀*sin d*cos γ
 
 instance PseudoAffine S² where
-  S² θ₁ φ₁ .-~! S² θ₀ φ₀ = d *^ embed(S¹ γ)
+  S² θ₁ φ₁ .-~! S² θ₀ φ₀ = d *^ embed(S¹ γc)
    where -- See images/constructions/sphericoords-needles.svg.
          δφ = S¹ φ₁ .-~! S¹ φ₀
-         -- Spherical law of cotangents for γ:
+         -- Spherical law of cosines for d:
+         -- cos d = cos θ₀·cos θ₁ + sin θ₀·sin θ₁·cos δφ
+         d = acos $ cos θ₀*cos θ₁ + sin θ₀*sin θ₁*cos δφ
+         -- Spherical law of cotangents for γ: 
          -- cos θ₀ · cos δφ = cot θ₁ · sin θ₀ − cot (π−γ) · sin δφ
          -- cot (π−γ) · sin δφ = cot θ₁ · sin θ₀ − cos θ₀ · cos δφ
          -- tan (π−γ) = sin δφ / (cot θ₁ · sin θ₀ − cos θ₀ · cos δφ)
          --           = (sin δφ · sin θ₁) / (cos θ₁ · sin θ₀ − sin θ₁ · cos θ₀ · cos δφ)
-         γ = pi - atan2 (sin δφ * sin θ₁) (cos θ₁ * sin θ₀ - sin θ₁ * cos θ₀ * cos δφ)
-         -- Spherical law of cosines for d:
-         -- cos d = cos θ₀·cos θ₁ + sin θ₀·sin θ₁·cos δφ
-         d = acos $ cos θ₀*cos θ₁ + sin θ₀*sin θ₁*cos δφ
+         -- Note the behaviour in the limit of small θ₀:
+         -- tan (π−γ) ≈ (sin δφ · sin θ₁) / (cos θ₁ · 0 − sin θ₁ · 1 · cos δφ)
+         --           = (sin δφ · sin θ₁) / (− sin θ₁ · cos δφ)
+         --           = sin δφ / (− cos δφ)
+         -- ...which would not give the right sign convertion near the north pole,
+         -- so we only use it for points in the southern hemisphere.
+         γ | θ₀>pi/2    = pi - atan2 (sin δφ*sin θ₁) (cos θ₁*sin θ₀ - sin θ₁*cos θ₀*cos δφ)
+         -- Otherwise use cotangent law for γ seen /from/ southern hemisphere:
+         -- cos (π−θ₀) · cos δφ = cot (π−θ₁) · sin (π−θ₀) − cot γ · sin δφ
+         -- cot γ · sin δφ = cot (π−θ₁) · sin (π−θ₀) − cos (π−θ₀) · cos δφ
+         -- tan γ = sin δφ / (cot (π−θ₁) · sin (π−θ₀) − cos (π−θ₀) · cos δφ)
+         --       = (sin δφ · sin (π−θ₁))
+         --         / (cos (π−θ₁) · sin (π−θ₀) − sin (π−θ₀) · cos (π−θ₀) · cos δφ)
+         --       = (sin δφ · sin θ₁)
+         --         / (-cos θ₁ · sin θ₀ + sin θ₀ · cos θ₀ · cos δφ)
+         --       = (sin δφ · sin θ₁) / (sin θ₀ · cos θ₀ · cos δφ − cos θ₁ · sin θ₀)
+           | otherwise  = atan2 (sin δφ*sin θ₁) (sin θ₁*cos θ₀*cos δφ - cos θ₁*sin θ₀)
+         -- Behaviour in the limit of small θ₀:
+         -- tan γ ≈ (sin δφ · sin θ₁) / (sin θ₁ · 1 · cos δφ − cos θ₁ · 0)
+         --       = (sin δφ · sin θ₁) / (sin θ₁ · cos δφ)
+         --       = sin δφ / cos δφ
+         --       = tan δφ
          
+         γc | θ₀ < pi/2   = γ - φ₀
+            | otherwise   = γ + φ₀
+
 
 
 
