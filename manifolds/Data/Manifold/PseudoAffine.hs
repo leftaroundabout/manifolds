@@ -396,8 +396,9 @@ instance Semimanifold S² where
          -- ⟹  tan δφ = sin (π−γ) / (cot d · sin θ₀ − cos θ₀ · cos (π−γ))
          --           = sin γ / (cot d · sin θ₀ + cos θ₀ · cos γ)
          --           = (sin γ · sin d)
-         --               / (cos d · sin θ₀ + sin d · sin θ₀ · cos γ)
-         δφ = atan2 (sin γ * sin d) (cos d * sin θ₀ + sin d * sin θ₀ * cos γ)
+         --               / (cos d · sin θ₀ + sin d · cos θ₀ · cos γ)
+         -- δφ = atan2 (sin γ * sin d) (cos d * sin θ₀ + sin d * cos θ₀ * cos γ)
+         δφ = atan2 (sin γ * sin d) (cos d * sin θ₀ + sin d * cos θ₀ * cos γ)
          -- Spherical law of cosines for θ₁:
          -- cos θ₁ = cos θ₀·cos d + sin θ₀·sin d·cos (π−γ)
          --        = cos θ₀·cos d − sin θ₀·sin d·cos γ
