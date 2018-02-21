@@ -18,7 +18,7 @@ packages:
 extra-deps:
 - number-show-0.1.0.0
 - pragmatic-show-0.1.0.2
-- constrained-categories-0.3.0.1
+- constrained-categories-0.3.1.0
 - free-vector-spaces-0.1.4.0
 - linearmap-category-0.3.4.0
 - vector-space-0.12
