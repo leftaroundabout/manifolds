@@ -61,6 +61,20 @@ tests = testGroup "Tests"
    , QC.testProperty "1-sphere" (originCancellation @S¹)
    , QC.testProperty "Projective line" (originCancellation @ℝP¹)
    , QC.testProperty "2-sphere" (originCancellation @S²)
+   , testGroup "2-sphere corner cases"
+    [ QC.testProperty "To north pole"
+        $ \φ p -> originCancellation (S² 0 φ) p
+    , QC.testProperty "From north pole"
+        $ \φ p -> originCancellation p (S² 0 φ)
+    , QC.testProperty "To south pole"
+        $ \φ p -> originCancellation (S² pi φ) p
+    , QC.testProperty "From south pole"
+        $ \φ p -> originCancellation p (S² pi φ)
+    , QC.testProperty "South- to north pole"
+        $ \φ ψ -> originCancellation (S² 0 φ) (S² pi ψ)
+    , QC.testProperty "North- to south pole"
+        $ \φ ψ -> originCancellation (S² pi ψ) (S² 0 φ)
+    ]
    , QC.testProperty "Projective plane" (originCancellation @ℝP²)
    ]
   ]
