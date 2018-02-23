@@ -399,10 +399,11 @@ instance Semimanifold S² where
          (bx,by) = sin d *^ (cos γ, sin γ)
          bz      = cos d
          
+         sθ₀ = sin θ₀; cθ₀ = cos θ₀
          -- Cartesian coordinates of p₁ in the system with the standard north pole,
          -- but still φ₀ as the zero meridian
-         (qx,qz) = ( cos θ₀ * bx + sin θ₀ * bz
-                   ,-sin θ₀ * bx + cos θ₀ * bz )
+         (qx,qz) = ( cθ₀ * bx + sθ₀ * bz
+                   ,-sθ₀ * bx + cθ₀ * bz )
          qy      = by
          
          δφ = atan2 qy qx
@@ -414,8 +415,9 @@ instance PseudoAffine S² where
          (qx,qy) = sin θ₁ *^ (cos (φ₁-φ₀), sin (φ₁-φ₀))
          qz      = cos θ₁
 
-         (bx,bz) = ( cos θ₀ * qx - sin θ₀ * qz
-                   , sin θ₀ * qx + cos θ₀ * qz )
+         sθ₀ = sin θ₀; cθ₀ = cos θ₀
+         (bx,bz) = ( cθ₀ * qx - sθ₀ * qz
+                   , sθ₀ * qx + cθ₀ * qz )
          by      = qy
 
          d = atan2 (sqrt $ bx^2+by^2) bz
