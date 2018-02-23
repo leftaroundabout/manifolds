@@ -393,18 +393,20 @@ instance Semimanifold S² where
            | otherwise   = γc - φ₀
          d = magnitude 𝐯
          S¹ φ₁ = S¹ φ₀ .+~^ δφ
-         -- Spherical law of cotangents for δφ:
-         -- cos θ₀ · cos (π−γ) = cot d · sin θ₀ − cot δφ · sin (π−γ)
-         -- ⟹  tan δφ = sin (π−γ) / (cot d · sin θ₀ − cos θ₀ · cos (π−γ))
-         --           = sin γ / (cot d · sin θ₀ + cos θ₀ · cos γ)
-         --           = (sin γ · sin d)
-         --               / (cos d · sin θ₀ + sin d · cos θ₀ · cos γ)
-         -- δφ = atan2 (sin γ * sin d) (cos d * sin θ₀ + sin d * cos θ₀ * cos γ)
-         δφ = atan2 (sin γ * sin d) (cos d * sin θ₀ + sin d * cos θ₀ * cos γ)
-         -- Spherical law of cosines for θ₁:
-         -- cos θ₁ = cos θ₀·cos d + sin θ₀·sin d·cos (π−γ)
-         --        = cos θ₀·cos d − sin θ₀·sin d·cos γ
-         θ₁ = acos $ cos θ₀*cos d - sin θ₀*sin d*cos γ
+         
+         -- Cartesian coordinates of p₁ in the system whose north pole is p₀
+         -- with φ₀ as the zero meridian
+         (bx,by) = sin d *^ (cos γ, sin γ)
+         bz      = cos d
+         
+         -- Cartesian coordinates of p₁ in the system with the standard north pole,
+         -- but still φ₀ as the zero meridian
+         (qx,qz) = ( cos θ₀ * bx + sin θ₀ * bz
+                   ,-sin θ₀ * bx + cos θ₀ * bz )
+         qy      = by
+         
+         δφ = atan2 qy qx
+         θ₁ = atan2 (sqrt $ qx^2+qy^2) qz
 
 instance PseudoAffine S² where
   S² θ₁ φ₁ .-~! S² θ₀ φ₀ = d *^ embed(S¹ γc)
