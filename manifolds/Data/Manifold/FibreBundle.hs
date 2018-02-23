@@ -42,6 +42,12 @@ import Data.Tagged
 class (PseudoAffine m, m ~ Interior m, Category k, Object k f)
            => ParallelTransporting k m f | m f -> k where
   parallelTransport :: m -> Needle m -> k f f
+  translateAndInvblyParTransport
+        :: m -> Needle m -> (m, (k f f, k f f))
+  translateAndInvblyParTransport p v
+              = (q, ( parallelTransport p v
+                    , parallelTransport q $ p.-~!q ))
+   where q = p.+~^v
 
 instance (PseudoAffine m, m ~ Interior m, s ~ (Scalar (Needle m)))
       => ParallelTransporting Discrete m (ZeroDim s) where
@@ -56,7 +62,8 @@ instance ParallelTransporting (LinearFunction ℝ) S² ℝ² where
   parallelTransport p@(S² θ₀ φ₀) v = case p.+~^v of
       S² θ₁ φ₁ -> undefined
 
-instance ( ParallelTransporting k a fa, ParallelTransporting k b fb
+instance {-# OVERLAPS #-}
+         ( ParallelTransporting k a fa, ParallelTransporting k b fb
          , Morphism k, ObjectPair k fa fb )
               => ParallelTransporting k (a,b) (fa,fb) where
   parallelTransport (pa,pb) (va,vb)
