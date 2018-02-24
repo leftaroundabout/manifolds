@@ -36,6 +36,9 @@ import Control.Category.Constrained.Prelude
 import Control.Category.Discrete
 import Control.Arrow.Constrained
 
+import Linear.V2 (V2(V2))
+import Linear.V3 (V3(V3))
+
 import Data.Tagged
 
 
@@ -61,6 +64,52 @@ instance ParallelTransporting (LinearFunction ℝ) S¹ ℝ where
 instance ParallelTransporting (LinearFunction ℝ) S² ℝ² where
   parallelTransport p@(S² θ₀ φ₀) v = case p.+~^v of
       S² θ₁ φ₁ -> undefined
+  translateAndInvblyParTransport (S² θ₀ φ₀) 𝐯
+              = (S² θ₁ φ₁, (arr fwd, arr bwd))
+   where -- See images/constructions/sphericoords-needles.svg. Translation as in
+         -- "Data.Manifold.PseudoAffine" instance.
+         S¹ γc₀ = coEmbed 𝐯
+         γ₀ | θ₀ < pi/2   = γc₀ + φ₀
+            | otherwise   = γc₀ - φ₀
+         d = magnitude 𝐯
+         S¹ φ₁ = S¹ φ₀ .+~^ δφ
+         
+         -- Cartesian coordinates of p₁ in the system whose north pole is p₀
+         -- with φ₀ as the zero meridian
+         V3 bx by bz = embed $ S² d γ₀
+         
+         sθ₀ = sin θ₀; cθ₀ = cos θ₀
+         -- Cartesian coordinates of p₁ in the system with the standard north pole,
+         -- but still φ₀ as the zero meridian
+         (qx,qz) = ( cθ₀ * bx + sθ₀ * bz
+                   ,-sθ₀ * bx + cθ₀ * bz )
+         qy      = by
+         
+         S² θ₁ δφ = coEmbed $ V3 qx qy qz
+         
+         -- Cartesian coordinates of the standard north pole in the system whose north
+         -- pole is p₀ with 𝐯 along the zero meridian
+         V3 nbx nby nbz = embed $ S² θ₀ (pi-γ₀)
+         
+         sd = sin d; cd = cos d
+         -- Cartesian coordinates of the standard north pole in the system whose north
+         -- pole is p₁ with 𝐯 along the zero meridian
+         (ox,oz) = ( cd * nbx - sd * nbz
+                   , sd * nbx + cd * nbz )
+         oy      = nby
+
+         γ₁ = atan2 (-oy) ox
+
+         γc₁ | θ₁ < pi/2  = γ₁ - φ₁
+             | otherwise  = γ₁ + φ₁
+
+         (sδγc, cδγc) = sin &&& cos $ γc₁ - γc₀
+
+         fwd = LinearMap (V2 (V2   cδγc  sδγc)
+                             (V2 (-sδγc) cδγc)) :: LinearMap ℝ ℝ² ℝ²
+         bwd = LinearMap (V2 (V2 cδγc (-sδγc))
+                             (V2 sδγc   cδγc )) :: LinearMap ℝ ℝ² ℝ²
+
 
 instance {-# OVERLAPS #-}
          ( ParallelTransporting k a fa, ParallelTransporting k b fb
