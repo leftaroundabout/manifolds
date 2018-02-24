@@ -396,8 +396,7 @@ instance Semimanifold S² where
          
          -- Cartesian coordinates of p₁ in the system whose north pole is p₀
          -- with φ₀ as the zero meridian
-         (bx,by) = sin d *^ (cos γ, sin γ)
-         bz      = cos d
+         V3 bx by bz = embed $ S² d γ
          
          sθ₀ = sin θ₀; cθ₀ = cos θ₀
          -- Cartesian coordinates of p₁ in the system with the standard north pole,
@@ -406,22 +405,19 @@ instance Semimanifold S² where
                    ,-sθ₀ * bx + cθ₀ * bz )
          qy      = by
          
-         δφ = atan2 qy qx
-         θ₁ = atan2 (sqrt $ qx^2+qy^2) qz
+         S² θ₁ δφ = coEmbed $ V3 qx qy qz
 
 instance PseudoAffine S² where
   S² θ₁ φ₁ .-~! S² θ₀ φ₀ = d *^ embed(S¹ γc)
    where -- See images/constructions/sphericoords-needles.svg.
-         (qx,qy) = sin θ₁ *^ (cos (φ₁-φ₀), sin (φ₁-φ₀))
-         qz      = cos θ₁
+         V3 qx qy qz = embed $ S² θ₁ (φ₁-φ₀)
 
          sθ₀ = sin θ₀; cθ₀ = cos θ₀
          (bx,bz) = ( cθ₀ * qx - sθ₀ * qz
                    , sθ₀ * qx + cθ₀ * qz )
          by      = qy
 
-         d = atan2 (sqrt $ bx^2+by^2) bz
-         γ = atan2 by bx
+         S² d γ = coEmbed $ V3 bx by bz
          
          γc | θ₀ < pi/2   = γ - φ₀
             | otherwise   = γ + φ₀

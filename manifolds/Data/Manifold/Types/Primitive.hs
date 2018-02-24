@@ -125,9 +125,12 @@ instance NaturallyEmbedded S¹ ℝ² where
   embed (S¹ φ) = V2 (cos φ) (sin φ)
   coEmbed (V2 x y) = S¹ $ atan2 y x
 instance NaturallyEmbedded S² ℝ³ where
-  embed (S² ϑ φ) = V3 (cos φ * sin ϑ) (sin φ * sin ϑ) (cos ϑ)
-  coEmbed (V3 x y z) = S² (acos $ z/r) (atan2 y x)
-   where r = sqrt $ x^2 + y^2 + z^2
+  embed (S² ϑ φ) = V3 (cos φ * sϑ) (sin φ * sϑ) (cos ϑ)
+   where sϑ = sin ϑ
+  {-# INLINE embed #-}
+  coEmbed (V3 x y z) = S² (atan2 rxy z) (atan2 y x)
+   where rxy = sqrt $ x^2 + y^2
+  {-# INLINE coEmbed #-}
  
 instance NaturallyEmbedded ℝP² ℝ³ where
   embed (ℝP² r φ) = V3 (r * cos φ) (r * sin φ) (sqrt $ 1-r^2)
