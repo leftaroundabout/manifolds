@@ -84,6 +84,7 @@ import Control.Arrow.Constrained
 import Data.Embedding
 
 import qualified Test.QuickCheck as QC
+import qualified Text.Show.Pragmatic as SP
 
 
 
@@ -196,16 +197,23 @@ infixr 8 ^
 instance QC.Arbitrary S⁰ where
   arbitrary = (\hsph -> if hsph then PositiveHalfSphere else NegativeHalfSphere)
                <$> QC.arbitrary
+instance SP.Show S⁰ where
+  showsPrec = showsPrec
 
 instance QC.Arbitrary S¹ where
   arbitrary = S¹ . (pi-) . (`mod'`(2*pi))
                <$> QC.arbitrary
   shrink (S¹ φ) = S¹ . (pi/12*) <$> QC.shrink (φ*12/pi)
+instance SP.Show S¹ where
+  showsPrec p (S¹ φ) = showParen (p>9) $ ("S¹ "++) . SP.showsPrec 10 φ
 
 instance QC.Arbitrary S² where
   arbitrary = ( \θ φ -> S² (θ`mod'`pi) (pi - (φ`mod'`(2*pi))) )
                <$> QC.arbitrary<*>QC.arbitrary
   shrink (S² θ φ) = uncurry S² . (pi/12*^) <$> QC.shrink (θ*12/pi, φ*12/pi)
+instance SP.Show S² where
+  showsPrec p (S² θ φ) = showParen (p>9) $ ("S² "++)
+                           . SP.showsPrec 10 θ . (' ':) . SP.showsPrec 10 φ
 
 instance QC.Arbitrary ℝP⁰ where
   arbitrary = pure ℝPZero
