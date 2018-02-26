@@ -113,8 +113,7 @@ instance (Category k, Object k ℝ) => ParallelTransporting k S¹ ℝ where
 
 instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
              => ParallelTransporting k S² ℝ² where
-  parallelTransport p@(S² θ₀ φ₀) v = case p.+~^v of
-      S² θ₁ φ₁ -> undefined
+  parallelTransport p v = (fst . snd) (translateAndInvblyParTransport p v)
   translateAndInvblyParTransport (S² θ₀ φ₀) 𝐯
               = (S² θ₁ φ₁, (arr fwd, arr bwd))
    where -- See images/constructions/sphericoords-needles.svg. Translation as in

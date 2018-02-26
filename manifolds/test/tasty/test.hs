@@ -16,6 +16,7 @@ module Main where
 
 import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
+import Data.Manifold.FibreBundle
 import Data.Manifold.TreeCover
 import Data.Manifold.Web
 import Data.Manifold.Web.Internal
@@ -76,6 +77,13 @@ tests = testGroup "Tests"
         $ \φ ψ -> originCancellation (S² pi ψ) (S² 0 φ)
     ]
    , QC.testProperty "Projective plane" (originCancellation @ℝP²)
+   ]
+  ]
+ , testGroup "Parallel transport"
+  [ testGroup "Displacement cancellation"
+   [ QC.testProperty "Real vector space" (parTransportAssociativity @(ℝ,ℝ))
+   , QC.testProperty "1-sphere" (parTransportAssociativity @S¹)
+   , QC.testProperty "2-sphere" (parTransportAssociativity @S²)
    ]
   ]
  , testGroup "Graph structure of webs"
@@ -555,3 +563,14 @@ originCancellation p q = case ( boundarylessWitness :: BoundarylessWitness m
           -> let p' = q.+~^v
              in QC.counterexample ("v = "++show v++", q+v = "++show p') $ p' ≈ p
 
+
+parTransportAssociativity :: ∀ m
+           . ( AEq m, Manifold m, Show m, Show (Needle m)
+             , ParallelTransporting (->) m (Needle m) )
+                         => m -> Needle m -> Needle m -> QC.Property
+parTransportAssociativity p v w
+    = let q, q' :: m
+          q = (p .+~^ v) .+~^ parallelTransport p v w
+          q' = p .+~^ (v^+^w)
+      in QC.counterexample ("(p+v) + 〔pTp. v〕w = "++show q++", p+(v+w) = "++show q')
+          $ q ≈ q'
