@@ -83,7 +83,31 @@ tests = testGroup "Tests"
   [ testGroup "Displacement cancellation"
    [ QC.testProperty "Real vector space" (parTransportAssociativity @(ℝ,ℝ))
    , QC.testProperty "1-sphere" (parTransportAssociativity @S¹)
-   , QC.testProperty "2-sphere" (parTransportAssociativity @S²)
+   -- , QC.testProperty "2-sphere" (parTransportAssociativity @S²)
+   ]
+  , testGroup "2-sphere"
+   [ QC.testProperty "Movement on the equator"
+        $ \(S¹ φ₀) (S¹ φ₁) -> let p₀, p₁, q :: S²
+                                  p₀ = S² (pi/2) φ₀
+                                  p₁ = S² (pi/2) φ₁
+                                  q = S² 0 0
+                                  q'= p₁ .+~^ parallelTransport p₀ (p₁ .-~! p₀)
+                                                                   (q .-~! p₀)
+                              in QC.counterexample
+                                    ("Should keep pointing on north pole, but got "
+                                                     ++ SP.show q')
+                                   $ q' ≈ q
+   , QC.testProperty "Movement on the zero meridian"
+        $ \(S¹ θ₀) (S¹ θ₁) -> let p₀, p₁, q :: S²
+                                  p₀ = S² (abs θ₀) (if θ₀>0 then 0 else pi)
+                                  p₁ = S² (abs θ₁) (if θ₁>0 then 0 else pi)
+                                  q = S² (pi/2) (pi/2)
+                                  q'= p₁ .+~^ parallelTransport p₀ (p₁ .-~! p₀)
+                                                                   (q .-~! p₀)
+                              in QC.counterexample
+                                    ("Should keep pointing on "++SP.show q++", but got "
+                                                     ++ SP.show q')
+                                   $ q' ≈ q
    ]
   ]
  , testGroup "Graph structure of webs"
