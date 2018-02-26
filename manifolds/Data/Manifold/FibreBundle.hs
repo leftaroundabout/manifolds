@@ -148,7 +148,7 @@ instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
                    , sd * nbx + cd * nbz )
          oy      = nby
 
-         γ₁ = atan2 (-oy) ox
+         γ₁ = atan2 oy (-ox)
 
          γc₁ | θ₁ < pi/2  = γ₁ - φ₁
              | otherwise  = γ₁ + φ₁
