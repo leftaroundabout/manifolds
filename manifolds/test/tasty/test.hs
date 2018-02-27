@@ -64,19 +64,27 @@ tests = testGroup "Tests"
    , QC.testProperty "2-sphere" (originCancellation @S²)
    , testGroup "2-sphere corner cases"
     [ QC.testProperty "To north pole"
-        $ \φ p -> originCancellation (S² 0 φ) p
+        $ \(S¹ φ) p -> originCancellation (S² 0 φ) p
     , QC.testProperty "From north pole"
-        $ \φ p -> originCancellation p (S² 0 φ)
+        $ \(S¹ φ) p -> originCancellation p (S² 0 φ)
     , QC.testProperty "To south pole"
-        $ \φ p -> originCancellation (S² pi φ) p
+        $ \(S¹ φ) p -> originCancellation (S² pi φ) p
     , QC.testProperty "From south pole"
-        $ \φ p -> originCancellation p (S² pi φ)
+        $ \(S¹ φ) p -> originCancellation p (S² pi φ)
     , QC.testProperty "South- to north pole"
-        $ \φ ψ -> originCancellation (S² 0 φ) (S² pi ψ)
+        $ \(S¹ φ) (S¹ ψ) -> originCancellation (S² 0 φ) (S² pi ψ)
     , QC.testProperty "North- to south pole"
-        $ \φ ψ -> originCancellation (S² pi ψ) (S² 0 φ)
+        $ \(S¹ φ) (S¹ ψ) -> originCancellation (S² pi ψ) (S² 0 φ)
     , QC.testProperty "Along equator"
         $ \(S¹ φ) (S¹ ψ) -> originCancellation (S² (pi/2) ψ) (S² (pi/2) φ)
+    , QC.testProperty "Just south of equator"
+        $ \(S¹ φ) (S¹ ψ) -> originCancellation (S² (pi/2 + 1e-10) ψ) (S² (pi/2 + 1e-10) φ)
+    , QC.testProperty "Just across the equator"
+        $ \(S¹ φ) (S¹ ψ) -> originCancellation (S² (pi/2) ψ) (S² (pi/2 + 1e-10) φ)
+    , QC.testProperty "To equator"
+        $ \(S¹ φ) p -> originCancellation (S² (pi/2) φ) p
+    , QC.testProperty "From equator"
+        $ \(S¹ φ) p -> originCancellation p (S² (pi/2) φ)
     ]
    , QC.testProperty "Projective plane" (originCancellation @ℝP²)
    ]
