@@ -76,7 +76,7 @@ tests = testGroup "Tests"
     , QC.testProperty "North- to south pole"
         $ \φ ψ -> originCancellation (S² pi ψ) (S² 0 φ)
     , QC.testProperty "Along equator"
-        $ \φ ψ -> originCancellation (S² (pi/2) ψ) (S² (pi/2) φ)
+        $ \(S¹ φ) (S¹ ψ) -> originCancellation (S² (pi/2) ψ) (S² (pi/2) φ)
     ]
    , QC.testProperty "Projective plane" (originCancellation @ℝP²)
    ]
