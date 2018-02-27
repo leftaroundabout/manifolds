@@ -106,6 +106,11 @@ tests = testGroup "Tests"
                  (S² 0 0, Just "north pole")
                  (S² (pi/2-1e-13) φ₀)
                  (S² (pi/2-1e-13) φ₁)
+   , QC.testProperty "Just slightly crossing the equator"
+        $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
+                 (S² 0 0, Just "north pole")
+                 (S² (pi/2-1e-13) φ₀)
+                 (S² (pi/2+1e-13) φ₁)
    , QC.testProperty "Just south of the equator"
         $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
                  (S² pi 0, Just "south pole")
