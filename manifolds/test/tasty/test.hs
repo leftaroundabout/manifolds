@@ -97,27 +97,15 @@ tests = testGroup "Tests"
    ]
   , testGroup "2-sphere"
    [ QC.testProperty "Movement on the equator"
-        $ \(S¹ φ₀) (S¹ φ₁) -> let p₀, p₁, q :: S²
-                                  p₀ = S² (pi/2) φ₀
-                                  p₁ = S² (pi/2) φ₁
-                                  q = S² 0 0
-                                  q'= p₁ .+~^ parallelTransport p₀ (p₁ .-~! p₀)
-                                                                   (q .-~! p₀)
-                              in QC.counterexample
-                                    ("Should keep pointing on north pole, but got "
-                                                     ++ SP.show q')
-                                   $ q' ≈ q
+        $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
+                 (S² 0 0, Just "north pole")
+                 (S² (pi/2) φ₀)
+                 (S² (pi/2) φ₁)
    , QC.testProperty "Movement on the zero meridian"
-        $ \(S¹ θ₀) (S¹ θ₁) -> let p₀, p₁, q :: S²
-                                  p₀ = S² (abs θ₀) (if θ₀>0 then 0 else pi)
-                                  p₁ = S² (abs θ₁) (if θ₁>0 then 0 else pi)
-                                  q = S² (pi/2) (pi/2)
-                                  q'= p₁ .+~^ parallelTransport p₀ (p₁ .-~! p₀)
-                                                                   (q .-~! p₀)
-                              in QC.counterexample
-                                    ("Should keep pointing on "++SP.show q++", but got "
-                                                     ++ SP.show q')
-                                   $ q' ≈ q
+        $ \(S¹ θ₀) (S¹ θ₁) -> assertParTransportNeedleTargetFixpoint
+                 (S² (pi/2) (pi/2), Nothing)
+                 (S² (abs θ₀) (if θ₀>0 then 0 else pi))
+                 (S² (abs θ₁) (if θ₁>0 then 0 else pi))
    ]
   ]
  , testGroup "Graph structure of webs"
@@ -599,12 +587,25 @@ originCancellation p q = case ( boundarylessWitness :: BoundarylessWitness m
 
 
 parTransportAssociativity :: ∀ m
-           . ( AEq m, Manifold m, Show m, Show (Needle m)
+           . ( AEq m, Manifold m, SP.Show m, SP.Show (Needle m)
              , ParallelTransporting (->) m (Needle m) )
                          => m -> Needle m -> Needle m -> QC.Property
 parTransportAssociativity p v w
     = let q, q' :: m
           q = (p .+~^ v) .+~^ parallelTransport p v w
           q' = p .+~^ (v^+^w)
-      in QC.counterexample ("(p+v) + 〔pTp. v〕w = "++show q++", p+(v+w) = "++show q')
+      in QC.counterexample ("(p+v) + 〔pTp. v〕w = "++SP.show q++", p+(v+w) = "++SP.show q')
           $ q ≈ q'
+
+assertParTransportNeedleTargetFixpoint :: ∀ m
+     . ( AEq m, Manifold m, SP.Show m, Show (Needle m)
+       , ParallelTransporting (->) m (Needle m) )
+    => (m, Maybe String) -> m -> m -> QC.Property
+assertParTransportNeedleTargetFixpoint (q, qName) p₀ p₁
+         = let q'= p₁ .+~^ parallelTransport p₀ (p₁ .-~! p₀) (q .-~! p₀)
+           in QC.counterexample
+                 ("Should keep pointing on "++qShw++", but got "++ SP.show q')
+               $ q' ≈ q
+ where qShw = case qName of
+        Just s  -> s
+        Nothing -> SP.show q
