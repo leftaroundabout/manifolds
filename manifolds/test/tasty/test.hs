@@ -96,11 +96,21 @@ tests = testGroup "Tests"
    -- , QC.testProperty "2-sphere" (parTransportAssociativity @S²)
    ]
   , testGroup "2-sphere"
-   [ QC.testProperty "Movement on the equator"
+   [ QC.testProperty "Movement on the equator" . QC.expectFailure
         $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
                  (S² 0 0, Just "north pole")
                  (S² (pi/2) φ₀)
                  (S² (pi/2) φ₁)
+   , QC.testProperty "Just north of the equator"
+        $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
+                 (S² 0 0, Just "north pole")
+                 (S² (pi/2-1e-13) φ₀)
+                 (S² (pi/2-1e-13) φ₁)
+   , QC.testProperty "Just south of the equator"
+        $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
+                 (S² pi 0, Just "south pole")
+                 (S² (pi/2+1e-13) φ₀)
+                 (S² (pi/2+1e-13) φ₁)
    , QC.testProperty "Movement on the zero meridian"
         $ \(S¹ θ₀) (S¹ θ₁) -> assertParTransportNeedleTargetFixpoint
                  (S² (pi/2) (pi/2), Nothing)
