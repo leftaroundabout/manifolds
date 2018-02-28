@@ -21,8 +21,10 @@ import Data.Manifold.TreeCover
 import Data.Manifold.Web
 import Data.Manifold.Web.Internal
 import Data.Manifold.Function.LocalModel
+import Math.Manifold.Embedding.Simple.Class
 import Data.VectorSpace
 import Linear.V2 (V2(V2))
+import Linear.V3 (V3(V3))
 import Math.LinearMap.Category
 import Prelude hiding (id, fst, snd)
 import Control.Category.Constrained (id)
@@ -89,11 +91,20 @@ tests = testGroup "Tests"
    , QC.testProperty "Projective plane" (originCancellation @ℝP²)
    ]
   ]
+ , testGroup "Natural embeddings"
+  [ testGroup "1-sphere"
+     [ testCase "North pole" $ embed (S¹ $ pi/2) @?≈ (V2 0 1 :: ℝ²)
+     , testCase "South pole" $ embed (S¹ $ -pi/2) @?≈ (V2 0 (-1) :: ℝ²)
+     ]
+  , testGroup "2-sphere"
+     [ testCase "North pole" $ embed (S² 0 0) @?≈ (V3 0 0 1 :: ℝ³)
+     , testCase "South pole" $ embed (S² pi 0) @?≈ (V3 0 0 (-1) :: ℝ³)
+     ]
+  ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"
    [ QC.testProperty "Real vector space" (parTransportAssociativity @(ℝ,ℝ))
    , QC.testProperty "1-sphere" (parTransportAssociativity @S¹)
-   -- , QC.testProperty "2-sphere" (parTransportAssociativity @S²)
    ]
   , testGroup "2-sphere"
    [ QC.testProperty "Movement on the equator" . QC.expectFailure
@@ -563,6 +574,13 @@ instance AEq S² where
    | ϕ > pi/2, φ < -pi/2  = S² θ φ ≈ S² ϑ (ϕ - 2*pi)
    | otherwise            = abs (θ - ϑ) < 1e-9 && abs (φ - ϕ) * sin θ < 1e-9
 
+instance AEq ℝ² where
+  V2 x y ≈ V2 ξ υ = abs (x - ξ) < ε && abs (y - υ) < ε
+   where ε = (maximum @[]) (abs<$>[x,y,ξ,υ]) * 1e-9
+instance AEq ℝ³ where
+  V3 x y z ≈ V3 ξ υ ζ = (all @[]) ((ε>) . abs) $ [x-ξ, y-υ, z-ζ]
+   where ε = (maximum @[]) (abs<$>[x,y,z,ξ,υ,ζ]) * 1e-9
+
 instance AEq ℝP⁰ where
   ℝPZero ≈ ℝPZero  = True
 instance AEq ℝP¹ where
@@ -602,7 +620,7 @@ originCancellation p q = case ( boundarylessWitness :: BoundarylessWitness m
 
 
 parTransportAssociativity :: ∀ m
-           . ( AEq m, Manifold m, SP.Show m, SP.Show (Needle m)
+           . ( AEq m, Manifold m, SP.Show m
              , ParallelTransporting (->) m (Needle m) )
                          => m -> Needle m -> Needle m -> QC.Property
 parTransportAssociativity p v w
