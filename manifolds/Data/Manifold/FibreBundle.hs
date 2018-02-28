@@ -263,3 +263,17 @@ instance ∀ m f s .
   FibreBundle p f .-~. FibreBundle q g = case p.-~.q of
       Nothing -> Nothing
       Just v  -> FibreBundle v <$> f .-~. parallelTransport p v g
+
+
+instance (NaturallyEmbedded (Interior m) (Interior v), VectorSpace f)
+    => NaturallyEmbedded (FibreBundle m ℝ⁰) (FibreBundle v f) where
+  embed (FibreBundle x Origin) = FibreBundle (embed x) zeroV
+  coEmbed (FibreBundle u _) = FibreBundle (coEmbed u) Origin
+
+instance NaturallyEmbedded (FibreBundle S¹ ℝ) (FibreBundle ℝ² ℝ²) where
+  embed (FibreBundle (S¹ φ) l) = FibreBundle (V2 cφ sφ) $ l*^(V2 (-sφ) cφ)
+   where (cφ, sφ) = (cos &&& sin) φ
+  coEmbed (FibreBundle (V2 0 0) (V2 _ δy)) = FibreBundle (S¹ 0) δy
+  coEmbed (FibreBundle p (V2 δx δy)) = FibreBundle (S¹ $ atan2 sφ cφ) $ cφ*δy - sφ*δx
+   where V2 cφ sφ = p^/r
+         r = magnitude p
