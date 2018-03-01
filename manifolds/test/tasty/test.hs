@@ -100,6 +100,17 @@ tests = testGroup "Tests"
      [ testCase "North pole" $ embed (S² 0 0) @?≈ (V3 0 0 1 :: ℝ³)
      , testCase "South pole" $ embed (S² pi 0) @?≈ (V3 0 0 (-1) :: ℝ³)
      ]
+  , testGroup "1-sphere tangent bundle"
+     [ testCase "North pole"
+           $ embed (FibreBundle (S¹ $  pi/2) 1 :: TangentBundle S¹)
+               @?≈ (FibreBundle (V2 0 1) (V2 (-1) 0) :: TangentBundle ℝ²)
+     , testCase "South pole"
+           $ embed (FibreBundle (S¹ $ -pi/2) 1 :: TangentBundle S¹)
+               @?≈ (FibreBundle (V2 0 (-1)) (V2 1 0) :: TangentBundle ℝ²)
+     , testCase "45°"
+           $ embed (FibreBundle (S¹ $ pi/4) 1 :: TangentBundle S¹)
+               @?≈ (FibreBundle (V2 1 1^/sqrt 2) (V2 (-1) 1^/sqrt 2) :: TangentBundle ℝ²)
+     ]
   ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"
@@ -596,6 +607,9 @@ instance AEq ℝP² where
    | φ > pi/4, ϕ < -pi/4  = ℝP² 1 (φ - pi) ≈ ℝP² 1 ϕ
    | ϕ > pi/4, φ < -pi/4  = ℝP² 1 φ ≈ ℝP² 1 (ϕ - pi)
    | otherwise            = abs (φ - ϕ) < 1e-9
+
+instance (AEq (Interior m), AEq f) => AEq (FibreBundle m f) where
+  FibreBundle p v ≈ FibreBundle q w = p≈q && v≈w
                                         
 infix 1 @?≈       
 (@?≈) :: (AEq e, Show e) => e -> e -> Assertion

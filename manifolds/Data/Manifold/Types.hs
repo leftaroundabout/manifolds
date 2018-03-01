@@ -36,6 +36,7 @@ module Data.Manifold.Types (
         , Sphere0, Sphere1, Sphere2
         , Projective0, Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
+        , FibreBundle(..), TangentBundle
         -- * Linear manifolds
         , ZeroDim(..)
         , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
