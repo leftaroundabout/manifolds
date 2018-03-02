@@ -111,6 +111,23 @@ tests = testGroup "Tests"
            $ embed (FibreBundle (S¹ $ pi/4) 1 :: TangentBundle S¹)
                @?≈ (FibreBundle (V2 1 1^/sqrt 2) (V2 (-1) 1^/sqrt 2) :: TangentBundle ℝ²)
      ]
+  , testGroup "2-sphere tangent bundle"
+     [ testCase "North pole, x-dir"
+           $ embed (FibreBundle (S² 0 0) (V2 1 0) :: TangentBundle S²)
+               @?≈ (FibreBundle (V3 0 0 1) (V3 1 0 0) :: TangentBundle ℝ³)
+     , testCase "North pole (alternative φ), x-dir"
+           $ embed (FibreBundle (S² 0 1.524) (V2 1 0) :: TangentBundle S²)
+               @?≈ (FibreBundle (V3 0 0 1) (V3 1 0 0) :: TangentBundle ℝ³)
+     , testCase "North pole, y-dir"
+           $ embed (FibreBundle (S² 0 0) (V2 0 1) :: TangentBundle S²)
+               @?≈ (FibreBundle (V3 0 0 1) (V3 0 1 0) :: TangentBundle ℝ³)
+     , testCase "South pole, x-dir"
+           $ embed (FibreBundle (S² pi 0) (V2 1 0) :: TangentBundle S²)
+               @?≈ (FibreBundle (V3 0 0 (-1)) (V3 (-1) 0 0) :: TangentBundle ℝ³)
+     , testCase "South pole, y-dir"
+           $ embed (FibreBundle (S² pi 0) (V2 0 1) :: TangentBundle S²)
+               @?≈ (FibreBundle (V3 0 0 (-1)) (V3 0 (-1) 0) :: TangentBundle ℝ³)
+     ]
   ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"

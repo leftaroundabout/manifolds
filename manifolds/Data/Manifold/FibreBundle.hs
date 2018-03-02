@@ -277,3 +277,18 @@ instance NaturallyEmbedded (FibreBundle S¹ ℝ) (FibreBundle ℝ² ℝ²) where
   coEmbed (FibreBundle p (V2 δx δy)) = FibreBundle (S¹ $ atan2 sφ cφ) $ cφ*δy - sφ*δx
    where V2 cφ sφ = p^/r
          r = magnitude p
+
+instance NaturallyEmbedded (FibreBundle S² ℝ²) (FibreBundle ℝ³ ℝ³) where
+  embed (FibreBundle (S² θ φ) 𝐯@(V2 δξ δυ))
+       = FibreBundle (V3 (sθ*cφ) (sθ*sφ) cθ) 𝐯r
+   where [V2 cθ sθ, V2 cφ sφ] = embed . S¹ <$> [θ,φ]
+         S¹ γc = coEmbed 𝐯
+         γ | θ < pi/2   = γc - φ
+           | otherwise  = γc + φ
+         d = magnitude 𝐯
+
+         V2 δθ δφ = d *^ embed (S¹ γ)
+         
+         𝐯r = V3 (-sθ*sφ*δφ + cθ*(cφ*δθ - sφ*δφ) )
+                 ( sθ*cφ*δφ + cθ*(sφ*δθ + cφ*δφ) )
+                 (-sθ*δθ                         )
