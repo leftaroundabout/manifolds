@@ -389,8 +389,8 @@ instance Semimanifold S² where
   S² θ₀ φ₀ .+~^ 𝐯 = S² θ₁ φ₁
    where -- See images/constructions/sphericoords-needles.svg.
          S¹ γc = coEmbed 𝐯
-         γ | θ₀ < pi/2   = γc + φ₀
-           | otherwise   = γc - φ₀
+         γ | θ₀ < pi/2   = γc - φ₀
+           | otherwise   = γc + φ₀
          d = magnitude 𝐯
          S¹ φ₁ = S¹ φ₀ .+~^ δφ
          
@@ -419,8 +419,8 @@ instance PseudoAffine S² where
 
          S² d γ = coEmbed $ V3 bx by bz
          
-         γc | θ₀ < pi/2   = γ - φ₀
-            | otherwise   = γ + φ₀
+         γc | θ₀ < pi/2   = γ + φ₀
+            | otherwise   = γ - φ₀
 
 
 

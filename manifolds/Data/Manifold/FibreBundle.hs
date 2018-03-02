@@ -119,8 +119,8 @@ instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
    where -- See images/constructions/sphericoords-needles.svg. Translation as in
          -- "Data.Manifold.PseudoAffine" instance.
          S¹ γc₀ = coEmbed 𝐯
-         γ₀ | θ₀ < pi/2   = γc₀ + φ₀
-            | otherwise   = γc₀ - φ₀
+         γ₀ | θ₀ < pi/2   = γc₀ - φ₀
+            | otherwise   = γc₀ + φ₀
          d = magnitude 𝐯
          S¹ φ₁ = S¹ φ₀ .+~^ δφ
          
