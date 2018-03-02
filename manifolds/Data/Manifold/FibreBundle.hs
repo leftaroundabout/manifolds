@@ -265,10 +265,19 @@ instance ∀ m f s .
       Just v  -> FibreBundle v <$> f .-~. parallelTransport p v g
 
 
+instance (AdditiveGroup f, x ~ Interior x) => NaturallyEmbedded x (FibreBundle x f) where
+  embed x = FibreBundle x zeroV
+  coEmbed (FibreBundle x _) = x
+
 instance (NaturallyEmbedded (Interior m) (Interior v), VectorSpace f)
     => NaturallyEmbedded (FibreBundle m ℝ⁰) (FibreBundle v f) where
   embed (FibreBundle x Origin) = FibreBundle (embed x) zeroV
   coEmbed (FibreBundle u _) = FibreBundle (coEmbed u) Origin
+
+instance (AdditiveGroup (Interior y), AdditiveGroup g)
+           => NaturallyEmbedded (FibreBundle x f) (FibreBundle (x,y) (f,g)) where
+  embed (FibreBundle x δx) = FibreBundle (x,zeroV) (δx,zeroV)
+  coEmbed (FibreBundle (x,_) (δx,_)) = FibreBundle x δx
 
 instance NaturallyEmbedded (FibreBundle S¹ ℝ) (FibreBundle ℝ² ℝ²) where
   embed (FibreBundle (S¹ φ) l) = FibreBundle (V2 cφ sφ) $ l*^(V2 (-sφ) cφ)
