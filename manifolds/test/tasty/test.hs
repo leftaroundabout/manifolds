@@ -9,7 +9,7 @@
 -- 
 
 {-# LANGUAGE OverloadedLists, TypeFamilies, FlexibleContexts, UndecidableInstances #-}
-{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE FlexibleInstances, AllowAmbiguousTypes  #-}
 {-# LANGUAGE TypeOperators, TypeApplications, ScopedTypeVariables, UnicodeSyntax #-}
 
 module Main where
@@ -137,6 +137,11 @@ tests = testGroup "Tests"
            $ embed (FibreBundle (S² (pi/2) 0) (V2 1 0) :: TangentBundle S²)
                @?≈ (FibreBundle (V3 1 0 0) (V3 0 0 (-1)) :: TangentBundle ℝ³)
      ]
+  ]
+ , testGroup "Embedding back-projection"
+  [ QC.testProperty "Real vector space" (embeddingBackProject @(ℝ,ℝ) @ℝ)
+  , QC.testProperty "1-sphere" (embeddingBackProject @ℝ² @S¹)
+  , QC.testProperty "2-sphere" (embeddingBackProject @ℝ³ @S²)
   ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"
@@ -658,6 +663,13 @@ originCancellation p q = case ( boundarylessWitness :: BoundarylessWitness m
           -> let p' = q.+~^v
              in QC.counterexample ("v = "++show v++", q+v = "++show p') $ p' ≈ p
 
+embeddingBackProject :: ∀ m n . ( NaturallyEmbedded n m, AEq n, SP.Show m, SP.Show n )
+       => n -> QC.Property
+embeddingBackProject p = QC.counterexample ("Embedded: "++SP.show ep
+                                          ++", back-projected: "++SP.show p')
+                           $ p' ≈ p
+ where ep = embed p :: m
+       p' = coEmbed ep
 
 parTransportAssociativity :: ∀ m
            . ( AEq m, Manifold m, SP.Show m
