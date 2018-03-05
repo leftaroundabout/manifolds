@@ -155,7 +155,31 @@ tests = testGroup "Tests"
    , QC.testProperty "1-sphere" (parTransportAssociativity @S¹)
    ]
   , testGroup "2-sphere"
-   [ QC.testProperty "Movement on the equator" . QC.expectFailure
+   [ testCase "Non-movement on the equator"
+        $ sphereParallelTransportTest
+            (S² (pi/2) 0) (S² (pi/2) 0) (V3 0 0 1) (V3 0 0 1)
+   , testCase "Micro-movement on the equator"
+        $ sphereParallelTransportTest
+            (S² (pi/2) 0) (S² (pi/2) 1e-3) (V3 0 0 1) (V3 0 0 1)
+   , testCase "Small movement on the equator (ez)"
+        $ sphereParallelTransportTest
+            (S² (pi/2) 0) (S² (pi/2) (pi/2)) (V3 0 0 1) (V3 0 0 1)
+   , testCase "Small movement on the equator (ey)"
+        $ sphereParallelTransportTest
+            (S² (pi/2) 0) (S² (pi/2) (pi/2)) (V3 0 1 0) (V3 (-1) 0 0)
+   , testCase "Big movement on the equator"
+        $ sphereParallelTransportTest
+            (S² (pi/2) 0) (S² (pi/2) 3) (V3 0 0 1) (V3 0 0 1)
+   , testCase "Big negative movement on the equator"
+        $ sphereParallelTransportTest
+            (S² (pi/2) 0) (S² (pi/2) (-3)) (V3 0 0 1) (V3 0 0 1)
+   , testCase "Movement on the zero meridian (ey)"
+        $ sphereParallelTransportTest
+            (S² (pi/2) 0) (S² 0.1 0) (V3 0 1 0) (V3 0 1 0)
+   , testCase "Movement on the zero meridian (ez)"
+        $ sphereParallelTransportTest
+            (S² (pi/2) 0) (S² 1e-6 0) (V3 0 0 1) (V3 (-1) 0 0)
+   , QC.testProperty "Movement on the equator" . QC.expectFailure
         $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
                  (S² 0 0, Just "north pole")
                  (S² (pi/2) φ₀)
@@ -703,3 +727,11 @@ assertParTransportNeedleTargetFixpoint (q, qName) p₀ p₁
  where qShw = case qName of
         Just s  -> s
         Nothing -> SP.show q
+
+
+sphereParallelTransportTest :: S² -> S² -> ℝ³ -> ℝ³ -> Assertion
+sphereParallelTransportTest p q v w
+     = parallelTransport p (q.-~!p) vSph @?≈ wSph
+ where [FibreBundle _ vSph, FibreBundle _ wSph]
+          = [ coEmbed (FibreBundle (embed o) u :: TangentBundle ℝ³) :: TangentBundle S²
+            | (o,u) <- [(p,v), (q,w)] ]

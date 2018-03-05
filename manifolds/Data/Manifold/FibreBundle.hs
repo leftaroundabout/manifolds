@@ -150,8 +150,8 @@ instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
 
          γ₁ = atan2 oy (-ox)
 
-         γc₁ | θ₁ < pi/2  = γ₁ - φ₁
-             | otherwise  = γ₁ + φ₁
+         γc₁ | θ₁ < pi/2  = γ₁ + φ₁
+             | otherwise  = γ₁ - φ₁
 
          (sδγc, cδγc) = sin &&& cos $ γc₁ - γc₀
 
