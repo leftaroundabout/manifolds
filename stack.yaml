@@ -17,9 +17,9 @@ packages:
     commit: 261136006f19039a75e20f16d94c7c95a8dc6f42
 extra-deps:
 - number-show-0.1.0.0
-- pragmatic-show-0.1.0.2
+- pragmatic-show-0.1.2.0
 - constrained-categories-0.3.1.0
-- free-vector-spaces-0.1.4.0
+- free-vector-spaces-0.1.5.0
 - linearmap-category-0.3.4.0
 - vector-space-0.12
 resolver: lts-8.0
