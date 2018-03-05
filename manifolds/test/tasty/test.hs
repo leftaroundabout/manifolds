@@ -620,10 +620,10 @@ instance AEq S² where
    | otherwise            = abs (θ - ϑ) < 1e-9 && abs (φ - ϕ) * sin θ < 1e-9
 
 instance AEq ℝ² where
-  V2 x y ≈ V2 ξ υ = abs (x - ξ) < ε && abs (y - υ) < ε
+  V2 x y ≈ V2 ξ υ = abs (x - ξ) <= ε && abs (y - υ) <= ε
    where ε = (maximum @[]) (abs<$>[x,y,ξ,υ]) * 1e-9
 instance AEq ℝ³ where
-  V3 x y z ≈ V3 ξ υ ζ = (all @[]) ((ε>) . abs) $ [x-ξ, y-υ, z-ζ]
+  V3 x y z ≈ V3 ξ υ ζ = (all @[]) ((ε>=) . abs) $ [x-ξ, y-υ, z-ζ]
    where ε = (maximum @[]) (abs<$>[x,y,z,ξ,υ,ζ]) * 1e-9
 
 instance AEq ℝP⁰ where
