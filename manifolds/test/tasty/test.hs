@@ -661,10 +661,13 @@ originCancellation p q = case ( boundarylessWitness :: BoundarylessWitness m
 
 parTransportAssociativity :: ∀ m
            . ( AEq m, Manifold m, SP.Show m
-             , ParallelTransporting (->) m (Needle m) )
+             , ParallelTransporting (->) m (Needle m)
+             , InnerSpace (Needle m), RealFloat (Scalar (Needle m)) )
                          => m -> Needle m -> Needle m -> QC.Property
 parTransportAssociativity p v w
-    = let q, q' :: m
+ = maximum (map magnitude [v,w]) < 1000
+       -- Very vast vectors incur inevitable floating-point uncertainty
+  ==> let q, q' :: m
           q = (p .+~^ v) .+~^ parallelTransport p v w
           q' = p .+~^ (v^+^w)
       in QC.counterexample ("(p+v) + 〔pTp. v〕w = "++SP.show q++", p+(v+w) = "++SP.show q')
