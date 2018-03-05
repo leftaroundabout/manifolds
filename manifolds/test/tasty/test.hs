@@ -121,12 +121,18 @@ tests = testGroup "Tests"
      , testCase "North pole, y-dir"
            $ embed (FibreBundle (S² 0 0) (V2 0 1) :: TangentBundle S²)
                @?≈ (FibreBundle (V3 0 0 1) (V3 0 1 0) :: TangentBundle ℝ³)
+     , testCase "Close to north pole"
+           $ embed (FibreBundle (S² 1e-11 0.602) (V2 3.7 1.1) :: TangentBundle S²)
+               @?≈ (FibreBundle (V3 0 0 1) (V3 3.7 1.1 0) :: TangentBundle ℝ³)
      , testCase "South pole, x-dir"
            $ embed (FibreBundle (S² pi 0) (V2 1 0) :: TangentBundle S²)
                @?≈ (FibreBundle (V3 0 0 (-1)) (V3 (-1) 0 0) :: TangentBundle ℝ³)
      , testCase "South pole, y-dir"
            $ embed (FibreBundle (S² pi 0) (V2 0 1) :: TangentBundle S²)
                @?≈ (FibreBundle (V3 0 0 (-1)) (V3 0 1 0) :: TangentBundle ℝ³)
+     , testCase "Close to south pole"
+           $ embed (FibreBundle (S² (pi-1e-11) 0.602) (V2 3.7 1.1) :: TangentBundle S²)
+               @?≈ (FibreBundle (V3 0 0 (-1)) (V3 (-3.7) 1.1 0) :: TangentBundle ℝ³)
      , testCase "Equator, y-dir"
            $ embed (FibreBundle (S² (pi/2) 0) (V2 0 1) :: TangentBundle S²)
                @?≈ (FibreBundle (V3 1 0 0) (V3 0 1 0) :: TangentBundle ℝ³)
