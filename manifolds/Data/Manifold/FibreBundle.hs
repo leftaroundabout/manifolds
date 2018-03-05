@@ -301,3 +301,21 @@ instance NaturallyEmbedded (FibreBundle S² ℝ²) (FibreBundle ℝ³ ℝ³) whe
          𝐞φ = V3 (-sφ) cφ 0
          𝐞θ = V3 (cθ*cφ) (cθ*sφ) (-sθ)
          𝐯r = δθ*^𝐞θ ^+^ δφ*^𝐞φ
+  
+  coEmbed (FibreBundle (V3 x y z) 𝐯r)
+           = FibreBundle (S² θ φ) (magnitude (δθ,δφ) *^ embed (S¹ γc))
+   where r = sqrt $ x^2 + y^2 + z^2
+         rxy = sqrt $ x^2 + y^2
+         θ = atan2 rxy z
+         φ = atan2 y x
+         cθ = z / r
+         sθ = rxy / r
+         (cφ,sφ) | rxy>0      = (x,y)^/rxy
+                 | otherwise  = (1,0)
+         𝐞φ = V3 (-sφ) cφ 0
+         𝐞θ = V3 (cθ*cφ) (cθ*sφ) (-sθ)
+         δθ = 𝐞θ <.> 𝐯r
+         δφ = 𝐞φ <.> 𝐯r
+         γ = atan2 δφ δθ
+         γc | θ < pi/2   = γ + φ
+            | otherwise  = γ - φ
