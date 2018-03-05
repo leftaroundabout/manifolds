@@ -58,7 +58,7 @@ module Data.Manifold.Types.Primitive (
 
 
 import Math.Manifold.Core.Types
-import Math.Manifold.Core.PseudoAffine (FibreBundle(..), TangentBundle)
+import Math.Manifold.Core.PseudoAffine (FibreBundle(..), TangentBundle, Interior)
 
 import Data.VectorSpace
 import Data.VectorSpace.Free
@@ -229,3 +229,13 @@ instance QC.Arbitrary ℝP² where
                      | r' <- QC.shrink (r*12)
                      , φ' <- QC.shrink (φ*12/pi) ]
 
+
+instance (SP.Show (Interior m), SP.Show f) => SP.Show (FibreBundle m f) where
+  showsPrec p (FibreBundle m v) = showParen (p>9)
+                $ ("FibreBundle "++) . SP.showsPrec 10 m
+                            . (' ':) . SP.showsPrec 10 v
+instance (QC.Arbitrary (Interior m), QC.Arbitrary f) => QC.Arbitrary (FibreBundle m f) where
+  arbitrary = FibreBundle <$> QC.arbitrary <*> QC.arbitrary
+  shrink (FibreBundle m v) = [ FibreBundle m' v'
+                             | m' <- QC.shrink m
+                             , v' <- QC.shrink v ]

@@ -142,6 +142,9 @@ tests = testGroup "Tests"
   [ QC.testProperty "Real vector space" (embeddingBackProject @(ℝ,ℝ) @ℝ)
   , QC.testProperty "1-sphere" (embeddingBackProject @ℝ² @S¹)
   , QC.testProperty "2-sphere" (embeddingBackProject @ℝ³ @S²)
+  , QC.testProperty "Vector space tangent bundle" (embeddingBackProject
+                                                     @(TangentBundle (ℝ,ℝ))
+                                                     @(TangentBundle ℝ) )
   ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"
