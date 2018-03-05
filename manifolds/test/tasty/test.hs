@@ -126,7 +126,7 @@ tests = testGroup "Tests"
                @?≈ (FibreBundle (V3 0 0 (-1)) (V3 (-1) 0 0) :: TangentBundle ℝ³)
      , testCase "South pole, y-dir"
            $ embed (FibreBundle (S² pi 0) (V2 0 1) :: TangentBundle S²)
-               @?≈ (FibreBundle (V3 0 0 (-1)) (V3 0 (-1) 0) :: TangentBundle ℝ³)
+               @?≈ (FibreBundle (V3 0 0 (-1)) (V3 0 1 0) :: TangentBundle ℝ³)
      , testCase "Equator, y-dir"
            $ embed (FibreBundle (S² (pi/2) 0) (V2 0 1) :: TangentBundle S²)
                @?≈ (FibreBundle (V3 1 0 0) (V3 0 1 0) :: TangentBundle ℝ³)

@@ -35,7 +35,7 @@ import Data.Manifold.PseudoAffine
     
 import qualified Prelude as Hask
 
-import Control.Category.Constrained.Prelude
+import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Category.Discrete
 import Control.Arrow.Constrained
 
@@ -298,6 +298,6 @@ instance NaturallyEmbedded (FibreBundle S² ℝ²) (FibreBundle ℝ³ ℝ³) whe
 
          V2 δθ δφ = d *^ embed (S¹ γ)
          
-         𝐯r = V3 (-sθ*sφ*δφ + cθ*(cφ*δθ - sφ*δφ) )
-                 ( sθ*cφ*δφ + cθ*(sφ*δθ + cφ*δφ) )
-                 (-sθ*δθ                         )
+         𝐞φ = V3 (-sφ) cφ 0
+         𝐞θ = V3 (cθ*cφ) (cθ*sφ) (-sθ)
+         𝐯r = δθ*^𝐞θ ^+^ δφ*^𝐞φ
