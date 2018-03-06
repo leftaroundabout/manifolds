@@ -137,18 +137,35 @@ instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
          
          S² θ₁ δφ = coEmbed $ V3 qx qy qz
          
-         -- Cartesian coordinates of the standard north pole in the system whose north
-         -- pole is p₀ with 𝐯 along the zero meridian
-         V3 nbx nby nbz = embed $ S² θ₀ (pi-γ₀)
+         sθ₁ = sin θ₁; cθ₁ = cos θ₁
          
-         sd = sin d; cd = cos d
-         -- Cartesian coordinates of the standard north pole in the system whose north
-         -- pole is p₁ with 𝐯 along the zero meridian
-         (ox,oz) = ( cd * nbx - sd * nbz
-                   , sd * nbx + cd * nbz )
-         oy      = nby
+         γ₁
+          | sθ₀<=sθ₁  = let
+              -- Cartesian coordinates of the standard north pole in the system whose north
+              -- pole is p₀ with 𝐯 along the zero meridian
+              V3 nbx nby nbz = embed $ S² θ₀ (pi-γ₀)
+              
+              sd = sin d; cd = cos d
+              -- Cartesian coordinates of the standard north pole in the system whose north
+              -- pole is p₁ with 𝐯 along the zero meridian
+              (ox,oz) = ( cd * nbx - sd * nbz
+                        , sd * nbx + cd * nbz )
+              oy      = nby
 
-         γ₁ = atan2 oy (-ox)
+           in atan2 oy (-ox)
+
+          | otherwise = let
+              -- Cartesian coordinates of p₀ in the system with the standard north pole,
+              -- with p₁ on the zero meridian
+              V3 gx gy gz = embed $ S² θ₀ (-δφ)
+              
+              -- Cartesian coordinates of p₀ in the system whose north
+              -- pole is p₁ and the standard north pole on the zero meridian
+              (ux,uz) = ( cθ₁ * gx - sθ₁ * gz
+                        , sθ₁ * gx + cθ₁ * gz )
+              uy      = gy
+
+           in atan2 (-uy) (-ux)
 
          γc₁ | θ₁ < pi/2  = γ₁ + φ₁
              | otherwise  = γ₁ - φ₁

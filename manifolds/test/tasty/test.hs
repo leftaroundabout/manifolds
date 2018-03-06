@@ -179,12 +179,15 @@ tests = testGroup "Tests"
    , testCase "Big negative movement on the equator"
         $ sphereParallelTransportTest
             (S² (pi/2) 0) (S² (pi/2) (-3)) (V3 0 0 1) (V3 0 0 1)
-   , testCase "Movement on the zero meridian (ey)"
+   , testCase "Movement on the zero meridian from north pole (ey)"
         $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² 0.1 0) (V3 0 1 0) (V3 0 1 0)
-   , testCase "Movement on the zero meridian (ez)"
+            (S² 0 0) (S² (pi/2) 0) (V3 0 1 0) (V3 0 1 0)
+   , testCase "Movement on the zero meridian to north pole (ey)"
         $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² 1e-6 0) (V3 0 0 1) (V3 (-1) 0 0)
+            (S² (pi/2) 0) (S² 0 0) (V3 0 1 0) (V3 0 1 0)
+   , testCase "Movement on the zero meridian to north pole (ez)"
+        $ sphereParallelTransportTest
+            (S² (pi/2) 0) (S² 0 0) (V3 0 0 1) (V3 (-1) 0 0)
    , QC.testProperty "Movement on the equator" . QC.expectFailure
         $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
                  (S² 0 0, Just "north pole")
