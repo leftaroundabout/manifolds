@@ -694,6 +694,8 @@ a@?≈b
 
 instance QC.Arbitrary ℝ² where
   arbitrary = (\(x,y)->V2 x y) <$> QC.arbitrary
+  shrink (V2 x y) = V2 <$> ((/12)<$>QC.shrink (x*12))
+                       <*> ((/12)<$>QC.shrink (y*12))
 
 nearlyAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
                          => m -> Needle m -> Needle m -> Bool
