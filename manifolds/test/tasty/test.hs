@@ -145,8 +145,8 @@ tests = testGroup "Tests"
      ]
   ]
  , testGroup "Embedding tangent bundles"
-  [ QC.testProperty "Real vector space" (embeddingTangentiality @ℝ² @ℝ²)
-  , QC.testProperty "1-sphere" (embeddingTangentiality @ℝ² @S¹)
+  [ QC.testProperty "Real vector space" (embeddingTangentiality @ℝ² @ℝ² 1)
+  , QC.testProperty "1-sphere" (embeddingTangentiality @ℝ² @S¹ 1e-6)
   ]
  , testGroup "Embedding back-projection"
   [ QC.testProperty "Real vector space" (embeddingBackProject @(ℝ,ℝ) @ℝ)
@@ -717,14 +717,20 @@ embeddingBackProject p = QC.counterexample ("Embedded: "++SP.show ep
 embeddingTangentiality :: ∀ m n . ( Semimanifold m, Semimanifold n
                                   , NaturallyEmbedded n m
                                   , NaturallyEmbedded (TangentBundle n) (TangentBundle m)
-                                  , SP.Show n, AEq n )
-       => TangentBundle n -> QC.Property
-embeddingTangentiality o@(FibreBundle p v)
+                                  , SP.Show n, AEq n
+                                  , InnerSpace (Needle n), RealFloat (Scalar (Needle n)) )
+       => Scalar (Needle n) -> Interior n -> Needle n -> QC.Property
+embeddingTangentiality consistRadius p vub
          = QC.counterexample ("p+v = "++SP.show q++", coEmbed (embed p+v) = "++SP.show q')
             $ q ≈ q'
- where q, q' :: n
+ where rvub = magnitude vub
+       v | rvub>0     = vub ^* (consistRadius * tanh rvub / rvub)
+         | otherwise  = vub
+       q, q' :: n
        q = p .+~^ v
        q' = coEmbed $ (pEmbd .+~^ vEmbd :: m)
+       o :: TangentBundle n
+       o = FibreBundle p v
        FibreBundle pEmbd vEmbd = embed o :: TangentBundle m
 
 parTransportAssociativity :: ∀ m
