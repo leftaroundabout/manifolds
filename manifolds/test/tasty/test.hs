@@ -146,6 +146,8 @@ tests = testGroup "Tests"
   ]
  , testGroup "Embedding tangent bundles"
   [ QC.testProperty "Real vector space" (embeddingTangentiality @ℝ² @ℝ² 1)
+  , QC.testProperty "1-sphere (unlimited)" (QC.expectFailure
+                                       $ embeddingTangentiality @ℝ² @S¹ 1)
   , QC.testProperty "1-sphere" (embeddingTangentiality @ℝ² @S¹ 1e-6)
   , QC.testProperty "2-sphere" (embeddingTangentiality @ℝ³ @S² 1e-6)
   ]
