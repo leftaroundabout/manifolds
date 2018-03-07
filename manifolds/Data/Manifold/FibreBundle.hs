@@ -296,6 +296,23 @@ instance (AdditiveGroup (Interior y), AdditiveGroup g)
   embed (FibreBundle x δx) = FibreBundle (x,zeroV) (δx,zeroV)
   coEmbed (FibreBundle (x,_) (δx,_)) = FibreBundle x δx
 
+instance NaturallyEmbedded v w
+      => NaturallyEmbedded (FibreBundle ℝ v) (FibreBundle ℝ w) where
+  embed (FibreBundle p v) = FibreBundle p $ embed v
+  coEmbed (FibreBundle p w) = FibreBundle p $ coEmbed w
+instance NaturallyEmbedded v w
+      => NaturallyEmbedded (FibreBundle ℝ² v) (FibreBundle ℝ² w) where
+  embed (FibreBundle p v) = FibreBundle p $ embed v
+  coEmbed (FibreBundle p w) = FibreBundle p $ coEmbed w
+instance NaturallyEmbedded v w
+      => NaturallyEmbedded (FibreBundle ℝ³ v) (FibreBundle ℝ³ w) where
+  embed (FibreBundle p v) = FibreBundle p $ embed v
+  coEmbed (FibreBundle p w) = FibreBundle p $ coEmbed w
+instance NaturallyEmbedded v w
+      => NaturallyEmbedded (FibreBundle ℝ⁴ v) (FibreBundle ℝ⁴ w) where
+  embed (FibreBundle p v) = FibreBundle p $ embed v
+  coEmbed (FibreBundle p w) = FibreBundle p $ coEmbed w
+
 instance NaturallyEmbedded (FibreBundle S¹ ℝ) (FibreBundle ℝ² ℝ²) where
   embed (FibreBundle (S¹ φ) l) = FibreBundle (V2 cφ sφ) $ l*^(V2 (-sφ) cφ)
    where (cφ, sφ) = (cos &&& sin) φ

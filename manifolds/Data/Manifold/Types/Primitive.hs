@@ -117,6 +117,12 @@ instance (VectorSpace y, VectorSpace z) => NaturallyEmbedded x ((x,y),z) where
   embed x = (embed x, zeroV)
   coEmbed (x,_) = coEmbed x
 
+instance NaturallyEmbedded ℝ⁰ ℝ⁰ where embed = id; coEmbed = id
+instance NaturallyEmbedded ℝ  ℝ  where embed = id; coEmbed = id
+instance NaturallyEmbedded ℝ² ℝ² where embed = id; coEmbed = id
+instance NaturallyEmbedded ℝ³ ℝ³ where embed = id; coEmbed = id
+instance NaturallyEmbedded ℝ⁴ ℝ⁴ where embed = id; coEmbed = id
+
 instance NaturallyEmbedded S⁰ ℝ where
   embed PositiveHalfSphere = 1
   embed NegativeHalfSphere = -1
