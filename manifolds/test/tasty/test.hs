@@ -144,6 +144,10 @@ tests = testGroup "Tests"
                @?≈ (FibreBundle (V3 1 0 0) (V3 0 0 (-1)) :: TangentBundle ℝ³)
      ]
   ]
+ , testGroup "Embedding tangent bundles"
+  [ QC.testProperty "Real vector space" (embeddingTangentiality @ℝ² @ℝ²)
+  , QC.testProperty "1-sphere" (embeddingTangentiality @ℝ² @S¹)
+  ]
  , testGroup "Embedding back-projection"
   [ QC.testProperty "Real vector space" (embeddingBackProject @(ℝ,ℝ) @ℝ)
   , QC.testProperty "1-sphere" (embeddingBackProject @ℝ² @S¹)
@@ -709,6 +713,19 @@ embeddingBackProject p = QC.counterexample ("Embedded: "++SP.show ep
                            $ p' ≈ p
  where ep = embed p :: m
        p' = coEmbed ep
+
+embeddingTangentiality :: ∀ m n . ( Semimanifold m, Semimanifold n
+                                  , NaturallyEmbedded n m
+                                  , NaturallyEmbedded (TangentBundle n) (TangentBundle m)
+                                  , SP.Show n, AEq n )
+       => TangentBundle n -> QC.Property
+embeddingTangentiality o@(FibreBundle p v)
+         = QC.counterexample ("p+v = "++SP.show q++", coEmbed (embed p+v) = "++SP.show q')
+            $ q ≈ q'
+ where q, q' :: n
+       q = p .+~^ v
+       q' = coEmbed $ (pEmbd .+~^ vEmbd :: m)
+       FibreBundle pEmbd vEmbd = embed o :: TangentBundle m
 
 parTransportAssociativity :: ∀ m
            . ( AEq m, Manifold m, SP.Show m
