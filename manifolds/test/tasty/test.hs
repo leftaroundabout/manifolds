@@ -639,76 +639,78 @@ x ≡! y | x==y       = x
 
 infix 4 ≈
 class AEq e where
+  fuzzyEq :: ℝ -> e -> e -> Bool
   (≈) :: e -> e -> Bool
+  (≈) = fuzzyEq 1e-9
 
 instance AEq Double where
-  x ≈ y  = x + abs x*1e-9 >= y
-          && x - abs x*1e-9 <= y
+  fuzzyEq η x y  = x + abs x*η >= y
+          && x - abs x*η <= y
 instance (SimpleSpace v, Needle v~v, Interior v~v, Floating (Scalar v))
              => AEq (Shade' v) where
-  Shade' c₀ σ₀ ≈ Shade' c₁ σ₁
+  fuzzyEq η (Shade' c₀ σ₀) (Shade' c₁ σ₁)
     = (σ₀|$|δ) < ε && (σ₀|$|δ) < ε
      && all (is1 . (σ₀|$|)) (normSpanningSystem' σ₁)
      && all (is1 . (σ₁|$|)) (normSpanningSystem' σ₀)
    where δ = c₁ ^-^ c₀
-         ε = 1e-2
+         ε = 1e-2 + realToFrac η
          is1 x = abs (x-1) < ε
 instance ( SimpleSpace v, DualVector (Needle' v) ~ v, Interior v ~ v
          , InnerSpace (Scalar v), Scalar (Needle' v) ~ Scalar v )
               => AEq (Shade v) where
-  Shade c₀ σ₀ ≈ Shade c₁ σ₁
+  fuzzyEq η (Shade c₀ σ₀) (Shade c₁ σ₁)
     = (dualNorm σ₀|$|δ) < ε && (dualNorm σ₀|$|δ) < ε
      && all (is1 . (dualNorm σ₀|$|)) (normSpanningSystem σ₁)
      && all (is1 . (dualNorm σ₁|$|)) (normSpanningSystem σ₀)
    where δ = c₁ ^-^ c₀
-         ε = 1e-2
+         ε = 1e-2 + realToFrac η
          is1 x = abs (x-1) < ε
 instance AEq a => AEq (Maybe a) where
-  Just x ≈ Just y = x ≈ y
-  Nothing ≈ Nothing = True
-  _ ≈ _ = False
+  fuzzyEq η (Just x) (Just y) = fuzzyEq η x y
+  fuzzyEq _ Nothing Nothing = True
+  fuzzyEq _ _ _ = False
 instance (AEq (Shade y), AEq (Shade (Needle x +> Needle y)))
               => AEq (AffineModel x y) where
-  AffineModel b₀ a₀ ≈ AffineModel b₁ a₁ = b₀ ≈ b₁ && a₀ ≈ a₁
+  fuzzyEq η (AffineModel b₀ a₀) (AffineModel b₁ a₁) = fuzzyEq η b₀ b₁ && fuzzyEq η a₀ a₁
 
 instance (AEq a, AEq b) => (AEq (a,b)) where
-  (x,y) ≈ (ξ,υ) = x≈ξ && y≈υ
+  fuzzyEq η (x,y) (ξ,υ) = fuzzyEq η x ξ && fuzzyEq η y υ
 instance AEq S¹ where
-  S¹ φ ≈ S¹ ϕ
-   | φ > pi/2, ϕ < -pi/2  = S¹ (φ - 2*pi) ≈ S¹ ϕ
-   | ϕ > pi/2, φ < -pi/2  = S¹ φ ≈ S¹ (ϕ - 2*pi)
-   | otherwise            = abs (φ - ϕ) < 1e-9
+  fuzzyEq η (S¹ φ) (S¹ ϕ)
+   | φ > pi/2, ϕ < -pi/2  = fuzzyEq η (S¹ $ φ - 2*pi) (S¹ ϕ)
+   | ϕ > pi/2, φ < -pi/2  = fuzzyEq η (S¹ φ) (S¹ $ ϕ - 2*pi)
+   | otherwise            = abs (φ - ϕ) < η
 instance AEq S² where
-  S² θ φ ≈ S² ϑ ϕ
-   | φ > pi/2, ϕ < -pi/2  = S² θ (φ - 2*pi) ≈ S² ϑ ϕ
-   | ϕ > pi/2, φ < -pi/2  = S² θ φ ≈ S² ϑ (ϕ - 2*pi)
-   | otherwise            = abs (θ - ϑ) < 1e-9 && abs (φ - ϕ) * sin θ < 1e-9
+  fuzzyEq η (S² θ φ) (S² ϑ ϕ)
+   | φ > pi/2, ϕ < -pi/2  = fuzzyEq η (S² θ $ φ - 2*pi) (S² ϑ ϕ)
+   | ϕ > pi/2, φ < -pi/2  = fuzzyEq η (S² θ φ) (S² ϑ $ ϕ - 2*pi)
+   | otherwise            = abs (θ - ϑ) < η && abs (φ - ϕ) * sin θ < η
 
 instance AEq ℝ² where
-  V2 x y ≈ V2 ξ υ = abs (x - ξ) <= ε && abs (y - υ) <= ε
-   where ε = (maximum @[]) (abs<$>[x,y,ξ,υ]) * 1e-9
+  fuzzyEq η (V2 x y) (V2 ξ υ) = abs (x - ξ) <= ε && abs (y - υ) <= ε
+   where ε = (maximum @[]) (abs<$>[x,y,ξ,υ]) * η
 instance AEq ℝ³ where
-  V3 x y z ≈ V3 ξ υ ζ = (all @[]) ((ε>=) . abs) $ [x-ξ, y-υ, z-ζ]
-   where ε = (maximum @[]) (abs<$>[x,y,z,ξ,υ,ζ]) * 1e-9
+  fuzzyEq η (V3 x y z) (V3 ξ υ ζ) = (all @[]) ((ε>=) . abs) $ [x-ξ, y-υ, z-ζ]
+   where ε = (maximum @[]) (abs<$>[x,y,z,ξ,υ,ζ]) * η
 
 instance AEq ℝP⁰ where
-  ℝPZero ≈ ℝPZero  = True
+  fuzzyEq _ ℝPZero ℝPZero  = True
 instance AEq ℝP¹ where
-  ℝP¹ h ≈ ℝP¹ h'
-   | h > 1/2, h'< -1/2  = S¹ (h - 2) ≈ S¹ h'
-   | h'> 1/2, h < -1/2  = S¹ h ≈ S¹ (h'- 2)
-   | otherwise          = abs (h - h') < 1e-9
+  fuzzyEq η (ℝP¹ h) (ℝP¹ h')
+   | h > 1/2, h'< -1/2  = fuzzyEq η (S¹ $ h - 2) (S¹ h')
+   | h'> 1/2, h < -1/2  = fuzzyEq η (S¹ h) (S¹ $ h'- 2)
+   | otherwise          = abs (h - h') < η
 instance AEq ℝP² where
-  ℝP² r φ ≈ ℝP² r' ϕ
-   | φ > pi/2, ϕ < -pi/2  = ℝP² r (φ - 2*pi) ≈ ℝP² r' ϕ
-   | ϕ > pi/2, φ < -pi/2  = ℝP² r φ ≈ ℝP² r' (ϕ - 2*pi)
-   | r < 1                = abs (r - r') < 1e-9 && abs (φ - ϕ) * r < 1e-9
-   | φ > pi/4, ϕ < -pi/4  = ℝP² 1 (φ - pi) ≈ ℝP² 1 ϕ
-   | ϕ > pi/4, φ < -pi/4  = ℝP² 1 φ ≈ ℝP² 1 (ϕ - pi)
-   | otherwise            = abs (φ - ϕ) < 1e-9
+  fuzzyEq η (ℝP² r φ) (ℝP² r' ϕ)
+   | φ > pi/2, ϕ < -pi/2  = fuzzyEq η (ℝP² r $ φ - 2*pi) (ℝP² r' ϕ)
+   | ϕ > pi/2, φ < -pi/2  = fuzzyEq η (ℝP² r φ) (ℝP² r' $ ϕ - 2*pi)
+   | r < 1                = abs (r - r') < η && abs (φ - ϕ) * r < η
+   | φ > pi/4, ϕ < -pi/4  = fuzzyEq η (ℝP² 1 $ φ - pi) (ℝP² 1 ϕ)
+   | ϕ > pi/4, φ < -pi/4  = fuzzyEq η (ℝP² 1 φ) (ℝP² 1 $ ϕ - pi)
+   | otherwise            = abs (φ - ϕ) < η
 
 instance (AEq (Interior m), AEq f) => AEq (FibreBundle m f) where
-  FibreBundle p v ≈ FibreBundle q w = p≈q && v≈w
+  fuzzyEq η (FibreBundle p v) (FibreBundle q w) = fuzzyEq η p q && fuzzyEq η v w
                                         
 infix 1 @?≈       
 (@?≈) :: (AEq e, Show e) => e -> e -> Assertion
