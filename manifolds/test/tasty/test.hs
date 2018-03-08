@@ -192,55 +192,43 @@ tests = testGroup "Tests"
   , testGroup "2-sphere"
    [ testCase "Non-movement on the equator"
         $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² (pi/2) 0) (V3 0 0 1) (V3 0 0 1)
+            (S² (pi/2) 0) (S² (pi/2) 0) [V3 0 0 1] [V3 0 0 1]
    , testCase "Micro-movement on the equator"
         $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² (pi/2) 1e-3) (V3 0 0 1) (V3 0 0 1)
+            (S² (pi/2) 0) (S² (pi/2) 1e-3) [V3 0 0 1] [V3 0 0 1]
    , testCase "Small movement on the equator (ez)"
         $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² (pi/2) (pi/2)) (V3 0 0 1) (V3 0 0 1)
-   , testCase "Small movement on the equator (ey)"
-        $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² (pi/2) (pi/2)) (V3 0 1 0) (V3 (-1) 0 0)
+            (S² (pi/2) 0) (S² (pi/2) (pi/2)) [V3 0 0 1, V3   0  1 0]
+                                             [V3 0 0 1, V3 (-1) 0 0]
    , testCase "Big movement on the equator"
         $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² (pi/2) 3) (V3 0 0 1) (V3 0 0 1)
+            (S² (pi/2) 0) (S² (pi/2) 3) [V3 0 0 1] [V3 0 0 1]
    , testCase "Big negative movement on the equator"
         $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² (pi/2) (-3)) (V3 0 0 1) (V3 0 0 1)
-   , testCase "Movement on the zero meridian from north pole (ey)"
+            (S² (pi/2) 0) (S² (pi/2) (-3)) [V3 0 0 1] [V3 0 0 1]
+   , testCase "Movement on the zero meridian from north pole"
         $ sphereParallelTransportTest
-            (S² 0 0) (S² (pi/2) 0) (V3 0 1 0) (V3 0 1 0)
-   , testCase "Movement on the zero meridian to north pole (ey)"
+            (S² 0 0) (S² (pi/2) 0) [V3 0 1 0] [V3 0 1 0]
+   , testCase "Movement on the zero meridian to north pole"
         $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² 0 0) (V3 0 1 0) (V3 0 1 0)
-   , testCase "Movement on the zero meridian to north pole (ez)"
+            (S² (pi/2) 0) (S² 0 0) [V3 0 1 0, V3   0  0 1]
+                                   [V3 0 1 0, V3 (-1) 0 0]
+   , testCase "Crossing the equator on the zero meridian"
         $ sphereParallelTransportTest
-            (S² (pi/2) 0) (S² 0 0) (V3 0 0 1) (V3 (-1) 0 0)
-   , testCase "Crossing the equator on the zero meridian (ey)"
+            (S² (pi/4) 0) (S² (3*pi/4) 0) [V3 0 1 0, V3 (-1) 0 1] 
+                                          [V3 0 1 0, V3   1  0 1]
+   , testCase "Crossing the equator on the 90° meridian"
         $ sphereParallelTransportTest
-            (S² (pi/4) 0) (S² (3*pi/4) 0) (V3 0 1 0) (V3 0 1 0)
-   , testCase "Crossing the equator on the zero meridian (ex+ez)"
+            (S² (pi/4) (pi/2)) (S² (3*pi/4) (pi/2)) [V3 1 0 0, V3 0 (-1) 1]
+                                                    [V3 1 0 0, V3 0   1  1]
+   , testCase "Crossing the equator on the 180° meridian"
         $ sphereParallelTransportTest
-            (S² (pi/4) 0) (S² (3*pi/4) 0) (V3 (-1) 0 1) (V3 1 0 1)
-   , testCase "Crossing the equator on the 90° meridian (ex)"
+            (S² (pi/4) pi) (S² (3*pi/4) pi) [V3 0 1 0, V3   1  0 1]
+                                            [V3 0 1 0, V3 (-1) 0 1]
+   , testCase "Crossing the equator on the -90° meridian"
         $ sphereParallelTransportTest
-            (S² (pi/4) (pi/2)) (S² (3*pi/4) (pi/2)) (V3 1 0 0) (V3 1 0 0)
-   , testCase "Crossing the equator on the 90° meridian (ey+ez)"
-        $ sphereParallelTransportTest
-            (S² (pi/4) (pi/2)) (S² (3*pi/4) (pi/2)) (V3 0 (-1) 1) (V3 0 1 1)
-   , testCase "Crossing the equator on the 180° meridian (ey)"
-        $ sphereParallelTransportTest
-            (S² (pi/4) pi) (S² (3*pi/4) pi) (V3 0 1 0) (V3 0 1 0)
-   , testCase "Crossing the equator on the 180° meridian (ex+ez)"
-        $ sphereParallelTransportTest
-            (S² (pi/4) pi) (S² (3*pi/4) pi) (V3 1 0 1) (V3 (-1) 0 1)
-   , testCase "Crossing the equator on the -90° meridian (ex)"
-        $ sphereParallelTransportTest
-            (S² (pi/4) (-pi/2)) (S² (3*pi/4) (-pi/2)) (V3 1 0 0) (V3 1 0 0)
-   , testCase "Crossing the equator on the -90° meridian (ey+ez)"
-        $ sphereParallelTransportTest
-            (S² (pi/4) (-pi/2)) (S² (3*pi/4) (-pi/2)) (V3 0 1 1) (V3 0 (-1) 1)
+            (S² (pi/4) (-pi/2)) (S² (3*pi/4) (-pi/2)) [V3 1 0 0, V3 0   1  1]
+                                                      [V3 1 0 0, V3 0 (-1) 1]
    , QC.testProperty "Movement on the equator" . QC.expectFailure
         $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
                  (S² 0 0, Just "north pole")
@@ -861,9 +849,11 @@ assertParTransportNeedleTargetFixpoint (q, qName) p₀ p₁
         Nothing -> SP.show q
 
 
-sphereParallelTransportTest :: S² -> S² -> ℝ³ -> ℝ³ -> Assertion
-sphereParallelTransportTest p q v w
-     = parallelTransport p (q.-~!p) vSph @?≈ wSph
+sphereParallelTransportTest :: S² -> S² -> [ℝ³] -> [ℝ³] -> Assertion
+sphereParallelTransportTest p q [] [] = assert True
+sphereParallelTransportTest p q (v:vs) (w:ws)
+     = (parallelTransport p (q.-~!p) vSph @?≈ wSph)
+        >> sphereParallelTransportTest p q vs ws
  where [FibreBundle _ vSph, FibreBundle _ wSph]
           = [ coEmbed (FibreBundle (embed o) u :: TangentBundle ℝ³) :: TangentBundle S²
             | (o,u) <- [(p,v), (q,w)] ]
