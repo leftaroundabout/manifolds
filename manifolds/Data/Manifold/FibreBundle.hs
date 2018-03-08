@@ -118,6 +118,9 @@ instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
      | d < pi     = (S² θ₁ φ₁, (arr fwd, arr bwd))
      | d < 2*pi   = translateAndInvblyParTransport (S² θ₀ φ₀)
                       $ 𝐯^*(-(2*pi-d)/d)
+     | otherwise  = translateAndInvblyParTransport (S² θ₀ φ₀)
+                      $ let revolutions = floor $ d/(2*pi)
+                        in 𝐯^*((d - 2*pi*fromIntegral revolutions)/d)
    where -- See images/constructions/sphericoords-needles.svg. Translation as in
          -- "Data.Manifold.PseudoAffine" instance.
          S¹ γc₀ = coEmbed 𝐯
