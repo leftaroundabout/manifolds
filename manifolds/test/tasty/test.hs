@@ -267,7 +267,7 @@ tests = testGroup "Tests"
                           = embed (FibreBundle q w :: TangentBundle S²) :: TangentBundle ℝ³
                       pxv = pCart`cross3`vCart
                       qxw = qCart`cross3`wCart
-                    in magnitude v < pi ==>
+                    in magnitude v < 2*pi ==>
                        QC.counterexample
                            ("  𝑝 = "++SP.show p++"\t ≃ "++SP.show pCart
                         ++"\n  𝑞 = "++SP.show q++"\t ≃ "++SP.show qCart

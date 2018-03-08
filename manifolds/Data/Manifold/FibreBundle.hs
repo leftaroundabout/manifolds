@@ -115,7 +115,9 @@ instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
              => ParallelTransporting k S² ℝ² where
   parallelTransport p v = (fst . snd) (translateAndInvblyParTransport p v)
   translateAndInvblyParTransport (S² θ₀ φ₀) 𝐯
-              = (S² θ₁ φ₁, (arr fwd, arr bwd))
+     | d < pi     = (S² θ₁ φ₁, (arr fwd, arr bwd))
+     | d < 2*pi   = translateAndInvblyParTransport (S² θ₀ φ₀)
+                      $ 𝐯^*(-(2*pi-d)/d)
    where -- See images/constructions/sphericoords-needles.svg. Translation as in
          -- "Data.Manifold.PseudoAffine" instance.
          S¹ γc₀ = coEmbed 𝐯
