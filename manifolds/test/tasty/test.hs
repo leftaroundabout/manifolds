@@ -149,8 +149,8 @@ tests = testGroup "Tests"
   [ QC.testProperty "Real vector space" (embeddingTangentiality @ℝ² @ℝ² 1)
   , QC.testProperty "1-sphere (unlimited)" (QC.expectFailure
                                        $ embeddingTangentiality @ℝ² @S¹ 1)
-  , QC.testProperty "1-sphere" (embeddingTangentiality @ℝ² @S¹ 1e-6)
-  , QC.testProperty "2-sphere" (embeddingTangentiality @ℝ³ @S² 1e-6)
+  , QC.testProperty "1-sphere" (embeddingTangentiality @ℝ² @S¹ 1e-5)
+  , QC.testProperty "2-sphere" (embeddingTangentiality @ℝ³ @S² 1e-5)
   ]
  , testGroup "Embedding back-projection"
   [ QC.testProperty "Real vector space" (embeddingBackProject @(ℝ,ℝ) @ℝ)
@@ -186,8 +186,8 @@ tests = testGroup "Tests"
    [ QC.testProperty "Real vector space" (nearbyTangentSpaceEmbedding @(ℝ,ℝ) @ℝ 1)
    , QC.testProperty "1-sphere (unlimited)"
          $ QC.expectFailure (nearbyTangentSpaceEmbedding @ℝ² @S¹ 1)
-   , QC.testProperty "1-sphere" (nearbyTangentSpaceEmbedding @ℝ² @S¹ 1e-6)
-   , QC.testProperty "2-sphere" (nearbyTangentSpaceEmbedding @ℝ³ @S² 1e-6)
+   , QC.testProperty "1-sphere" (nearbyTangentSpaceEmbedding @ℝ² @S¹ 1e-5)
+   , QC.testProperty "2-sphere" (nearbyTangentSpaceEmbedding @ℝ³ @S² 1e-5)
    ]
   , testGroup "2-sphere"
    [ testCase "Non-movement on the equator"
@@ -640,8 +640,10 @@ x ≡! y | x==y       = x
 infix 4 ≈
 class AEq e where
   fuzzyEq :: ℝ -> e -> e -> Bool
+  unitEpsilon :: ℝ
+  unitEpsilon = 1e-9
   (≈) :: e -> e -> Bool
-  (≈) = fuzzyEq 1e-9
+  (≈) = fuzzyEq (unitEpsilon @e)
 
 instance AEq Double where
   fuzzyEq η x y  = x + abs x*η >= y
@@ -751,10 +753,9 @@ embeddingTangentiality :: ∀ m n . ( Semimanifold m, Semimanifold n
        => Scalar (Needle n) -> Interior n -> Needle n -> QC.Property
 embeddingTangentiality consistRadius p vub
          = QC.counterexample ("p+v = "++SP.show q++", coEmbed (embed p+v) = "++SP.show q')
-            $ q ≈ q'
- where rvub = magnitude vub
-       v | rvub>0     = vub ^* (consistRadius * tanh rvub / rvub)
-         | otherwise  = vub
+            $ fuzzyEq (unitEpsilon @n * (1+rvub^2)) q q'
+ where rvub = realToFrac $ magnitude vub
+       v = vub ^* consistRadius
        q, q' :: n
        q = p .+~^ v
        q' = coEmbed $ (pEmbd .+~^ vEmbd :: m)
@@ -774,10 +775,9 @@ nearbyTangentSpaceEmbedding :: ∀ m n
 nearbyTangentSpaceEmbedding consistRadius p vub f
          = QC.counterexample ("𝑓 embd. at 𝑝, then proj. at 𝑝+𝑣 = "++SP.show fReProj
                               ++", 𝑓 moved by 𝑣 = "++SP.show g)
-            $ g ≈ fReProj
- where rvub = magnitude vub
-       v | rvub>0     = vub ^* (consistRadius * tanh rvub / rvub)
-         | otherwise  = vub
+            $ fuzzyEq (unitEpsilon @(Needle n) * (1+rvub^2)) g fReProj
+ where rvub = realToFrac $ magnitude vub
+       v = vub ^* consistRadius
        q :: n
        q = p .+~^ v :: n
        qEmbd = embed q :: m
