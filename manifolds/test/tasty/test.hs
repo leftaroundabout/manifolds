@@ -23,6 +23,7 @@ import Data.Manifold.Web.Internal
 import Data.Manifold.Function.LocalModel
 import Math.Manifold.Embedding.Simple.Class
 import Data.VectorSpace
+import Data.Cross (cross3)
 import Linear.V2 (V2(V2))
 import Linear.V3 (V3(V3))
 import Math.LinearMap.Category
@@ -40,7 +41,7 @@ import Data.List (nub)
 import qualified Data.Graph as Graph
 import qualified Data.Set as Set
 import Control.Arrow
-import Control.Lens
+import Control.Lens hiding ((<.>))
 
 import qualified Text.Show.Pragmatic as SP
 
@@ -161,6 +162,20 @@ tests = testGroup "Tests"
        (embeddingBackProject @(TangentBundle ℝ²) @(TangentBundle S¹) )
   , QC.testProperty "S² tangent bundle"
        (embeddingBackProject @(TangentBundle ℝ³) @(TangentBundle S²) )
+  ]
+ , testGroup "Special properties of translations"
+  [ testGroup "2-sphere"
+   [ QC.testProperty "S²-movement as rotation in ℝ³"
+      $ \p v -> let FibreBundle pCart vCart :: TangentBundle ℝ³
+                         = embed (FibreBundle p v :: TangentBundle S²)
+                    q = p .+~^ v :: S²
+                    qCart = embed q :: ℝ³
+                    axis = pCart `cross3` qCart
+                    FibreBundle _ axisProj :: TangentBundle S²
+                        = coEmbed (FibreBundle pCart axis :: TangentBundle ℝ³)
+                in vCart <.> axis + 1 ≈ 1    -- i.e. the movement vector is always
+                  && v <.> axisProj + 1 ≈ 1  -- orthogonal to the rotation axis.
+   ]
   ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"
