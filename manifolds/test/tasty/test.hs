@@ -217,6 +217,30 @@ tests = testGroup "Tests"
    , testCase "Movement on the zero meridian to north pole (ez)"
         $ sphereParallelTransportTest
             (S² (pi/2) 0) (S² 0 0) (V3 0 0 1) (V3 (-1) 0 0)
+   , testCase "Crossing the equator on the zero meridian (ey)"
+        $ sphereParallelTransportTest
+            (S² (pi/4) 0) (S² (3*pi/4) 0) (V3 0 1 0) (V3 0 1 0)
+   , testCase "Crossing the equator on the zero meridian (ex+ez)"
+        $ sphereParallelTransportTest
+            (S² (pi/4) 0) (S² (3*pi/4) 0) (V3 (-1) 0 1) (V3 1 0 1)
+   , testCase "Crossing the equator on the 90° meridian (ex)"
+        $ sphereParallelTransportTest
+            (S² (pi/4) (pi/2)) (S² (3*pi/4) (pi/2)) (V3 1 0 0) (V3 1 0 0)
+   , testCase "Crossing the equator on the 90° meridian (ey+ez)"
+        $ sphereParallelTransportTest
+            (S² (pi/4) (pi/2)) (S² (3*pi/4) (pi/2)) (V3 0 (-1) 1) (V3 0 1 1)
+   , testCase "Crossing the equator on the 180° meridian (ey)"
+        $ sphereParallelTransportTest
+            (S² (pi/4) pi) (S² (3*pi/4) pi) (V3 0 1 0) (V3 0 1 0)
+   , testCase "Crossing the equator on the 180° meridian (ex+ez)"
+        $ sphereParallelTransportTest
+            (S² (pi/4) pi) (S² (3*pi/4) pi) (V3 1 0 1) (V3 (-1) 0 1)
+   , testCase "Crossing the equator on the -90° meridian (ex)"
+        $ sphereParallelTransportTest
+            (S² (pi/4) (-pi/2)) (S² (3*pi/4) (-pi/2)) (V3 1 0 0) (V3 1 0 0)
+   , testCase "Crossing the equator on the -90° meridian (ey+ez)"
+        $ sphereParallelTransportTest
+            (S² (pi/4) (-pi/2)) (S² (3*pi/4) (-pi/2)) (V3 0 1 1) (V3 0 (-1) 1)
    , QC.testProperty "Movement on the equator" . QC.expectFailure
         $ \(S¹ φ₀) (S¹ φ₁) -> assertParTransportNeedleTargetFixpoint
                  (S² 0 0, Just "north pole")
