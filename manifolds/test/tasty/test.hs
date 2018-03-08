@@ -184,6 +184,10 @@ tests = testGroup "Tests"
    ]
   , testGroup "Nearby tangent spaces of embedding"
    [ QC.testProperty "Real vector space" (nearbyTangentSpaceEmbedding @(ℝ,ℝ) @ℝ 1)
+   , QC.testProperty "1-sphere (unlimited)"
+         $ QC.expectFailure (nearbyTangentSpaceEmbedding @ℝ² @S¹ 1)
+   , QC.testProperty "1-sphere" (nearbyTangentSpaceEmbedding @ℝ² @S¹ 1e-6)
+   , QC.testProperty "2-sphere" (nearbyTangentSpaceEmbedding @ℝ³ @S² 1e-6)
    ]
   , testGroup "2-sphere"
    [ testCase "Non-movement on the equator"
