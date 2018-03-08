@@ -182,6 +182,9 @@ tests = testGroup "Tests"
    [ QC.testProperty "Real vector space" (parTransportAssociativity @(ℝ,ℝ))
    , QC.testProperty "1-sphere" (parTransportAssociativity @S¹)
    ]
+  , testGroup "Nearby tangent spaces of embedding"
+   [ QC.testProperty "Real vector space" (nearbyTangentSpaceEmbedding @(ℝ,ℝ) @ℝ 1)
+   ]
   , testGroup "2-sphere"
    [ testCase "Non-movement on the equator"
         $ sphereParallelTransportTest
@@ -752,6 +755,32 @@ embeddingTangentiality consistRadius p vub
        o :: TangentBundle n
        o = FibreBundle p v
        FibreBundle pEmbd vEmbd = embed o :: TangentBundle m
+
+nearbyTangentSpaceEmbedding :: ∀ m n
+                     . ( Semimanifold m, Semimanifold n
+                       , m ~ Interior m, n ~ Interior n
+                       , NaturallyEmbedded n m
+                       , NaturallyEmbedded (TangentBundle n) (TangentBundle m)
+                       , ParallelTransporting (->) n (Needle n)
+                       , SP.Show n, SP.Show (Needle n), AEq (Needle n)
+                       , InnerSpace (Needle n), RealFloat (Scalar (Needle n)) )
+       => Scalar (Needle n) -> Interior n -> Needle n -> Needle n -> QC.Property
+nearbyTangentSpaceEmbedding consistRadius p vub f
+         = QC.counterexample ("𝑓 embd. at 𝑝, then proj. at 𝑝+𝑣 = "++SP.show fReProj
+                              ++", 𝑓 moved by 𝑣 = "++SP.show g)
+            $ g ≈ fReProj
+ where rvub = magnitude vub
+       v | rvub>0     = vub ^* (consistRadius * tanh rvub / rvub)
+         | otherwise  = vub
+       q :: n
+       q = p .+~^ v :: n
+       qEmbd = embed q :: m
+       FibreBundle _ fReProj :: TangentBundle n
+               = coEmbed (FibreBundle qEmbd fEmbd :: TangentBundle m)
+       g = parallelTransport p v f
+       o :: TangentBundle n
+       o = FibreBundle p f
+       FibreBundle pEmbd fEmbd = embed o :: TangentBundle m
 
 parTransportAssociativity :: ∀ m
            . ( AEq m, Manifold m, SP.Show m
