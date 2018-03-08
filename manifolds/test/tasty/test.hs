@@ -257,7 +257,9 @@ tests = testGroup "Tests"
                  (S² (abs θ₀) (if θ₀>0 then 0 else pi))
                  (S² (abs θ₁) (if θ₁>0 then 0 else pi))
    , QC.testProperty "Rotation axis"
-        $ \p v -> let q = p .+~^ v :: S²
+        $ \p vbig -> let
+                      v = vbig ^/ 20
+                      q = p .+~^ v :: S²
                       w = parallelTransport p v v
                       FibreBundle pCart vCart
                           = embed (FibreBundle p v :: TangentBundle S²) :: TangentBundle ℝ³
@@ -265,7 +267,8 @@ tests = testGroup "Tests"
                           = embed (FibreBundle q w :: TangentBundle S²) :: TangentBundle ℝ³
                       pxv = pCart`cross3`vCart
                       qxw = qCart`cross3`wCart
-                    in QC.counterexample
+                    in magnitude v < pi ==>
+                       QC.counterexample
                            ("  𝑝 = "++SP.show p++"\t ≃ "++SP.show pCart
                         ++"\n  𝑞 = "++SP.show q++"\t ≃ "++SP.show qCart
                         ++"\n  𝑣 = "++SP.show v++"\t = "++SP.show vCart++" @ 𝑝"
@@ -274,7 +277,6 @@ tests = testGroup "Tests"
                         ++"\n𝑞×𝑤 = "++SP.show qxw    -- rotation axis
                              )
                        $ pxv ≈ qxw
-                         || pxv ≈ negateV qxw -- ???
    ]
   ]
  , testGroup "Graph structure of webs"
