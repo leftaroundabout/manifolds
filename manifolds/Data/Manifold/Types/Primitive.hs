@@ -28,6 +28,7 @@
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE RecordWildCards          #-}
+{-# LANGUAGE PatternSynonyms          #-}
 
 
 module Data.Manifold.Types.Primitive (
@@ -41,11 +42,11 @@ module Data.Manifold.Types.Primitive (
         , ZeroDim(..)
         , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
         -- * Hyperspheres
-        , S⁰(..), otherHalfSphere, S¹(..), S²(..)
+        , S⁰(..), otherHalfSphere, S¹(..), pattern S¹, S²(..), pattern S²
         -- * Projective spaces
-        , ℝP⁰(..), ℝP¹(..),  ℝP²(..)
+        , ℝP⁰(..), ℝP¹(..), pattern ℝP¹,  ℝP²(..), pattern ℝP²
         -- * Intervals\/disks\/cones
-        , D¹(..), fromIntv0to1, D²(..)
+        , D¹(..), fromIntv0to1, D²(..), pattern D²
         , ℝay
         , CD¹(..), Cℝay(..)
         -- * Tensor products

@@ -28,6 +28,7 @@
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE UnicodeSyntax            #-}
+{-# LANGUAGE PatternSynonyms          #-}
 
 
 module Data.Manifold.Types (
@@ -45,11 +46,11 @@ module Data.Manifold.Types (
         , Stiefel1(..), stiefel1Project, stiefel1Embed
         -- ** Specific examples
         , HasUnitSphere(..)
-        , S⁰(..), S¹(..), S²(..)
+        , S⁰(..), S¹, pattern S¹, S², pattern S²
         -- * Projective spaces
-        , ℝP⁰(..), ℝP¹(..),  ℝP²(..)
+        , ℝP⁰(..), ℝP¹, pattern ℝP¹,  ℝP², pattern ℝP²
         -- * Intervals\/disks\/cones
-        , D¹(..), D²(..)
+        , D¹(..), D², pattern D²
         , ℝay
         , CD¹(..), Cℝay(..)
         -- * Affine subspaces

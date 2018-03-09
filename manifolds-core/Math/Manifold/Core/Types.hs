@@ -13,6 +13,7 @@
 
 
 {-# LANGUAGE TypeFamilies             #-}
+{-# LANGUAGE PatternSynonyms          #-}
 
 
 module Math.Manifold.Core.Types where
@@ -42,37 +43,50 @@ otherHalfSphere NegativeHalfSphere = PositiveHalfSphere
 data ℝP⁰ = ℝPZero deriving (Eq, Show)
 
 -- | The unit circle.
-newtype S¹ = S¹ { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
-                } deriving (Show)
+newtype S¹ = S¹Polar { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
+                     } deriving (Show)
+
+pattern S¹ :: Double -> S¹
+pattern S¹ φ = S¹Polar φ
 
 
 
+newtype ℝP¹ = UnitDiskℝP¹ { rParamℝP¹ :: Double -- ^ Range @[-1,1]@.
+                          } deriving (Show)
 
-newtype ℝP¹ = ℝP¹ { rParamℝP¹ :: Double -- ^ Range @[-1,1]@.
-                  } deriving (Show)
+pattern ℝP¹ :: Double -> ℝP¹
+pattern ℝP¹ r = UnitDiskℝP¹ r
 
 -- | The ordinary unit sphere.
-data S² = S² { ϑParamS² :: !Double -- ^ Range @[0, π[@.
-             , φParamS² :: !Double -- ^ Range @[-π, π[@.
-             } deriving (Show)
+data S² = S²Polar { ϑParamS² :: !Double -- ^ Range @[0, π[@.
+                  , φParamS² :: !Double -- ^ Range @[-π, π[@.
+                  } deriving (Show)
 
+pattern S² :: Double -> Double -> S²
+pattern S² ϑ φ = S²Polar ϑ φ
 
 
 -- | The two-dimensional real projective space, implemented as a unit disk with
 --   opposing points on the rim glued together.
-data ℝP² = ℝP² { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
-               , φParamℝP² :: !Double -- ^ Range @[-π, π[@.
-               } deriving (Show)
+data ℝP² = UnitDiskℝP²Polar { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
+                            , φParamℝP² :: !Double -- ^ Range @[-π, π[@.
+                            } deriving (Show)
+
+pattern ℝP² :: Double -> Double -> ℝP²
+pattern ℝP² r φ = UnitDiskℝP²Polar r φ
 
 
 
 -- | The standard, closed unit disk. Homeomorphic to the cone over 'S¹', but not in the
 --   the obvious, &#x201c;flat&#x201d; way. (And not at all, despite
 --   the identical ADT definition, to the projective space 'ℝP²'!)
-data D² = D² { rParamD² :: !Double -- ^ Range @[0, 1]@.
-             , φParamD² :: !Double -- ^ Range @[-π, π[@.
-             } deriving (Show)
+data D² = D²Polar { rParamD² :: !Double -- ^ Range @[0, 1]@.
+                  , φParamD² :: !Double -- ^ Range @[-π, π[@.
+                  } deriving (Show)
 
+pattern D² :: Double -> Double -> D²
+pattern D² r φ = D²Polar r φ
+             
 -- | A (closed) cone over a space @x@ is the product of @x@ with the closed interval 'D¹'
 --   of &#x201c;heights&#x201d;,
 --   except on its &#x201c;tip&#x201d;: here, @x@ is smashed to a single point.
