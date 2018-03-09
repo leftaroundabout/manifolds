@@ -16,8 +16,15 @@
 {-# LANGUAGE PatternSynonyms          #-}
 
 
-module Math.Manifold.Core.Types where
+module Math.Manifold.Core.Types
+        ( ℝ⁰, ℝ
+        , S⁰(..), otherHalfSphere, S¹(..), pattern S¹, S²(..), pattern S²
+        , D¹(..), fromIntv0to1, D²(..), pattern D²
+        , ℝP⁰(..), ℝP¹(..), pattern ℝP¹, ℝP²(..), pattern ℝP²
+        , Cℝay(..), CD¹(..)
+        ) where
 
+import Math.Manifold.Core.Types.Internal
 
 import Data.VectorSpace
 import Math.Manifold.VectorSpace.ZeroDimensional
@@ -26,104 +33,34 @@ import Data.Basis
 import Data.Void
 import Data.Monoid
 
-import Control.Applicative (Const(..), Alternative(..))
 
 
 
-
--- | The zero-dimensional sphere is actually just two points. Implementation might
---   therefore change to @ℝ⁰ 'Control.Category.Constrained.+' ℝ⁰@: the disjoint sum of two
---   single-point spaces.
-data S⁰ = PositiveHalfSphere | NegativeHalfSphere deriving(Eq, Show)
 
 otherHalfSphere :: S⁰ -> S⁰
 otherHalfSphere PositiveHalfSphere = NegativeHalfSphere
 otherHalfSphere NegativeHalfSphere = PositiveHalfSphere
 
-data ℝP⁰ = ℝPZero deriving (Eq, Show)
-
--- | The unit circle.
-newtype S¹ = S¹Polar { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
-                     } deriving (Show)
-
 pattern S¹ :: Double -> S¹
 pattern S¹ φ = S¹Polar φ
-
-
-
-newtype ℝP¹ = UnitDiskℝP¹ { rParamℝP¹ :: Double -- ^ Range @[-1,1]@.
-                          } deriving (Show)
 
 pattern ℝP¹ :: Double -> ℝP¹
 pattern ℝP¹ r = UnitDiskℝP¹ r
 
--- | The ordinary unit sphere.
-data S² = S²Polar { ϑParamS² :: !Double -- ^ Range @[0, π[@.
-                  , φParamS² :: !Double -- ^ Range @[-π, π[@.
-                  } deriving (Show)
-
 pattern S² :: Double -> Double -> S²
 pattern S² ϑ φ = S²Polar ϑ φ
-
-
--- | The two-dimensional real projective space, implemented as a unit disk with
---   opposing points on the rim glued together.
-data ℝP² = UnitDiskℝP²Polar { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
-                            , φParamℝP² :: !Double -- ^ Range @[-π, π[@.
-                            } deriving (Show)
 
 pattern ℝP² :: Double -> Double -> ℝP²
 pattern ℝP² r φ = UnitDiskℝP²Polar r φ
 
-
-
--- | The standard, closed unit disk. Homeomorphic to the cone over 'S¹', but not in the
---   the obvious, &#x201c;flat&#x201d; way. (And not at all, despite
---   the identical ADT definition, to the projective space 'ℝP²'!)
-data D² = D²Polar { rParamD² :: !Double -- ^ Range @[0, 1]@.
-                  , φParamD² :: !Double -- ^ Range @[-π, π[@.
-                  } deriving (Show)
-
 pattern D² :: Double -> Double -> D²
 pattern D² r φ = D²Polar r φ
-             
--- | A (closed) cone over a space @x@ is the product of @x@ with the closed interval 'D¹'
---   of &#x201c;heights&#x201d;,
---   except on its &#x201c;tip&#x201d;: here, @x@ is smashed to a single point.
---   
---   This construct becomes (homeomorphic-to-) an actual geometric cone (and to 'D²') in the
---   special case @x = 'S¹'@.
-data CD¹ x = CD¹ { hParamCD¹ :: !Double -- ^ Range @[0, 1]@
-                 , pParamCD¹ :: !x      -- ^ Irrelevant at @h = 0@.
-                 } deriving (Show)
 
 
--- | An open cone is homeomorphic to a closed cone without the &#x201c;lid&#x201d;,
---   i.e. without the &#x201c;last copy&#x201d; of @x@, at the far end of the height
---   interval. Since that means the height does not include its supremum, it is actually
---   more natural to express it as the entire real ray, hence the name.
-data Cℝay x = Cℝay { hParamCℝay :: !Double -- ^ Range @[0, &#x221e;[@
-                   , pParamCℝay :: !x      -- ^ Irrelevant at @h = 0@.
-                   } deriving (Show)
-
-
-
-
-
-
--- | The &#x201c;one-dimensional disk&#x201d; &#x2013; really just the line segment between
---   the two points -1 and 1 of 'S⁰', i.e. this is simply a closed interval.
-newtype D¹ = D¹ { xParamD¹ :: Double -- ^ Range @[-1, 1]@.
-                } deriving (Show)
 fromIntv0to1 :: ℝ -> D¹
 fromIntv0to1 x | x<0        = D¹ (-1)
                | x>1        = D¹ 1
                | otherwise  = D¹ $ x*2 - 1
-
-
-
-type ℝ = Double
-type ℝ⁰ = ZeroDim ℝ
 
 
 

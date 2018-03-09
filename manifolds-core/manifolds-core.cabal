@@ -21,7 +21,7 @@ library
   exposed-modules:     Math.Manifold.Core.Types
                        , Math.Manifold.Core.PseudoAffine
                        , Math.Manifold.VectorSpace.ZeroDimensional
-  -- other-modules:       
+  other-modules:       Math.Manifold.Core.Types.Internal
   other-extensions:    FlexibleInstances, UndecidableInstances, ExplicitNamespaces, TypeFamilies, FunctionalDependencies, FlexibleContexts, GADTs, RankNTypes, TupleSections, ConstraintKinds, PatternGuards, TypeOperators, ScopedTypeVariables, RecordWildCards, DataKinds, StandaloneDeriving, DefaultSignatures, UnicodeSyntax, MultiWayIf
   build-depends:       base >=4.5 && <5
                        , vector-space >=0.11
