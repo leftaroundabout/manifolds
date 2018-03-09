@@ -256,7 +256,7 @@ tests = testGroup "Tests"
                  (S² (pi/2) (pi/2), Nothing)
                  (S² (abs θ₀) (if θ₀>0 then 0 else pi))
                  (S² (abs θ₁) (if θ₁>0 then 0 else pi))
-   , QC.testProperty "Rotation axis"
+   , QC.testProperty "Rotation axis – heading-vector"
         $ \p v -> let q = p .+~^ v :: S²
                       w = parallelTransport p v v
                       FibreBundle pCart vCart
@@ -274,6 +274,34 @@ tests = testGroup "Tests"
                         ++"\n𝑞×𝑤 = "++SP.show qxw    -- rotation axis
                              )
                        $ pxv ≈ qxw
+   , QC.testProperty "Rotation axis – arbitrary vectors"
+        $ \p v f -> let q = p .+~^ v :: S²
+                        g = parallelTransport p v f
+                        FibreBundle pCart fCart
+                          = embed (FibreBundle p f :: TangentBundle S²) :: TangentBundle ℝ³
+                        FibreBundle qCart gCart
+                          = embed (FibreBundle q g :: TangentBundle S²) :: TangentBundle ℝ³
+                        pxq = pCart`cross3`qCart
+                        fㄧg = fCart ^-^ gCart
+                        ㄍ = magnitudeSq
+                        infix 7 ×
+                        (×) = cross3
+                    in QC.counterexample
+                           ("              𝑝 = "++SP.show p
+                        ++"\n              𝑞 = "++SP.show q
+                        ++"\n              𝑓 = "++SP.show f
+                        ++"\n              𝑔 = "++SP.show g
+                        ++"\n            𝑝×𝑞 = "++SP.show pxq    -- rotation axis
+                        ++"\n          𝑓 − 𝑔 = "++SP.show fㄧg
+                        ++"\n    (𝑝×𝑞)×(𝑓−𝑔) = "++SP.show (pxq × fㄧg)
+                        ++"\n    (𝑝×𝑞)·(𝑓−𝑔) = "++SP.show (pxq <.> fㄧg)
+                        ++"\n ‖(𝑝×𝑞)×(𝑓−𝑔)‖² = "++SP.show (ㄍ $ pxq × fㄧg)
+                        ++"\n         ‖𝑝×𝑞‖² = "++SP.show (ㄍ pxq)
+                        ++"\n         ‖𝑓−𝑔‖² = "++SP.show (ㄍ fㄧg)
+                        ++"\n  ‖𝑝×𝑞‖²·‖𝑓−𝑔‖² = "++SP.show (ㄍ pxq*ㄍ fㄧg)
+                             )
+                       $ 1 + ㄍ (pxq × fㄧg)
+                          ≈ 1 + ㄍ pxq * ㄍ fㄧg
    ]
   ]
  , testGroup "Graph structure of webs"
