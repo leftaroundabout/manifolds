@@ -281,18 +281,18 @@ tests = testGroup "Tests"
                           = embed (FibreBundle p f :: TangentBundle S²) :: TangentBundle ℝ³
                         FibreBundle qCart gCart
                           = embed (FibreBundle q g :: TangentBundle S²) :: TangentBundle ℝ³
-                        pxq = pCart`cross3`qCart
-                        fㄧg = fCart ^-^ gCart
-                        ㄍ = magnitudeSq
                         infix 7 ×
                         (×) = cross3
+                        pxq = pCart×qCart
+                        fㄧg = fCart ^-^ gCart
+                        ㄍ = magnitudeSq
                     in QC.counterexample
                            ("              𝑝 = "++SP.show p
                         ++"\n              𝑞 = "++SP.show q
                         ++"\n              𝑓 = "++SP.show f
                         ++"\n              𝑔 = "++SP.show g
-                        ++"\n            𝑝×𝑞 = "++SP.show pxq    -- rotation axis
-                        ++"\n          𝑓 − 𝑔 = "++SP.show fㄧg
+                        ++"\n            𝑝×𝑞 = "++SP.show pxq  -- rotation axis
+                        ++"\n          𝑓 − 𝑔 = "++SP.show fㄧg -- movement in the rot.-plane
                         ++"\n    (𝑝×𝑞)×(𝑓−𝑔) = "++SP.show (pxq × fㄧg)
                         ++"\n    (𝑝×𝑞)·(𝑓−𝑔) = "++SP.show (pxq <.> fㄧg)
                         ++"\n ‖(𝑝×𝑞)×(𝑓−𝑔)‖² = "++SP.show (ㄍ $ pxq × fㄧg)
@@ -300,8 +300,9 @@ tests = testGroup "Tests"
                         ++"\n         ‖𝑓−𝑔‖² = "++SP.show (ㄍ fㄧg)
                         ++"\n  ‖𝑝×𝑞‖²·‖𝑓−𝑔‖² = "++SP.show (ㄍ pxq*ㄍ fㄧg)
                              )
-                       $ 1 + ㄍ (pxq × fㄧg)
-                          ≈ 1 + ㄍ pxq * ㄍ fㄧg
+                       $ ㄍ (pxq × fㄧg)      -- Check that 𝑝×𝑞 and 𝑓−𝑔 are orthogonal.
+                          ≈ ㄍ pxq * ㄍ fㄧg  -- (For orthogonal 𝐚 and 𝐛, we have
+                                              -- ‖𝐚×𝐛‖ = ‖𝐚‖·‖𝐛‖.)
    ]
   ]
  , testGroup "Graph structure of webs"
