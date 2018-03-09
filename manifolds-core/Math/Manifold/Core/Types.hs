@@ -41,18 +41,23 @@ otherHalfSphere :: S⁰ -> S⁰
 otherHalfSphere PositiveHalfSphere = NegativeHalfSphere
 otherHalfSphere NegativeHalfSphere = PositiveHalfSphere
 
+{-# DEPRECATED S¹ "Use Math.Manifold.Core.Types.S¹Polar" #-}
 pattern S¹ :: Double -> S¹
 pattern S¹ φ = S¹Polar φ
 
+{-# DEPRECATED ℝP¹ "Use Math.Manifold.Core.Types.UnitDiskℝP¹" #-}
 pattern ℝP¹ :: Double -> ℝP¹
 pattern ℝP¹ r = UnitDiskℝP¹ r
 
+{-# DEPRECATED S² "Use Math.Manifold.Core.Types.S²Polar" #-}
 pattern S² :: Double -> Double -> S²
 pattern S² ϑ φ = S²Polar ϑ φ
 
+{-# DEPRECATED ℝP² "Use Math.Manifold.Core.Types.UnitDiskℝP²Polar" #-}
 pattern ℝP² :: Double -> Double -> ℝP²
 pattern ℝP² r φ = UnitDiskℝP²Polar r φ
 
+{-# DEPRECATED D² "Use Math.Manifold.Core.Types.D²Polar" #-}
 pattern D² :: Double -> Double -> D²
 pattern D² r φ = D²Polar r φ
 
