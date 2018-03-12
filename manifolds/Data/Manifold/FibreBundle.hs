@@ -114,24 +114,24 @@ instance (Category k, Object k ℝ) => ParallelTransporting k S¹ ℝ where
 instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
              => ParallelTransporting k S² ℝ² where
   parallelTransport p v = (fst . snd) (translateAndInvblyParTransport p v)
-  translateAndInvblyParTransport (S² θ₀ φ₀) 𝐯
-     | d < pi     = (S² θ₁ φ₁, (arr fwd, arr bwd))
-     | d < 2*pi   = translateAndInvblyParTransport (S² θ₀ φ₀)
+  translateAndInvblyParTransport (S²Polar θ₀ φ₀) 𝐯
+     | d < pi     = (S²Polar θ₁ φ₁, (arr fwd, arr bwd))
+     | d < 2*pi   = translateAndInvblyParTransport (S²Polar θ₀ φ₀)
                       $ 𝐯^*(-(2*pi-d)/d)
-     | otherwise  = translateAndInvblyParTransport (S² θ₀ φ₀)
+     | otherwise  = translateAndInvblyParTransport (S²Polar θ₀ φ₀)
                       $ let revolutions = floor $ d/(2*pi)
                         in 𝐯^*((d - 2*pi*fromIntegral revolutions)/d)
    where -- See images/constructions/sphericoords-needles.svg. Translation as in
          -- "Data.Manifold.PseudoAffine" instance.
-         S¹ γc₀ = coEmbed 𝐯
+         S¹Polar γc₀ = coEmbed 𝐯
          γ₀ | θ₀ < pi/2   = γc₀ - φ₀
             | otherwise   = γc₀ + φ₀
          d = magnitude 𝐯
-         S¹ φ₁ = S¹ φ₀ .+~^ δφ
+         S¹Polar φ₁ = S¹Polar φ₀ .+~^ δφ
          
          -- Cartesian coordinates of p₁ in the system whose north pole is p₀
          -- with φ₀ as the zero meridian
-         V3 bx by bz = embed $ S² d γ₀
+         V3 bx by bz = embed $ S²Polar d γ₀
          
          sθ₀ = sin θ₀; cθ₀ = cos θ₀
          -- Cartesian coordinates of p₁ in the system with the standard north pole,
@@ -140,7 +140,7 @@ instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
                    ,-sθ₀ * bx + cθ₀ * bz )
          qy      = by
          
-         S² θ₁ δφ = coEmbed $ V3 qx qy qz
+         S²Polar θ₁ δφ = coEmbed $ V3 qx qy qz
          
          sθ₁ = sin θ₁; cθ₁ = cos θ₁
          
@@ -148,7 +148,7 @@ instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
           | sθ₀<=sθ₁  = let
               -- Cartesian coordinates of the standard north pole in the system whose north
               -- pole is p₀ with 𝐯 along the zero meridian
-              V3 nbx nby nbz = embed $ S² θ₀ (pi-γ₀)
+              V3 nbx nby nbz = embed $ S²Polar θ₀ (pi-γ₀)
               
               sd = sin d; cd = cos d
               -- Cartesian coordinates of the standard north pole in the system whose north
@@ -162,7 +162,7 @@ instance (EnhancedCat k (LinearMap ℝ), Object k ℝ²)
           | otherwise = let
               -- Cartesian coordinates of p₀ in the system with the standard north pole,
               -- with p₁ on the zero meridian
-              V3 gx gy gz = embed $ S² θ₀ (-δφ)
+              V3 gx gy gz = embed $ S²Polar θ₀ (-δφ)
               
               -- Cartesian coordinates of p₀ in the system whose north
               -- pole is p₁ and the standard north pole on the zero meridian
@@ -319,30 +319,30 @@ instance NaturallyEmbedded v w
   coEmbed (FibreBundle p w) = FibreBundle p $ coEmbed w
 
 instance NaturallyEmbedded (FibreBundle S¹ ℝ) (FibreBundle ℝ² ℝ²) where
-  embed (FibreBundle (S¹ φ) l) = FibreBundle (V2 cφ sφ) $ l*^(V2 (-sφ) cφ)
+  embed (FibreBundle (S¹Polar φ) l) = FibreBundle (V2 cφ sφ) $ l*^(V2 (-sφ) cφ)
    where (cφ, sφ) = (cos &&& sin) φ
-  coEmbed (FibreBundle (V2 0 0) (V2 _ δy)) = FibreBundle (S¹ 0) δy
-  coEmbed (FibreBundle p (V2 δx δy)) = FibreBundle (S¹ $ atan2 sφ cφ) $ cφ*δy - sφ*δx
+  coEmbed (FibreBundle (V2 0 0) (V2 _ δy)) = FibreBundle (S¹Polar 0) δy
+  coEmbed (FibreBundle p (V2 δx δy)) = FibreBundle (S¹Polar $ atan2 sφ cφ) $ cφ*δy - sφ*δx
    where V2 cφ sφ = p^/r
          r = magnitude p
 
 instance NaturallyEmbedded (FibreBundle S² ℝ²) (FibreBundle ℝ³ ℝ³) where
-  embed (FibreBundle (S² θ φ) 𝐯@(V2 δξ δυ))
+  embed (FibreBundle (S²Polar θ φ) 𝐯@(V2 δξ δυ))
        = FibreBundle (V3 (sθ*cφ) (sθ*sφ) cθ) 𝐯r
-   where [V2 cθ sθ, V2 cφ sφ] = embed . S¹ <$> [θ,φ]
-         S¹ γc = coEmbed 𝐯
+   where [V2 cθ sθ, V2 cφ sφ] = embed . S¹Polar <$> [θ,φ]
+         S¹Polar γc = coEmbed 𝐯
          γ | θ < pi/2   = γc - φ
            | otherwise  = γc + φ
          d = magnitude 𝐯
 
-         V2 δθ δφ = d *^ embed (S¹ γ)
+         V2 δθ δφ = d *^ embed (S¹Polar γ)
          
          𝐞φ = V3 (-sφ) cφ 0
          𝐞θ = V3 (cθ*cφ) (cθ*sφ) (-sθ)
          𝐯r = δθ*^𝐞θ ^+^ δφ*^𝐞φ
   
   coEmbed (FibreBundle (V3 x y z) 𝐯r)
-           = FibreBundle (S² θ φ) (magnitude (δθ,δφ) *^ embed (S¹ γc))
+           = FibreBundle (S²Polar θ φ) (magnitude (δθ,δφ) *^ embed (S¹Polar γc))
    where r = sqrt $ x^2 + y^2 + z^2
          rxy = sqrt $ x^2 + y^2
          θ = atan2 rxy z

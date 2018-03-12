@@ -73,20 +73,20 @@ instance Atlas S⁰ where
   lookupAtlas = id
 instance Atlas S¹ where
   type ChartIndex S¹ = S⁰
-  chartReferencePoint NegativeHalfSphere = S¹ $ -pi/2
-  chartReferencePoint PositiveHalfSphere = S¹ $ pi/2
-  interiorChartReferencePoint _ NegativeHalfSphere = S¹ $ -pi/2
-  interiorChartReferencePoint _ PositiveHalfSphere = S¹ $ pi/2
-  lookupAtlas (S¹ φ) | φ<0        = NegativeHalfSphere
+  chartReferencePoint NegativeHalfSphere = S¹Polar $ -pi/2
+  chartReferencePoint PositiveHalfSphere = S¹Polar $ pi/2
+  interiorChartReferencePoint _ NegativeHalfSphere = S¹Polar $ -pi/2
+  interiorChartReferencePoint _ PositiveHalfSphere = S¹Polar $ pi/2
+  lookupAtlas (S¹Polar φ) | φ<0        = NegativeHalfSphere
                      | otherwise  = PositiveHalfSphere
 instance Atlas S² where
   type ChartIndex S² = S⁰
-  chartReferencePoint PositiveHalfSphere = S² 0 0
-  chartReferencePoint NegativeHalfSphere = S² pi 0
-  interiorChartReferencePoint _ PositiveHalfSphere = S² 0 0
-  interiorChartReferencePoint _ NegativeHalfSphere = S² pi 0
-  lookupAtlas (S² ϑ _) | ϑ<pi/2     = PositiveHalfSphere
-                       | otherwise  = NegativeHalfSphere
+  chartReferencePoint PositiveHalfSphere = S²Polar 0 0
+  chartReferencePoint NegativeHalfSphere = S²Polar pi 0
+  interiorChartReferencePoint _ PositiveHalfSphere = S²Polar 0 0
+  interiorChartReferencePoint _ NegativeHalfSphere = S²Polar pi 0
+  lookupAtlas (S²Polar ϑ _) | ϑ<pi/2     = PositiveHalfSphere
+                            | otherwise  = NegativeHalfSphere
 
 instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
               => Atlas (LinAff.Point a n) where

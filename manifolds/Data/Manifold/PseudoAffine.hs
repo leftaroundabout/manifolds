@@ -386,17 +386,17 @@ instance Semimanifold S² where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  S² θ₀ φ₀ .+~^ 𝐯 = S² θ₁ φ₁
+  S²Polar θ₀ φ₀ .+~^ 𝐯 = S²Polar θ₁ φ₁
    where -- See images/constructions/sphericoords-needles.svg.
-         S¹ γc = coEmbed 𝐯
+         S¹Polar γc = coEmbed 𝐯
          γ | θ₀ < pi/2   = γc - φ₀
            | otherwise   = γc + φ₀
          d = magnitude 𝐯
-         S¹ φ₁ = S¹ φ₀ .+~^ δφ
+         S¹Polar φ₁ = S¹Polar φ₀ .+~^ δφ
          
          -- Cartesian coordinates of p₁ in the system whose north pole is p₀
          -- with φ₀ as the zero meridian
-         V3 bx by bz = embed $ S² d γ
+         V3 bx by bz = embed $ S²Polar d γ
          
          sθ₀ = sin θ₀; cθ₀ = cos θ₀
          -- Cartesian coordinates of p₁ in the system with the standard north pole,
@@ -405,19 +405,19 @@ instance Semimanifold S² where
                    ,-sθ₀ * bx + cθ₀ * bz )
          qy      = by
          
-         S² θ₁ δφ = coEmbed $ V3 qx qy qz
+         S²Polar θ₁ δφ = coEmbed $ V3 qx qy qz
 
 instance PseudoAffine S² where
-  S² θ₁ φ₁ .-~! S² θ₀ φ₀ = d *^ embed(S¹ γc)
+  S²Polar θ₁ φ₁ .-~! S²Polar θ₀ φ₀ = d *^ embed(S¹Polar γc)
    where -- See images/constructions/sphericoords-needles.svg.
-         V3 qx qy qz = embed $ S² θ₁ (φ₁-φ₀)
+         V3 qx qy qz = embed $ S²Polar θ₁ (φ₁-φ₀)
 
          sθ₀ = sin θ₀; cθ₀ = cos θ₀
          (bx,bz) = ( cθ₀ * qx - sθ₀ * qz
                    , sθ₀ * qx + cθ₀ * qz )
          by      = qy
 
-         S² d γ = coEmbed $ V3 bx by bz
+         S²Polar d γ = coEmbed $ V3 bx by bz
          
          γc | θ₀ < pi/2   = γ + φ₀
             | otherwise   = γ - φ₀
@@ -430,23 +430,24 @@ instance Semimanifold ℝP² where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  ℝP² r₀ φ₀ .+~^ V2 δr δφ
+  UnitDiskℝP²Polar r₀ φ₀ .+~^ V2 δr δφ
    | r₀ > 1/2   = case r₀ + δr of
-                   r₁ | r₁ > 1     -> ℝP² (2-r₁) (toS¹range $ φ₀+δφ+pi)
-                      | otherwise  -> ℝP²    r₁  (toS¹range $ φ₀+δφ)
-  ℝP² r₀ φ₀ .+~^ δxy = let v = r₀*^embed(S¹ φ₀) ^+^ δxy
-                           S¹ φ₁ = coEmbed v
+                   r₁ | r₁ > 1     -> UnitDiskℝP²Polar (2-r₁) (toS¹range $ φ₀+δφ+pi)
+                      | otherwise  -> UnitDiskℝP²Polar    r₁  (toS¹range $ φ₀+δφ)
+  UnitDiskℝP²Polar r₀ φ₀ .+~^ δxy
+                     = let v = r₀*^embed(S¹Polar φ₀) ^+^ δxy
+                           S¹Polar φ₁ = coEmbed v
                            r₁ = magnitude v `mod'` 1
-                       in ℝP² r₁ φ₁  
+                       in UnitDiskℝP²Polar r₁ φ₁  
 instance PseudoAffine ℝP² where
-  ℝP² r₁ φ₁ .-~. ℝP² r₀ φ₀
+  UnitDiskℝP²Polar r₁ φ₁ .-~. UnitDiskℝP²Polar r₀ φ₀
    | r₀ > 1/2   = pure `id` case φ₁-φ₀ of
                           δφ | δφ > 3*pi/2  -> V2 (  r₁ - r₀) (δφ - 2*pi)
                              | δφ < -3*pi/2 -> V2 (  r₁ - r₀) (δφ + 2*pi)
                              | δφ > pi/2    -> V2 (2-r₁ - r₀) (δφ - pi  )
                              | δφ < -pi/2   -> V2 (2-r₁ - r₀) (δφ + pi  )
                              | otherwise    -> V2 (  r₁ - r₀) (δφ       )
-   | otherwise  = pure ( r₁*^embed(S¹ φ₁) ^-^ r₀*^embed(S¹ φ₀) )
+   | otherwise  = pure ( r₁*^embed(S¹Polar φ₁) ^-^ r₀*^embed(S¹Polar φ₀) )
 
 
 -- instance (PseudoAffine m, VectorSpace (Needle m), Scalar (Needle m) ~ ℝ)

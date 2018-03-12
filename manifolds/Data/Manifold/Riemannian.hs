@@ -164,16 +164,16 @@ instance Geodesic S⁰ where
   geodesicBetween _ _ = empty
 
 instance Geodesic S¹ where
-  geodesicBetween (S¹ φ) (S¹ ϕ)
-    | abs (φ-ϕ) < pi  = (>>> S¹) <$> geodesicBetween φ ϕ
-    | φ > 0           = (>>> S¹ . \ψ -> signum ψ*pi - ψ)
+  geodesicBetween (S¹Polar φ) (S¹Polar ϕ)
+    | abs (φ-ϕ) < pi  = (>>> S¹Polar) <$> geodesicBetween φ ϕ
+    | φ > 0           = (>>> S¹Polar . \ψ -> signum ψ*pi - ψ)
                         <$> geodesicBetween (pi-φ) (-ϕ-pi)
-    | otherwise       = (>>> S¹ . \ψ -> signum ψ*pi - ψ)
+    | otherwise       = (>>> S¹Polar . \ψ -> signum ψ*pi - ψ)
                         <$> geodesicBetween (-pi-φ) (pi-ϕ)
-  middleBetween (S¹ φ) (S¹ ϕ)
-    | abs (φ-ϕ) < pi  = S¹ <$> middleBetween φ ϕ
-    | φ > 0           = S¹ <$> middleBetween (pi-φ) (-ϕ-pi)
-    | otherwise       = S¹ <$> middleBetween (-pi-φ) (pi-ϕ)
+  middleBetween (S¹Polar φ) (S¹Polar ϕ)
+    | abs (φ-ϕ) < pi  = S¹Polar <$> middleBetween φ ϕ
+    | φ > 0           = S¹Polar <$> middleBetween (pi-φ) (-ϕ-pi)
+    | otherwise       = S¹Polar <$> middleBetween (-pi-φ) (pi-ϕ)
 
 
 -- instance Geodesic (Cℝay S⁰) where

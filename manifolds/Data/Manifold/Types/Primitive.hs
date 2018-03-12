@@ -130,19 +130,19 @@ instance NaturallyEmbedded S⁰ ℝ where
   coEmbed x | x>=0       = PositiveHalfSphere
             | otherwise  = NegativeHalfSphere
 instance NaturallyEmbedded S¹ ℝ² where
-  embed (S¹ φ) = V2 (cos φ) (sin φ)
-  coEmbed (V2 x y) = S¹ $ atan2 y x
+  embed (S¹Polar φ) = V2 (cos φ) (sin φ)
+  coEmbed (V2 x y) = S¹Polar $ atan2 y x
 instance NaturallyEmbedded S² ℝ³ where
-  embed (S² ϑ φ) = V3 (cos φ * sϑ) (sin φ * sϑ) (cos ϑ)
+  embed (S²Polar ϑ φ) = V3 (cos φ * sϑ) (sin φ * sϑ) (cos ϑ)
    where sϑ = sin ϑ
   {-# INLINE embed #-}
-  coEmbed (V3 x y z) = S² (atan2 rxy z) (atan2 y x)
+  coEmbed (V3 x y z) = S²Polar (atan2 rxy z) (atan2 y x)
    where rxy = sqrt $ x^2 + y^2
   {-# INLINE coEmbed #-}
  
 instance NaturallyEmbedded ℝP² ℝ³ where
-  embed (ℝP² r φ) = V3 (r * cos φ) (r * sin φ) (sqrt $ 1-r^2)
-  coEmbed (V3 x y z) = ℝP² (sqrt $ 1-(z/r)^2) (atan2 (y/r) (x/r))
+  embed (UnitDiskℝP²Polar r φ) = V3 (r * cos φ) (r * sin φ) (sqrt $ 1-r^2)
+  coEmbed (V3 x y z) = UnitDiskℝP²Polar (sqrt $ 1-(z/r)^2) (atan2 (y/r) (x/r))
    where r = sqrt $ x^2 + y^2 + z^2
 
 instance NaturallyEmbedded D¹ ℝ where
@@ -208,33 +208,33 @@ instance SP.Show S⁰ where
   showsPrec = showsPrec
 
 instance QC.Arbitrary S¹ where
-  arbitrary = S¹ . (pi-) . (`mod'`(2*pi))
+  arbitrary = S¹Polar . (pi-) . (`mod'`(2*pi))
                <$> QC.arbitrary
-  shrink (S¹ φ) = S¹ . (pi/12*) <$> QC.shrink (φ*12/pi)
+  shrink (S¹Polar φ) = S¹Polar . (pi/12*) <$> QC.shrink (φ*12/pi)
 instance SP.Show S¹ where
-  showsPrec p (S¹ φ) = showParen (p>9) $ ("S¹ "++) . SP.showsPrec 10 φ
+  showsPrec p (S¹Polar φ) = showParen (p>9) $ ("S¹Polar "++) . SP.showsPrec 10 φ
 
 instance QC.Arbitrary S² where
-  arbitrary = ( \θ φ -> S² (θ`mod'`pi) (pi - (φ`mod'`(2*pi))) )
+  arbitrary = ( \θ φ -> S²Polar (θ`mod'`pi) (pi - (φ`mod'`(2*pi))) )
                <$> QC.arbitrary<*>QC.arbitrary
-  shrink (S² θ φ) = uncurry S² . (pi/12*^) <$> QC.shrink (θ*12/pi, φ*12/pi)
+  shrink (S²Polar θ φ) = uncurry S²Polar . (pi/12*^) <$> QC.shrink (θ*12/pi, φ*12/pi)
 instance SP.Show S² where
-  showsPrec p (S² θ φ) = showParen (p>9) $ ("S² "++)
+  showsPrec p (S²Polar θ φ) = showParen (p>9) $ ("S²Polar "++)
                            . SP.showsPrec 10 θ . (' ':) . SP.showsPrec 10 φ
 
 instance QC.Arbitrary ℝP⁰ where
   arbitrary = pure ℝPZero
 
 instance QC.Arbitrary ℝP¹ where
-  arbitrary = ( \h -> ℝP¹ (1 - (h`mod'`2)) ) <$> QC.arbitrary
-  shrink (ℝP¹ r) = ℝP¹ . (/12) <$> QC.shrink (r*12)
+  arbitrary = ( \h -> UnitDiskℝP¹ (1 - (h`mod'`2)) ) <$> QC.arbitrary
+  shrink (UnitDiskℝP¹ r) = UnitDiskℝP¹ . (/12) <$> QC.shrink (r*12)
 
 instance QC.Arbitrary ℝP² where
-  arbitrary = ( \r φ -> ℝP² (r`mod'`1) (pi - (φ`mod'`(2*pi))) )
+  arbitrary = ( \r φ -> UnitDiskℝP²Polar (r`mod'`1) (pi - (φ`mod'`(2*pi))) )
                <$> QC.arbitrary<*>QC.arbitrary
-  shrink (ℝP² r φ) = [ ℝP² (r'/12) (φ'*pi/12)
-                     | r' <- QC.shrink (r*12)
-                     , φ' <- QC.shrink (φ*12/pi) ]
+  shrink (UnitDiskℝP²Polar r φ) = [ UnitDiskℝP²Polar (r'/12) (φ'*pi/12)
+                                  | r' <- QC.shrink (r*12)
+                                  , φ' <- QC.shrink (φ*12/pi) ]
 
 
 instance (SP.Show (Interior m), SP.Show f) => SP.Show (FibreBundle m f) where

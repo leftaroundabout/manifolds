@@ -353,10 +353,10 @@ instance Semimanifold S¹ where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  S¹ φ₀ .+~^ δφ  = S¹ $ φ'
+  S¹Polar φ₀ .+~^ δφ  = S¹Polar $ φ'
    where φ' = toS¹range $ φ₀ + δφ
 instance PseudoAffine S¹ where
-  S¹ φ₁ .-~. S¹ φ₀
+  S¹Polar φ₁ .-~. S¹Polar φ₀
      | δφ > pi     = pure (δφ - tau)
      | δφ < (-pi)  = pure (δφ + tau)
      | otherwise   = pure δφ
@@ -393,12 +393,12 @@ instance Semimanifold ℝP¹ where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  ℝP¹ r₀ .+~^ δr
-     | r' < -1    = ℝP¹ $ r' + 2
-     | otherwise  = ℝP¹ $ r'
+  UnitDiskℝP¹ r₀ .+~^ δr
+     | r' < -1    = UnitDiskℝP¹ $ r' + 2
+     | otherwise  = UnitDiskℝP¹ $ r'
    where r' = toUnitrange $ r₀ + δr
 instance PseudoAffine ℝP¹ where
-  ℝP¹ φ₁ .-~. ℝP¹ φ₀
+  UnitDiskℝP¹ φ₁ .-~. UnitDiskℝP¹ φ₀
      | δφ > pi     = pure (δφ - 2*pi)
      | δφ < (-pi)  = pure (δφ + 2*pi)
      | otherwise   = pure δφ
