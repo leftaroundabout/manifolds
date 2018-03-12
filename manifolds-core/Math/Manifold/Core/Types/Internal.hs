@@ -30,7 +30,7 @@ newtype S¹ = S¹Polar { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
                      } deriving (Show)
 
 
-newtype ℝP¹ = HemisphereℝP¹Polar { φParamℝP¹ :: Double -- ^ Range @[-π/2,π/2[@.
+newtype ℝP¹ = HemisphereℝP¹Polar { φParamℝP¹ :: Double -- ^ Range @[-π\/2,π\/2[@.
                                  } deriving (Show)
 
 -- | The ordinary unit sphere.
