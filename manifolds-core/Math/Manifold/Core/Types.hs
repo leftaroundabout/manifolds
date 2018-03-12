@@ -14,6 +14,7 @@
 
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE PatternSynonyms          #-}
+{-# LANGUAGE ViewPatterns             #-}
 
 
 module Math.Manifold.Core.Types
@@ -45,17 +46,19 @@ otherHalfSphere NegativeHalfSphere = PositiveHalfSphere
 pattern S¹ :: Double -> S¹
 pattern S¹ φ = S¹Polar φ
 
-{-# DEPRECATED ℝP¹ "Use Math.Manifold.Core.Types.UnitDiskℝP¹" #-}
+{-# DEPRECATED ℝP¹ "Use Math.Manifold.Core.Types.HemisphereℝP¹Polar (notice: different range)" #-}
 pattern ℝP¹ :: Double -> ℝP¹
-pattern ℝP¹ r = UnitDiskℝP¹ r
+pattern ℝP¹ r <- (HemisphereℝP¹Polar ((2/pi*)->r))
+ where ℝP¹ r = HemisphereℝP¹Polar $ r * pi/2
 
 {-# DEPRECATED S² "Use Math.Manifold.Core.Types.S²Polar" #-}
 pattern S² :: Double -> Double -> S²
 pattern S² ϑ φ = S²Polar ϑ φ
 
-{-# DEPRECATED ℝP² "Use Math.Manifold.Core.Types.UnitDiskℝP²Polar" #-}
+{-# DEPRECATED ℝP² "Use Math.Manifold.Core.Types.HemisphereℝP²Polar (notice: different range)" #-}
 pattern ℝP² :: Double -> Double -> ℝP²
-pattern ℝP² r φ = UnitDiskℝP²Polar r φ
+pattern ℝP² r φ <- (HemisphereℝP²Polar ((2/pi*)->r) φ)
+ where ℝP² r φ = HemisphereℝP²Polar (r * pi/2) φ
 
 {-# DEPRECATED D² "Use Math.Manifold.Core.Types.D²Polar" #-}
 pattern D² :: Double -> Double -> D²

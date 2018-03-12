@@ -30,8 +30,8 @@ newtype S¹ = S¹Polar { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
                      } deriving (Show)
 
 
-newtype ℝP¹ = UnitDiskℝP¹ { rParamℝP¹ :: Double -- ^ Range @[-1,1]@.
-                          } deriving (Show)
+newtype ℝP¹ = HemisphereℝP¹Polar { φParamℝP¹ :: Double -- ^ Range @[-π/2,π/2[@.
+                                 } deriving (Show)
 
 -- | The ordinary unit sphere.
 data S² = S²Polar { ϑParamS² :: !Double -- ^ Range @[0, π[@.
@@ -39,16 +39,19 @@ data S² = S²Polar { ϑParamS² :: !Double -- ^ Range @[0, π[@.
                   } deriving (Show)
 
 
--- | The two-dimensional real projective space, implemented as a unit disk with
---   opposing points on the rim glued together.
-data ℝP² = UnitDiskℝP²Polar { rParamℝP² :: !Double -- ^ Range @[0, 1]@.
-                            , φParamℝP² :: !Double -- ^ Range @[-π, π[@.
-                            } deriving (Show)
+-- | The two-dimensional real projective space, implemented as a disk with
+--   opposing points on the rim glued together. Image this disk as the northern hemisphere
+--   of a unit sphere; 'ℝP²' is the space of all straight lines passing through
+--   the origin of 'ℝ³', and each of these lines is represented by the point at which it
+--   passes through the hemisphere.
+data ℝP² = HemisphereℝP²Polar { ϑParamℝP² :: !Double -- ^ Range @[0, π/2]@.
+                              , φParamℝP² :: !Double -- ^ Range @[-π, π[@.
+                              } deriving (Show)
 
 
 -- | The standard, closed unit disk. Homeomorphic to the cone over 'S¹', but not in the
---   the obvious, “flat” way. (And not at all, despite
---   the identical ADT definition, to the projective space 'ℝP²'!)
+--   the obvious, “flat” way. (In is /not/ homeomorphic, despite
+--   the almost identical ADT definition, to the projective space 'ℝP²'!)
 data D² = D²Polar { rParamD² :: !Double -- ^ Range @[0, 1]@.
                   , φParamD² :: !Double -- ^ Range @[-π, π[@.
                   } deriving (Show)

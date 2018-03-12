@@ -393,15 +393,12 @@ instance Semimanifold ℝP¹ where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  UnitDiskℝP¹ r₀ .+~^ δr
-     | r' < -1    = UnitDiskℝP¹ $ r' + 2
-     | otherwise  = UnitDiskℝP¹ $ r'
-   where r' = toUnitrange $ r₀ + δr
+  HemisphereℝP¹Polar r₀ .+~^ δr = HemisphereℝP¹Polar . toℝP¹range $ r₀ + δr
 instance PseudoAffine ℝP¹ where
-  UnitDiskℝP¹ φ₁ .-~. UnitDiskℝP¹ φ₀
-     | δφ > pi     = pure (δφ - 2*pi)
-     | δφ < (-pi)  = pure (δφ + 2*pi)
-     | otherwise   = pure δφ
+  HemisphereℝP¹Polar φ₁ .-~. HemisphereℝP¹Polar φ₀
+     | δφ > pi/2     = pure (δφ - pi)
+     | δφ < (-pi/2)  = pure (δφ + pi)
+     | otherwise     = pure δφ
    where δφ = φ₁ - φ₀
 
 
@@ -414,6 +411,9 @@ tau = 2 * pi
 
 toS¹range :: ℝ -> ℝ
 toS¹range φ = (φ+pi)`mod'`tau - pi
+
+toℝP¹range :: ℝ -> ℝ
+toℝP¹range φ = (φ+pi/2)`mod'`pi - pi/2
 
 toUnitrange :: ℝ -> ℝ
 toUnitrange φ = (φ+1)`mod'`2 - 1

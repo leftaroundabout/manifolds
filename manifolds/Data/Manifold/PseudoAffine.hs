@@ -430,24 +430,18 @@ instance Semimanifold ℝP² where
   fromInterior = id
   toInterior = pure
   translateP = Tagged (.+~^)
-  UnitDiskℝP²Polar r₀ φ₀ .+~^ V2 δr δφ
-   | r₀ > 1/2   = case r₀ + δr of
-                   r₁ | r₁ > 1     -> UnitDiskℝP²Polar (2-r₁) (toS¹range $ φ₀+δφ+pi)
-                      | otherwise  -> UnitDiskℝP²Polar    r₁  (toS¹range $ φ₀+δφ)
-  UnitDiskℝP²Polar r₀ φ₀ .+~^ δxy
-                     = let v = r₀*^embed(S¹Polar φ₀) ^+^ δxy
-                           S¹Polar φ₁ = coEmbed v
-                           r₁ = magnitude v `mod'` 1
-                       in UnitDiskℝP²Polar r₁ φ₁  
+  HemisphereℝP²Polar θ₀ φ₀ .+~^ v
+      = case S²Polar θ₀ φ₀ .+~^ v of
+          S²Polar θ₁ φ₁
+           | θ₁ > pi/2   -> HemisphereℝP²Polar (pi-θ₁) (-φ₁)
+           | otherwise   -> HemisphereℝP²Polar θ₁        φ₁
 instance PseudoAffine ℝP² where
-  UnitDiskℝP²Polar r₁ φ₁ .-~. UnitDiskℝP²Polar r₀ φ₀
-   | r₀ > 1/2   = pure `id` case φ₁-φ₀ of
-                          δφ | δφ > 3*pi/2  -> V2 (  r₁ - r₀) (δφ - 2*pi)
-                             | δφ < -3*pi/2 -> V2 (  r₁ - r₀) (δφ + 2*pi)
-                             | δφ > pi/2    -> V2 (2-r₁ - r₀) (δφ - pi  )
-                             | δφ < -pi/2   -> V2 (2-r₁ - r₀) (δφ + pi  )
-                             | otherwise    -> V2 (  r₁ - r₀) (δφ       )
-   | otherwise  = pure ( r₁*^embed(S¹Polar φ₁) ^-^ r₀*^embed(S¹Polar φ₀) )
+  HemisphereℝP²Polar θ₁ φ₁ .-~! HemisphereℝP²Polar θ₀ φ₀
+      = case S²Polar θ₁ φ₁ .-~! S²Polar θ₀ φ₀ of
+          v -> let r² = magnitudeSq v
+               in if r²>pi^2/4
+                   then S²Polar (pi-θ₁) (-φ₁) .-~! S²Polar θ₀ φ₀
+                   else v
 
 
 -- instance (PseudoAffine m, VectorSpace (Needle m), Scalar (Needle m) ~ ℝ)

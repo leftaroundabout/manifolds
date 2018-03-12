@@ -759,17 +759,17 @@ instance AEq ℝ³ where
 instance AEq ℝP⁰ where
   fuzzyEq _ ℝPZero ℝPZero  = True
 instance AEq ℝP¹ where
-  fuzzyEq η (UnitDiskℝP¹ h) (UnitDiskℝP¹ h')
-   | h > 1/2, h'< -1/2  = fuzzyEq η (S¹Polar $ h - 2) (S¹Polar h')
-   | h'> 1/2, h < -1/2  = fuzzyEq η (S¹Polar h) (S¹Polar $ h'- 2)
-   | otherwise          = abs (h - h') < η
+  fuzzyEq η (HemisphereℝP¹Polar θ) (HemisphereℝP¹Polar ϑ)
+   = fuzzyEq η (S¹Polar $ θ*2) (S¹Polar $ ϑ*2)
 instance AEq ℝP² where
-  fuzzyEq η (UnitDiskℝP²Polar r φ) (UnitDiskℝP²Polar r' ϕ)
-   | φ > pi/2, ϕ < -pi/2  = fuzzyEq η (UnitDiskℝP²Polar r $ φ - 2*pi) (UnitDiskℝP²Polar r' ϕ)
-   | ϕ > pi/2, φ < -pi/2  = fuzzyEq η (UnitDiskℝP²Polar r φ) (UnitDiskℝP²Polar r' $ ϕ - 2*pi)
-   | r < 1                = abs (r - r') < η && abs (φ - ϕ) * r < η
-   | φ > pi/4, ϕ < -pi/4  = fuzzyEq η (UnitDiskℝP²Polar 1 $ φ - pi) (UnitDiskℝP²Polar 1 ϕ)
-   | ϕ > pi/4, φ < -pi/4  = fuzzyEq η (UnitDiskℝP²Polar 1 φ) (UnitDiskℝP²Polar 1 $ ϕ - pi)
+  fuzzyEq η (HemisphereℝP²Polar θ φ) (HemisphereℝP²Polar ϑ ϕ)
+   | φ > pi/2, ϕ < -pi/2  = fuzzyEq η (HemisphereℝP²Polar θ $ φ - 2*pi) (HemisphereℝP²Polar ϑ ϕ)
+   | ϕ > pi/2, φ < -pi/2  = fuzzyEq η (HemisphereℝP²Polar θ φ) (HemisphereℝP²Polar ϑ $ ϕ - 2*pi)
+   | θ < pi/2             = abs (θ - ϑ) < η && abs (φ - ϕ) * θ < η
+   | φ > pi/4, ϕ < -pi/4  = fuzzyEq η (HemisphereℝP²Polar (pi/2) $ φ - pi)
+                                      (HemisphereℝP²Polar (pi/2) ϕ)
+   | ϕ > pi/4, φ < -pi/4  = fuzzyEq η (HemisphereℝP²Polar (pi/2) φ)
+                                      (HemisphereℝP²Polar (pi/2) $ ϕ - pi)
    | otherwise            = abs (φ - ϕ) < η
 
 instance (AEq (Interior m), AEq f) => AEq (FibreBundle m f) where

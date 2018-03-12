@@ -141,9 +141,10 @@ instance NaturallyEmbedded S² ℝ³ where
   {-# INLINE coEmbed #-}
  
 instance NaturallyEmbedded ℝP² ℝ³ where
-  embed (UnitDiskℝP²Polar r φ) = V3 (r * cos φ) (r * sin φ) (sqrt $ 1-r^2)
-  coEmbed (V3 x y z) = UnitDiskℝP²Polar (sqrt $ 1-(z/r)^2) (atan2 (y/r) (x/r))
-   where r = sqrt $ x^2 + y^2 + z^2
+  embed (HemisphereℝP²Polar θ φ) = V3 (cθ * cos φ) (cθ * sin φ) (sin θ)
+   where cθ = cos θ
+  coEmbed (V3 x y z) = HemisphereℝP²Polar (atan2 rxy z) (atan2 y x)
+   where rxy = sqrt $ x^2 + y^2
 
 instance NaturallyEmbedded D¹ ℝ where
   embed = xParamD¹
@@ -226,15 +227,15 @@ instance QC.Arbitrary ℝP⁰ where
   arbitrary = pure ℝPZero
 
 instance QC.Arbitrary ℝP¹ where
-  arbitrary = ( \h -> UnitDiskℝP¹ (1 - (h`mod'`2)) ) <$> QC.arbitrary
-  shrink (UnitDiskℝP¹ r) = UnitDiskℝP¹ . (/12) <$> QC.shrink (r*12)
+  arbitrary = ( \θ -> HemisphereℝP¹Polar (pi/2 - (θ`mod'`pi)) ) <$> QC.arbitrary
+  shrink (HemisphereℝP¹Polar θ) = HemisphereℝP¹Polar . (pi/6*) <$> QC.shrink (θ*6/pi)
 
 instance QC.Arbitrary ℝP² where
-  arbitrary = ( \r φ -> UnitDiskℝP²Polar (r`mod'`1) (pi - (φ`mod'`(2*pi))) )
+  arbitrary = ( \θ φ -> HemisphereℝP²Polar (θ`mod'`pi/2) (pi - (φ`mod'`(2*pi))) )
                <$> QC.arbitrary<*>QC.arbitrary
-  shrink (UnitDiskℝP²Polar r φ) = [ UnitDiskℝP²Polar (r'/12) (φ'*pi/12)
-                                  | r' <- QC.shrink (r*12)
-                                  , φ' <- QC.shrink (φ*12/pi) ]
+  shrink (HemisphereℝP²Polar θ φ) = [ HemisphereℝP²Polar (θ'*pi/6) (φ'*pi/12)
+                                    | θ' <- QC.shrink (θ*6/pi)
+                                    , φ' <- QC.shrink (φ*12/pi) ]
 
 
 instance (SP.Show (Interior m), SP.Show f) => SP.Show (FibreBundle m f) where
