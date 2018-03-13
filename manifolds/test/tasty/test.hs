@@ -191,6 +191,14 @@ tests = testGroup "Tests"
   , testGroup "z-coordinate"
    [ QC.testProperty "Access" $ \x y z -> V3 x y z^.zCoord ≈ z
    , QC.testProperty "Update" $ \x y z₀ z₁ -> (zCoord.~z₁) (V3 x y z₀) ≈ V3 x y z₁ ]
+  , testGroup "x-coordinate diff"
+   [ QC.testProperty "Access" $ \x y δx δy
+             -> (FibreBundle (V2 x y) (V2 δx δy) :: TangentBundle ℝ²)
+                    ^.delta xCoord ≈ δx
+   , QC.testProperty "Update" $ \x y δx₀ δx₁ δy
+                     -> (delta xCoord.~δx₁)
+                         (FibreBundle (V2 x y) (V2 δx₀ δy) :: TangentBundle ℝ²)
+                          ≈ FibreBundle (V2 x y) (V2 δx₁ δy) ]
   ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"
