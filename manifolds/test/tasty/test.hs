@@ -188,6 +188,9 @@ tests = testGroup "Tests"
   , testGroup "y-coordinate"
    [ QC.testProperty "Access" $ \x y -> V2 x y^.yCoord ≈ y
    , QC.testProperty "Update" $ \x y₀ y₁ -> (yCoord.~y₁) (V2 x y₀) ≈ V2 x y₁ ]
+  , testGroup "z-coordinate"
+   [ QC.testProperty "Access" $ \x y z -> V3 x y z^.zCoord ≈ z
+   , QC.testProperty "Update" $ \x y z₀ z₁ -> (zCoord.~z₁) (V3 x y z₀) ≈ V3 x y z₁ ]
   ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"
