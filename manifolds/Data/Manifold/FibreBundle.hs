@@ -363,26 +363,15 @@ instance NaturallyEmbedded (FibreBundle S² ℝ²) (FibreBundle ℝ³ ℝ³) whe
 
 
 -- | @ex -> ey@, @ey -> ez@, @ez -> ex@
-transformEmbedded :: ∀ x f v . ( NaturallyEmbedded (FibreBundle x f) (FibreBundle v v)
+transformEmbeddedTangents
+    :: ∀ x f v . ( NaturallyEmbedded (FibreBundle x f) (FibreBundle v v)
                                , v ~ Interior v )
            => (v -> v) -> FibreBundle x f -> FibreBundle x f
-transformEmbedded f p = case embed p :: FibreBundle v v of
+transformEmbeddedTangents f p = case embed p :: FibreBundle v v of
     FibreBundle v δv -> coEmbed (FibreBundle (f v) (f δv) :: FibreBundle v v)
 
 
 instance Rotatable (FibreBundle S² ℝ²) where
   type AxisSpace (FibreBundle S² ℝ²) = ℝP²
-  rotateAbout = rotateViaEulerAnglesYZ
-                 (\βy -> transformEmbedded (\(V3 z x y) -> V3 x y z :: ℝ³)
-                        . rotateZ βy . transformEmbedded (\(V3 x y z) -> V3 z x y :: ℝ³))
-                 rotateZ
-   where rotateZ (S¹Polar βz) (FibreBundle (S²Polar θ φ) v)
-            = let rv = magnitude v
-                  S¹Polar pitchv = coEmbed v
-              in case rotateAbout ℝPZero (S¹Polar βz) (S¹Polar φ) of
-                   S¹Polar φ'
-                    | θ < pi/2    -> FibreBundle (S²Polar θ φ')
-                                        (rv *^ embed (S¹Polar $ pitchv + βz))
-                    | otherwise   -> FibreBundle (S²Polar θ φ')
-                                        (rv *^ embed (S¹Polar $ pitchv - βz))
+  rotateAbout axis angle = transformEmbeddedTangents $ rotateℝ³AboutCenteredAxis axis angle
 
