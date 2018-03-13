@@ -18,6 +18,7 @@ import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
 import Data.Manifold.FibreBundle
 import Data.Manifold.TreeCover
+import Math.Manifold.Coordinates
 import Data.Manifold.Web
 import Data.Manifold.Web.Internal
 import Data.Manifold.Function.LocalModel
@@ -176,6 +177,17 @@ tests = testGroup "Tests"
                 in vCart <.> axis + 1 ≈ 1    -- i.e. the movement vector is always
                   && v <.> axisProj + 1 ≈ 1  -- orthogonal to the rotation axis.
    ]
+  ]
+ , testGroup "Coordinates"
+  [ testGroup "Single dimension"
+   [ QC.testProperty "Access" $ \x -> x^.xCoord ≈ x
+   , QC.testProperty "Update" $ \x₀ x₁ -> (xCoord.~x₁) x₀ ≈ (x₁ :: ℝ) ]
+  , testGroup "x-coordinate"
+   [ QC.testProperty "Access" $ \x y -> V2 x y^.xCoord ≈ x
+   , QC.testProperty "Update" $ \x₀ y x₁ -> (xCoord.~x₁) (V2 x₀ y) ≈ V2 x₁ y ]
+  , testGroup "y-coordinate"
+   [ QC.testProperty "Access" $ \x y -> V2 x y^.yCoord ≈ y
+   , QC.testProperty "Update" $ \x y₀ y₁ -> (yCoord.~y₁) (V2 x y₀) ≈ V2 x y₁ ]
   ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"

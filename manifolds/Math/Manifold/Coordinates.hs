@@ -49,6 +49,9 @@ instance (HasXCoord w) => HasYCoord (ℝ,w) where
   yCoord = _2 . xCoord
 
 class CoordDifferential m where
+  -- | Observe local, small variations (in the tangent space) of a coordinate.
+  --   This is only guaranteed to work for coordinates that can be accessed by
+  --   the classes in this module.
   delta :: Coordinate m -> Coordinate (TangentBundle m)
 
 instance CoordDifferential ℝ where
