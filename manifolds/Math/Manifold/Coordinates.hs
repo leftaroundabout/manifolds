@@ -35,6 +35,8 @@ instance HasXCoord ℝ where
   xCoord = id
 instance HasXCoord ℝ² where
   xCoord = Lin._x
+instance HasXCoord ℝ³ where
+  xCoord = Lin._x
 instance (HasXCoord v) => HasXCoord (v,w) where
   xCoord = _1 . xCoord
 
@@ -43,10 +45,22 @@ class HasYCoord m where
 
 instance HasYCoord ℝ² where
   yCoord = Lin._y
+instance HasYCoord ℝ³ where
+  yCoord = Lin._y
 instance HasYCoord ((ℝ,ℝ),w) where
   yCoord = _1 . yCoord
 instance (HasXCoord w) => HasYCoord (ℝ,w) where
   yCoord = _2 . xCoord
+
+class HasZCoord m where
+  zCoord :: Coordinate m
+
+instance HasZCoord ℝ³ where
+  zCoord = Lin._z
+instance HasXCoord w => HasZCoord ((ℝ,ℝ),w) where
+  zCoord = _2 . xCoord
+instance (HasYCoord w) => HasZCoord (ℝ,w) where
+  zCoord = _2 . yCoord
 
 class CoordDifferential m where
   -- | Observe local, small variations (in the tangent space) of a coordinate.
