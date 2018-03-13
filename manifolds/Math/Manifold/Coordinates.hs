@@ -38,6 +38,16 @@ instance HasXCoord ℝ² where
 instance (HasXCoord v) => HasXCoord (v,w) where
   xCoord = _1 . xCoord
 
+class HasYCoord m where
+  yCoord :: Coordinate m
+
+instance HasYCoord ℝ² where
+  yCoord = Lin._y
+instance HasYCoord ((ℝ,ℝ),w) where
+  yCoord = _1 . yCoord
+instance (HasXCoord w) => HasYCoord (ℝ,w) where
+  yCoord = _2 . xCoord
+
 class CoordDifferential m where
   delta :: Coordinate m -> Coordinate (TangentBundle m)
 
