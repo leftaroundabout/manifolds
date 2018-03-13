@@ -20,8 +20,9 @@ import Data.Manifold.Types.Primitive
 import Data.Manifold.Types.Stiefel
 import Data.Manifold.PseudoAffine
 import Math.LinearMap.Category
+import Data.VectorSpace
 
-import Control.Lens
+import Control.Lens hiding ((<.>))
 
 import qualified Linear as Lin
 
@@ -44,3 +45,10 @@ instance CoordDifferential ℝ where
   delta c = lens (\(FibreBundle _ f) -> μ*f)
                  (\(FibreBundle p _) δ -> FibreBundle p $ δ/μ)
    where μ = 1^.c
+instance CoordDifferential ℝ² where
+  delta c = lens (\(FibreBundle _ f) -> μ<.>f)
+                 (\(FibreBundle p _) δ -> FibreBundle p $ δ*^μ')
+   where μ  = Lin.V2 μ₀ μ₁
+         μ' = Lin.V2 (recip μ₀) (recip μ₁)
+         μ₀ = Lin.V2 1 0^.c
+         μ₁ = Lin.V2 0 1^.c
