@@ -9,7 +9,13 @@
 -- 
 
 {-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE Rank2Types             #-}
+{-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE UnicodeSyntax          #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 
 
@@ -26,56 +32,108 @@ import Control.Lens hiding ((<.>))
 
 import qualified Linear as Lin
 
-type Coordinate m = Lens' m ℝ
+class HasCoordinates m where
+  data CoordinateIdentifier m :: *
+  coordinateAsLens :: CoordinateIdentifier m -> Lens' m ℝ
 
-class HasXCoord m where
+class CoordinateIsh q m | q -> m where
+  coordinate :: CoordinateIdentifier m -> q
+
+instance CoordinateIsh (CoordinateIdentifier m) m where
+  coordinate = id
+instance (Functor f, HasCoordinates m, a ~ (ℝ -> f ℝ), b ~ (m -> f m))
+          => CoordinateIsh (a -> b) m where
+  coordinate = coordinateAsLens
+
+type Coordinate m = ∀ q . CoordinateIsh q m => q
+
+instance HasCoordinates ℝ where
+  data CoordinateIdentifier ℝ = RealCoord
+  coordinateAsLens RealCoord = id
+  {-# INLINE coordinateAsLens #-}
+
+instance HasCoordinates ℝ² where
+  data CoordinateIdentifier ℝ² = ℝ²xCoord | ℝ²yCoord
+  coordinateAsLens ℝ²xCoord = Lin._x
+  coordinateAsLens ℝ²yCoord = Lin._y
+  {-# INLINE coordinateAsLens #-}
+
+instance HasCoordinates ℝ³ where
+  data CoordinateIdentifier ℝ³ = ℝ³xCoord | ℝ³yCoord | ℝ³zCoord
+  coordinateAsLens ℝ³xCoord = Lin._x
+  coordinateAsLens ℝ³yCoord = Lin._y
+  coordinateAsLens ℝ³zCoord = Lin._z
+  {-# INLINE coordinateAsLens #-}
+
+instance (HasCoordinates a, HasCoordinates b) => HasCoordinates (a,b) where
+  data CoordinateIdentifier (a,b) = LSubspaceCoord (CoordinateIdentifier a)
+                                  | RSubspaceCoord (CoordinateIdentifier b)
+  coordinateAsLens (LSubspaceCoord ca) = _1 . coordinateAsLens ca
+  coordinateAsLens (RSubspaceCoord cb) = _2 . coordinateAsLens cb
+  {-# INLINE coordinateAsLens #-}
+
+class HasCoordinates m => HasXCoord m where
   xCoord :: Coordinate m
 
 instance HasXCoord ℝ where
-  xCoord = id
+  xCoord = coordinate RealCoord
+  {-# INLINE xCoord #-}
 instance HasXCoord ℝ² where
-  xCoord = Lin._x
+  xCoord = coordinate ℝ²xCoord
+  {-# INLINE xCoord #-}
 instance HasXCoord ℝ³ where
-  xCoord = Lin._x
-instance (HasXCoord v) => HasXCoord (v,w) where
-  xCoord = _1 . xCoord
+  xCoord = coordinate ℝ³xCoord
+  {-# INLINE xCoord #-}
+instance (HasXCoord v, HasCoordinates w) => HasXCoord (v,w) where
+  xCoord = coordinate $ LSubspaceCoord xCoord
 
 class HasYCoord m where
   yCoord :: Coordinate m
 
 instance HasYCoord ℝ² where
-  yCoord = Lin._y
+  yCoord = coordinate ℝ²yCoord
+  {-# INLINE yCoord #-}
 instance HasYCoord ℝ³ where
-  yCoord = Lin._y
-instance HasYCoord ((ℝ,ℝ),w) where
-  yCoord = _1 . yCoord
+  yCoord = coordinate ℝ³yCoord
+  {-# INLINE yCoord #-}
+instance HasCoordinates w => HasYCoord ((ℝ,ℝ),w) where
+  yCoord = coordinate $ LSubspaceCoord yCoord
 instance (HasXCoord w) => HasYCoord (ℝ,w) where
-  yCoord = _2 . xCoord
+  yCoord = coordinate $ RSubspaceCoord xCoord
 
 class HasZCoord m where
   zCoord :: Coordinate m
 
 instance HasZCoord ℝ³ where
-  zCoord = Lin._z
+  zCoord = coordinate ℝ³zCoord
+  {-# INLINE zCoord #-}
 instance HasXCoord w => HasZCoord ((ℝ,ℝ),w) where
-  zCoord = _2 . xCoord
+  zCoord = coordinate $ RSubspaceCoord xCoord
 instance (HasYCoord w) => HasZCoord (ℝ,w) where
-  zCoord = _2 . yCoord
+  zCoord = coordinate $ RSubspaceCoord yCoord
+
+instance (HasCoordinates (Interior b), HasCoordinates f)
+              => HasCoordinates (FibreBundle b f) where
+  data CoordinateIdentifier (FibreBundle b f)
+           = BaseSpaceCoordinate (CoordinateIdentifier (Interior b))
+           | FibreSpaceCoordinate (Interior b -> CoordinateIdentifier f)
+  coordinateAsLens (BaseSpaceCoordinate b)
+            = lens (\(FibreBundle p _) -> p)
+                   (\(FibreBundle _ f) p -> FibreBundle p f)
+                . coordinateAsLens b
+  coordinateAsLens (FibreSpaceCoordinate b)
+            = \φ pf@(FibreBundle p f) -> case coordinateAsLens $ b p of
+                 fLens -> FibreBundle p <$> fLens φ f
+  
 
 class CoordDifferential m where
   -- | Observe local, small variations (in the tangent space) of a coordinate.
   --   This is only guaranteed to work for coordinates that can be accessed by
   --   the classes in this module.
-  delta :: Coordinate m -> Coordinate (TangentBundle m)
+  delta :: CoordinateIdentifier m -> Coordinate (TangentBundle m)
 
 instance CoordDifferential ℝ where
-  delta c = lens (\(FibreBundle _ f) -> μ*f)
-                 (\(FibreBundle p _) δ -> FibreBundle p $ δ/μ)
-   where μ = 1^.c
+  delta RealCoord = coordinate . FibreSpaceCoordinate $ const RealCoord
 instance CoordDifferential ℝ² where
-  delta c = lens (\(FibreBundle _ f) -> μ<.>f)
-                 (\(FibreBundle p f) δ -> FibreBundle p $ f ^+^ (δ - μ<.>f)*^μ')
-   where μ  = Lin.V2 μ₀ μ₁
-         μ' = μ ^/ magnitudeSq μ
-         μ₀ = Lin.V2 1 0^.c
-         μ₁ = Lin.V2 0 1^.c
+  delta ℝ²xCoord = coordinate . FibreSpaceCoordinate $ const ℝ²xCoord
+  delta ℝ²yCoord = coordinate . FibreSpaceCoordinate $ const ℝ²yCoord
