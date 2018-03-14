@@ -18,7 +18,7 @@ import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
 import Data.Manifold.FibreBundle
 import Data.Manifold.TreeCover
-import Math.Manifold.Coordinates
+import Math.Manifold.Real.Coordinates
 import Data.Manifold.Web
 import Data.Manifold.Web.Internal
 import Data.Manifold.Function.LocalModel
