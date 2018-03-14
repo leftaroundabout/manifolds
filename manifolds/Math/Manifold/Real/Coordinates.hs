@@ -23,8 +23,12 @@
 module Math.Manifold.Real.Coordinates
          ( Coordinate, coordinate
          , HasCoordinates(..)
+         -- * Vector space axes
          , HasXCoord(..), HasYCoord(..), HasZCoord(..)
+         -- * Tangent space diffs
          , CoordDifferential(..)
+         -- * Spherical coordinates
+         , HasAzimuth(..)
          ) where
 
 
@@ -172,3 +176,15 @@ instance CoordDifferential ℝ where
   delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
 instance CoordDifferential ℝ² where
   delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
+
+
+instance HasCoordinates S¹ where
+  data CoordinateIdentifier S¹ = S¹Azimuth
+  coordinateAsLens S¹Azimuth = lens φParamS¹ (const S¹Polar)
+
+class HasAzimuth m where
+  azimuth :: Coordinate m
+
+instance HasAzimuth S¹ where
+  azimuth = coordinate S¹Azimuth
+  
