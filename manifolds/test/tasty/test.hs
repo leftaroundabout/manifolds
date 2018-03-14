@@ -199,6 +199,12 @@ tests = testGroup "Tests"
                      -> (delta xCoord.~δx₁)
                          (FibreBundle (V2 x y) (V2 δx₀ δy) :: TangentBundle ℝ²)
                           ≈ FibreBundle (V2 x y) (V2 δx₁ δy) ]
+  , testGroup "Spheres"
+   [ testGroup "S¹"
+    [ QC.testProperty "Azimuth access" $ \φ -> S¹Polar φ^.azimuth ≈ φ
+    , QC.testProperty "Azimuth update" $ \p φ -> (azimuth .~ φ) p ≈ S¹Polar φ
+    ]
+   ]
   ]
  , testGroup "Parallel transport"
   [ testGroup "Displacement cancellation"
