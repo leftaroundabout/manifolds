@@ -204,6 +204,14 @@ tests = testGroup "Tests"
     [ QC.testProperty "Azimuth access" $ \φ -> S¹Polar φ^.azimuth ≈ φ
     , QC.testProperty "Azimuth update" $ \p φ -> (azimuth .~ φ) p ≈ S¹Polar φ
     ]
+   , testGroup "S²"
+    [ QC.testProperty "Azimuth access" $ \θ φ -> S²Polar θ φ^.azimuth ≈ φ
+    , QC.testProperty "Azimuth update" $ \θ φ₀ φ₁
+               -> (azimuth .~ φ₁) (S²Polar θ φ₀) ≈ S²Polar θ φ₁
+    , QC.testProperty "Zenith-distance access" $ \θ φ -> S²Polar θ φ^.zenithAngle ≈ θ
+    , QC.testProperty "Zenith-distance update" $ \θ₀ θ₁ φ
+               -> (zenithAngle .~ θ₁) (S²Polar θ₀ φ) ≈ S²Polar θ₁ φ
+    ]
    ]
   ]
  , testGroup "Parallel transport"

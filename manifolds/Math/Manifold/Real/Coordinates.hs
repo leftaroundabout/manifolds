@@ -29,6 +29,7 @@ module Math.Manifold.Real.Coordinates
          , CoordDifferential(..)
          -- * Spherical coordinates
          , HasAzimuth(..)
+         , HasZenithDistance(..)
          ) where
 
 
@@ -188,3 +189,17 @@ class HasAzimuth m where
 instance HasAzimuth S¹ where
   azimuth = coordinate S¹Azimuth
   
+instance HasCoordinates S² where
+  data CoordinateIdentifier S² = S²ZenithAngle | S²Azimuth
+  coordinateAsLens S²ZenithAngle = lens ϑParamS² (\(S²Polar _ φ) θ -> S²Polar θ φ)
+  coordinateAsLens S²Azimuth = lens φParamS² (\(S²Polar θ _) φ -> S²Polar θ φ)
+
+instance HasAzimuth S² where
+  azimuth = coordinate S²Azimuth
+  
+class HasZenithDistance m where
+  zenithAngle :: Coordinate m
+
+instance HasZenithDistance S² where
+  zenithAngle = coordinate S²ZenithAngle
+
