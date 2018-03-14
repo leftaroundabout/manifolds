@@ -16,6 +16,7 @@
 {-# LANGUAGE UnicodeSyntax          #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE EmptyCase              #-}
 
 
 
@@ -71,6 +72,10 @@ coordinate = useCoordinate
 -- axes. This is done with 'CoordinateIdentifier', which is what should be used
 -- for /defining/ given coordinate axes.
 type Coordinate m = ∀ q . CoordinateIsh q m => q
+
+instance HasCoordinates ℝ⁰ where
+  data CoordinateIdentifier ℝ⁰
+  coordinateAsLens b = case b of {}
 
 instance HasCoordinates ℝ where
   data CoordinateIdentifier ℝ = RealCoord { realAxisTfmStretch :: !ℝ }
