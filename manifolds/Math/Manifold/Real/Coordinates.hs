@@ -43,6 +43,8 @@ import Control.Lens hiding ((<.>))
 
 import qualified Linear as Lin
 
+import qualified Test.QuickCheck as QC
+
 -- | To give a custom type coordinate axes, first define an instance of this class.
 class HasCoordinates m where
   -- | A unique description of a coordinate axis.
@@ -87,6 +89,10 @@ instance HasCoordinates ℝ where
   coordinateAsLens (RealCoord μ) = iso (/μ) (*μ)
   {-# INLINE coordinateAsLens #-}
 
+instance QC.Arbitrary (CoordinateIdentifier ℝ) where
+  arbitrary = RealCoord <$> QC.arbitrary
+  shrink (RealCoord μ) = RealCoord <$> QC.shrink μ
+
 data OriginAxisCoord v = OriginAxisCoord
        { coordHeading :: !v             -- ^ Must be conjugate to heading, i.e.
        , coordSensor :: !(DualVector v) -- ^ @'coordSensor' <.>^ 'coordHeading' = 1@.
@@ -97,6 +103,20 @@ originAxisCoordAsLens (OriginAxisCoord v dv)
      = lens (dv<.>^)
             (\w c' -> w ^+^ (c' - dv<.>^w)*^v)
 {-# INLINE originAxisCoordAsLens #-}
+
+instance (QC.Arbitrary v, InnerSpace v, v ~ DualVector v, Scalar v ~ ℝ)
+    => QC.Arbitrary (OriginAxisCoord v) where
+  arbitrary = arb
+   where arb = do
+           v <- QC.arbitrary
+           case magnitudeSq v of
+             0 -> arb
+             v² -> return $ OriginAxisCoord v (v^/v²)
+  shrink (OriginAxisCoord v _) = do
+     w <- QC.shrink v
+     case magnitudeSq w of
+       0 -> []
+       w² -> return $ OriginAxisCoord w (w^/w²)
 
 instance HasCoordinates ℝ² where
   data CoordinateIdentifier ℝ² = ℝ²Coord !(OriginAxisCoord ℝ²)
