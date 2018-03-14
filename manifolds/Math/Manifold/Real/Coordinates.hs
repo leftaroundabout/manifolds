@@ -73,21 +73,29 @@ coordinate = useCoordinate
 type Coordinate m = ∀ q . CoordinateIsh q m => q
 
 instance HasCoordinates ℝ where
-  data CoordinateIdentifier ℝ = RealCoord
-  coordinateAsLens RealCoord = id
+  data CoordinateIdentifier ℝ = RealCoord { realAxisTfmStretch :: !ℝ }
+  coordinateAsLens (RealCoord μ) = iso (/μ) (*μ)
   {-# INLINE coordinateAsLens #-}
 
+data OriginAxisCoord v = OriginAxisCoord
+       { coordHeading :: !v             -- ^ Must be conjugate to heading, i.e.
+       , coordSensor :: !(DualVector v) -- ^ @'coordSensor' <.>^ 'coordHeading' = 1@.
+       }
+
+originAxisCoordAsLens :: LinearSpace v => OriginAxisCoord v -> Lens' v (Scalar v)
+originAxisCoordAsLens (OriginAxisCoord v dv)
+     = lens (dv<.>^)
+            (\w c' -> w ^+^ (c' - dv<.>^w)*^v)
+{-# INLINE originAxisCoordAsLens #-}
+
 instance HasCoordinates ℝ² where
-  data CoordinateIdentifier ℝ² = ℝ²xCoord | ℝ²yCoord
-  coordinateAsLens ℝ²xCoord = Lin._x
-  coordinateAsLens ℝ²yCoord = Lin._y
+  data CoordinateIdentifier ℝ² = ℝ²Coord !(OriginAxisCoord ℝ²)
+  coordinateAsLens (ℝ²Coord b) = originAxisCoordAsLens b
   {-# INLINE coordinateAsLens #-}
 
 instance HasCoordinates ℝ³ where
-  data CoordinateIdentifier ℝ³ = ℝ³xCoord | ℝ³yCoord | ℝ³zCoord
-  coordinateAsLens ℝ³xCoord = Lin._x
-  coordinateAsLens ℝ³yCoord = Lin._y
-  coordinateAsLens ℝ³zCoord = Lin._z
+  data CoordinateIdentifier ℝ³ = ℝ³Coord !(OriginAxisCoord ℝ³)
+  coordinateAsLens (ℝ³Coord b) = originAxisCoordAsLens b
   {-# INLINE coordinateAsLens #-}
 
 instance (HasCoordinates a, HasCoordinates b) => HasCoordinates (a,b) where
@@ -101,13 +109,13 @@ class HasCoordinates m => HasXCoord m where
   xCoord :: Coordinate m
 
 instance HasXCoord ℝ where
-  xCoord = coordinate RealCoord
+  xCoord = coordinate (RealCoord 1)
   {-# INLINE xCoord #-}
 instance HasXCoord ℝ² where
-  xCoord = coordinate ℝ²xCoord
+  xCoord = coordinate (ℝ²Coord $ OriginAxisCoord (Lin.V2 1 0) (Lin.V2 1 0))
   {-# INLINE xCoord #-}
 instance HasXCoord ℝ³ where
-  xCoord = coordinate ℝ³xCoord
+  xCoord = coordinate (ℝ³Coord $ OriginAxisCoord (Lin.V3 1 0 0) (Lin.V3 1 0 0))
   {-# INLINE xCoord #-}
 instance (HasXCoord v, HasCoordinates w) => HasXCoord (v,w) where
   xCoord = coordinate $ LSubspaceCoord xCoord
@@ -116,10 +124,10 @@ class HasYCoord m where
   yCoord :: Coordinate m
 
 instance HasYCoord ℝ² where
-  yCoord = coordinate ℝ²yCoord
+  yCoord = coordinate (ℝ²Coord $ OriginAxisCoord (Lin.V2 0 1) (Lin.V2 0 1))
   {-# INLINE yCoord #-}
 instance HasYCoord ℝ³ where
-  yCoord = coordinate ℝ³yCoord
+  yCoord = coordinate (ℝ³Coord $ OriginAxisCoord (Lin.V3 0 1 0) (Lin.V3 0 1 0))
   {-# INLINE yCoord #-}
 instance HasCoordinates w => HasYCoord ((ℝ,ℝ),w) where
   yCoord = coordinate $ LSubspaceCoord yCoord
@@ -130,7 +138,7 @@ class HasZCoord m where
   zCoord :: Coordinate m
 
 instance HasZCoord ℝ³ where
-  zCoord = coordinate ℝ³zCoord
+  zCoord = coordinate (ℝ³Coord $ OriginAxisCoord (Lin.V3 0 0 1) (Lin.V3 0 0 1))
   {-# INLINE zCoord #-}
 instance HasXCoord w => HasZCoord ((ℝ,ℝ),w) where
   zCoord = coordinate $ RSubspaceCoord xCoord
@@ -156,7 +164,6 @@ class CoordDifferential m where
   delta :: CoordinateIdentifier m -> Coordinate (TangentBundle m)
 
 instance CoordDifferential ℝ where
-  delta RealCoord = coordinate . FibreSpaceCoordinate $ const RealCoord
+  delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
 instance CoordDifferential ℝ² where
-  delta ℝ²xCoord = coordinate . FibreSpaceCoordinate $ const ℝ²xCoord
-  delta ℝ²yCoord = coordinate . FibreSpaceCoordinate $ const ℝ²yCoord
+  delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
