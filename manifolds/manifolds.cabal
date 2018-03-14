@@ -91,7 +91,7 @@ Library
                      Data.Manifold.Atlas
                      Data.Manifold.FibreBundle
                      Data.Manifold.Riemannian
-                     Math.Manifold.Coordinates
+                     Math.Manifold.Real.Coordinates
                      Math.Manifold.Embedding.Simple.Class
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive

@@ -1,5 +1,5 @@
 -- |
--- Module      : Math.Manifold.Coordinates
+-- Module      : Math.Manifold.Real.Coordinates
 -- Copyright   : (c) Justus Sagemüller 2018
 -- License     : GPL v3
 -- 
@@ -19,7 +19,12 @@
 
 
 
-module Math.Manifold.Coordinates where
+module Math.Manifold.Real.Coordinates
+         ( Coordinate, coordinate
+         , HasCoordinates(..)
+         , HasXCoord(..), HasYCoord(..), HasZCoord(..)
+         , CoordDifferential(..)
+         ) where
 
 
 import Data.Manifold.Types.Primitive
@@ -32,19 +37,39 @@ import Control.Lens hiding ((<.>))
 
 import qualified Linear as Lin
 
+-- | To give a custom type coordinate axes, first define an instance of this class.
 class HasCoordinates m where
+  -- | A unique description of a coordinate axis.
   data CoordinateIdentifier m :: *
+  -- | How to use a coordinate axis for points in the containing space.
+  --   This is what 'coordinate' calls under the hood.
   coordinateAsLens :: CoordinateIdentifier m -> Lens' m ℝ
 
 class CoordinateIsh q m | q -> m where
-  coordinate :: CoordinateIdentifier m -> q
+  useCoordinate :: CoordinateIdentifier m -> q
 
 instance CoordinateIsh (CoordinateIdentifier m) m where
-  coordinate = id
+  useCoordinate = id
 instance (Functor f, HasCoordinates m, a ~ (ℝ -> f ℝ), b ~ (m -> f m))
           => CoordinateIsh (a -> b) m where
-  coordinate = coordinateAsLens
+  useCoordinate = coordinateAsLens
 
+coordinate :: CoordinateIdentifier m -> Coordinate m
+coordinate = useCoordinate
+
+-- | A coordinate is a function that can be used both to determine the position
+-- of a point on a manifold along the one of some family of (possibly curved) axes on
+-- which it lies, and for moving the point along that axis.
+-- Basically, this is a 'Lens' and can indeed be used with the '^.', '.~' and '%~'
+-- operators.
+-- 
+-- @
+-- 'Coordinate' m ~ 'Lens'' m 'ℝ'
+-- @
+-- 
+-- In addition, each type may also have a way of identifying particular coordinate
+-- axes. This is done with 'CoordinateIdentifier', which is what should be used
+-- for /defining/ given coordinate axes.
 type Coordinate m = ∀ q . CoordinateIsh q m => q
 
 instance HasCoordinates ℝ where
@@ -128,8 +153,6 @@ instance (HasCoordinates (Interior b), HasCoordinates f)
 
 class CoordDifferential m where
   -- | Observe local, small variations (in the tangent space) of a coordinate.
-  --   This is only guaranteed to work for coordinates that can be accessed by
-  --   the classes in this module.
   delta :: CoordinateIdentifier m -> Coordinate (TangentBundle m)
 
 instance CoordDifferential ℝ where
