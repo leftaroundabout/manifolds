@@ -18,6 +18,7 @@
 {-# LANGUAGE UndecidableInstances   #-}
 {-# LANGUAGE EmptyCase              #-}
 {-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE CPP                    #-}
 
 
 
@@ -45,6 +46,7 @@ import Control.Lens hiding ((<.>))
 import qualified Linear as Lin
 
 import qualified Test.QuickCheck as QC
+import Data.Maybe (fromJust, isJust)
 
 -- | To give a custom type coordinate axes, first define an instance of this class.
 class HasCoordinates m where
@@ -109,7 +111,7 @@ originAxisCoordAsLens (OriginAxisCoord v dv)
 
 instance (QC.Arbitrary v, InnerSpace v, v ~ DualVector v, Scalar v ~ ℝ)
     => QC.Arbitrary (OriginAxisCoord v) where
-  arbitrary = QC.arbitrary `QC.suchThatMap` \v
+  arbitrary = QC.arbitrary `suchThatMap` \v
    -> case magnitudeSq v of
        0 -> Nothing
        v² -> Just $ OriginAxisCoord v (v^/v²)
@@ -231,3 +233,11 @@ class HasZenithDistance m where
 instance HasZenithDistance S² where
   zenithAngle = coordinate S²ZenithAngle
 
+
+suchThatMap :: QC.Gen a -> (a -> Maybe b) -> QC.Gen b
+#if !MIN_VERSION_QuickCheck(2,11,0)
+gen `suchThatMap` f =
+  fmap fromJust $ fmap f gen `QC.suchThat` isJust
+#else
+suchThatMap = QC.suchThatMap
+#endif
