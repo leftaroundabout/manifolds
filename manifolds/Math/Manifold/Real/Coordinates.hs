@@ -42,10 +42,13 @@ import Math.LinearMap.Category
 import Data.VectorSpace
 
 import Control.Lens hiding ((<.>))
+import Data.List (intercalate)
 
 import qualified Linear as Lin
 
 import qualified Test.QuickCheck as QC
+import qualified Test.QuickCheck.Gen as QC (unGen)
+import qualified Test.QuickCheck.Random as QC (mkQCGen)
 import Data.Maybe (fromJust, isJust)
 
 -- | To give a custom type coordinate axes, first define an instance of this class.
@@ -198,14 +201,33 @@ instance (HasCoordinates (Interior b), HasCoordinates f)
             = \φ pf@(FibreBundle p f) -> case coordinateAsLens $ b p of
                  fLens -> FibreBundle p <$> fLens φ f
   
+instance ( Show (CoordinateIdentifier (Interior b)), Show (CoordinateIdentifier f)
+         , QC.Arbitrary (Interior b), Show (Interior b) )
+    => Show (CoordinateIdentifier (FibreBundle b f)) where
+  showsPrec p (BaseSpaceCoordinate b)
+      = showParen (p>9) $ ("BaseSpaceCoordinate "++) . showsPrec 10 b
+  showsPrec p (FibreSpaceCoordinate bf)
+      = showParen (p>0) $ \cont ->
+          "BaseSpaceCoordinate $ \\case {"
+          ++ intercalate "; " [ showsPrec 5 p . (" -> "++) . shows (bf p) $ ""
+                              | p <-  QC.unGen QC.arbitrary (QC.mkQCGen 256592) 110818 ]
+          ++ "... }" ++ cont
 
-class CoordDifferential m where
+class HasCoordinates m => CoordDifferential m where
   -- | Observe local, small variations (in the tangent space) of a coordinate.
   delta :: CoordinateIdentifier m -> Coordinate (TangentBundle m)
+
+instance ( CoordDifferential m, f ~ Needle m, m ~ Interior m
+         , QC.Arbitrary (CoordinateIdentifier m) )
+             => QC.Arbitrary (CoordinateIdentifier (FibreBundle m f)) where
+  arbitrary = QC.oneof [ BaseSpaceCoordinate <$> QC.arbitrary
+                       , delta <$> QC.arbitrary ]
 
 instance CoordDifferential ℝ where
   delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
 instance CoordDifferential ℝ² where
+  delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
+instance CoordDifferential ℝ³ where
   delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
 
 
