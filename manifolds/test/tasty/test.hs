@@ -939,12 +939,25 @@ sphereParallelTransportTest p q (v:vs) (w:ws)
 
 coordinateLensLaws :: ∀ m . ( Typeable m, HasCoordinates m
                             , Show m, Show (CoordinateIdentifier m)
+                            , SP.Show m, AEq m
                             , QC.Arbitrary m, QC.Arbitrary (CoordinateIdentifier m) )
          => TestTree 
 coordinateLensLaws = testGroup (show $ typeRep ([]::[m]))
            [ QC.testProperty "Retrieval" retrieval
+           , QC.testProperty "Identity-pasting" idPasting
+           , QC.testProperty "Putting twice" twicePutting
            ]
  where retrieval :: CoordinateIdentifier m -> m -> ℝ -> QC.Property
        retrieval c p a = (QC.counterexample ("Got back "++SP.show retrieved)
                       $ retrieved ≈ a)
         where retrieved = (coordinate c.~a) p ^. coordinate c
+       idPasting :: CoordinateIdentifier m -> m -> QC.Property
+       idPasting c p = (QC.counterexample ("Putting the viewed coordinate back in gives "
+                                           ++ SP.show backPasted)
+                         $ backPasted ≈ p)
+        where backPasted = coordinate c .~ (p^.coordinate c) $ p
+       twicePutting :: CoordinateIdentifier m -> m -> ℝ -> QC.Property
+       twicePutting c p a = (QC.counterexample ("Second putting made it "++SP.show dubPut)
+                      $ dubPut ≈ singlyPut)
+        where singlyPut = p & coordinate c .~ a
+              dubPut = singlyPut & coordinate c .~ a
