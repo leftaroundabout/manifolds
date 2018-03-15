@@ -210,7 +210,7 @@ instance ( Show (CoordinateIdentifier (Interior b)), Show (CoordinateIdentifier 
       = showParen (p>0) $ \cont ->
           "BaseSpaceCoordinate $ \\case {"
           ++ intercalate "; " [ showsPrec 5 p . (" -> "++) . shows (bf p) $ ""
-                              | p <-  QC.unGen QC.arbitrary (QC.mkQCGen 256592) 110818 ]
+                              | p <- QC.unGen (QC.vector 3) (QC.mkQCGen 256592) 110818 ]
           ++ "... }" ++ cont
 
 class HasCoordinates m => CoordDifferential m where
@@ -218,10 +218,16 @@ class HasCoordinates m => CoordDifferential m where
   delta :: CoordinateIdentifier m -> Coordinate (TangentBundle m)
 
 instance ( CoordDifferential m, f ~ Needle m, m ~ Interior m
-         , QC.Arbitrary (CoordinateIdentifier m) )
+         , QC.Arbitrary m
+         , QC.Arbitrary (CoordinateIdentifier m)
+         , QC.Arbitrary (CoordinateIdentifier f) )
              => QC.Arbitrary (CoordinateIdentifier (FibreBundle m f)) where
   arbitrary = QC.oneof [ BaseSpaceCoordinate <$> QC.arbitrary
                        , delta <$> QC.arbitrary ]
+  shrink (BaseSpaceCoordinate b) = BaseSpaceCoordinate <$> QC.shrink b
+  shrink (FibreSpaceCoordinate bf) = FibreSpaceCoordinate . const
+                     <$> QC.shrink (bf cRef)
+   where cRef = QC.unGen QC.arbitrary (QC.mkQCGen 534373) 57314
 
 instance CoordDifferential ℝ where
   delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
