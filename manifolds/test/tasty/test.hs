@@ -195,6 +195,8 @@ tests = testGroup "Tests"
    [ QC.testProperty "ℝ" (coordinateLensLaws @ℝ)
    , QC.testProperty "ℝ²" (coordinateLensLaws @ℝ²)
    , QC.testProperty "ℝ³" (coordinateLensLaws @ℝ³)
+   , QC.testProperty "S¹" (coordinateLensLaws @S¹)
+   , QC.testProperty "S²" (coordinateLensLaws @S²)
    ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy

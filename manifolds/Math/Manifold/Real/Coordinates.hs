@@ -210,19 +210,28 @@ instance CoordDifferential ℝ² where
 
 
 instance HasCoordinates S¹ where
-  data CoordinateIdentifier S¹ = S¹Azimuth
+  data CoordinateIdentifier S¹ = S¹Azimuth deriving (Show)
   coordinateAsLens S¹Azimuth = lens φParamS¹ (const S¹Polar)
+
+instance QC.Arbitrary (CoordinateIdentifier S¹) where
+  arbitrary = return S¹Azimuth
 
 class HasAzimuth m where
   azimuth :: Coordinate m
 
 instance HasAzimuth S¹ where
   azimuth = coordinate S¹Azimuth
+
+instance CoordDifferential S¹ where
+  delta S¹Azimuth = coordinate . FibreSpaceCoordinate $ const xCoord
   
 instance HasCoordinates S² where
-  data CoordinateIdentifier S² = S²ZenithAngle | S²Azimuth
+  data CoordinateIdentifier S² = S²ZenithAngle | S²Azimuth deriving (Show)
   coordinateAsLens S²ZenithAngle = lens ϑParamS² (\(S²Polar _ φ) θ -> S²Polar θ φ)
   coordinateAsLens S²Azimuth = lens φParamS² (\(S²Polar θ _) φ -> S²Polar θ φ)
+
+instance QC.Arbitrary (CoordinateIdentifier S²) where
+  arbitrary = QC.elements [S²Azimuth, S²ZenithAngle]
 
 instance HasAzimuth S² where
   azimuth = coordinate S²Azimuth
