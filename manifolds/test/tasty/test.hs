@@ -191,6 +191,11 @@ tests = testGroup "Tests"
   , testGroup "z-coordinate"
    [ QC.testProperty "Access" $ \x y z -> V3 x y z^.zCoord ≈ z
    , QC.testProperty "Update" $ \x y z₀ z₁ -> (zCoord.~z₁) (V3 x y z₀) ≈ V3 x y z₁ ]
+  , testGroup "Lens laws"
+   [ QC.testProperty "ℝ" (coordinateLensLaws @ℝ)
+   , QC.testProperty "ℝ²" (coordinateLensLaws @ℝ²)
+   , QC.testProperty "ℝ³" (coordinateLensLaws @ℝ³)
+   ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy
              -> (FibreBundle (V2 x y) (V2 δx δy) :: TangentBundle ℝ²)
@@ -822,6 +827,11 @@ instance QC.Arbitrary ℝ² where
   arbitrary = (\(x,y)->V2 x y) <$> QC.arbitrary
   shrink (V2 x y) = V2 <$> ((/12)<$>QC.shrink (x*12))
                        <*> ((/12)<$>QC.shrink (y*12))
+instance QC.Arbitrary ℝ³ where
+  arbitrary = (\(x,y,z)->V3 x y z) <$> QC.arbitrary
+  shrink (V3 x y z) = V3 <$> ((/12)<$>QC.shrink (x*12))
+                         <*> ((/12)<$>QC.shrink (y*12))
+                         <*> ((/12)<$>QC.shrink (z*12))
 
 nearlyAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
                          => m -> Needle m -> Needle m -> Bool
@@ -922,3 +932,11 @@ sphereParallelTransportTest p q (v:vs) (w:ws)
  where [FibreBundle _ vSph, FibreBundle _ wSph]
           = [ coEmbed (FibreBundle (embed o) u :: TangentBundle ℝ³) :: TangentBundle S²
             | (o,u) <- [(p,v), (q,w)] ]
+
+
+coordinateLensLaws :: HasCoordinates m
+        => CoordinateIdentifier m -> m -> ℝ -> QC.Property
+coordinateLensLaws c p a
+    = QC.counterexample ("Got back "++SP.show retrieved)
+        $ retrieved ≈ a
+ where retrieved = (coordinate c.~a) p ^. coordinate c

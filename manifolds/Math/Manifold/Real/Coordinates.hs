@@ -17,6 +17,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances   #-}
 {-# LANGUAGE EmptyCase              #-}
+{-# LANGUAGE StandaloneDeriving     #-}
 
 
 
@@ -86,17 +87,19 @@ instance HasCoordinates ℝ⁰ where
 
 instance HasCoordinates ℝ where
   data CoordinateIdentifier ℝ = RealCoord { realAxisTfmStretch :: !ℝ }
+                      deriving (Show)
   coordinateAsLens (RealCoord μ) = iso (/μ) (*μ)
   {-# INLINE coordinateAsLens #-}
 
 instance QC.Arbitrary (CoordinateIdentifier ℝ) where
-  arbitrary = RealCoord <$> QC.arbitrary
-  shrink (RealCoord μ) = RealCoord <$> QC.shrink μ
+  arbitrary = RealCoord . QC.getNonZero <$> QC.arbitrary
+  shrink (RealCoord μ) = [ RealCoord ν | ν <- QC.shrink μ, ν/=0 ]
 
 data OriginAxisCoord v = OriginAxisCoord
        { coordHeading :: !v             -- ^ Must be conjugate to heading, i.e.
        , coordSensor :: !(DualVector v) -- ^ @'coordSensor' <.>^ 'coordHeading' = 1@.
        }
+deriving instance (Show v, Show (DualVector v)) => Show (OriginAxisCoord v)
 
 originAxisCoordAsLens :: LinearSpace v => OriginAxisCoord v -> Lens' v (Scalar v)
 originAxisCoordAsLens (OriginAxisCoord v dv)
@@ -106,27 +109,32 @@ originAxisCoordAsLens (OriginAxisCoord v dv)
 
 instance (QC.Arbitrary v, InnerSpace v, v ~ DualVector v, Scalar v ~ ℝ)
     => QC.Arbitrary (OriginAxisCoord v) where
-  arbitrary = arb
-   where arb = do
-           v <- QC.arbitrary
-           case magnitudeSq v of
-             0 -> arb
-             v² -> return $ OriginAxisCoord v (v^/v²)
-  shrink (OriginAxisCoord v _) = do
-     w <- QC.shrink v
-     case magnitudeSq w of
-       0 -> []
-       w² -> return $ OriginAxisCoord w (w^/w²)
+  arbitrary = QC.arbitrary `QC.suchThatMap` \v
+   -> case magnitudeSq v of
+       0 -> Nothing
+       v² -> Just $ OriginAxisCoord v (v^/v²)
+  shrink (OriginAxisCoord v _) = [ OriginAxisCoord w (w^/w²)
+                                 | w <- QC.shrink v
+                                 , let w² = magnitudeSq w
+                                 , w² > 0 ]
 
 instance HasCoordinates ℝ² where
-  data CoordinateIdentifier ℝ² = ℝ²Coord !(OriginAxisCoord ℝ²)
+  data CoordinateIdentifier ℝ² = ℝ²Coord !(OriginAxisCoord ℝ²) deriving (Show)
   coordinateAsLens (ℝ²Coord b) = originAxisCoordAsLens b
   {-# INLINE coordinateAsLens #-}
 
+instance QC.Arbitrary ℝ² => QC.Arbitrary (CoordinateIdentifier ℝ²) where
+  arbitrary = ℝ²Coord <$> QC.arbitrary
+  shrink (ℝ²Coord q) = ℝ²Coord <$> QC.shrink q
+
 instance HasCoordinates ℝ³ where
-  data CoordinateIdentifier ℝ³ = ℝ³Coord !(OriginAxisCoord ℝ³)
+  data CoordinateIdentifier ℝ³ = ℝ³Coord !(OriginAxisCoord ℝ³) deriving (Show)
   coordinateAsLens (ℝ³Coord b) = originAxisCoordAsLens b
   {-# INLINE coordinateAsLens #-}
+
+instance QC.Arbitrary ℝ³ => QC.Arbitrary (CoordinateIdentifier ℝ³) where
+  arbitrary = ℝ³Coord <$> QC.arbitrary
+  shrink (ℝ³Coord q) = ℝ³Coord <$> QC.shrink q
 
 instance (HasCoordinates a, HasCoordinates b) => HasCoordinates (a,b) where
   data CoordinateIdentifier (a,b) = LSubspaceCoord (CoordinateIdentifier a)
