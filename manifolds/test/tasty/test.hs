@@ -36,6 +36,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Test.Tasty.QuickCheck as QC
 import Test.Tasty.QuickCheck ((==>))
+import Data.Typeable
 
 import Data.Foldable (toList)
 import Data.List (nub)
@@ -192,11 +193,11 @@ tests = testGroup "Tests"
    [ QC.testProperty "Access" $ \x y z -> V3 x y z^.zCoord ≈ z
    , QC.testProperty "Update" $ \x y z₀ z₁ -> (zCoord.~z₁) (V3 x y z₀) ≈ V3 x y z₁ ]
   , testGroup "Lens laws"
-   [ QC.testProperty "ℝ" (coordinateLensLaws @ℝ)
-   , QC.testProperty "ℝ²" (coordinateLensLaws @ℝ²)
-   , QC.testProperty "ℝ³" (coordinateLensLaws @ℝ³)
-   , QC.testProperty "S¹" (coordinateLensLaws @S¹)
-   , QC.testProperty "S²" (coordinateLensLaws @S²)
+   [ coordinateLensLaws @ℝ
+   , coordinateLensLaws @ℝ²
+   , coordinateLensLaws @ℝ³
+   , coordinateLensLaws @S¹
+   , coordinateLensLaws @S²
    ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy
@@ -936,9 +937,14 @@ sphereParallelTransportTest p q (v:vs) (w:ws)
             | (o,u) <- [(p,v), (q,w)] ]
 
 
-coordinateLensLaws :: HasCoordinates m
-        => CoordinateIdentifier m -> m -> ℝ -> QC.Property
-coordinateLensLaws c p a
-    = QC.counterexample ("Got back "++SP.show retrieved)
-        $ retrieved ≈ a
- where retrieved = (coordinate c.~a) p ^. coordinate c
+coordinateLensLaws :: ∀ m . ( Typeable m, HasCoordinates m
+                            , Show m, Show (CoordinateIdentifier m)
+                            , QC.Arbitrary m, QC.Arbitrary (CoordinateIdentifier m) )
+         => TestTree 
+coordinateLensLaws = testGroup (show $ typeRep ([]::[m]))
+           [ QC.testProperty "Retrieval" retrieval
+           ]
+ where retrieval :: CoordinateIdentifier m -> m -> ℝ -> QC.Property
+       retrieval c p a = (QC.counterexample ("Got back "++SP.show retrieved)
+                      $ retrieved ≈ a)
+        where retrieved = (coordinate c.~a) p ^. coordinate c
