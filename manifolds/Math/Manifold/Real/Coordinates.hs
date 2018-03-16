@@ -58,6 +58,11 @@ class HasCoordinates m where
   -- | How to use a coordinate axis for points in the containing space.
   --   This is what 'coordinate' calls under the hood.
   coordinateAsLens :: CoordinateIdentifier m -> Lens' m ℝ
+  -- | The amount of leeway that a given coordinate has, around a point on the manifold.
+  --   For example, in spherical coordinates, the 'azimuth' generally has a range
+  --   of @(-'pi', 'pi')@, except at the poles where it's @(0,0)@.
+  validCoordinateRange :: CoordinateIdentifier m -> m -> (ℝ,ℝ)
+  validCoordinateRange _ _ = (-1/0, 1/0)
 
 class CoordinateIsh q m | q -> m where
   useCoordinate :: CoordinateIdentifier m -> q
@@ -227,7 +232,8 @@ instance ( CoordDifferential m, f ~ Needle m, m ~ Interior m
   shrink (BaseSpaceCoordinate b) = BaseSpaceCoordinate <$> QC.shrink b
   shrink (FibreSpaceCoordinate bf) = FibreSpaceCoordinate . const
                      <$> QC.shrink (bf cRef)
-   where cRef = QC.unGen QC.arbitrary (QC.mkQCGen 534373) 57314
+   where cRef₀ = QC.unGen QC.arbitrary (QC.mkQCGen 534373) 57314
+         cRef = head $ QC.shrink cRef₀ ++ [cRef₀]
 
 instance CoordDifferential ℝ where
   delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
@@ -240,6 +246,7 @@ instance CoordDifferential ℝ³ where
 instance HasCoordinates S¹ where
   data CoordinateIdentifier S¹ = S¹Azimuth deriving (Show)
   coordinateAsLens S¹Azimuth = lens φParamS¹ (const S¹Polar)
+  validCoordinateRange S¹Azimuth _ = (-pi, pi)
 
 instance QC.Arbitrary (CoordinateIdentifier S¹) where
   arbitrary = return S¹Azimuth
@@ -257,6 +264,10 @@ instance HasCoordinates S² where
   data CoordinateIdentifier S² = S²ZenithAngle | S²Azimuth deriving (Show)
   coordinateAsLens S²ZenithAngle = lens ϑParamS² (\(S²Polar _ φ) θ -> S²Polar θ φ)
   coordinateAsLens S²Azimuth = lens φParamS² (\(S²Polar θ _) φ -> S²Polar θ φ)
+  validCoordinateRange S²ZenithAngle _ = (0, pi)
+  validCoordinateRange S²Azimuth (S²Polar θ _)
+    | θ>0 && θ<pi  = (-pi, pi)
+    | otherwise    = (0, 0)
 
 instance QC.Arbitrary (CoordinateIdentifier S²) where
   arbitrary = QC.elements [S²Azimuth, S²ZenithAngle]

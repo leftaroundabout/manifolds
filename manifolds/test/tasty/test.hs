@@ -28,7 +28,7 @@ import Data.Cross (cross3)
 import Linear.V2 (V2(V2))
 import Linear.V3 (V3(V3))
 import Math.LinearMap.Category
-import Prelude hiding (id, fst, snd)
+import Prelude hiding (id, fst, snd, asinh)
 import Control.Category.Constrained (id)
 import Control.Arrow.Constrained (fst,snd)
 
@@ -952,8 +952,9 @@ coordinateLensLaws = testGroup (show $ typeRep ([]::[m]))
            ]
  where retrieval :: CoordinateIdentifier m -> m -> ℝ -> QC.Property
        retrieval c p a = (QC.counterexample ("Got back "++SP.show retrieved)
-                      $ retrieved ≈ a)
-        where retrieved = (coordinate c.~a) p ^. coordinate c
+                      $ retrieved ≈ x)
+        where retrieved = (coordinate c.~x) p ^. coordinate c
+              x = constrainToRange (validCoordinateRange c p) a
        idPasting :: CoordinateIdentifier m -> m -> QC.Property
        idPasting c p = (QC.counterexample ("Putting the viewed coordinate back in gives "
                                            ++ SP.show backPasted)
@@ -962,5 +963,22 @@ coordinateLensLaws = testGroup (show $ typeRep ([]::[m]))
        twicePutting :: CoordinateIdentifier m -> m -> ℝ -> QC.Property
        twicePutting c p a = (QC.counterexample ("Second putting made it "++SP.show dubPut)
                       $ dubPut ≈ singlyPut)
-        where singlyPut = p & coordinate c .~ a
-              dubPut = singlyPut & coordinate c .~ a
+        where singlyPut = p & coordinate c .~ x
+              dubPut = singlyPut & coordinate c .~ x
+              x = constrainToRange (validCoordinateRange c p) a
+
+constrainToRange :: (ℝ,ℝ) -> ℝ -> ℝ
+constrainToRange (lul,uul) = \x -> sinh $ m + rd * tanh (asinh x / (4 + rd))
+ where l = asinh $ max (-huge) lul
+       u = asinh $ min   huge  uul
+       rd = (u-l)/2
+       m = l + rd
+       huge = 1e9
+
+-- | 'Prelude.asinh' is (as of GHC-8.2) unstable for negative arguments, see
+--   <https://ghc.haskell.org/trac/ghc/ticket/14927>
+asinh :: RealFloat a => a -> a
+asinh x
+ | x > 1e20   = log 2 + log x
+ | x < 0      = -asinh (-x)
+ | otherwise  = log $ x + sqrt (1 + x^2)
