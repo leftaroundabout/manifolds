@@ -168,7 +168,8 @@ tests = testGroup "Tests"
  , testGroup "Special properties of translations"
   [ testGroup "2-sphere"
    [ QC.testProperty "S²-movement as rotation in ℝ³"
-      $ \p v -> let FibreBundle pCart vCart :: TangentBundle ℝ³
+      $ \p v -> magnitude v < 1e6
+            ==> let FibreBundle pCart vCart :: TangentBundle ℝ³
                          = embed (FibreBundle p v :: TangentBundle S²)
                     q = p .+~^ v :: S²
                     qCart = embed q :: ℝ³
@@ -307,7 +308,8 @@ tests = testGroup "Tests"
                  (S²Polar (abs θ₀) (if θ₀>0 then 0 else pi))
                  (S²Polar (abs θ₁) (if θ₁>0 then 0 else pi))
    , QC.testProperty "Rotation axis – heading-vector"
-        $ \p v -> let q = p .+~^ v :: S²
+        $ \p v -> magnitude v < 1e6
+              ==> let q = p .+~^ v :: S²
                       w = parallelTransport p v v
                       FibreBundle pCart vCart
                           = embed (FibreBundle p v :: TangentBundle S²) :: TangentBundle ℝ³
@@ -845,9 +847,11 @@ instance QC.Arbitrary ℝ³ where
                          <*> ((/12)<$>QC.shrink (y*12))
                          <*> ((/12)<$>QC.shrink (z*12))
 
-nearlyAssociative :: ∀ m . (AEq m, Semimanifold m, Interior m ~ m)
-                         => m -> Needle m -> Needle m -> Bool
-nearlyAssociative p v w = (p .+~^ v) .+~^ w ≈ (p .+~^ (v^+^w) :: m)
+nearlyAssociative :: ∀ m . ( AEq m, Semimanifold m, Interior m ~ m
+                           , InnerSpace (Needle m), RealFloat (Scalar (Needle m)) )
+                         => m -> Needle m -> Needle m -> QC.Property
+nearlyAssociative p v w = maximum (map magnitude [v,w]) < 1e6
+         ==> (p .+~^ v) .+~^ w ≈ (p .+~^ (v^+^w) :: m)
 
 originCancellation :: ∀ m . (AEq m, Manifold m, Show m, Show (Needle m))
                          => m -> m -> QC.Property
