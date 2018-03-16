@@ -205,6 +205,12 @@ tests = testGroup "Tests"
    , coordinateLensLaws @(TangentBundle S¹)
    , coordinateLensLaws @(TangentBundle S²)
    ]
+  , testGroup "Finite differences"
+   [ QC.testProperty "ℝ" $ coordinateFiniteDifference @ℝ
+   , QC.testProperty "ℝ²" $ coordinateFiniteDifference @ℝ²
+   , QC.testProperty "ℝ³" $ coordinateFiniteDifference @ℝ³
+   , QC.testProperty "(ℝ,ℝ)" $ coordinateFiniteDifference @(ℝ,ℝ)
+   ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy
              -> (FibreBundle (V2 x y) (V2 δx δy) :: TangentBundle ℝ²)
@@ -992,3 +998,15 @@ asinh x
  | x > 1e20   = log 2 + log x
  | x < 0      = -asinh (-x)
  | otherwise  = log $ x + sqrt (1 + x^2)
+
+
+
+coordinateFiniteDifference
+    :: ( Semimanifold m, HasCoordinates m, m ~ Interior m
+       , HasCoordinates (Needle m), CoordDifferential m )
+     => ℝ -> m -> CoordinateIdentifier m -> Needle m -> QC.Property
+coordinateFiniteDifference consistRadius p c δ
+        = QC.counterexample ""
+         $ FibreBundle p δ ^. delta c
+            ≈ q^.coordinate c - p^.coordinate c
+ where q = p .+~^ δ

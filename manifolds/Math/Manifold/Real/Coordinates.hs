@@ -158,6 +158,17 @@ instance (HasCoordinates a, HasCoordinates b) => HasCoordinates (a,b) where
   coordinateAsLens (RSubspaceCoord cb) = _2 . coordinateAsLens cb
   {-# INLINE coordinateAsLens #-}
 
+deriving instance (Eq (CoordinateIdentifier a), Eq (CoordinateIdentifier b))
+            => Eq (CoordinateIdentifier (a,b))
+deriving instance (Show (CoordinateIdentifier a), Show (CoordinateIdentifier b))
+            => Show (CoordinateIdentifier (a,b))
+
+instance (QC.Arbitrary (CoordinateIdentifier a), QC.Arbitrary (CoordinateIdentifier b))
+    => QC.Arbitrary (CoordinateIdentifier (a,b)) where
+  arbitrary = QC.oneof [LSubspaceCoord<$>QC.arbitrary, RSubspaceCoord<$>QC.arbitrary]
+  shrink (LSubspaceCoord ba) = LSubspaceCoord <$> QC.shrink ba
+  shrink (RSubspaceCoord bb) = RSubspaceCoord <$> QC.shrink bb
+
 class HasCoordinates m => HasXCoord m where
   xCoord :: Coordinate m
 
@@ -275,6 +286,11 @@ instance CoordDifferential ℝ² where
 instance CoordDifferential ℝ³ where
   delta ζ = coordinate . FibreSpaceCoordinate $ const ζ
 
+instance (CoordDifferential a, CoordDifferential b) => CoordDifferential (a,b) where
+  delta (LSubspaceCoord ba) = coordinate $ case delta ba of
+     FibreSpaceCoordinate bf -> FibreSpaceCoordinate $ \(δa,_) -> LSubspaceCoord $ bf δa
+  delta (RSubspaceCoord bb) = coordinate $ case delta bb of
+     FibreSpaceCoordinate bf -> FibreSpaceCoordinate $ \(_,δb) -> RSubspaceCoord $ bf δb
 
 instance HasCoordinates S¹ where
   data CoordinateIdentifier S¹ = S¹Azimuth deriving (Eq,Show)
