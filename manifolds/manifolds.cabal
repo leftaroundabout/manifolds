@@ -54,6 +54,7 @@ Library
                      , semigroups
                      , void
                      , number-show >= 0.1 && < 0.2
+                     , ieee754 >= 0.8 && < 1
                      , tagged
                      , deepseq
                      , placeholders

@@ -52,6 +52,8 @@ import qualified Test.QuickCheck.Gen as QC (unGen)
 import qualified Test.QuickCheck.Random as QC (mkQCGen)
 import Data.Maybe (fromJust, isJust)
 
+import Numeric.IEEE (epsilon)
+
 -- | To give a custom type coordinate axes, first define an instance of this class.
 class HasCoordinates m where
   -- | A unique description of a coordinate axis.
@@ -59,7 +61,8 @@ class HasCoordinates m where
   -- | How to use a coordinate axis for points in the containing space.
   --   This is what 'coordinate' calls under the hood.
   coordinateAsLens :: CoordinateIdentifier m -> Lens' m ℝ
-  -- | The amount of leeway that a given coordinate has, around a point on the manifold.
+  -- | Delimiters for the possible values one may choose for a given coordinate,
+  --   around a point on the manifold.
   --   For example, in spherical coordinates, the 'azimuth' generally has a range
   --   of @(-'pi', 'pi')@, except at the poles where it's @(0,0)@.
   validCoordinateRange :: CoordinateIdentifier m -> m -> (ℝ,ℝ)
@@ -308,6 +311,28 @@ class HasZenithDistance m where
 instance HasZenithDistance S² where
   zenithAngle = coordinate S²ZenithAngle
 
+instance CoordDifferential S² where
+  delta S²ZenithAngle = coordinate . FibreSpaceCoordinate
+            $ \(S²Polar θ φ) -> let eθ
+                                     | θ < pi/2   = embed . S¹Polar $  φ
+                                     | otherwise  = embed . S¹Polar $ -φ
+                                in ℝ²Coord $ OriginAxisCoord eθ eθ
+  delta S²Azimuth = coordinate . FibreSpaceCoordinate
+            $ \(S²Polar θ φ) -> let eφ
+                                     | θ < pi/2   = embed . S¹Polar $ φ + pi/2
+                                     | otherwise  = embed . S¹Polar $ pi/2 - φ
+                                    sθ = sin θ + epsilon/2
+                                      -- ^ Right at the poles, azimuthal movements
+                                      --   become inexpressible, which manifests itself
+                                      --   in giving infinite diffs. Moreover,
+                                      --   we also can't retrieve tangent diffs we put
+                                      --   in anymore. Arguably, this just expresses
+                                      --   the fact that azimuthal changes are meaningless
+                                      --   at the poles, however it violates the lens
+                                      --   laws, so prevent the infinity by keeping
+                                      --   sin θ very slightly above 0.
+                                in ℝ²Coord $ OriginAxisCoord (eφ^/sθ) (eφ^*sθ)
+                
 
 suchThatMap :: QC.Gen a -> (a -> Maybe b) -> QC.Gen b
 #if !MIN_VERSION_QuickCheck(2,11,0)

@@ -201,6 +201,8 @@ tests = testGroup "Tests"
    , coordinateLensLaws @(TangentBundle ℝ)
    , coordinateLensLaws @(TangentBundle ℝ²)
    , coordinateLensLaws @(TangentBundle ℝ³)
+   , coordinateLensLaws @(TangentBundle S¹)
+   , coordinateLensLaws @(TangentBundle S²)
    ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy
