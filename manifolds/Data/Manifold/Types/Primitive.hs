@@ -29,6 +29,7 @@
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE RecordWildCards          #-}
 {-# LANGUAGE PatternSynonyms          #-}
+{-# LANGUAGE LambdaCase               #-}
 
 
 module Data.Manifold.Types.Primitive (
@@ -205,6 +206,12 @@ infixr 8 ^
 instance QC.Arbitrary S⁰ where
   arbitrary = (\hsph -> if hsph then PositiveHalfSphere else NegativeHalfSphere)
                <$> QC.arbitrary
+instance QC.CoArbitrary S⁰ where
+  coarbitrary PositiveHalfSphere = QC.coarbitrary (2255841931547 :: Int)
+  coarbitrary NegativeHalfSphere = QC.coarbitrary (1710032008738 :: Int)
+instance QC.Function S⁰ where
+  function = QC.functionMap (\case {PositiveHalfSphere->True; NegativeHalfSphere->False})
+                            (\case {True->PositiveHalfSphere; False->NegativeHalfSphere})
 instance SP.Show S⁰ where
   showsPrec = showsPrec
 
@@ -212,6 +219,10 @@ instance QC.Arbitrary S¹ where
   arbitrary = S¹Polar . (pi-) . (`mod'`(2*pi))
                <$> QC.arbitrary
   shrink (S¹Polar φ) = S¹Polar . (pi/12*) <$> QC.shrink (φ*12/pi)
+instance QC.CoArbitrary S¹ where
+  coarbitrary (S¹Polar φ) = QC.coarbitrary φ
+instance QC.Function S¹ where
+  function = QC.functionMap (\(S¹Polar φ) -> tan $ φ/2) (S¹Polar . (*2) . atan)
 instance SP.Show S¹ where
   showsPrec p (S¹Polar φ) = showParen (p>9) $ ("S¹Polar "++) . SP.showsPrec 10 φ
 
@@ -219,6 +230,14 @@ instance QC.Arbitrary S² where
   arbitrary = ( \θ φ -> S²Polar (θ`mod'`pi) (pi - (φ`mod'`(2*pi))) )
                <$> QC.arbitrary<*>QC.arbitrary
   shrink (S²Polar θ φ) = uncurry S²Polar . (pi/12*^) <$> QC.shrink (θ*12/pi, φ*12/pi)
+instance QC.CoArbitrary S² where
+  coarbitrary (S²Polar 0 φ) = QC.coarbitrary (544317577041 :: Int)
+  coarbitrary (S²Polar θ φ)
+   | θ < pi                 = QC.coarbitrary (θ,φ)
+   | otherwise              = QC.coarbitrary (1771964485166 :: Int)
+instance QC.Function S² where
+  function = QC.functionMap (\(S²Polar θ φ) -> (cos φ, sin φ)^*tan (θ/2))
+                            (\(x,y) -> S²Polar (2 * (atan . sqrt $ x^2 + y^2)) (atan2 y x))
 instance SP.Show S² where
   showsPrec p (S²Polar θ φ) = showParen (p>9) $ ("S²Polar "++)
                            . SP.showsPrec 10 θ . (' ':) . SP.showsPrec 10 φ
