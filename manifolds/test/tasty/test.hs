@@ -585,17 +585,21 @@ tests = testGroup "Tests"
                                                       , 565.5193483520385 ]
                                        ] :: PointsWeb ℝ () ))
           @?= [ [1], [0,2], [1,3], [4,2], [3] ]
-    , QC.testProperty "Random 1D web should be strongly connected"
+    , adjustOption (\(QC.QuickCheckTests n)
+                        -> QC.QuickCheckTests (ceiling . sqrt $ fromIntegral n))
+        $ testGroup "QuickCheck"
+     [ QC.testProperty "Random 1D web should be strongly connected"
        $ \ps -> length ps >= 2 ==>
                  length (Graph.scc . fst
                           $ toGraph ( fromWebNodes euclideanMetric
                                         [(x, ()) | x<-Set.toList ps] :: PointsWeb ℝ () )
                       ) == 1
-    , QC.testProperty "Random 1D web should have only 2 boundary-points"
+     , QC.testProperty "Random 1D web should have only 2 boundary-points"
        $ \ps -> length ps >= 2 ==>
                  length (webBoundary (fromWebNodes euclideanMetric
                                         [(x, ()) | x<-Set.toList ps] :: PointsWeb ℝ () )
                       ) == 2
+     ]
     ]
  , testGroup "Shades"
     [ testCase "Equality of `Shade`s"
