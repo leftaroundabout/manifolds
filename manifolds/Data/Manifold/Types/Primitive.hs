@@ -86,6 +86,7 @@ import Control.Arrow.Constrained
 import Data.Embedding
 
 import qualified Test.QuickCheck as QC
+import qualified Test.QuickCheck.Function as QC (Function (..), functionMap)
 import qualified Text.Show.Pragmatic as SP
 
 
