@@ -210,6 +210,9 @@ instance (HasCoordinates (Interior b), HasCoordinates f)
   coordinateAsLens (FibreSpaceCoordinate b)
             = \φ pf@(FibreBundle p f) -> case coordinateAsLens $ b p of
                  fLens -> FibreBundle p <$> fLens φ f
+  validCoordinateRange (BaseSpaceCoordinate b) (FibreBundle p _) = validCoordinateRange b p
+  validCoordinateRange (FibreSpaceCoordinate bf) (FibreBundle p f)
+                          = validCoordinateRange (bf p) f
   
 instance ∀ b f . ( Show (CoordinateIdentifier (Interior b))
                  , Show (CoordinateIdentifier f)
