@@ -19,6 +19,7 @@
 {-# LANGUAGE EmptyCase              #-}
 {-# LANGUAGE StandaloneDeriving     #-}
 {-# LANGUAGE CPP                    #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
 
 
 
@@ -42,7 +43,7 @@ import Math.LinearMap.Category
 import Data.VectorSpace
 
 import Control.Lens hiding ((<.>))
-import Data.List (intercalate)
+import Data.List (intercalate, transpose)
 
 import qualified Linear as Lin
 
@@ -97,7 +98,7 @@ instance HasCoordinates ℝ⁰ where
 
 instance HasCoordinates ℝ where
   data CoordinateIdentifier ℝ = RealCoord { realAxisTfmStretch :: !ℝ }
-                      deriving (Show)
+                      deriving (Eq,Show)
   coordinateAsLens (RealCoord μ) = iso (/μ) (*μ)
   {-# INLINE coordinateAsLens #-}
 
@@ -110,6 +111,7 @@ data OriginAxisCoord v = OriginAxisCoord
        , coordSensor :: !(DualVector v) -- ^ @'coordSensor' <.>^ 'coordHeading' = 1@.
        }
 deriving instance (Show v, Show (DualVector v)) => Show (OriginAxisCoord v)
+deriving instance (Eq v, Eq (DualVector v)) => Eq (OriginAxisCoord v)
 
 originAxisCoordAsLens :: LinearSpace v => OriginAxisCoord v -> Lens' v (Scalar v)
 originAxisCoordAsLens (OriginAxisCoord v dv)
@@ -129,7 +131,7 @@ instance (QC.Arbitrary v, InnerSpace v, v ~ DualVector v, Scalar v ~ ℝ)
                                  , w² > 0 ]
 
 instance HasCoordinates ℝ² where
-  data CoordinateIdentifier ℝ² = ℝ²Coord !(OriginAxisCoord ℝ²) deriving (Show)
+  data CoordinateIdentifier ℝ² = ℝ²Coord !(OriginAxisCoord ℝ²) deriving (Eq,Show)
   coordinateAsLens (ℝ²Coord b) = originAxisCoordAsLens b
   {-# INLINE coordinateAsLens #-}
 
@@ -138,7 +140,7 @@ instance QC.Arbitrary ℝ² => QC.Arbitrary (CoordinateIdentifier ℝ²) where
   shrink (ℝ²Coord q) = ℝ²Coord <$> QC.shrink q
 
 instance HasCoordinates ℝ³ where
-  data CoordinateIdentifier ℝ³ = ℝ³Coord !(OriginAxisCoord ℝ³) deriving (Show)
+  data CoordinateIdentifier ℝ³ = ℝ³Coord !(OriginAxisCoord ℝ³) deriving (Eq,Show)
   coordinateAsLens (ℝ³Coord b) = originAxisCoordAsLens b
   {-# INLINE coordinateAsLens #-}
 
@@ -206,8 +208,10 @@ instance (HasCoordinates (Interior b), HasCoordinates f)
             = \φ pf@(FibreBundle p f) -> case coordinateAsLens $ b p of
                  fLens -> FibreBundle p <$> fLens φ f
   
-instance ( Show (CoordinateIdentifier (Interior b)), Show (CoordinateIdentifier f)
-         , QC.Arbitrary (Interior b), Show (Interior b) )
+instance ∀ b f . ( Show (CoordinateIdentifier (Interior b))
+                 , Show (CoordinateIdentifier f)
+                 , Eq (Interior b), Eq (CoordinateIdentifier f)
+                 , QC.Arbitrary (Interior b), Show (Interior b) )
     => Show (CoordinateIdentifier (FibreBundle b f)) where
   showsPrec p (BaseSpaceCoordinate b)
       = showParen (p>9) $ ("BaseSpaceCoordinate "++) . showsPrec 10 b
@@ -215,8 +219,31 @@ instance ( Show (CoordinateIdentifier (Interior b)), Show (CoordinateIdentifier 
       = showParen (p>0) $ \cont ->
           "BaseSpaceCoordinate $ \\case {"
           ++ intercalate "; " [ showsPrec 5 p . (" -> "++) . shows (bf p) $ ""
-                              | p <- QC.unGen (QC.vector 3) (QC.mkQCGen 256592) 110818 ]
+                              | p <- exampleArgs ]
           ++ "... }" ++ cont
+   where exampleArgs :: [Interior b]
+         exampleArgs = head $ go 1 0 2384148716156
+          where go :: Int -> Int -> Int -> [[Interior b]]
+                go n tries seed
+                  | length candidate == n, allDifferent candidate
+                  , (shrunk:_) <- filter (allDifferent . map bf)
+                                     $ shrinkElems candidate ++ [candidate]
+                  , [] <- take (5-n) $ go (n+1) 0 seed'
+                                      = [shrunk]
+                  | tries*(n-1) > 15  = []
+                  | otherwise         = go n (tries+1) seed'
+                 where candidate = take n $ generateFrom seed QC.arbitrary
+                       seed' = generateFrom seed QC.arbitrary
+         allDifferent (x:ys) = all (x/=) ys && allDifferent ys
+         allDifferent [] = True
+
+generateFrom :: QC.CoArbitrary s => s -> QC.Gen a -> a
+generateFrom seed val = QC.unGen (QC.coarbitrary seed val) (QC.mkQCGen 256592) 110818
+
+-- | Keep length of the list, but shrink the individual elements.
+shrinkElems :: QC.Arbitrary a => [a] -> [[a]]
+shrinkElems l = filter ((==length l) . length) . transpose $ map QC.shrink l
+
 
 class HasCoordinates m => CoordDifferential m where
   -- | Observe local, small variations (in the tangent space) of a coordinate.
@@ -244,7 +271,7 @@ instance CoordDifferential ℝ³ where
 
 
 instance HasCoordinates S¹ where
-  data CoordinateIdentifier S¹ = S¹Azimuth deriving (Show)
+  data CoordinateIdentifier S¹ = S¹Azimuth deriving (Eq,Show)
   coordinateAsLens S¹Azimuth = lens φParamS¹ (const S¹Polar)
   validCoordinateRange S¹Azimuth _ = (-pi, pi)
 
@@ -261,7 +288,7 @@ instance CoordDifferential S¹ where
   delta S¹Azimuth = coordinate . FibreSpaceCoordinate $ const xCoord
   
 instance HasCoordinates S² where
-  data CoordinateIdentifier S² = S²ZenithAngle | S²Azimuth deriving (Show)
+  data CoordinateIdentifier S² = S²ZenithAngle | S²Azimuth deriving (Eq,Show)
   coordinateAsLens S²ZenithAngle = lens ϑParamS² (\(S²Polar _ φ) θ -> S²Polar θ φ)
   coordinateAsLens S²Azimuth = lens φParamS² (\(S²Polar θ _) φ -> S²Polar θ φ)
   validCoordinateRange S²ZenithAngle _ = (0, pi)
