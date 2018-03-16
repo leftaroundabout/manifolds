@@ -16,6 +16,7 @@ module Math.Manifold.Core.Types.Internal where
 
 import Math.Manifold.VectorSpace.ZeroDimensional
 
+import Data.Fixed (mod')
 
 
 -- | The zero-dimensional sphere is actually just two points. Implementation might
@@ -29,6 +30,9 @@ data ℝP⁰ = ℝPZero deriving (Eq, Show)
 newtype S¹ = S¹Polar { φParamS¹ :: Double -- ^ Must be in range @[-π, π[@.
                      } deriving (Show)
 
+instance Eq S¹ where
+  S¹Polar φ == S¹Polar φ' = φ `mod'` (2*pi) == φ' `mod'` (2*pi)
+
 
 newtype ℝP¹ = HemisphereℝP¹Polar { φParamℝP¹ :: Double -- ^ Range @[-π\/2,π\/2[@.
                                  } deriving (Show)
@@ -38,6 +42,10 @@ data S² = S²Polar { ϑParamS² :: !Double -- ^ Range @[0, π[@.
                   , φParamS² :: !Double -- ^ Range @[-π, π[@.
                   } deriving (Show)
 
+instance Eq S² where
+  S²Polar θ φ == S²Polar θ' φ'
+   | θ > 0, θ < pi  = θ == θ' && φ `mod'` (2*pi) == φ' `mod'` (2*pi)
+   | otherwise      = θ == θ'
 
 -- | The two-dimensional real projective space, implemented as a disk with
 --   opposing points on the rim glued together. Image this disk as the northern hemisphere
