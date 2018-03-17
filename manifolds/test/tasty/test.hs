@@ -45,6 +45,8 @@ import qualified Data.Set as Set
 import Control.Arrow
 import Control.Lens hiding ((<.>))
 
+import Data.Fixed (mod')
+
 import qualified Text.Show.Pragmatic as SP
 
 
@@ -206,10 +208,13 @@ tests = testGroup "Tests"
    , coordinateLensLaws @(TangentBundle S²)
    ]
   , testGroup "Finite differences"
-   [ QC.testProperty "ℝ" $ coordinateFiniteDifference @ℝ
-   , QC.testProperty "ℝ²" $ coordinateFiniteDifference @ℝ²
-   , QC.testProperty "ℝ³" $ coordinateFiniteDifference @ℝ³
-   , QC.testProperty "(ℝ,ℝ)" $ coordinateFiniteDifference @(ℝ,ℝ)
+   [ QC.testProperty "ℝ" $ coordinateFiniteDifference @ℝ 1 1e100
+   , QC.testProperty "ℝ²" $ coordinateFiniteDifference @ℝ² 1 1e100
+   , QC.testProperty "ℝ³" $ coordinateFiniteDifference @ℝ³ 1 1e100
+   , QC.testProperty "(ℝ,ℝ)" $ coordinateFiniteDifference @(ℝ,ℝ) 1 1e100
+   , QC.testProperty "S¹" $ coordinateFiniteDifference @S¹ 1 (2*pi)
+   , QC.testProperty "S² (unlimited)"
+         . QC.expectFailure $ coordinateFiniteDifference @S² 1 (2*pi)
    ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy
@@ -1001,12 +1006,23 @@ asinh x
 
 
 
-coordinateFiniteDifference
-    :: ( Semimanifold m, HasCoordinates m, m ~ Interior m
-       , HasCoordinates (Needle m), CoordDifferential m )
-     => ℝ -> m -> CoordinateIdentifier m -> Needle m -> QC.Property
-coordinateFiniteDifference consistRadius p c δ
-        = QC.counterexample ""
-         $ FibreBundle p δ ^. delta c
-            ≈ q^.coordinate c - p^.coordinate c
- where q = p .+~^ δ
+coordinateFiniteDifference :: ∀ m .
+       ( Semimanifold m, HasCoordinates m, m ~ Interior m
+       , HasCoordinates (Needle m), CoordDifferential m
+       , AEq (Needle m), InnerSpace (Needle m), Scalar (Needle m) ~ ℝ
+       , SP.Show m )
+     => ℝ    -- ^ Radius of consistency
+      -> ℝ   -- ^ Modularity
+      -> m -> CoordinateIdentifier m -> Needle m -> QC.Property
+coordinateFiniteDifference consistRadius modl p c vub
+        = QC.counterexample ("Fin. diff: "++SP.show finitesimal
+                             ++", tangential component: "++SP.show infinitesimal
+                           ++"\n(q = "++SP.show q++")")
+            $ fuzzyEq (unitEpsilon @(Needle m) * (1+rvub^2))
+                 (orthoCorrection + finitesimal) (orthoCorrection + infinitesimal)
+ where rvub = realToFrac $ magnitude vub
+       v = vub ^* consistRadius
+       q = p .+~^ v
+       infinitesimal = (FibreBundle p v ^. delta c)`mod'`modl
+       finitesimal = (q^.coordinate c - p^.coordinate c)`mod'`modl
+       orthoCorrection = signum infinitesimal
