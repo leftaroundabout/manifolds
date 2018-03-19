@@ -107,45 +107,45 @@ tests = testGroup "Tests"
      ]
   , testGroup "1-sphere tangent bundle"
      [ testCase "North pole"
-           $ embed (FibreBundle (S¹Polar $  pi/2) 1 :: TangentBundle S¹)
+           $ embed (TangentBundle (S¹Polar $  pi/2) 1)
                @?≈ (FibreBundle (V2 0 1) (V2 (-1) 0) :: TangentBundle ℝ²)
      , testCase "South pole"
-           $ embed (FibreBundle (S¹Polar $ -pi/2) 1 :: TangentBundle S¹)
+           $ embed (TangentBundle (S¹Polar $ -pi/2) 1)
                @?≈ (FibreBundle (V2 0 (-1)) (V2 1 0) :: TangentBundle ℝ²)
      , testCase "45°"
-           $ embed (FibreBundle (S¹Polar $ pi/4) 1 :: TangentBundle S¹)
+           $ embed (TangentBundle (S¹Polar $ pi/4) 1)
                @?≈ (FibreBundle (V2 1 1^/sqrt 2) (V2 (-1) 1^/sqrt 2) :: TangentBundle ℝ²)
      ]
   , testGroup "2-sphere tangent bundle"
      [ testCase "North pole, x-dir"
-           $ embed (FibreBundle (S²Polar 0 0) (V2 1 0) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar 0 0) (V2 1 0))
                @?≈ (FibreBundle (V3 0 0 1) (V3 1 0 0) :: TangentBundle ℝ³)
      , testCase "North pole (alternative φ), x-dir"
-           $ embed (FibreBundle (S²Polar 0 1.524) (V2 1 0) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar 0 1.524) (V2 1 0))
                @?≈ (FibreBundle (V3 0 0 1) (V3 1 0 0) :: TangentBundle ℝ³)
      , testCase "North pole, y-dir"
-           $ embed (FibreBundle (S²Polar 0 0) (V2 0 1) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar 0 0) (V2 0 1))
                @?≈ (FibreBundle (V3 0 0 1) (V3 0 1 0) :: TangentBundle ℝ³)
      , testCase "Close to north pole"
-           $ embed (FibreBundle (S²Polar 1e-11 0.602) (V2 3.7 1.1) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar 1e-11 0.602) (V2 3.7 1.1))
                @?≈ (FibreBundle (V3 0 0 1) (V3 3.7 1.1 0) :: TangentBundle ℝ³)
      , testCase "South pole, x-dir"
-           $ embed (FibreBundle (S²Polar pi 0) (V2 1 0) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar pi 0) (V2 1 0))
                @?≈ (FibreBundle (V3 0 0 (-1)) (V3 (-1) 0 0) :: TangentBundle ℝ³)
      , testCase "South pole, y-dir"
-           $ embed (FibreBundle (S²Polar pi 0) (V2 0 1) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar pi 0) (V2 0 1))
                @?≈ (FibreBundle (V3 0 0 (-1)) (V3 0 1 0) :: TangentBundle ℝ³)
      , testCase "Close to south pole"
-           $ embed (FibreBundle (S²Polar (pi-1e-11) 0.602) (V2 3.7 1.1) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar (pi-1e-11) 0.602) (V2 3.7 1.1))
                @?≈ (FibreBundle (V3 0 0 (-1)) (V3 (-3.7) 1.1 0) :: TangentBundle ℝ³)
      , testCase "Equator, y-dir"
-           $ embed (FibreBundle (S²Polar (pi/2) 0) (V2 0 1) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar (pi/2) 0) (V2 0 1))
                @?≈ (FibreBundle (V3 1 0 0) (V3 0 1 0) :: TangentBundle ℝ³)
      , testCase "Equator, x-dir"
-           $ embed (FibreBundle (S²Polar (pi/2) (pi/2)) (V2 1 0) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar (pi/2) (pi/2)) (V2 1 0))
                @?≈ (FibreBundle (V3 0 1 0) (V3 (-1) 0 0) :: TangentBundle ℝ³)
      , testCase "Equator, z-dir"
-           $ embed (FibreBundle (S²Polar (pi/2) 0) (V2 1 0) :: TangentBundle S²)
+           $ embed (TangentBundle (S²Polar (pi/2) 0) (V2 1 0))
                @?≈ (FibreBundle (V3 1 0 0) (V3 0 0 (-1)) :: TangentBundle ℝ³)
      ]
   ]
@@ -171,13 +171,13 @@ tests = testGroup "Tests"
   [ testGroup "2-sphere"
    [ QC.testProperty "S²-movement as rotation in ℝ³"
       $ \p v -> magnitude v < 1e6
-            ==> let FibreBundle pCart vCart :: TangentBundle ℝ³
-                         = embed (FibreBundle p v :: TangentBundle S²)
+            ==> let TangentBundle pCart vCart :: TangentBundle ℝ³
+                         = embed $ TangentBundle p v
                     q = p .+~^ v :: S²
                     qCart = embed q :: ℝ³
                     axis = pCart `cross3` qCart
-                    FibreBundle _ axisProj :: TangentBundle S²
-                        = coEmbed (FibreBundle pCart axis :: TangentBundle ℝ³)
+                    TangentBundle _ axisProj :: TangentBundle S²
+                        = coEmbed $ TangentBundle pCart axis
                 in vCart <.> axis + 1 ≈ 1    -- i.e. the movement vector is always
                   && v <.> axisProj + 1 ≈ 1  -- orthogonal to the rotation axis.
    ]
@@ -224,12 +224,12 @@ tests = testGroup "Tests"
    ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy
-             -> (FibreBundle (V2 x y) (V2 δx δy) :: TangentBundle ℝ²)
+             -> (TangentBundle (V2 x y) (V2 δx δy))
                     ^.delta xCoord ≈ δx
    , QC.testProperty "Update" $ \x y δx₀ δx₁ δy
                      -> (delta xCoord.~δx₁)
-                         (FibreBundle (V2 x y) (V2 δx₀ δy) :: TangentBundle ℝ²)
-                          ≈ FibreBundle (V2 x y) (V2 δx₁ δy) ]
+                         (TangentBundle (V2 x y) (V2 δx₀ δy))
+                          ≈ TangentBundle (V2 x y) (V2 δx₁ δy) ]
   , testGroup "Spheres"
    [ testGroup "S¹"
     [ QC.testProperty "Azimuth access" $ \φ -> S¹Polar φ^.azimuth ≈ φ
@@ -244,16 +244,16 @@ tests = testGroup "Tests"
                -> (zenithAngle .~ θ₁) (S²Polar θ₀ φ) ≈ S²Polar θ₁ φ
     , testGroup "Tangent space examples"
      [ testCase "Zenith-angle at equator | prime meridian"
-         $ (FibreBundle (S²Polar (pi/2-1e-6) 0) (V2 1 0) :: TangentBundle S²)
+         $ (TangentBundle (S²Polar (pi/2-1e-6) 0) (V2 1 0))
               ^. delta zenithAngle @?≈ 1
      , testCase "Azimuth at just north of equator | prime meridian"
-         $ (FibreBundle (S²Polar (pi/2-1e-6) 0) (V2 0 1) :: TangentBundle S²)
+         $ (TangentBundle (S²Polar (pi/2-1e-6) 0) (V2 0 1))
               ^. delta azimuth @?≈ 1
      , testCase "Azimuth at just north of equator | 90°E"
-         $ (FibreBundle (S²Polar (pi/2-1e-6) (pi/2)) (V2 1 0) :: TangentBundle S²)
+         $ (TangentBundle (S²Polar (pi/2-1e-6) (pi/2)) (V2 1 0))
               ^. delta azimuth @?≈ -1
      , testCase "Azimuth at 45°N | prime meridian"
-         $ (FibreBundle (S²Polar (pi/4) 0) (V2 0 1) :: TangentBundle S²)
+         $ (TangentBundle (S²Polar (pi/4) 0) (V2 0 1))
               ^. delta azimuth @?≈ sqrt 2
      ]
     ]
@@ -342,10 +342,8 @@ tests = testGroup "Tests"
         $ \p v -> magnitude v < 1e6
               ==> let q = p .+~^ v :: S²
                       w = parallelTransport p v v
-                      FibreBundle pCart vCart
-                          = embed (FibreBundle p v :: TangentBundle S²) :: TangentBundle ℝ³
-                      FibreBundle qCart wCart
-                          = embed (FibreBundle q w :: TangentBundle S²) :: TangentBundle ℝ³
+                      vCart :@. pCart = embed (v:@.p) :: TangentBundle ℝ³
+                      wCart :@. qCart = embed (w:@.q) :: TangentBundle ℝ³
                       pxv = pCart`cross3`vCart
                       qxw = qCart`cross3`wCart
                     in QC.counterexample
@@ -359,11 +357,9 @@ tests = testGroup "Tests"
                        $ pxv ≈ qxw
    , QC.testProperty "Rotation axis – arbitrary vectors"
         $ \p v f -> let q = p .+~^ v :: S²
-                        g = parallelTransport p v f
-                        FibreBundle pCart fCart
-                          = embed (FibreBundle p f :: TangentBundle S²) :: TangentBundle ℝ³
-                        FibreBundle qCart gCart
-                          = embed (FibreBundle q g :: TangentBundle S²) :: TangentBundle ℝ³
+                        g = parallelTransport p v f :: Needle S²
+                        fCart :@. pCart = embed (f :@. p) :: TangentBundle ℝ³
+                        gCart :@. qCart = embed (g :@. q) :: TangentBundle ℝ³
                         infix 7 ×
                         (×) = cross3
                         pxq = pCart×qCart
@@ -901,11 +897,12 @@ embeddingBackProject p = QC.counterexample ("Embedded: "++SP.show ep
        p' = coEmbed ep
 
 embeddingTangentiality :: ∀ m n . ( Semimanifold m, Semimanifold n
+                                  , Interior m ~ m, Interior n ~ n
                                   , NaturallyEmbedded n m
                                   , NaturallyEmbedded (TangentBundle n) (TangentBundle m)
                                   , SP.Show n, AEq n
                                   , InnerSpace (Needle n), RealFloat (Scalar (Needle n)) )
-       => Scalar (Needle n) -> Interior n -> Needle n -> QC.Property
+       => Scalar (Needle n) -> n -> Needle n -> QC.Property
 embeddingTangentiality consistRadius p vub
          = QC.counterexample ("p+v = "++SP.show q++", coEmbed (embed p+v) = "++SP.show q')
             $ fuzzyEq (unitEpsilon @n * (1+rvub^2)) q q'
@@ -914,9 +911,7 @@ embeddingTangentiality consistRadius p vub
        q, q' :: n
        q = p .+~^ v
        q' = coEmbed $ (pEmbd .+~^ vEmbd :: m)
-       o :: TangentBundle n
-       o = FibreBundle p v
-       FibreBundle pEmbd vEmbd = embed o :: TangentBundle m
+       TangentBundle pEmbd vEmbd = embed (TangentBundle p v)
 
 nearbyTangentSpaceEmbedding :: ∀ m n
                      . ( Semimanifold m, Semimanifold n
@@ -936,12 +931,9 @@ nearbyTangentSpaceEmbedding consistRadius p vub f
        q :: n
        q = p .+~^ v :: n
        qEmbd = embed q :: m
-       FibreBundle _ fReProj :: TangentBundle n
-               = coEmbed (FibreBundle qEmbd fEmbd :: TangentBundle m)
+       fReProj :@. _= coEmbed (fEmbd :@. qEmbd) :: TangentBundle n
        g = parallelTransport p v f
-       o :: TangentBundle n
-       o = FibreBundle p f
-       FibreBundle pEmbd fEmbd = embed o :: TangentBundle m
+       fEmbd :@. pEmbd = embed (f:@.p) :: TangentBundle m
 
 parTransportAssociativity :: ∀ m
            . ( AEq m, Manifold m, SP.Show m
@@ -976,8 +968,8 @@ sphereParallelTransportTest p q [] [] = assert True
 sphereParallelTransportTest p q (v:vs) (w:ws)
      = (parallelTransport p (q.-~!p) vSph @?≈ wSph)
         >> sphereParallelTransportTest p q vs ws
- where [FibreBundle _ vSph, FibreBundle _ wSph]
-          = [ coEmbed (FibreBundle (embed o) u :: TangentBundle ℝ³) :: TangentBundle S²
+ where [vSph:@._, wSph:@._]
+          = [ coEmbed (u :@. embed o :: TangentBundle ℝ³) :: TangentBundle S²
             | (o,u) <- [(p,v), (q,w)] ]
 
 

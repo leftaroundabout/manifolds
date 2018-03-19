@@ -18,6 +18,7 @@
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE CPP                        #-}
+{-# LANGUAGE PatternSynonyms            #-}
 #if __GLASGOW_HASKELL__ >= 800
 {-# LANGUAGE UndecidableSuperClasses    #-}
 #endif
@@ -44,6 +45,15 @@ import Linear.V3 (V3(V3))
 
 import Data.Tagged
 
+
+pattern TangentBundle :: (Interior m ~ m) => m -> Needle m -> FibreBundle m (Needle m)
+pattern TangentBundle p v = FibreBundle p v
+
+infixr 5 :@.
+-- | Provided for convenience. Flipped synonym of 'FibreBundle', restricted to manifolds
+--   without boundary (so the type of the whole can be inferred from its interior).
+pattern (:@.) :: (Interior m ~ m) => f -> m -> FibreBundle m f
+pattern f :@. p = FibreBundle p f
 
 data TransportOnNeedleWitness k m f where
   TransportOnNeedle :: (ParallelTransporting (LinearFunction (Scalar (Needle m)))
