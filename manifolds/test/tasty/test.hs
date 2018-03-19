@@ -222,6 +222,10 @@ tests = testGroup "Tests"
                                                     (poleDist/2)
                                                     (2*pi) p
    ]
+  , testGroup "Location"
+   [ QC.testProperty "S²" $ \p v
+          -> TangentBundle @S² p v ^. location's azimuth ≈ p^.azimuth
+   ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy
              -> (TangentBundle (V2 x y) (V2 δx δy))

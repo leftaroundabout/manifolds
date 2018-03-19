@@ -28,7 +28,8 @@ module Math.Manifold.Real.Coordinates
          , HasCoordinates(..)
          -- * Vector space axes
          , HasXCoord(..), HasYCoord(..), HasZCoord(..)
-         -- * Tangent space diffs
+         -- * Fibre bundle / tangent space diffs
+         , location's
          , CoordDifferential(..)
          -- * Spherical coordinates
          , HasAzimuth(..)
@@ -261,6 +262,10 @@ generateFrom seed val = QC.unGen (QC.coarbitrary seed val) (QC.mkQCGen 256592) 1
 shrinkElems :: QC.Arbitrary a => [a] -> [[a]]
 shrinkElems l = filter ((==length l) . length) . transpose $ map QC.shrink l
 
+
+location's :: (HasCoordinates b, Interior b ~ b, HasCoordinates f)
+                => CoordinateIdentifier b -> Coordinate (FibreBundle b f)
+location's = coordinate . BaseSpaceCoordinate
 
 class HasCoordinates m => CoordDifferential m where
   -- | Observe local, small variations (in the tangent space) of a coordinate.
