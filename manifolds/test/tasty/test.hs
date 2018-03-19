@@ -208,15 +208,19 @@ tests = testGroup "Tests"
    , coordinateLensLaws @(TangentBundle S²)
    ]
   , testGroup "Finite differences"
-   [ QC.testProperty "ℝ" $ coordinateFiniteDifference @ℝ 1 1e100
-   , QC.testProperty "ℝ²" $ coordinateFiniteDifference @ℝ² 1 1e100
-   , QC.testProperty "ℝ³" $ coordinateFiniteDifference @ℝ³ 1 1e100
-   , QC.testProperty "(ℝ,ℝ)" $ coordinateFiniteDifference @(ℝ,ℝ) 1 1e100
-   , QC.testProperty "S¹" $ coordinateFiniteDifference @S¹ 1 (2*pi)
+   [ QC.testProperty "ℝ" $ coordinateFiniteDifference @ℝ 1 1e6 1e100
+   , QC.testProperty "ℝ²" $ coordinateFiniteDifference @ℝ² 1 1e6 1e100
+   , QC.testProperty "ℝ³" $ coordinateFiniteDifference @ℝ³ 1 1e6 1e100
+   , QC.testProperty "(ℝ,ℝ)" $ coordinateFiniteDifference @(ℝ,ℝ) 1 1e6 1e100
+   , QC.testProperty "S¹" $ coordinateFiniteDifference @S¹ 1 1e6 (2*pi)
    , QC.testProperty "S² (unlimited)"
-         . QC.expectFailure $ coordinateFiniteDifference @S² 1 (2*pi)
-   , QC.testProperty "S²" $ \p@(S²Polar θ _) -> θ > 0.1 && θ < pi-0.1
-                                 ==> coordinateFiniteDifference @S² 1e-5 (2*pi) p
+         . QC.expectFailure $ coordinateFiniteDifference @S² 0.5 pi (2*pi)
+   , QC.testProperty "S²" $ \p@(S²Polar θ _)
+         -> let poleDist = sin θ
+            in poleDist > 0.1
+                 ==> coordinateFiniteDifference @S² (poleDist^2 * 1e-6)
+                                                    (poleDist/2)
+                                                    (2*pi) p
    ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy
@@ -1027,14 +1031,16 @@ coordinateFiniteDifference :: ∀ m .
        , HasCoordinates (Needle m), CoordDifferential m
        , AEq (Needle m), InnerSpace (Needle m), Scalar (Needle m) ~ ℝ
        , SP.Show m )
-     => ℝ    -- ^ Radius of consistency
+     => ℝ    -- ^ Radius of consistency (within which we expect order-1 accuracy)
+      -> ℝ   -- ^ Radius of stability (without we don't expect sensible results at all)
       -> ℝ   -- ^ Modularity
       -> m -> CoordinateIdentifier m -> Needle m -> QC.Property
-coordinateFiniteDifference consistRadius modl p c vub
+coordinateFiniteDifference consistRadius stabilRadius modl p c vub
         = QC.counterexample ("Fin. diff: "++SP.show finitesimal
                              ++", tangential component: "++SP.show infinitesimal
                            ++"\n(q = "++SP.show q++")")
-            $ fuzzyEq (unitEpsilon @(Needle m) * (1+rvub^2))
+            $ rvub * consistRadius < stabilRadius
+            ==> fuzzyEq (unitEpsilon @(Needle m) * (1+rvub^2))
                  (orthoCorrection + finitesimal) (orthoCorrection + infinitesimal)
  where rvub = realToFrac $ magnitude vub
        v = vub ^* consistRadius
