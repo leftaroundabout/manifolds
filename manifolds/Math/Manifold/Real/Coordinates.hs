@@ -52,7 +52,7 @@ import qualified Test.QuickCheck.Gen as QC (unGen)
 import qualified Test.QuickCheck.Random as QC (mkQCGen)
 import Data.Maybe (fromJust, isJust)
 
-import Numeric.IEEE (epsilon)
+import qualified Numeric.IEEE as IEEE
 
 -- | To give a custom type coordinate axes, first define an instance of this class.
 class HasCoordinates m where
@@ -340,17 +340,23 @@ instance CoordDifferential S² where
             $ \(S²Polar θ φ) -> let eφ
                                      | θ < pi/2   = embed . S¹Polar $ φ + pi/2
                                      | otherwise  = embed . S¹Polar $ pi/2 - φ
-                                    sθ = sin θ + epsilon/2
-                                      -- ^ Right at the poles, azimuthal movements
-                                      --   become inexpressible, which manifests itself
-                                      --   in giving infinite diffs. Moreover,
-                                      --   we also can't retrieve tangent diffs we put
-                                      --   in anymore. Arguably, this just expresses
-                                      --   the fact that azimuthal changes are meaningless
-                                      --   at the poles, however it violates the lens
-                                      --   laws, so prevent the infinity by keeping
-                                      --   sin θ very slightly above 0.
+                                    sθ = sin θ + tiny
+                                    -- ^ Right at the poles, azimuthal movements
+                                    --   become inexpressible, which manifests itself
+                                    --   in giving infinite diffs. Moreover,
+                                    --   we also can't retrieve tangent diffs we put
+                                    --   in anymore. Arguably, this just expresses
+                                    --   the fact that azimuthal changes are meaningless
+                                    --   at the poles, however it violates the lens
+                                    --   laws, so prevent the infinity by keeping
+                                    --   sin θ very slightly above 0.
                                 in ℝ²Coord $ OriginAxisCoord (eφ^*sθ) (eφ^/sθ)
+
+-- | @2e-162@. A value that's so small that it can't notably disturb any nonzero value
+--   you might realistically encounter (i.e. @x + tiny == x@), but still large enough
+--   that ratios can reliably be represented (i.e. @x * tiny / tiny == x@).
+tiny :: ℝ
+tiny = IEEE.bisectIEEE IEEE.minNormal IEEE.epsilon
                 
 
 suchThatMap :: QC.Gen a -> (a -> Maybe b) -> QC.Gen b
