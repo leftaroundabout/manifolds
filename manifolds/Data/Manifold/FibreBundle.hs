@@ -33,6 +33,8 @@ import Math.LinearMap.Category
 
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
+
+import Math.Rotations.Class
     
 import qualified Prelude as Hask
 
@@ -368,3 +370,18 @@ instance NaturallyEmbedded (FibreBundle S² ℝ²) (FibreBundle ℝ³ ℝ³) whe
          γ = atan2 δφ δθ
          γc | θ < pi/2   = γ + φ
             | otherwise  = γ - φ
+
+
+-- | @ex -> ey@, @ey -> ez@, @ez -> ex@
+transformEmbeddedTangents
+    :: ∀ x f v . ( NaturallyEmbedded (FibreBundle x f) (FibreBundle v v)
+                               , v ~ Interior v )
+           => (v -> v) -> FibreBundle x f -> FibreBundle x f
+transformEmbeddedTangents f p = case embed p :: FibreBundle v v of
+    FibreBundle v δv -> coEmbed (FibreBundle (f v) (f δv) :: FibreBundle v v)
+
+
+instance Rotatable (FibreBundle S² ℝ²) where
+  type AxisSpace (FibreBundle S² ℝ²) = ℝP²
+  rotateAbout axis angle = transformEmbeddedTangents $ rotateℝ³AboutCenteredAxis axis angle
+
