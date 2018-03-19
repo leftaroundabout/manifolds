@@ -350,7 +350,7 @@ instance CoordDifferential S² where
                                       --   at the poles, however it violates the lens
                                       --   laws, so prevent the infinity by keeping
                                       --   sin θ very slightly above 0.
-                                in ℝ²Coord $ OriginAxisCoord (eφ^/sθ) (eφ^*sθ)
+                                in ℝ²Coord $ OriginAxisCoord (eφ^*sθ) (eφ^/sθ)
                 
 
 suchThatMap :: QC.Gen a -> (a -> Maybe b) -> QC.Gen b

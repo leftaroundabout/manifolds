@@ -215,6 +215,8 @@ tests = testGroup "Tests"
    , QC.testProperty "S¹" $ coordinateFiniteDifference @S¹ 1 (2*pi)
    , QC.testProperty "S² (unlimited)"
          . QC.expectFailure $ coordinateFiniteDifference @S² 1 (2*pi)
+   , QC.testProperty "S²" $ \p@(S²Polar θ _) -> θ > 0.1 && θ < pi-0.1
+                                 ==> coordinateFiniteDifference @S² 1e-5 (2*pi) p
    ]
   , testGroup "x-coordinate diff"
    [ QC.testProperty "Access" $ \x y δx δy
@@ -236,6 +238,20 @@ tests = testGroup "Tests"
     , QC.testProperty "Zenith-distance access" $ \θ φ -> S²Polar θ φ^.zenithAngle ≈ θ
     , QC.testProperty "Zenith-distance update" $ \θ₀ θ₁ φ
                -> (zenithAngle .~ θ₁) (S²Polar θ₀ φ) ≈ S²Polar θ₁ φ
+    , testGroup "Tangent space examples"
+     [ testCase "Zenith-angle at equator | prime meridian"
+         $ (FibreBundle (S²Polar (pi/2-1e-6) 0) (V2 1 0) :: TangentBundle S²)
+              ^. delta zenithAngle @?≈ 1
+     , testCase "Azimuth at just north of equator | prime meridian"
+         $ (FibreBundle (S²Polar (pi/2-1e-6) 0) (V2 0 1) :: TangentBundle S²)
+              ^. delta azimuth @?≈ 1
+     , testCase "Azimuth at just north of equator | 90°E"
+         $ (FibreBundle (S²Polar (pi/2-1e-6) (pi/2)) (V2 1 0) :: TangentBundle S²)
+              ^. delta azimuth @?≈ -1
+     , testCase "Azimuth at 45°N | prime meridian"
+         $ (FibreBundle (S²Polar (pi/4) 0) (V2 0 1) :: TangentBundle S²)
+              ^. delta azimuth @?≈ sqrt 2
+     ]
     ]
    ]
   ]
