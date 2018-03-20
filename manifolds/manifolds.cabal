@@ -127,6 +127,7 @@ test-suite test
     , containers
     , vector-space
     , linear
+    , spatial-rotations
     , constrained-categories
     , linearmap-category
     , lens

@@ -32,6 +32,8 @@ import Prelude hiding (id, fst, snd, asinh)
 import Control.Category.Constrained (id)
 import Control.Arrow.Constrained (fst,snd)
 
+import Math.Rotations.Class
+
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Test.Tasty.QuickCheck as QC
@@ -181,6 +183,18 @@ tests = testGroup "Tests"
                 in vCart <.> axis + 1 ≈ 1    -- i.e. the movement vector is always
                   && v <.> axisProj + 1 ≈ 1  -- orthogonal to the rotation axis.
    ]
+  ]
+ , testGroup "Rotation"
+  [ testCase "Pole to eqt / prime meridian"
+           $ let rotated = 90° yAxis $ V2 1 0 :@. S²Polar 0 0
+             in V2 (rotated ^. delta zenithAngle) (rotated ^. delta azimuth)
+                    @?≈ V2 1 0
+  , testCase "Pole to eqt / 90°E"
+           $ let rotated = 90° xAxis $ V2 1 0 :@. S²Polar 0 0
+             in V2 (rotated ^. delta zenithAngle) (rotated ^. delta azimuth)
+                    @?≈ V2 0 1
+  , QC.testProperty "Undo – arbitrary axis / angle and points in 𝑇S²."
+           $ \ax ψ p -> rotateAboutThenUndo @(TangentBundle S²) ax ψ p ≈ p
   ]
  , testGroup "Coordinates"
   [ testGroup "Single dimension"
@@ -1044,3 +1058,8 @@ coordinateFiniteDifference consistRadius stabilRadius modl p c vub
        infinitesimal = (FibreBundle p v ^. delta c)`mod'`modl
        finitesimal = (q^.coordinate c - p^.coordinate c)`mod'`modl
        orthoCorrection = signum infinitesimal
+
+
+rotateAboutThenUndo :: Rotatable m => AxisSpace m -> S¹ -> m -> m
+rotateAboutThenUndo ax g@(S¹Polar w) p
+      = rotateAbout ax (S¹Polar $ -w) $ rotateAbout ax g p
