@@ -57,6 +57,11 @@ infixr 5 :@.
 pattern (:@.) :: (Interior m ~ m) => f -> m -> FibreBundle m f
 pattern f :@. p = FibreBundle p f
 
+-- | A zero vector in the fibre bundle at the given position. Intended to be used
+--   with tangent-modifying lenses such as 'Math.Manifold.Real.Coordinates.delta'.
+tangentAt :: (AdditiveGroup (Needle m), m ~ Interior m) => m -> TangentBundle m
+tangentAt p = zeroV :@. p
+
 data TransportOnNeedleWitness k m f where
   TransportOnNeedle :: (ParallelTransporting (LinearFunction (Scalar (Needle m)))
                                              (Needle m) (Needle f))

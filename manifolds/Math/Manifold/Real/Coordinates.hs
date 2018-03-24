@@ -269,6 +269,12 @@ location's = coordinate . BaseSpaceCoordinate
 
 class HasCoordinates m => CoordDifferential m where
   -- | Observe local, small variations (in the tangent space) of a coordinate.
+  --   The idea is that @((p & coord+~δc) − p) ^. delta coord ≈ δc@, thus the name
+  --   “'delta'”. Note however that this only holds exactly for flat spaces;
+  --   in most manifolds it can (by design) only be understood in an asymptotic
+  --   sense, i.e. used for evaluating directional derivatives of some function.
+  --   In particular, @delta 'azimuth'@ is unstable near the poles of a sphere,
+  --   because it has to compensate for the sensitive rotation of the @eφ@ unit vector.
   delta :: CoordinateIdentifier m -> Coordinate (TangentBundle m)
 
 instance ( CoordDifferential m, f ~ Needle m, m ~ Interior m
