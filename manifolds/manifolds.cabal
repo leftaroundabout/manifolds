@@ -84,6 +84,7 @@ Library
                      Data.Manifold.DifferentialEquation
                      Data.Manifold.Function.LocalModel
                      Data.Manifold.Function.Interpolation
+                     Data.Simplex.Abstract
                      Data.SimplicialComplex
                      Data.Function.Differentiable
                      Data.Function.Affine
