@@ -33,6 +33,7 @@ import Control.Category.Constrained (id)
 import Control.Arrow.Constrained (fst,snd)
 
 import Math.Rotations.Class
+import Data.Simplex.Abstract
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -400,6 +401,16 @@ tests = testGroup "Tests"
                        $ ㄍ (pxq × fㄧg)      -- Check that 𝑝×𝑞 and 𝑓−𝑔 are orthogonal.
                           ≈ ㄍ pxq * ㄍ fㄧg  -- (For orthogonal 𝐚 and 𝐛, we have
                                               -- ‖𝐚×𝐛‖ = ‖𝐚‖·‖𝐛‖.)
+   ]
+  ]
+ , testGroup "Simplices"
+  [ testGroup "Barycentric coordinates"
+   [ QC.testProperty "In ℝ²"
+      $ \p q r μ ν -> not (p≈q || q≈r || r≈p)
+          ==> let λ = 1-μ-ν
+              in toBarycentric (ℝ²Simplex p q r :: Simplex ℝ²)
+                              (p^*λ ^+^ q^*μ ^+^ r^*ν)
+                          ?≈! [   λ,       μ,       ν]
    ]
   ]
  , testGroup "Graph structure of webs"
@@ -875,12 +886,21 @@ instance AEq ℝP² where
 
 instance (AEq (Interior m), AEq f) => AEq (FibreBundle m f) where
   fuzzyEq η (FibreBundle p v) (FibreBundle q w) = fuzzyEq η p q && fuzzyEq η v w
+
+instance (AEq a) => AEq [a] where
+  fuzzyEq _ [] [] = True
+  fuzzyEq η (x:xs) (y:ys) = fuzzyEq η x y && fuzzyEq η xs ys
+  fuzzyEq _ _ _ = False
                                         
 infix 1 @?≈       
 (@?≈) :: (AEq e, Show e) => e -> e -> Assertion
 a@?≈b
  | a≈b        = return ()
  | otherwise  = assertFailure $ "Expected "++show b++", but got "++show a
+
+infix 4 ?≈!
+(?≈!) :: (AEq e, SP.Show e) => e -> e -> QC.Property
+a?≈!b = QC.counterexample ("Expected "++SP.show b++", but got "++SP.show a) $ a≈b
 
 instance QC.Arbitrary ℝ² where
   arbitrary = (\(x,y)->V2 x y) <$> QC.arbitrary
