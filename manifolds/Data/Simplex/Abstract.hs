@@ -23,7 +23,10 @@ import Data.Manifold.Types.Primitive
 import Math.Manifold.Core.PseudoAffine
 import Data.Manifold.PseudoAffine
 
-import Data.Traversable
+import Math.LinearMap.Category (spanVariance, dualNorm', (<$|), (<.>^), SimpleSpace)
+
+import Data.Foldable (toList)
+import Data.Traversable (Traversable)
 
 import GHC.Generics
 
@@ -74,3 +77,27 @@ deriving instance (Traversable (AbstractSimplex (Needle (f p), Needle (g p))))
 
 
 type Simplex m = AbstractSimplex (Needle m) m
+
+
+seenFromOneVertex :: (WithField ℝ Manifold m, Foldable (AbstractSimplex (Needle m)))
+       => Simplex m -> (m, [Needle m])
+seenFromOneVertex s = case toList s of
+      (p₀:ps) -> (p₀, [ case p.-~.p₀ of
+                         Just v -> v
+                         Nothing -> error "A simplex must always be path-connected."
+                      | p <- ps ])
+      [] -> error "A simplex type must contain at least one value!"     
+
+toBarycentric :: ( WithField ℝ Manifold m
+                 , Foldable (AbstractSimplex (Needle m))
+                 , SimpleSpace (Needle m) )
+       => Simplex m -> m -> [ℝ]
+toBarycentric s = case seenFromOneVertex s of
+     (p₀, vs) -> let v's = (dualNorm' (spanVariance vs)<$|) <$> vs
+                 in \q -> case q.-~.p₀ of
+                           Just w -> let vws = (<.>^w) <$> v's
+                                     in (1 - sum vws) : vws
+                           Nothing -> []
+
+simplicesIntersect :: (WithField ℝ Manifold m) => Simplex m -> Simplex m -> Bool
+simplicesIntersect = undefined
