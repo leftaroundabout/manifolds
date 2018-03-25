@@ -98,6 +98,3 @@ toBarycentric s = case seenFromOneVertex s of
                            Just w -> let vws = (<.>^w) <$> v's
                                      in (1 - sum vws) : vws
                            Nothing -> []
-
-simplicesIntersect :: (WithField ℝ Manifold m) => Simplex m -> Simplex m -> Bool
-simplicesIntersect = undefined
