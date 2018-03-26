@@ -95,8 +95,6 @@ import Data.AffineSpace
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 
-import Data.CoNat
-
 import qualified Prelude as Hask
 import qualified Control.Applicative as Hask
 
@@ -277,8 +275,6 @@ instance (c) => Semimanifold (t) where { \
   (.+~^) = (.+^) };                           \
 instance (c) => PseudoAffine (t) where {       \
   a.-~.b = pure (a.-.b);      }
-
-deriveAffine(KnownNat n, FreeVect n ℝ)
 
 instance (NumPrime s) => LocallyCoercible (ZeroDim s) (V0 s) where
   locallyTrivialDiffeomorphism Origin = V0

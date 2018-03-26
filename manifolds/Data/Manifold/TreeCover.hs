@@ -60,9 +60,6 @@ module Data.Manifold.TreeCover (
        , stiAsIntervalMapping, spanShading
        , DBranch, DBranch'(..), Hourglass(..)
        , unsafeFmapTree
-       -- ** Triangulation-builders
-       , TriangBuild, doTriangBuild
-       , AutoTriang, breakdownAutoTriang
        -- ** External
        , AffineManifold, euclideanMetric
     ) where
@@ -84,7 +81,6 @@ import Data.AffineSpace
 import Math.LinearMap.Category
 import Data.Tagged
 
-import Data.SimplicialComplex
 import Data.Manifold.Shade
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), empty)
@@ -94,7 +90,6 @@ import Data.Manifold.Atlas
 import Data.Function.Affine
     
 import Data.Embedding
-import Data.CoNat
 
 import Control.Lens (Lens', (^.), (.~), (%~), (&), _2, swapped)
 import Control.Lens.TH
@@ -793,123 +788,6 @@ leavesWithPotentialNeighbours = map (second snd) . go pseudoAffineWitness 0 0 []
                                , wall <- takeWhile ((==depth) . fst . _wallID) gsc ]
 
 
-
-
-
-
-newtype BaryCoords n = BaryCoords { getBaryCoordsTail :: FreeVect n ℝ }
-
-instance (KnownNat n) => AffineSpace (BaryCoords n) where
-  type Diff (BaryCoords n) = FreeVect n ℝ
-  BaryCoords v .-. BaryCoords w = v ^-^ w
-  BaryCoords v .+^ w = BaryCoords $ v ^+^ w
-instance (KnownNat n) => Semimanifold (BaryCoords n) where
-  type Needle (BaryCoords n) = FreeVect n ℝ
-  fromInterior = id
-  toInterior = pure
-  translateP = Tagged (.+~^)
-  (.+~^) = (.+^)
-  semimanifoldWitness = undefined
-instance (KnownNat n) => PseudoAffine (BaryCoords n) where
-  (.-~.) = pure .: (.-.)
-
-getBaryCoords :: BaryCoords n -> ℝ ^ S n
-getBaryCoords (BaryCoords (FreeVect bcs)) = FreeVect $ (1 - Arr.sum bcs) `Arr.cons` bcs
-  
-getBaryCoords' :: BaryCoords n -> [ℝ]
-getBaryCoords' (BaryCoords (FreeVect bcs)) = 1 - Arr.sum bcs : Arr.toList bcs
-
-getBaryCoord :: BaryCoords n -> Int -> ℝ
-getBaryCoord (BaryCoords (FreeVect bcs)) 0 = 1 - Arr.sum bcs
-getBaryCoord (BaryCoords (FreeVect bcs)) i = case bcs Arr.!? i of
-    Just a -> a
-    _      -> 0
-
-mkBaryCoords :: KnownNat n => ℝ ^ S n -> BaryCoords n
-mkBaryCoords (FreeVect bcs) = BaryCoords $ FreeVect (Arr.tail bcs) ^/ Arr.sum bcs
-
-newtype ISimplex n x = ISimplex { iSimplexBCCordEmbed :: Embedding (->) (BaryCoords n) x }
-
-
-
-
-data TriangBuilder n x where
-  TriangVerticesSt :: [x] -> TriangBuilder Z x
-  TriangBuilder :: Triangulation (S n) x
-                    -> [x]
-                    -> [(Simplex n x, [x] -> Maybe x)]
-                            -> TriangBuilder (S n) x
-
-
-
-              
-bottomExtendSuitability :: (KnownNat n, WithField ℝ Manifold x)
-                => ISimplex (S n) x -> x -> ℝ
-bottomExtendSuitability (ISimplex emb) x = case getBaryCoord (emb >-$ x) 0 of
-     0 -> 0
-     r -> - recip r
-
-optimalBottomExtension :: (KnownNat n, WithField ℝ Manifold x)
-                => ISimplex (S n) x -> [x] -> Maybe Int
-optimalBottomExtension s xs
-      = case filter ((>0).snd)
-               $ zipWith ((. bottomExtendSuitability s) . (,)) [0..] xs of
-             [] -> empty
-             qs -> pure . fst . maximumBy (comparing snd) $ qs
-
-
-
-
-iSimplexSideViews :: ∀ n x . KnownNat n => ISimplex n x -> [ISimplex n x]
-iSimplexSideViews = \(ISimplex is)
-              -> take (n+1) $ [ISimplex $ rot j is | j<-[0..] ]
- where rot j (Embedding emb proj)
-            = Embedding ( emb . mkBaryCoords . freeRotate j     . getBaryCoords        )
-                        (       mkBaryCoords . freeRotate (n-j) . getBaryCoords . proj )
-       (Tagged n) = theNatN :: Tagged n Int
-
-
-type FullTriang t n x = TriangT t n x
-          (State (Map.Map (SimplexIT t n x) (ISimplex n x)))
-
-type TriangBuild t n x = TriangT t (S n) x
-          ( State (Map.Map (SimplexIT t n x) (Metric x, ISimplex (S n) x) ))
-
-doTriangBuild :: KnownNat n => (∀ t . TriangBuild t n x ()) -> [Simplex (S n) x]
-doTriangBuild t = runIdentity (fst <$>
-  doTriangT (unliftInTriangT (`evalStateT`mempty) t >> simplexITList >>= mapM lookSimplex))
-
-
-
-
-
-
-
-
-data AutoTriang n x where
-  AutoTriang :: { getAutoTriang :: ∀ t . TriangBuild t n x () } -> AutoTriang (S n) x
-
-
-
-breakdownAutoTriang :: ∀ n n' x . (KnownNat n', n ~ S n') => AutoTriang n x -> [Simplex n x]
-breakdownAutoTriang (AutoTriang t) = doTriangBuild t
-         
-                    
-   
-   
-   
-       
-
- 
-partitionsOfFstLength :: Int -> [a] -> [([a],[a])]
-partitionsOfFstLength 0 l = [([],l)]
-partitionsOfFstLength n [] = []
-partitionsOfFstLength n (x:xs) = ( first (x:) <$> partitionsOfFstLength (n-1) xs )
-                              ++ ( second (x:) <$> partitionsOfFstLength n xs )
-
-splxVertices :: Simplex n x -> [x]
-splxVertices (ZS x) = [x]
-splxVertices (x :<| s') = x : splxVertices s'
 
 
 

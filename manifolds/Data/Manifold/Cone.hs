@@ -40,8 +40,6 @@ import Data.Manifold.Types.Primitive
 import Data.Manifold.Types.Stiefel
 import Math.LinearMap.Category
 
-import Data.CoNat
-
 import qualified Prelude
 import qualified Control.Applicative as Hask
 

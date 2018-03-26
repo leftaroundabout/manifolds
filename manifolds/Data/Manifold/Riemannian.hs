@@ -64,8 +64,6 @@ import Data.Manifold.Types.Stiefel
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Atlas (AffineManifold)
     
-import Data.CoNat
-
 import qualified Prelude as Hask hiding(foldl, sum, sequence)
 import qualified Control.Applicative as Hask
 import qualified Control.Monad       as Hask hiding(forM_, sequence)
