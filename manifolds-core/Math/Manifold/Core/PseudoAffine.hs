@@ -215,10 +215,9 @@ class Semimanifold x => PseudoAffine x where
 --   it can have a different topology, the prime example being 'TangentBundle', where
 --   nearby points may have differently-oriented tangent spaces.
 data FibreBundle b f = FibreBundle
-      { baseSpace :: !(Interior b)
+      { baseSpace :: !b
       , fibreSpace :: !f
-      } deriving (Generic)
-deriving instance (Show (Interior b), Show f) => Show (FibreBundle b f)
+      } deriving (Generic, Show)
 
 -- | Points on a manifold, combined with vectors in the respective tangent space.
 type TangentBundle m = FibreBundle m (Needle m)

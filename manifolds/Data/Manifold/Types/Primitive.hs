@@ -258,11 +258,11 @@ instance QC.Arbitrary ℝP² where
                                     , φ' <- QC.shrink (φ*12/pi) ]
 
 
-instance (SP.Show (Interior m), SP.Show f) => SP.Show (FibreBundle m f) where
+instance (SP.Show m, SP.Show f) => SP.Show (FibreBundle m f) where
   showsPrec p (FibreBundle m v) = showParen (p>9)
                 $ ("FibreBundle "++) . SP.showsPrec 10 m
                             . (' ':) . SP.showsPrec 10 v
-instance (QC.Arbitrary (Interior m), QC.Arbitrary f) => QC.Arbitrary (FibreBundle m f) where
+instance (QC.Arbitrary m, QC.Arbitrary f) => QC.Arbitrary (FibreBundle m f) where
   arbitrary = FibreBundle <$> QC.arbitrary <*> QC.arbitrary
   shrink (FibreBundle m v) = [ FibreBundle m' v'
                              | m' <- QC.shrink m

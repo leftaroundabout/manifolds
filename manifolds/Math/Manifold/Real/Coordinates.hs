@@ -210,11 +210,11 @@ instance HasXCoord w => HasZCoord ((ℝ,ℝ),w) where
 instance (HasYCoord w) => HasZCoord (ℝ,w) where
   zCoord = coordinate $ RSubspaceCoord yCoord
 
-instance (HasCoordinates (Interior b), HasCoordinates f)
+instance (HasCoordinates b, HasCoordinates f)
               => HasCoordinates (FibreBundle b f) where
   data CoordinateIdentifier (FibreBundle b f)
-           = BaseSpaceCoordinate (CoordinateIdentifier (Interior b))
-           | FibreSpaceCoordinate (Interior b -> CoordinateIdentifier f)
+           = BaseSpaceCoordinate (CoordinateIdentifier b)
+           | FibreSpaceCoordinate (b -> CoordinateIdentifier f)
   coordinateAsLens (BaseSpaceCoordinate b)
             = lens (\(FibreBundle p _) -> p)
                    (\(FibreBundle _ f) p -> FibreBundle p f)
@@ -226,10 +226,10 @@ instance (HasCoordinates (Interior b), HasCoordinates f)
   validCoordinateRange (FibreSpaceCoordinate bf) (FibreBundle p f)
                           = validCoordinateRange (bf p) f
   
-instance ∀ b f . ( Show (CoordinateIdentifier (Interior b))
+instance ∀ b f . ( Show (CoordinateIdentifier b)
                  , Show (CoordinateIdentifier f)
-                 , Eq (Interior b), Eq (CoordinateIdentifier f)
-                 , QC.Arbitrary (Interior b), Show (Interior b) )
+                 , Eq b, Eq (CoordinateIdentifier f)
+                 , QC.Arbitrary b, Show b )
     => Show (CoordinateIdentifier (FibreBundle b f)) where
   showsPrec p (BaseSpaceCoordinate b)
       = showParen (p>9) $ ("BaseSpaceCoordinate "++) . showsPrec 10 b
@@ -239,9 +239,9 @@ instance ∀ b f . ( Show (CoordinateIdentifier (Interior b))
           ++ intercalate "; " [ showsPrec 5 p . (" -> "++) . shows (bf p) $ ""
                               | p <- exampleArgs ]
           ++ "... }" ++ cont
-   where exampleArgs :: [Interior b]
+   where exampleArgs :: [b]
          exampleArgs = head $ go 1 0 2384148716156
-          where go :: Int -> Int -> Int -> [[Interior b]]
+          where go :: Int -> Int -> Int -> [[b]]
                 go n tries seed
                   | length candidate == n, allDifferent candidate
                   , (shrunk:_) <- filter (allDifferent . map bf)

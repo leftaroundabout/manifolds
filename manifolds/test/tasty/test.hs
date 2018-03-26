@@ -884,7 +884,7 @@ instance AEq ℝP² where
                                       (HemisphereℝP²Polar (pi/2) $ ϕ - pi)
    | otherwise            = abs (φ - ϕ) < η
 
-instance (AEq (Interior m), AEq f) => AEq (FibreBundle m f) where
+instance (AEq m, AEq f) => AEq (FibreBundle m f) where
   fuzzyEq η (FibreBundle p v) (FibreBundle q w) = fuzzyEq η p q && fuzzyEq η v w
 
 instance (AEq a) => AEq [a] where

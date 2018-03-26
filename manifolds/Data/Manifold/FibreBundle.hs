@@ -48,13 +48,13 @@ import Linear.V3 (V3(V3))
 import Data.Tagged
 
 
-pattern TangentBundle :: (Interior m ~ m) => m -> Needle m -> FibreBundle m (Needle m)
+pattern TangentBundle :: m -> Needle m -> FibreBundle m (Needle m)
 pattern TangentBundle p v = FibreBundle p v
 
 infixr 5 :@.
 -- | Provided for convenience. Flipped synonym of 'FibreBundle', restricted to manifolds
 --   without boundary (so the type of the whole can be inferred from its interior).
-pattern (:@.) :: (Interior m ~ m) => f -> m -> FibreBundle m f
+pattern (:@.) :: f -> m -> FibreBundle m f
 pattern f :@. p = FibreBundle p f
 
 -- | A zero vector in the fibre bundle at the given position. Intended to be used
@@ -308,12 +308,12 @@ instance (AdditiveGroup f, x ~ Interior x) => NaturallyEmbedded x (FibreBundle x
   embed x = FibreBundle x zeroV
   coEmbed (FibreBundle x _) = x
 
-instance (NaturallyEmbedded (Interior m) (Interior v), VectorSpace f)
+instance (NaturallyEmbedded m v, VectorSpace f)
     => NaturallyEmbedded (FibreBundle m ℝ⁰) (FibreBundle v f) where
   embed (FibreBundle x Origin) = FibreBundle (embed x) zeroV
   coEmbed (FibreBundle u _) = FibreBundle (coEmbed u) Origin
 
-instance (AdditiveGroup (Interior y), AdditiveGroup g)
+instance (AdditiveGroup y, AdditiveGroup g)
            => NaturallyEmbedded (FibreBundle x f) (FibreBundle (x,y) (f,g)) where
   embed (FibreBundle x δx) = FibreBundle (x,zeroV) (δx,zeroV)
   coEmbed (FibreBundle (x,_) (δx,_)) = FibreBundle x δx

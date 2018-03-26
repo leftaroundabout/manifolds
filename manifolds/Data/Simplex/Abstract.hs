@@ -16,6 +16,7 @@
 {-# LANGUAGE UndecidableInstances     #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE FlexibleInstances        #-}
+{-# LANGUAGE ConstraintKinds          #-}
 
 module Data.Simplex.Abstract where
 
@@ -24,6 +25,7 @@ import Math.Manifold.Core.PseudoAffine
 import Data.Manifold.PseudoAffine
 
 import Math.LinearMap.Category (spanVariance, dualNorm', (<$|), (<.>^), SimpleSpace)
+import Data.VectorSpace (VectorSpace, Scalar)
 
 import Data.Foldable (toList)
 import Data.Traversable (Traversable)
@@ -77,7 +79,11 @@ deriving instance (Traversable (AbstractSimplex (Needle (f p), Needle (g p))))
 
 
 type Simplex m = AbstractSimplex (Needle m) m
+type SimplexF m y = AbstractSimplex (Needle m) (FibreBundle m y)
 
+type SimplexSpanning m
+    = ( WithField ℝ Manifold m, VectorSpace (Needle m)
+      , Traversable (AbstractSimplex (Needle m)) )
 
 seenFromOneVertex :: (WithField ℝ Manifold m, Foldable (AbstractSimplex (Needle m)))
        => Simplex m -> (m, [Needle m])
