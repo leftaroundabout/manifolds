@@ -72,6 +72,7 @@ module Data.Manifold.PseudoAffine (
             -- * Misc
             , alerpB, palerp, palerpB, LocallyCoercible(..), CanonicalDiffeomorphism(..)
             , ImpliesMetric(..), coerceMetric, coerceMetric'
+            , Connected (..)
             ) where
     
 
@@ -487,3 +488,30 @@ infix 6 ⊙+^
 (⊙+^) :: ∀ x proxy . Semimanifold x => Interior x -> Needle x -> proxy x -> Interior x
 (⊙+^) x v _ = tp x v
  where Tagged tp = translateP :: Tagged x (Interior x -> Needle x -> Interior x)
+
+
+
+infix 6 .−.
+-- | A connected manifold is one where any point can be reached by translation from
+--   any other point.
+class (PseudoAffine m) => Connected m where
+  {-# MINIMAL #-}
+  -- | Safe version of '(.-~.)'.
+  (.−.) :: m -> m -> Needle m
+  (.−.) = (.-~!)
+
+instance Connected ℝ⁰
+instance Connected ℝ
+instance Connected ℝ¹
+instance Connected ℝ²
+instance Connected ℝ³
+instance Connected ℝ⁴
+instance Connected S¹
+instance Connected S²
+instance Connected ℝP⁰
+instance Connected ℝP¹
+instance Connected ℝP²
+instance (Connected x, Connected y) => Connected (x,y)
+instance (Connected x, Connected y, PseudoAffine (FibreBundle x y))
+               => Connected (FibreBundle x y)
+
