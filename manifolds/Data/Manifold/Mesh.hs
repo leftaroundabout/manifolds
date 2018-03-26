@@ -35,4 +35,9 @@ class SimplexSpanning (MeshDomainSpace メ) => Mesh メ where
           nodeRefs
    where web = webLocalInfo $ asWeb mesh
          nodeRefs = meshSimplicesInWeb mesh
+  extrapolateGrid :: WithField ℝ Connected y => メ y -> MeshDomainSpace メ -> y
+
+class Mesh メ => CoveringMesh メ where
+  interpolateGrid :: WithField ℝ Connected y => メ y -> MeshDomainSpace メ -> y
+  interpolateGrid = extrapolateGrid
   
