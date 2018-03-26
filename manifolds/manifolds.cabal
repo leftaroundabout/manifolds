@@ -81,6 +81,7 @@ Library
                      Data.Manifold.Shade
                      Data.Manifold.Web
                      Data.Manifold.Web.Internal
+                     Data.Manifold.Mesh
                      Data.Manifold.DifferentialEquation
                      Data.Manifold.Function.LocalModel
                      Data.Manifold.Function.Interpolation
