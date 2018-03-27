@@ -25,6 +25,10 @@ import Data.Manifold.FibreBundle
 
 import GHC.Exts (Constraint)
 
+-- | A mesh is a container data structure whose nodes are in some way located
+--   distributed over a manifold, and are aware of the topology by way of having
+--   access to their neighbours. Any such grid can be seen as a 'PointsWeb', but it
+--   may have extra structure (e.g. rectangular) in addition to that.
 class SimplexSpanning (MeshDomainSpace メ) => Mesh メ where
   type MeshDomainSpace メ :: *
   type MeshGridDataConstraint メ y :: Constraint
@@ -49,6 +53,8 @@ class SimplexSpanning (MeshDomainSpace メ) => Mesh メ where
   extrapolateGrid :: (WithField ℝ Manifold y, Connected y, MeshGridDataConstraint メ y)
                         => メ y -> MeshDomainSpace メ -> y
 
+-- | A mesh that “covers” the entire manifold, i.e. any point lies between some nodes
+--   of the mesh.
 class Mesh メ => CoveringMesh メ where
   interpolateGrid :: (WithField ℝ Manifold y, Connected y, MeshGridDataConstraint メ y)
                         => メ y -> MeshDomainSpace メ -> y
