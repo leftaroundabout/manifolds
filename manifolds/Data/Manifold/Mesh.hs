@@ -10,6 +10,7 @@
 
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE ConstraintKinds     #-}
 
 module Data.Manifold.Mesh where
 
@@ -22,11 +23,20 @@ import Data.Manifold.Web
 import Data.Manifold.Web.Internal
 import Data.Manifold.FibreBundle
 
+import GHC.Exts (Constraint)
+
 class SimplexSpanning (MeshDomainSpace メ) => Mesh メ where
   type MeshDomainSpace メ :: *
-  asWeb :: メ y -> PointsWeb (MeshDomainSpace メ) y
+  type MeshGridDataConstraint メ y :: Constraint
+  type MeshGridDataConstraint メ y = ()
+  
+  asWeb :: MeshGridDataConstraint メ y
+             => メ y -> PointsWeb (MeshDomainSpace メ) y
+  
   meshSimplicesInWeb :: メ y -> [AbstractSimplex (Needle (MeshDomainSpace メ)) WebNodeId]
-  meshSimplices :: メ y -> [SimplexF (MeshDomainSpace メ) y]
+  
+  meshSimplices :: MeshGridDataConstraint メ y
+             => メ y -> [SimplexF (MeshDomainSpace メ) y]
   meshSimplices mesh
     = map (fmap $ \i -> case indexWeb web i of
                          Just (x,info) -> (info^.thisNodeData):@.x
@@ -35,9 +45,12 @@ class SimplexSpanning (MeshDomainSpace メ) => Mesh メ where
           nodeRefs
    where web = webLocalInfo $ asWeb mesh
          nodeRefs = meshSimplicesInWeb mesh
-  extrapolateGrid :: WithField ℝ Connected y => メ y -> MeshDomainSpace メ -> y
+  
+  extrapolateGrid :: (WithField ℝ Manifold y, Connected y, MeshGridDataConstraint メ y)
+                        => メ y -> MeshDomainSpace メ -> y
 
 class Mesh メ => CoveringMesh メ where
-  interpolateGrid :: WithField ℝ Connected y => メ y -> MeshDomainSpace メ -> y
+  interpolateGrid :: (WithField ℝ Manifold y, Connected y, MeshGridDataConstraint メ y)
+                        => メ y -> MeshDomainSpace メ -> y
   interpolateGrid = extrapolateGrid
   
