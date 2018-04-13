@@ -70,6 +70,7 @@ import qualified Data.Map as Map
 import qualified Data.Vector as Arr
 import qualified Data.Vector.Mutable as MArr
 import qualified Data.Vector.Unboxed as UArr
+import qualified Data.Array as PArr
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import Data.List.FastNub (fastNub,fastNubBy)
@@ -123,13 +124,19 @@ import Data.Traversable.Constrained (Traversable, traverse)
 
 import Control.Comonad (Comonad(..))
 import Control.Comonad.Cofree
-import Control.Lens ((&), (%~), (^.), (.~), (+~), ix)
+import Control.Lens ((&), (%~), (^.), (.~), (+~), ix, iover, indexing)
 import Control.Lens.TH
 
 import GHC.Generics (Generic)
 
 import Development.Placeholders
 
+
+unlinkedFromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
+                    => (MetricChoice x) -> [(x,y)] -> PointsWeb x y
+unlinkedFromWebNodes = case boundarylessWitness :: BoundarylessWitness x of
+   BoundarylessWitness ->
+       \mf -> unlinkedFromShaded mf . fromLeafPoints_
 
 fromWebNodes :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
                     => (MetricChoice x) -> [(x,y)] -> PointsWeb x y
@@ -710,6 +717,29 @@ rescanPDELocally = case ( dualSpaceWitness :: DualNeedleWitness x
                                                =<< (localOnion info []) of
                                  Just ㄇ -> ㄇ)
                                  >>= intersectShade's . (:|[info^.thisNodeData])
+
+fromGraph :: ∀ x y . (WithField ℝ Manifold x, SimpleSpace (Needle x))
+              => MetricChoice x -> Graph -> (Vertex -> (x, y)) -> PointsWeb x y
+fromGraph metricf gr dataLookup
+      = introduceLinks $ unlinkedFromWebNodes metricf
+                           [(fst (dataLookup v), v) | v <- vertices gr]
+ where introduceLinks :: PointsWeb x Vertex -> PointsWeb x y
+       introduceLinks (PointsWeb w) = PointsWeb $
+          iover (indexing Hask.traverse)
+             (\wi (Neighbourhood vert _ sclPr bound)
+                -> let neighbours = gr PArr.! wi
+                       neighbourwis = (vertToWebNode Map.!) <$> neighbours
+                       (x, y) = dataLookup vert
+                   in Neighbourhood y
+                                    (UArr.fromList $ subtract wi<$>neighbourwis)
+                                    sclPr
+                                    (snd (bestNeighbours sclPr
+                                            [ ((), fst (dataLookup ni).-~!x)
+                                            | ni<-neighbours ])) )
+             w
+        where webNodeToVert = Map.fromList assocs
+              vertToWebNode = Map.fromList $ swap<$>assocs
+              assocs = zip [0..] [vert | Neighbourhood vert _ _ _ <- toList w]
 
 toGraph :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
               => PointsWeb x y -> (Graph, Vertex -> (x, y))
