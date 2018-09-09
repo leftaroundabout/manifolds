@@ -1,0 +1,34 @@
+Name:                manifolds-presentation
+Version:             0.5.0.0
+Category:            Math
+Synopsis:            Coordinate-free hypersurfaces
+Description:         Presentations for the ideas behind the manifolds library
+License:             GPL-3
+License-file:        COPYING
+Author:              Justus Sagemüller
+Homepage:            https://github.com/leftaroundabout/manifolds
+Maintainer:          (@) sagemueller $ geo.uni-koeln.de
+Build-Type:          Simple
+Cabal-Version:       >=1.18
+
+Source-Repository head
+    type: git
+    location: git://github.com/leftaroundabout/manifolds.git
+
+executable icfp2018-npfl_manifolds
+  Build-Depends:     base>=4.10 && <4.11
+                     , manifolds==0.5.0.0
+                     , dynamic-plot
+                     , yeamer<0.2
+                     , blaze-html
+                     , shakespeare
+                     , numbered-semigroups
+                     , diagrams-lib
+                     , diagrams-cairo
+                     , TeX-my-math
+                     , lens
+  ghc-options:       -O2
+  hs-source-dirs: icfp2018
+  main-is: npfl.hs
+  default-language: Haskell2010
+
