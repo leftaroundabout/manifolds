@@ -19,6 +19,13 @@ import Control.Concurrent
 
 main :: IO ()
 main = yeamer . styling style $ do
+   ""──
+     "global-title"#%
+       "Manifolds as Haskell Types"
+     ──
+     "Justus Sagemüller"
+     ──
+     "reference"#%("Institut für Geophysik und Meteorologie"──"Universität zu Köln")
    "Manifolds"
      ====== do
       ""
@@ -26,7 +33,7 @@ main = yeamer . styling style $ do
 
 style = [cassius|
    body
-     height: 100vh
+     height: 96vh
      color: #ffe
      background: linear-gradient(#263, #516)
      font-size: 6vmin
@@ -37,12 +44,15 @@ style = [cassius|
      font-size: 150%
    div
      width: 95%
-     height: 95%
+     height: 100%
      text-align: center
      margin: auto
-     border-radius: 4px
-     border:1px solid #000;
-     background: rgba(0,0,15,0.25);
+     border-radius: 6px
+     background: rgba(0,0,15,0.1);
+   .global-title
+     width: 70%
+     font-size: 180%
+     font-weight: bold
    .headed-container
      height: 80%
    .vertical-concatenation
@@ -62,6 +72,8 @@ style = [cassius|
      font-size: 86%
      background-color: #204
      font-family: "Ubuntu Mono", "Droid Sans mono", "Courier New"
+   .reference, .cited-author
+      font-variant: small-caps
   |] ()
 
 plotServ :: [DynamicPlottable] -> Presentation -> Presentation
