@@ -1,24 +1,47 @@
+-- This work is licensed under the Creative Commons Attribution-NoDerivatives
+-- 4.0 International License.
+-- To view a copy of this license, visit http://creativecommons.org/licenses/by-nd/4.0/
+-- or send a letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE ImplicitParams    #-}
 
 import Presentation.Yeamer
 import Presentation.Yeamer.Maths
 import Math.LaTeX.StringLiterals
 import qualified Text.Blaze.Html as Blaze
 import Text.Cassius
+
+import Data.Semigroup
 import Data.Semigroup.Numbered
+import Data.List (transpose, inits)
+import Control.Arrow ((>>>))
+
+import Data.Manifold.Types
+import Data.VectorSpace
+import Data.VectorSpace.Free
+import Math.LinearMap.Category
+import Linear.V3
 
 import Graphics.Dynamic.Plot.R2
 import qualified Diagrams.Prelude as Dia
 import qualified Diagrams.Backend.Cairo as Dia
 
 import System.Environment
-import Control.Lens
+import Control.Lens hiding (set)
 import Control.Concurrent
+import Data.IORef
 
 
 main :: IO ()
-main = yeamer . styling style $ do
+main = do
+ newPlotLock <- newIORef Nothing
+ let ?plotLock = newPlotLock
+ 
+ yeamer . styling style $ do
    ""──
      "global-title"#%
        "Manifolds as Haskell Types"
@@ -26,10 +49,26 @@ main = yeamer . styling style $ do
      "Justus Sagemüller"
      ──
      "reference"#%("Institut für Geophysik und Meteorologie"──"Universität zu Köln")
-   "Manifolds"
-     ====== do
-      ""
+   
+   items_p ("What is Earth's dimensionality?"======)
+    [ ( plotServ
+         [ trajectoryPlot
+            [("Earth", earthRadius), ("Sun", sunRadius)]
+            [ [(xe,ye), (xs, ys)]
+            | ((V3 xe ye _, _), (V3 xs ys _, _))
+               <- traject2Body ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
+           , unitAspect, xInterval (-earthDist, earthDist)
+                       , yInterval (0, earthDist) ]
+      , "It's one-dimensional." )
+    , (id, "It's two-dimensional.")
+    , (id, "It's three-dimensional.")
+    , (id, "It's four-dimensional.")
+    ]
        
+   "Manifolds"
+    ====== do
+     items []
+
 
 style = [cassius|
    body
@@ -58,6 +97,14 @@ style = [cassius|
    .vertical-concatenation
      display: flex
      flex-direction: column
+   .items-list>div
+     margin-left: 0px
+   .items-list>div>div, .items-list>.list-item
+     display: list-item
+     margin-left: 2em
+     text-align: left
+   .list-item
+     text-align: left
    .emph
      font-style: italic
    .small
@@ -76,9 +123,42 @@ style = [cassius|
       font-variant: small-caps
   |] ()
 
-plotServ :: [DynamicPlottable] -> Presentation -> Presentation
-plotServ pl cont = serverSide (forkIO (plotWindow pl >> return ()) >> return ())
-                     >> cont
+items :: [Presentation] -> Presentation
+
+items [] = mempty
+items bs = "items-list" #% foldr1 (──) (("list-item"#%)<$>bs)
+
+items_p :: (Presentation -> Presentation)
+          -> [(Presentation -> Presentation, Presentation)] -> Presentation
+items_p f its = mapM_ (uncurry($))
+                $ zip (fmap f <$> id:map fst its)
+                      (map (items . map snd) $ inits its)
+
+
+type Distance = ℝ  -- in m
+type Pos = V3 Distance
+type Speed = ℝ -- in m/s
+type Velo = V3 Speed
+type PhaseSpace = (Pos, Velo)
+type Mass = ℝ   -- in kg
+
+plotServ :: (?plotLock :: IORef (Maybe ThreadId))
+         => [DynamicPlottable] -> Presentation -> Presentation
+plotServ pl cont = serverSide`id`do
+       locked <- readIORef ?plotLock
+       case locked of
+        Nothing -> do
+         writeIORef ?plotLock . Just
+          =<< forkFinally
+               (plotWindow pl)
+               (\_ -> do
+                 stillLocked <- readIORef ?plotLock
+                 myId <- myThreadId
+                 case stillLocked of
+                   Just i | i==myId
+                     -> writeIORef ?plotLock Nothing )
+        _ -> error "Another plot window is still open."
+  >> cont
 
 plotStat :: ViewportConfig -> [DynamicPlottable] -> Presentation
 plotStat viewCfg pl = imageFromFileSupplier "png" $ \file -> do
@@ -87,3 +167,55 @@ plotStat viewCfg pl = imageFromFileSupplier "png" $ \file -> do
                     (Dia.mkSizeSpec $ Just (fromIntegral $ viewCfg^.xResV)
                                Dia.^& Just (fromIntegral $ viewCfg^.yResV))
                     prerendered
+
+rk4 :: (AffineSpace y, RealSpace (Diff y), t ~ ℝ)
+    => (y -> Diff y) -> Diff t -> (t,y) -> [(t,y)]
+rk4 f h = go
+ where go (t,y) = (t,y) : go
+            (t+h, y .+^ h/6 · (k₁ ^+^ 2·k₂ ^+^ 2·k₃ ^+^ k₄))
+        where k₁ = f y
+              k₂ = f $ y .+^ h/2 · k₁
+              k₃ = f $ y .+^ h/2 · k₂
+              k₄ = f $ y .+^ h · k₃
+
+trajectoryPlot :: [(String, Distance)] -> [[(ℝ,ℝ)]] -> DynamicPlottable
+trajectoryPlot meta = plotLatest
+    . map ( transpose . take 80 >>>
+           \chunkCompos -> plotMultiple
+             [ (if name/="" then legendName name else id)
+              $ plot [ lineSegPlot chunkCompo
+                     , shapePlot . Dia.moveTo (Dia.p2 $ last chunkCompo)
+                             . Dia.opacity 0.6
+                         $ Dia.circle radius ]
+             | ((name,radius), chunkCompo) <- zip meta chunkCompos ]
+           )
+    . iterate (drop 20)
+
+type TwoBody = (PhaseSpace, PhaseSpace)
+
+earthMass, sunMass :: Mass
+earthMass = 5.972e24  -- in kg
+sunMass = 1.988e30    -- in kg
+
+earthDist, sunRadius, earthRadius :: Distance
+earthDist = 1.496e11 -- in m
+sunRadius = 6.957e8 -- in m
+earthRadius = 6.371e6 -- in m
+
+earthSpeed :: Speed
+earthSpeed = 29.8e3 -- in m/s
+
+gravConst :: ℝ
+gravConst = 6.674e-11  -- in N·m²/kg²
+
+gravAcc :: Mass -> Diff Pos -> Diff Velo
+gravAcc mt δx = (gravConst * mt / magnitude δx^3) *^ δx
+
+traject2Body :: TwoBody -> [TwoBody]
+traject2Body xv₀ = snd <$>
+      rk4 (\((xe,ve), (xs,vs))
+            -> ( (ve, gravAcc sunMass $ xs.-.xe)
+               , (vs, gravAcc earthMass $ xe.-.xs) )
+               )
+          12000
+          (0, xv₀)

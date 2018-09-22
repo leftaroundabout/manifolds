@@ -18,6 +18,10 @@ Source-Repository head
 executable icfp2018-npfl_manifolds
   Build-Depends:     base>=4.10 && <4.11
                      , manifolds==0.5.0.0
+                     , linearmap-category
+                     , vector-space
+                     , free-vector-spaces
+                     , linear
                      , dynamic-plot
                      , yeamer<0.2
                      , blaze-html
@@ -27,7 +31,7 @@ executable icfp2018-npfl_manifolds
                      , diagrams-cairo
                      , TeX-my-math
                      , lens
-  ghc-options:       -O2
+  ghc-options:       -O2 -threaded "-with-rtsopts=-N3"
   hs-source-dirs: icfp2018
   main-is: npfl.hs
   default-language: Haskell2010
