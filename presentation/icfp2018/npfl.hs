@@ -26,6 +26,7 @@ import Data.Manifold.PseudoAffine
 import Data.VectorSpace
 import Data.VectorSpace.Free
 import Math.LinearMap.Category
+import Linear.V2
 import Linear.V3
 import Math.Rotations.Class (Rotatable, AxisSpace, rotateAbout)
 
@@ -102,7 +103,19 @@ main = do
 
    "Manifolds"
     ====== do
-     "A manifold is a topological space "<>𝑀$<>","
+     "A manifold is a topological space "<>𝑀$<>", "
+      <>hide("with a set of "<>emph"charts"<>": subsets that cover all of "<>𝑀$<>","
+             <>" each of which is homeomorphic to an open ball in a vector space.")
+      ── hide' (plotServ $ unitAspect :
+                 [ plot [ lineSegPlot [ (sin θ*sin φ, cos θ - 0.1*sin θ*cos φ) 
+                                      | disp <- (orig.+^).(dir₁^*)<$>[-20..20]
+                                      , magnitudeSq disp < 3
+                                      , let S²Polar θ φ = pole .+~^ disp ]
+                        | [dir₀, dir₁] <- map(^*0.15)<$>[[V2 1 0, V2 0 1], [V2 0 1, V2 1 0]]
+                        , orig <- (dir₀^*)<$>[-20..20] ]
+                 | pole <- [S²Polar 0 0, S²Polar pi 0]
+                 ] )
+          "Example: north- and south hemispheres."
 
 style = [cassius|
    body
@@ -148,6 +161,8 @@ style = [cassius|
      font-size: 86%
      background-color: #227
      font-family: "Ubuntu Mono", "Droid Sans mono", "Courier New"
+   .still-hidden
+     visibility: hidden
    pre
      text-align: left
      font-size: 86%
@@ -170,6 +185,14 @@ items_p f its = mapM_ (uncurry($))
 
 emph :: Presentation -> Presentation
 emph = ("emph"#%)
+
+hide :: Presentation -> Presentation
+hide = hide' id
+
+hide' :: (Presentation -> Presentation) -> Presentation -> Presentation
+hide' f x = do
+    "still-hidden"#%x
+    "now-visible"#%f x
 
 
 type Distance = ℝ  -- in m
