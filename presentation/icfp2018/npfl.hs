@@ -62,7 +62,7 @@ main = do
                           re = earthDist
                       in guard (r < re)
                           >> let θ = acos $ y/re
-                                 φ = acos $ x/(sin θ * re)
+                                 φ = -asin $ x/(sin θ * re)
                              in Just . earthFn . iaRotn $ S²Polar θ φ
           {-  , trajectoryPlot
                [("Earth", earthRadius), ("Sun", sunRadius)]
@@ -240,21 +240,37 @@ traject2Body (me, ms) xv₀ = snd <$>
           12000
           (0, xv₀)
 
+-- | A very rough globe model, representing the continents as circular blobs.
 earthFn :: S² -> Dia.Colour ℝ
-earthFn p = case [ c
-                 | (loc,size,c) <- [ (S²Polar 0   0  , 0.3, Dia.white)
-                                   , (S²Polar 0.9 0  , 0.7, Dia.darkgreen) ]
+earthFn p = case [ colour
+                 |  (    loc   ,  size,    colour    ) <-
+                  [ (  90◯    0,  0.3 , Dia.white    )  -- Arctic
+                  , ( -90◯    0,  0.5 , Dia.white    )  -- Antarctic
+                  , (  48◯  -86,  0.6 , Dia.green    )  -- Asia
+                  , (  50◯  -15,  0.3 , Dia.darkgreen)  -- Europe
+                  , (  19◯    0,  0.27, Dia.yellow   )  -- northern Africa
+                  , (  18◯  -30,  0.32, Dia.yellow   )  -- Middle East
+                  , ( -13◯  -26,  0.27, Dia.green    )  -- southern Africa
+                  , (  46◯  100,  0.5 , Dia.green    )  -- North America
+                  , (  12◯   83,  0.15, Dia.darkgreen)  -- Middle America
+                  , (  -9◯   57,  0.4 , Dia.darkgreen)  -- northern South America
+                  , ( -37◯   66,  0.2 , Dia.green    )  -- southern South America
+                  , ( -25◯ -133,  0.4 , Dia.orange   )  -- Australia
+                  ]
                  , magnitudeSq (p.-~.loc) < size^2 ] of
               (c:_) -> c
               _     -> Dia.midnightblue
+ where infix 4 ◯
+       lat ◯ lon = S²Polar ((90-lat)*pi/180)
+                           (  lon   *pi/180)
 
 withInteractiveRotation :: (Rotatable r, AxisSpace r ~ ℝP²)
   => (ℝ,ℝ) -> ℝ -> ((r -> r) -> DynamicPlottable) -> DynamicPlottable
 withInteractiveRotation dragOrigin sphRadius disp = plot $ \(MousePressed mouse) ->
     let (rdx,rdz) = maybe zeroV (^-^dragOrigin) mouse ^/ sphRadius
         axis
-         | rdx==0     = HemisphereℝP²Polar (pi/2) 0
-         | rdx*rdz>0  = HemisphereℝP²Polar (atan $ rdz/rdx) (-pi)
-         | otherwise  = HemisphereℝP²Polar (atan $ -rdz/rdx) 0
+         | rdx==0     = HemisphereℝP²Polar (pi/2) (-pi/2)
+         | rdx*rdz>0  = HemisphereℝP²Polar (atan $ rdz/rdx) (pi/2)
+         | otherwise  = HemisphereℝP²Polar (atan $ -rdz/rdx) (-pi/2)
     in disp $ rotateAbout axis
                (S¹Polar $ magnitude(rdx,rdz) * signum rdx)
