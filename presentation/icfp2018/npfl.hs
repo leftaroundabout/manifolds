@@ -55,16 +55,8 @@ main = do
    
    items_p ("What is Earth's dimensionality?"======)
     [ ( plotServ
-         [ {- clickThrough
-            [-} withInteractiveRotation (0,0) earthDist $ \iaRotn ->
-               colourPaintPlot $ \p@(x,y)
-                   -> let r = magnitude p
-                          re = earthDist
-                      in guard (r < re)
-                          >> let θ = acos $ y/re
-                                 φ = -asin $ x/(sin θ * re)
-                             in Just . earthFn . iaRotn $ S²Polar θ φ
-          {-  , trajectoryPlot
+         [ clickThrough
+            [ trajectoryPlot
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (xs, ys)]
                | ((V3 xe ye _, _), (V3 xs ys _, _))
@@ -76,7 +68,19 @@ main = do
                | ((V3 xe ye _, _), (V3 xs ys _, _))
                   <- traject2Body (sunMass, earthMass)
                                   ( (V3 earthDist 0 0, zeroV)
-                                  , (zeroV, V3 0 (-earthSpeed) 0) ) ] ] -}
+                                  , (zeroV, V3 0 (-earthSpeed) 0) ) ] 
+            , plotMultiple
+             [ legendName "Earth" . shapePlot . Dia.moveTo (Dia.p2 (earthDist,0))
+                             $ Dia.circle earthRadius
+             , withInteractiveRotation (earthDist,0) earthRadius `id` \iaRotn ->
+                colourPaintPlot $ \pHelC
+                   -> let p@(x,y) = pHelC ^-^ (earthDist, 0)
+                          r = magnitude p
+                          re = earthRadius
+                      in guard (r < re)
+                          >> let θ = acos $ y/re
+                                 φ = -asin $ x/(sin θ * re)
+                             in Just . earthFn . iaRotn $ S²Polar θ φ ] ]
          , unitAspect, xInterval (-earthDist, earthDist)
                      , yInterval (0, earthDist) ]
       , "It's one-dimensional." )
