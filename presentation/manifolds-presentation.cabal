@@ -21,6 +21,7 @@ executable icfp2018-npfl_manifolds
                      , linearmap-category
                      , vector-space
                      , free-vector-spaces
+                     , spatial-rotations
                      , linear
                      , dynamic-plot
                      , yeamer<0.2

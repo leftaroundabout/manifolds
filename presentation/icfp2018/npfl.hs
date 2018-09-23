@@ -27,6 +27,7 @@ import Data.VectorSpace
 import Data.VectorSpace.Free
 import Math.LinearMap.Category
 import Linear.V3
+import Math.Rotations.Class (Rotatable, AxisSpace, rotateAbout)
 
 import Graphics.Dynamic.Plot.R2
 import qualified Diagrams.Prelude as Dia
@@ -54,16 +55,16 @@ main = do
    
    items_p ("What is Earth's dimensionality?"======)
     [ ( plotServ
-         [ clickThrough
-            [ colourPaintPlot
-               $ \p@(x,y)
+         [ {- clickThrough
+            [-} withInteractiveRotation (0,0) earthDist $ \iaRotn ->
+               colourPaintPlot $ \p@(x,y)
                    -> let r = magnitude p
                           re = earthDist
                       in guard (r < re)
-                          >> let θ = asin $ r/re
-                                 φ = atan2 y x
-                             in Just . earthFn $ S²Polar θ φ
-            , trajectoryPlot
+                          >> let θ = acos $ y/re
+                                 φ = acos $ x/(sin θ * re)
+                             in Just . earthFn . iaRotn $ S²Polar θ φ
+          {-  , trajectoryPlot
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (xs, ys)]
                | ((V3 xe ye _, _), (V3 xs ys _, _))
@@ -75,7 +76,7 @@ main = do
                | ((V3 xe ye _, _), (V3 xs ys _, _))
                   <- traject2Body (sunMass, earthMass)
                                   ( (V3 earthDist 0 0, zeroV)
-                                  , (zeroV, V3 0 (-earthSpeed) 0) ) ] ]
+                                  , (zeroV, V3 0 (-earthSpeed) 0) ) ] ] -}
          , unitAspect, xInterval (-earthDist, earthDist)
                      , yInterval (0, earthDist) ]
       , "It's one-dimensional." )
@@ -240,8 +241,20 @@ traject2Body (me, ms) xv₀ = snd <$>
           (0, xv₀)
 
 earthFn :: S² -> Dia.Colour ℝ
-earthFn p
-   | any (\(loc,size) -> magnitudeSq (p.-~.loc) < size^2)
-      [ (S²Polar 1 0, 0.7) ]
-                = Dia.darkgreen
-   | otherwise  = Dia.midnightblue
+earthFn p = case [ c
+                 | (loc,size,c) <- [ (S²Polar 0   0  , 0.3, Dia.white)
+                                   , (S²Polar 0.9 0  , 0.7, Dia.darkgreen) ]
+                 , magnitudeSq (p.-~.loc) < size^2 ] of
+              (c:_) -> c
+              _     -> Dia.midnightblue
+
+withInteractiveRotation :: (Rotatable r, AxisSpace r ~ ℝP²)
+  => (ℝ,ℝ) -> ℝ -> ((r -> r) -> DynamicPlottable) -> DynamicPlottable
+withInteractiveRotation dragOrigin sphRadius disp = plot $ \(MousePressed mouse) ->
+    let (rdx,rdz) = maybe zeroV (^-^dragOrigin) mouse ^/ sphRadius
+        axis
+         | rdx==0     = HemisphereℝP²Polar (pi/2) 0
+         | rdx*rdz>0  = HemisphereℝP²Polar (atan $ rdz/rdx) (-pi)
+         | otherwise  = HemisphereℝP²Polar (atan $ -rdz/rdx) 0
+    in disp $ rotateAbout axis
+               (S¹Polar $ magnitude(rdx,rdz) * signum rdx)
