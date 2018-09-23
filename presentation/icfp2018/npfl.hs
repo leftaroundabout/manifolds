@@ -19,8 +19,10 @@ import Data.Semigroup
 import Data.Semigroup.Numbered
 import Data.List (transpose, inits)
 import Control.Arrow ((>>>))
+import Control.Monad (guard)
 
 import Data.Manifold.Types
+import Data.Manifold.PseudoAffine
 import Data.VectorSpace
 import Data.VectorSpace.Free
 import Math.LinearMap.Category
@@ -52,13 +54,30 @@ main = do
    
    items_p ("What is Earth's dimensionality?"======)
     [ ( plotServ
-         [ trajectoryPlot
-            [("Earth", earthRadius), ("Sun", sunRadius)]
-            [ [(xe,ye), (xs, ys)]
-            | ((V3 xe ye _, _), (V3 xs ys _, _))
-               <- traject2Body ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
-           , unitAspect, xInterval (-earthDist, earthDist)
-                       , yInterval (0, earthDist) ]
+         [ clickThrough
+            [ colourPaintPlot
+               $ \p@(x,y)
+                   -> let r = magnitude p
+                          re = earthDist
+                      in guard (r < re)
+                          >> let θ = asin $ r/re
+                                 φ = atan2 y x
+                             in Just . earthFn $ S²Polar θ φ
+            , trajectoryPlot
+               [("Earth", earthRadius), ("Sun", sunRadius)]
+               [ [(xe,ye), (xs, ys)]
+               | ((V3 xe ye _, _), (V3 xs ys _, _))
+                  <- traject2Body (earthMass                            , sunMass)
+                                  ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
+            , trajectoryPlot
+               [("Earth", earthRadius), ("Sun", sunRadius)]
+               [ [(xe,ye), (xs, ys)]
+               | ((V3 xe ye _, _), (V3 xs ys _, _))
+                  <- traject2Body (sunMass, earthMass)
+                                  ( (V3 earthDist 0 0, zeroV)
+                                  , (zeroV, V3 0 (-earthSpeed) 0) ) ] ]
+         , unitAspect, xInterval (-earthDist, earthDist)
+                     , yInterval (0, earthDist) ]
       , "It's one-dimensional." )
     , (id, "It's two-dimensional.")
     , (id, "It's three-dimensional.")
@@ -209,13 +228,20 @@ gravConst :: ℝ
 gravConst = 6.674e-11  -- in N·m²/kg²
 
 gravAcc :: Mass -> Diff Pos -> Diff Velo
-gravAcc mt δx = (gravConst * mt / magnitude δx^3) *^ δx
+gravAcc mt δx = (gravConst * mt / magnitude δx^3) · δx
 
-traject2Body :: TwoBody -> [TwoBody]
-traject2Body xv₀ = snd <$>
+traject2Body :: (Mass, Mass) -> TwoBody -> [TwoBody]
+traject2Body (me, ms) xv₀ = snd <$>
       rk4 (\((xe,ve), (xs,vs))
-            -> ( (ve, gravAcc sunMass $ xs.-.xe)
-               , (vs, gravAcc earthMass $ xe.-.xs) )
+            -> ( (ve, gravAcc ms $ xs.-.xe)
+               , (vs, gravAcc me $ xe.-.xs) )
                )
           12000
           (0, xv₀)
+
+earthFn :: S² -> Dia.Colour ℝ
+earthFn p
+   | any (\(loc,size) -> magnitudeSq (p.-~.loc) < size^2)
+      [ (S²Polar 1 0, 0.7) ]
+                = Dia.darkgreen
+   | otherwise  = Dia.midnightblue
