@@ -69,18 +69,18 @@ main = do
                   <- traject2Body (sunMass, earthMass)
                                   ( (V3 earthDist 0 0, zeroV)
                                   , (zeroV, V3 0 (-earthSpeed) 0) ) ] 
-            , plotMultiple
-             [ legendName "Earth" . shapePlot . Dia.moveTo (Dia.p2 (earthDist,0))
-                             $ Dia.circle earthRadius
-             , withInteractiveRotation (earthDist,0) earthRadius `id` \iaRotn ->
-                colourPaintPlot $ \pHelC
+            , withInteractiveRotation (earthDist,0) earthRadius `id` \iaRotn ->
+                colourPaintPlot `id` (\pHelC
                    -> let p@(x,y) = pHelC ^-^ (earthDist, 0)
                           r = magnitude p
                           re = earthRadius
                       in guard (r < re)
                           >> let θ = acos $ y/re
                                  φ = -asin $ x/(sin θ * re)
-                             in Just . earthFn . iaRotn $ S²Polar θ φ ] ]
+                             in Just . earthFn . iaRotn $ S²Polar θ φ )
+                 <> shapePlot (Dia.lwO 3 . Dia.lc Dia.blue
+                      . Dia.moveTo (Dia.p2 (earthDist,0)) $ Dia.circle earthRadius )
+            ]
          , unitAspect, xInterval (-earthDist, earthDist)
                      , yInterval (0, earthDist) ]
       , "It's one-dimensional." )
@@ -246,24 +246,25 @@ traject2Body (me, ms) xv₀ = snd <$>
 
 -- | A very rough globe model, representing the continents as circular blobs.
 earthFn :: S² -> Dia.Colour ℝ
-earthFn p = case [ colour
-                 |  (    loc   ,  size,    colour    ) <-
-                  [ (  90◯    0,  0.3 , Dia.white    )  -- Arctic
-                  , ( -90◯    0,  0.5 , Dia.white    )  -- Antarctic
-                  , (  48◯  -86,  0.6 , Dia.green    )  -- Asia
-                  , (  50◯  -15,  0.3 , Dia.darkgreen)  -- Europe
-                  , (  19◯    0,  0.27, Dia.yellow   )  -- northern Africa
-                  , (  18◯  -30,  0.32, Dia.yellow   )  -- Middle East
-                  , ( -13◯  -26,  0.27, Dia.green    )  -- southern Africa
-                  , (  46◯  100,  0.5 , Dia.green    )  -- North America
-                  , (  12◯   83,  0.15, Dia.darkgreen)  -- Middle America
-                  , (  -9◯   57,  0.4 , Dia.darkgreen)  -- northern South America
-                  , ( -37◯   66,  0.2 , Dia.green    )  -- southern South America
-                  , ( -25◯ -133,  0.4 , Dia.orange   )  -- Australia
-                  ]
-                 , magnitudeSq (p.-~.loc) < size^2 ] of
-              (c:_) -> c
-              _     -> Dia.midnightblue
+earthFn p
+   = case [ colour
+          |  (    loc   ,  size,    colour          ) <-
+           [ (  90◯    0,  0.3 , Dia.aliceblue      )  -- Arctic
+           , ( -90◯    0,  0.5 , Dia.aliceblue      )  -- Antarctic
+           , (  48◯  -86,  0.6 , Dia.forestgreen    )  -- Asia
+           , (  50◯  -15,  0.3 , Dia.darkgreen      )  -- Europe
+           , (  19◯    0,  0.27, Dia.darkkhaki      )  -- northern Africa
+           , (  18◯  -30,  0.32, Dia.khaki          )  -- Middle East
+           , ( -13◯  -26,  0.27, Dia.forestgreen    )  -- southern Africa
+           , (  46◯  100,  0.5 , Dia.darkolivegreen )  -- North America
+           , (  12◯   83,  0.15, Dia.darkgreen      )  -- Middle America
+           , (  -9◯   57,  0.4 , Dia.darkgreen      )  -- northern South America
+           , ( -37◯   66,  0.2 , Dia.forestgreen    )  -- southern South America
+           , ( -25◯ -133,  0.4 , Dia.orange         )  -- Australia
+           ]
+          , magnitudeSq (p.-~.loc) < size^2 ] of
+        (c:_) -> c
+        _     -> Dia.midnightblue
  where infix 4 ◯
        lat ◯ lon = S²Polar ((90-lat)*pi/180)
                            (  lon   *pi/180)
