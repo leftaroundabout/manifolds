@@ -89,10 +89,20 @@ main = do
     , (id, "It's four-dimensional.")
     ]
        
+   "What does dimensionality even mean?"
+    ====== do
+     "“Number of variables needed to define a given state”"
+     "“Number of "<>emph"scalars"<>" needed to define a given state”"
+           ── do [plaintext|
+                    data ℝ = Double
+                    data V3 = V3 {x::ℝ, y::ℝ, z::ℝ} |]
+                 [plaintext|
+                    data S² = S²Polar {θ::ℝ, φ::ℝ} |]
+                  ── imageFromFile "img/concepts/polarcoords.svg"
+
    "Manifolds"
     ====== do
-     items []
-
+     "A manifold is a topological space "<>𝑀$<>","
 
 style = [cassius|
    body
@@ -157,6 +167,9 @@ items_p :: (Presentation -> Presentation)
 items_p f its = mapM_ (uncurry($))
                 $ zip (fmap f <$> id:map fst its)
                       (map (items . map snd) $ inits its)
+
+emph :: Presentation -> Presentation
+emph = ("emph"#%)
 
 
 type Distance = ℝ  -- in m
