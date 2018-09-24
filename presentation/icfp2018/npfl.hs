@@ -18,7 +18,7 @@ import Text.Cassius
 import Data.Semigroup
 import Data.Semigroup.Numbered
 import Data.List (transpose, inits)
-import Control.Arrow ((>>>))
+import Control.Arrow ((>>>), second)
 import Control.Monad (guard)
 
 import Data.Manifold.Types
@@ -106,16 +106,31 @@ main = do
      "A manifold is a topological space "<>𝑀$<>", "
       <>hide("with a set of "<>emph"charts"<>": subsets that cover all of "<>𝑀$<>","
              <>" each of which is homeomorphic to an open ball in a vector space.")
-      ── hide' (plotServ $ unitAspect :
-                 [ plot [ lineSegPlot [ (sin θ*sin φ, cos θ - 0.1*sin θ*cos φ) 
-                                      | disp <- (orig.+^).(dir₁^*)<$>[-20..20]
-                                      , magnitudeSq disp < 3
-                                      , let S²Polar θ φ = pole .+~^ disp ]
-                        | [dir₀, dir₁] <- map(^*0.15)<$>[[V2 1 0, V2 0 1], [V2 0 1, V2 1 0]]
+      ──mapM_ (\charts -> do
+         let viewAngle = 0.2
+         hide' (plotServ $ unitAspect :
+            [ plot $ \(MousePressed mouse) ->
+               let (φ₀, rOpening) = case second (+viewAngle) <$> mouse of
+                     Nothing -> (0, 1)
+                     Just (x, y) | y < 0      -> (x, 1)
+                                 | y < 1      -> (x, 1/(1-y))
+                                 | otherwise  -> (x, 1e6)
+               in  plot [ lineSegPlot
+                            [ ctr rOpening
+                                .+^ rOpening*^( sin θ*sin φ
+                                              , cos θ - viewAngle*sin θ*cos φ )
+                            | disp <- (orig.+^).(dir₁^*)<$>[-20..20]
+                            , magnitudeSq disp < 3
+                            , let S²Polar θ φq = pole .+~^ (disp^/rOpening)
+                                  φ = φ₀ + φq ]
+                        | [dir₀, dir₁] <- map(^*0.2)<$>[ [V2 1 0, V2 0 1]
+                                                       , [V2 0 1, V2 1 0] ]
                         , orig <- (dir₀^*)<$>[-20..20] ]
-                 | pole <- [S²Polar 0 0, S²Polar pi 0]
-                 ] )
-          "Example: north- and south hemispheres."
+            | (pole, ctr) <- charts
+            ])
+           "Example: north- and south hemispheres."
+          ) [ zip [S²Polar 0 0     , S²Polar pi 0    ]
+                  [\r -> (0, (1-r)), \r -> (0, (r-1))] ]
 
 style = [cassius|
    body
