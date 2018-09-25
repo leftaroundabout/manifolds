@@ -8,11 +8,13 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ImplicitParams    #-}
+{-# LANGUAGE TupleSections     #-}
 
 import Presentation.Yeamer
 import Presentation.Yeamer.Maths
 import Math.LaTeX.StringLiterals
 import qualified Text.Blaze.Html as Blaze
+import Text.Hamlet
 import Text.Cassius
 
 import Data.Semigroup
@@ -39,6 +41,7 @@ import System.Environment
 import Control.Lens hiding (set)
 import Control.Concurrent
 import Data.IORef
+import Text.Printf (printf)
 
 
 main :: IO ()
@@ -77,9 +80,9 @@ main = do
                           r = magnitude p
                           re = earthRadius
                       in guard (r < re)
-                          >> let θ = acos $ y/re
-                                 φ = -asin $ x/(sin θ * re)
-                             in Just . earthFn . iaRotn $ S²Polar θ φ )
+                          >> let ϑ = acos $ y/re
+                                 φ = -asin $ x/(sin ϑ * re)
+                             in Just . earthFn . iaRotn $ S²Polar ϑ φ )
                  <> shapePlot (Dia.lwO 3 . Dia.lc Dia.blue
                       . Dia.moveTo (Dia.p2 (earthDist,0)) $ Dia.circle earthRadius )
             ]
@@ -97,10 +100,30 @@ main = do
      "“Number of "<>emph"scalars"<>" needed to define a given state”"
            ── do [plaintext|
                     data ℝ = Double
-                    data V3 = V3 {x::ℝ, y::ℝ, z::ℝ} |]
-                 [plaintext|
-                    data S² = S²Polar {θ::ℝ, φ::ℝ} |]
-                  ── imageFromFile "img/concepts/polarcoords.svg"
+                    data ℝ³ = ℝ³ {x::ℝ, y::ℝ, z::ℝ} |]
+                 mapM_ (──imageFromFile "img/concepts/polarcoords.svg")
+                  [ [plaintext|
+                    data S² = S²Polar {ϑ::ℝ, φ::ℝ} |]
+                  , [plaintext|
+                    data S² = S²Polar {ϑ::⌊0,π⌉, φ::⌊-π,π⌉} |]
+                  , plotServ [ diagramPlot . Dia.lc Dia.white
+                                 $ Dia.circle 1
+                                  <> Dia.fromVertices (Dia.p2 . (,0)<$>[-1,1])
+                                  <> Dia.fromVertices (Dia.p2 . (0,)<$>[-1,1])
+                             , plot $ \(MousePressed mouse)
+                                -> case mouse of
+                                     Just (x,z) | x^2+z^2 < 1
+                                      -> let ϑ = acos z
+                                             φ = asin $ x/sin ϑ
+                                         in legendName (printf "ϑ = %.2f, φ = %.2f" ϑ φ)
+                                              $ lineSegPlot [zeroV, (x,z)]
+                                               <> shapePlot (Dia.ellipseXY (sin φ) 1
+                                                              & Dia.fcA Dia.transparent)
+                                     _ -> mempty
+                             , unitAspect ]
+                    [plaintext|
+                    data S² = S²Polar { ϑ::⌊0,π⌉, φ :: ⌊-π,π⌉ unless ϑ≡0 or ϑ≡π } |]
+                  ]
 
    "Manifolds"
     ====== do
@@ -118,11 +141,11 @@ main = do
                                  | otherwise  -> (x, 1e6)
                in  plot [ lineSegPlot
                             [ case ctr rOpening (S¹Polar φ₀)
-                                    .+^ rOpening*^embed (S²Polar θ φ) of
+                                    .+^ rOpening*^embed (S²Polar ϑ φ) of
                                 V3 x y z -> (x, sin viewAngle * y + cos viewAngle * z)
                             | disp <- (orig.+^).(dir₁^*)<$>[-20..20]
                             , magnitudeSq disp < rChart
-                            , let S²Polar θ φq = pole .+~^ (disp^/rOpening)
+                            , let S²Polar ϑ φq = pole .+~^ (disp^/rOpening)
                                   φ = φ₀ + φq ]
                         | [dir₀, dir₁] <- map(^*0.2)<$>[ [V2 1 0, V2 0 1]
                                                        , [V2 0 1, V2 1 0] ]
