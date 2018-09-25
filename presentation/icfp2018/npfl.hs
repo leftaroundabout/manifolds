@@ -185,21 +185,35 @@ main = do
             type Scalar v :: *
             (*^) :: Scalar v -> v -> v
          |]
-        "“Vector space without a distinguished origin”"
-         ── [plaintext|
-          class AdditiveGroup (Diff p) => AffineSpace p where
-            type Diff p :: *
-            (.-.) :: p -> p -> Diff p
-            (.+^) :: p -> Diff p -> p
-         |]
-         ── do law[plaintext|p .-. p         ≡ zeroV          |]
-               law[plaintext|p .+^ (q .-. p) ≡ q              |]
-               law[plaintext|p .+^ (v ^+^ w) ≡ (p .+^ v) .+^ w|]
       ── urlRef"hackage.haskell.org/package/vector-spaces"
       ── do law[plaintext|(u^+^v)^+^w ≡ u^+^(v^+^w)  |]
             law[plaintext|u^+^v       ≡ v^+^u        |]
             law[plaintext|(λ+μ)*^v    ≡ λ*^v ^+^ μ*^v|]
             law[plaintext|                           |]
+   
+   "Affine spaces"
+    ====== do
+     "“Vector spaces without a distinguished origin”"
+      ── [plaintext|
+       class AdditiveGroup (Diff p) => AffineSpace p where
+         type Diff p :: *
+         (.-.) :: p -> p -> Diff p
+         (.+^) :: p -> Diff p -> p
+      |]
+      ── law[plaintext|p .-. p         ≡ zeroV          |]
+      ── law[plaintext|p .+^ (q .-. p) ≡ q              |]
+      ── law[plaintext|p .+^ (v ^+^ w) ≡ (p .+^ v) .+^ w|]
+   
+   "Manifolds as weaker affine spaces"
+    ====== do
+     [plaintext|
+       class AdditiveGroup (Needle x) => PseudoAffine x where
+         type Needle x :: *
+         (.-~.) :: x -> x -> Needle x
+         (.+~^) :: x -> Needle x -> x
+      |]
+      ── law[plaintext|p .-. p         ≡ zeroV          |]
+      ── law[plaintext|p .+^ (q .-. p) ≡ q              |]
 
 style = [cassius|
    body
