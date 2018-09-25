@@ -29,7 +29,7 @@ import Math.LinearMap.Category
 import Math.Manifold.Embedding.Simple.Class
 import Linear.V2
 import Linear.V3
-import Math.Rotations.Class (Rotatable, AxisSpace, rotateAbout)
+import Math.Rotations.Class (Rotatable, AxisSpace, rotateAbout, zAxis)
 
 import Graphics.Dynamic.Plot.R2
 import qualified Diagrams.Prelude as Dia
@@ -117,9 +117,9 @@ main = do
                                  | y < 1      -> (x, 1/(1-y))
                                  | otherwise  -> (x, 1e6)
                in  plot [ lineSegPlot
-                            [ ctr rOpening
-                                .+^ rOpening*^( sin θ*sin φ
-                                              , cos θ - viewAngle*sin θ*cos φ )
+                            [ case ctr rOpening (S¹Polar φ₀)
+                                    .+^ rOpening*^embed (S²Polar θ φ) of
+                                V3 x y z -> (x, sin viewAngle * y + cos viewAngle * z)
                             | disp <- (orig.+^).(dir₁^*)<$>[-20..20]
                             , magnitudeSq disp < rChart
                             , let S²Polar θ φq = pole .+~^ (disp^/rOpening)
@@ -128,8 +128,7 @@ main = do
                                                        , [V2 0 1, V2 1 0] ]
                         , orig <- (dir₀^*)<$>[-20..20] ]
             | pole <- charts
-            , let ctr rOpening = case embed pole of
-                         p@(V3 xp _ zp) -> (-xp, -zp) ^* (rOpening-1)
+            , let ctr rOpening φ₀ = embed (rotateAbout zAxis φ₀ pole) ^* (1-rOpening)
             ])
            caption
           ) [ ( [S²Polar 0 0     , S²Polar pi 0    ]
