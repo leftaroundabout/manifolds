@@ -162,6 +162,43 @@ main = do
               , 1.8
               , "Example: four charts in tetrahedral location." )
             ]
+   
+   "Vectors revisited"
+    ====== do
+     "A vector is an element of a vector space."
+     "A vector space over scalar "<> 𝑆 $<>" is a set "<> 𝑉 $<>" with operations"
+      <> maths [ ["(+)" ⸪ 𝑉 -→ 𝑉 -→ 𝑉]
+               , ["(·)" ⸪ 𝑆 -→ 𝑉 -→ 𝑉] ]""
+      <> " such that (+) is associative and commutative and (·) distributes over it."
+     do [plaintext|
+          class VectorSpace v where
+            type Scalar v :: *
+            (^+^) :: v -> v -> v
+            (*^) :: Scalar v -> v -> v
+         |]
+        [plaintext|
+          class AdditiveGroup v where
+            (^+^) :: v -> v -> v
+            negateV :: v -> v
+            zeroV :: v
+          class VectorSpace v where
+            type Scalar v :: *
+            (*^) :: Scalar v -> v -> v
+         |]
+        [plaintext|
+          class AdditiveGroup (Diff p) => AffineSpace p where
+            type Diff p :: *
+            (.-.) :: p -> p -> Diff p
+            (.+^) :: p -> Diff p -> p
+         |]
+         ── [plaintext|p .-. p         ≡ zeroV|]
+         ── [plaintext|p .+^ (q .-. p) ≡ q|]
+         ── [plaintext|p .+^ (v ^+^ w) ≡ (p .+^ v) .+^ w|]
+      ── urlRef"hackage.haskell.org/package/vector-spaces"
+      ── do [plaintext|(u^+^v)^+^w ≡ u^+^(v^+^w)|]
+            [plaintext|u^+^v       ≡ v^+^u|]
+            [plaintext|(λ+μ)*^v    ≡ λ*^v ^+^ μ*^v|]
+            mempty
 
 style = [cassius|
    body
@@ -216,6 +253,9 @@ style = [cassius|
      font-family: "Ubuntu Mono", "Droid Sans mono", "Courier New"
    .reference, .cited-author
       font-variant: small-caps
+   a.pseudolink
+      text-decoration: underline
+      color: #7090ff
   |] ()
 
 items :: [Presentation] -> Presentation
@@ -231,6 +271,9 @@ items_p f its = mapM_ (uncurry($))
 
 emph :: Presentation -> Presentation
 emph = ("emph"#%)
+
+urlRef :: String -> Presentation
+urlRef s = staticContent [shamlet|<a .pseudolink>#{s}|]
 
 hide :: Presentation -> Presentation
 hide = hide' id
