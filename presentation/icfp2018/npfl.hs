@@ -185,20 +185,21 @@ main = do
             type Scalar v :: *
             (*^) :: Scalar v -> v -> v
          |]
-        [plaintext|
+        "“Vector space without a distinguished origin”"
+         ── [plaintext|
           class AdditiveGroup (Diff p) => AffineSpace p where
             type Diff p :: *
             (.-.) :: p -> p -> Diff p
             (.+^) :: p -> Diff p -> p
          |]
-         ── [plaintext|p .-. p         ≡ zeroV|]
-         ── [plaintext|p .+^ (q .-. p) ≡ q|]
-         ── [plaintext|p .+^ (v ^+^ w) ≡ (p .+^ v) .+^ w|]
+         ── do law[plaintext|p .-. p         ≡ zeroV          |]
+               law[plaintext|p .+^ (q .-. p) ≡ q              |]
+               law[plaintext|p .+^ (v ^+^ w) ≡ (p .+^ v) .+^ w|]
       ── urlRef"hackage.haskell.org/package/vector-spaces"
-      ── do [plaintext|(u^+^v)^+^w ≡ u^+^(v^+^w)|]
-            [plaintext|u^+^v       ≡ v^+^u|]
-            [plaintext|(λ+μ)*^v    ≡ λ*^v ^+^ μ*^v|]
-            mempty
+      ── do law[plaintext|(u^+^v)^+^w ≡ u^+^(v^+^w)  |]
+            law[plaintext|u^+^v       ≡ v^+^u        |]
+            law[plaintext|(λ+μ)*^v    ≡ λ*^v ^+^ μ*^v|]
+            law[plaintext|                           |]
 
 style = [cassius|
    body
@@ -251,6 +252,8 @@ style = [cassius|
      font-size: 86%
      background-color: #204
      font-family: "Ubuntu Mono", "Droid Sans mono", "Courier New"
+   .laweqn pre
+     background-color: #422
    .reference, .cited-author
       font-variant: small-caps
    a.pseudolink
@@ -274,6 +277,9 @@ emph = ("emph"#%)
 
 urlRef :: String -> Presentation
 urlRef s = staticContent [shamlet|<a .pseudolink>#{s}|]
+
+law :: Presentation -> Presentation
+law = ("laweqn"#%)
 
 hide :: Presentation -> Presentation
 hide = hide' id
