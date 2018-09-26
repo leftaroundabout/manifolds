@@ -506,7 +506,7 @@ style = [cassius|
 
 items :: [Presentation] -> Presentation
 
-items [] = mempty
+items [] = " "
 items bs = "items-list" #% foldr1 (──) (("list-item"#%)<$>bs)
 
 items_p :: (Presentation -> Presentation)
