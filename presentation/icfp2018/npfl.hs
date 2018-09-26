@@ -354,12 +354,12 @@ main = do
           type Needle S² = ℝ²
           S²Polar ϑ₁ φ₁ .-~. S²Polar ϑ₀ φ₀ = d *^ embed(S¹Polar γc)
            where V3 qx qy qz = embed $ S²Polar ϑ₁ (φ₁-φ₀)
-
+                 
                  sϑ₀ = sin ϑ₀; cϑ₀ = cos ϑ₀
                  (bx,bz) = ( cϑ₀ * qx - sϑ₀ * qz
                            , sϑ₀ * qx + cϑ₀ * qz )
                  by      = qy
-
+                 
                  S²Polar d γ = coEmbed $ V3 bx by bz
                  
                  γc | ϑ₀ < pi/2   = γ + φ₀
