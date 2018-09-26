@@ -9,6 +9,8 @@
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ImplicitParams    #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE Rank2Types        #-}
+{-# LANGUAGE UnicodeSyntax     #-}
 
 import Presentation.Yeamer
 import Presentation.Yeamer.Maths
@@ -65,15 +67,15 @@ main = do
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (xs, ys)]
                | ((V3 xe ye _, _), (V3 xs ys _, _))
-                  <- traject2Body (earthMass                            , sunMass)
-                                  ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
+                  <- traject2Body rk4 (earthMass                            , sunMass)
+                                      ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
             , trajectoryPlot
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (xs, ys)]
                | ((V3 xe ye _, _), (V3 xs ys _, _))
-                  <- traject2Body (sunMass, earthMass)
-                                  ( (V3 earthDist 0 0, zeroV)
-                                  , (zeroV, V3 0 (-earthSpeed) 0) ) ] 
+                  <- traject2Body rk4 (sunMass, earthMass)
+                                      ( (V3 earthDist 0 0, zeroV)
+                                      , (zeroV, V3 0 (-earthSpeed) 0) ) ] 
             , withInteractiveRotation (earthDist,0) earthRadius `id` \iaRotn ->
                 colourPaintPlot `id` (\pHelC
                    -> let p@(x,y) = pHelC ^-^ (earthDist, 0)
@@ -436,11 +438,22 @@ main = do
        "Euler's method:"
         <> maths [ [ 𝑡◞(𝑖+1) ⩵ 𝑡◞𝑖 + ℎ ]
                  , [ 𝑦◞(𝑖+1) ⩵ 𝑦◞𝑖 + ℎ*𝑓°(𝑦◞𝑖) ] ]""
-        ── hide [plaintext|
+       "Euler's method:"
+        <> maths [ [ 𝑡◞(𝑖+1) ⩵ 𝑡◞𝑖 + ℎ ]
+                 , [ 𝑦◞(𝑖+1) ⩵ 𝑦◞𝑖 + ℎ*𝑓°(𝑦◞𝑖) ] ]""
+        ── [plaintext|
             euler :: VectorSpace v => (ℝ -> v) -> ℝ -> v -> [(ℝ,v)]
             euler f h y₀ = go 0 y₀
              where go ti yi = (ti, yi) : go (ti+h) (yi ^+^ h*^f yi)
-         |]
+          |] & plotServ
+           [ trajectoryPlot
+               [("Earth", earthRadius), ("Sun", sunRadius)]
+               [ [(xe,ye), (xs, ys)]
+               | ((V3 xe ye _, _), (V3 xs ys _, _))
+                  <- traject2Body euler (earthMass                            , sunMass)
+                                        ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
+           , unitAspect, xInterval (-earthDist, earthDist)
+                       , yInterval (0, earthDist) ]
      
 
 
@@ -572,8 +585,14 @@ opac :: Double -> DynamicPlottable -> DynamicPlottable
 opac = tweakPrerendered . Dia.opacity
 
 
-rk4 :: (AffineSpace y, RealSpace (Diff y), t ~ ℝ)
+type ODESolver = ∀ y t . (AffineSpace y, RealSpace (Diff y), t ~ ℝ)
     => (y -> Diff y) -> Diff t -> (t,y) -> [(t,y)]
+
+euler :: ODESolver
+euler f h = go
+ where go (t,y) = (t,y) : go (t+h, y .+^ h · f y)
+
+rk4 :: ODESolver
 rk4 f h = go
  where go (t,y) = (t,y) : go
             (t+h, y .+^ h/6 · (k₁ ^+^ 2·k₂ ^+^ 2·k₃ ^+^ k₄))
@@ -615,9 +634,9 @@ gravConst = 6.674e-11  -- in N·m²/kg²
 gravAcc :: Mass -> Diff Pos -> Diff Velo
 gravAcc mt δx = (gravConst * mt / magnitude δx^3) · δx
 
-traject2Body :: (Mass, Mass) -> TwoBody -> [TwoBody]
-traject2Body (me, ms) xv₀ = snd <$>
-      rk4 (\((xe,ve), (xs,vs))
+traject2Body :: ODESolver -> (Mass, Mass) -> TwoBody -> [TwoBody]
+traject2Body solver (me, ms) xv₀ = snd <$>
+   solver (\((xe,ve), (xs,vs))
             -> ( (ve, gravAcc ms $ xs.-.xe)
                , (vs, gravAcc me $ xe.-.xs) )
                )
