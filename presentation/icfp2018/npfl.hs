@@ -20,7 +20,7 @@ import Text.Cassius
 import Data.Semigroup
 import Data.Semigroup.Numbered
 import Data.List (transpose, inits, partition)
-import Control.Arrow ((>>>), second)
+import Control.Arrow ((>>>), (&&&), second)
 import Control.Monad (guard)
 
 import Data.Manifold.Types
@@ -398,8 +398,40 @@ main = do
       ── do
        emph "Ordinary differential equation"
        "Ordinary differential equations:"
-        <> maths [ [dot 𝐲°𝑡 ⩵ 𝑓°(𝐲°𝑡)]
-                 , [𝐲 ⸪ ℝ -→ ℝ◝𝑛 , 𝑓 ⸪ ℝ◝𝑛 -→ ℝ◝𝑛] ]""
+         ── do
+          maths [ [dot 𝐲°𝑡 ⩵ 𝑓°(𝐲°𝑡)]
+                , [𝐲 ⸪ ℝ -→ ℝ◝𝑛 , 𝑓 ⸪ ℝ◝𝑛 -→ ℝ◝𝑛] ]""
+          maths [[ dot 𝐲°𝑡 ⩵ 𝑓°(𝐲°𝑡) ]]""
+           ── "Picard-Lindelöf theorem: if "<>𝑓$<>" is "<>emph"Lipschitz continuous"
+             <>", then there is a unique solution."
+   
+   let tangentPlot t₀ y y' = plot [ lineSegPlot [ (t₀+μ*c, y+μ*s)
+                                                | μ <- [-ε, ε] ]
+                                        & opac 0.1
+                                  | ε<-(2**)<$>[-3,-2.5..3] ]
+                             <> lineSegPlot [ (t₀-μ*s, y+μ*c)
+                                            | μ <- [-0.01, 0.01] ]
+        where (s,c) = sin&&&cos $ atan y'
+   "Numerical solving of ODEs"
+    ====== do
+    "“Follow the derivatives” (tangents)"
+     & let g t = exp (-t^2)
+           g' t = -2*t * exp (-t^2)
+        in plotServ [ continFnPlot g
+                    , plot $ \(MouseClicks clicks)
+                        -> plot [ tangentPlot t₀ (g t₀) (g' t₀)
+                                | (t₀,_) <- clicks ]
+                    , xAxisLabel "𝑡", yAxisLabel "𝑦", unitAspect
+                    ]
+    "“Follow the derivatives” (tangents)"
+     & let g t = exp (-t^2)
+           g' t = -2*t * exp (-t^2)
+        in plotServ [ continFnPlot g
+                    , plot $ \(MouseClicks clicks)
+                        -> plot [ tangentPlot t₀ y (g' t₀)
+                                | (t₀,y) <- clicks ]
+                    , xAxisLabel "𝑡", yAxisLabel "𝑦", unitAspect
+                    ]
 
 
 style = [cassius|
@@ -525,6 +557,10 @@ plotStat viewCfg pl = imageFromFileSupplier "png" $ \file -> do
                     (Dia.mkSizeSpec $ Just (fromIntegral $ viewCfg^.xResV)
                                Dia.^& Just (fromIntegral $ viewCfg^.yResV))
                     prerendered
+
+opac :: Double -> DynamicPlottable -> DynamicPlottable
+opac = tweakPrerendered . Dia.opacity
+
 
 rk4 :: (AffineSpace y, RealSpace (Diff y), t ~ ℝ)
     => (y -> Diff y) -> Diff t -> (t,y) -> [(t,y)]
