@@ -423,15 +423,25 @@ main = do
                                 | (t₀,_) <- clicks ]
                     , xAxisLabel "𝑡", yAxisLabel "𝑦", unitAspect
                     ]
-    "“Follow the derivatives” (tangents)"
-     & let g t = exp (-t^2)
-           g' t = -2*t * exp (-t^2)
+    (let g t = exp (-t^2)
+         g' t = -2*t * exp (-t^2)
         in plotServ [ continFnPlot g
                     , plot $ \(MouseClicks clicks)
                         -> plot [ tangentPlot t₀ y (g' t₀)
                                 | (t₀,y) <- clicks ]
                     , xAxisLabel "𝑡", yAxisLabel "𝑦", unitAspect
-                    ]
+                    ])
+     $ "“Follow the derivatives” (tangents)"
+       ── do
+       "Euler's method:"
+        <> maths [ [ 𝑡◞(𝑖+1) ⩵ 𝑡◞𝑖 + ℎ ]
+                 , [ 𝑦◞(𝑖+1) ⩵ 𝑦◞𝑖 + ℎ*𝑓°(𝑦◞𝑖) ] ]""
+        ── hide [plaintext|
+            euler :: VectorSpace v => (ℝ -> v) -> ℝ -> v -> [(ℝ,v)]
+            euler f h y₀ = go 0 y₀
+             where go ti yi = (ti, yi) : go (ti+h) (yi ^+^ h*^f yi)
+         |]
+     
 
 
 style = [cassius|
