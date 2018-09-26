@@ -63,13 +63,13 @@ main = do
    items_p ("What is Earth's dimensionality?"======)
     [ ( plotServ
          [ clickThrough
-            [ trajectoryPlot
+            [ trajectoryPlot 2
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (xs, ys)]
                | ((V3 xe ye _, _), (V3 xs ys _, _))
                   <- traject2Body rk4 (earthMass                            , sunMass)
                                       ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
-            , trajectoryPlot
+            , trajectoryPlot 2
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (xs, ys)]
                | ((V3 xe ye _, _), (V3 xs ys _, _))
@@ -446,7 +446,17 @@ main = do
             euler f h y₀ = go 0 y₀
              where go ti yi = (ti, yi) : go (ti+h) (yi ^+^ h*^f yi)
           |] & plotServ
-           [ trajectoryPlot
+           [ trajectoryPlot 2
+               [("Earth", earthRadius), ("Sun", sunRadius)]
+               [ [(xe,ye), (xs, ys)]
+               | ((V3 xe ye _, _), (V3 xs ys _, _))
+                  <- traject2Body euler (earthMass                            , sunMass)
+                                        ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
+           , unitAspect, xInterval (-earthDist, earthDist)
+                       , yInterval (0, earthDist) ]
+       "Euler's method is unstable and can cause energy to grow without bounds!"
+         & plotServ
+           [ trajectoryPlot 10
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (xs, ys)]
                | ((V3 xe ye _, _), (V3 xs ys _, _))
@@ -601,8 +611,8 @@ rk4 f h = go
               k₃ = f $ y .+^ h/2 · k₂
               k₄ = f $ y .+^ h · k₃
 
-trajectoryPlot :: [(String, Distance)] -> [[(ℝ,ℝ)]] -> DynamicPlottable
-trajectoryPlot meta = plotLatest
+trajectoryPlot :: Int -> [(String, Distance)] -> [[(ℝ,ℝ)]] -> DynamicPlottable
+trajectoryPlot speed meta = plotLatest
     . map ( transpose . take 80 >>>
            \chunkCompos -> plotMultiple
              [ (if name/="" then legendName name else id)
@@ -612,7 +622,7 @@ trajectoryPlot meta = plotLatest
                          $ Dia.circle radius ]
              | ((name,radius), chunkCompo) <- zip meta chunkCompos ]
            )
-    . iterate (drop 20)
+    . iterate (drop speed)
 
 type TwoBody = (PhaseSpace, PhaseSpace)
 
@@ -640,7 +650,7 @@ traject2Body solver (me, ms) xv₀ = snd <$>
             -> ( (ve, gravAcc ms $ xs.-.xe)
                , (vs, gravAcc me $ xe.-.xs) )
                )
-          12000
+          120000
           (0, xv₀)
 
 -- | A very rough globe model, representing the continents as circular blobs.
