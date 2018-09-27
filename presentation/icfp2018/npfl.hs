@@ -486,18 +486,33 @@ main = do
    "Solving of ODEs on manifolds"
     ====== do
      eulerCode_vectSpc
-     [plaintext|
-       euler :: PseudoAffine y
-           => (y -> Needle y) -> Needle ℝ -> y -> [(ℝ,y)]
-       euler f h y₀ = go 0 y₀
-        where go ti yi = (ti, yi) : go (ti+h) (yi .+~^ h*^f y)
-      |] & plotServ
+     let eulerCodePseudoAffine = 
+          [plaintext|
+           euler :: PseudoAffine y
+               => (y -> Needle y) -> Needle ℝ -> y -> [(ℝ,y)]
+           euler f h y₀ = go 0 y₀
+            where go ti yi = (ti, yi) : go (ti+h) (yi .+~^ h*^f y)
+          |]
+     eulerCodePseudoAffine
+     eulerCodePseudoAffine
+      & plotServ
            [ trajectoryPlot 10
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (0, 0)]
                | (V3 xe ye _, _)
                   <- traject1Body_ConsE
-                          euler sunMass
+                          euler BrownMotionBroken sunMass
+                             (V3 earthDist 0 0, V3 0 earthSpeed 0) ]
+           , unitAspect, xInterval (-earthDist, earthDist)
+                       , yInterval (0, earthDist) ]
+     eulerCodePseudoAffine
+      & plotServ
+           [ trajectoryPlot 10
+               [("Earth", earthRadius), ("Sun", sunRadius)]
+               [ [(xe,ye), (0, 0)]
+               | (V3 xe ye _, _)
+                  <- traject1Body_ConsE
+                          euler SymplecticWorking sunMass
                              (V3 earthDist 0 0, V3 0 earthSpeed 0) ]
            , unitAspect, xInterval (-earthDist, earthDist)
                        , yInterval (0, earthDist) ]
@@ -690,12 +705,17 @@ traject2Body solver (me, ms) xv₀ = snd <$>
           120000
           (0, xv₀)
 
-traject1Body_ConsE :: ODESolver -> Mass -> PhaseSpace
-                                        -> [PhaseSpace_ConsE]
-traject1Body_ConsE solver ms (x₀,v₀) = snd <$>
+data SymplecticOperability = SymplecticWorking | BrownMotionBroken
+
+traject1Body_ConsE :: ODESolver -> SymplecticOperability
+                        -> Mass -> PhaseSpace -> [PhaseSpace_ConsE]
+traject1Body_ConsE solver okness ms (x₀,v₀) = snd <$>
    solver (\(xe,veDir)
             -> let absv = sqrt $ 2*(energy - epot xe)
-                   accTn:@._ = coEmbed ( gravAcc ms (negateV xe)^/absv :@. embed veDir
+                   accTn:@._ = coEmbed ( gravAcc ms (negateV xe)
+                                         ^/(case okness of
+                                             SymplecticWorking -> absv
+                                             BrownMotionBroken -> 1):@. embed veDir
                                            :: TangentBundle ℝ³ )
                                  :: TangentBundle S²
                in (absv*^embed veDir, accTn)
