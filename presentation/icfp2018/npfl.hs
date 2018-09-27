@@ -409,8 +409,8 @@ main = do
    
    let tangentPlot t₀ y y' = plot [ lineSegPlot [ (t₀+μ*c, y+μ*s)
                                                 | μ <- [-ε, ε] ]
-                                        & opac 0.1
-                                  | ε<-(2**)<$>[-3,-2.5..3] ]
+                                        & opac 0.08
+                                  | ε<-(+0.3).(2**)<$>[-4,-3.5..2] ]
                              <> lineSegPlot [ (t₀-μ*s, y+μ*c)
                                             | μ <- [-0.01, 0.01] ]
         where (s,c) = sin&&&cos $ atan y'
@@ -464,6 +464,11 @@ main = do
                                         ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
            , unitAspect, xInterval (-earthDist, earthDist)
                        , yInterval (0, earthDist) ]
+       "Euler's method is unstable and can cause energy to grow without bounds!"
+        <> do
+          maths [[ 𝐸 ⩵ 𝑈 + 𝑇 ]]""
+          maths [[ 𝐸 ⩵ 𝐺*𝑀*𝑚/norm 𝐱 + 𝑇 ]]""
+          maths [[ 𝐸 ⩵ 𝐺*𝑀*𝑚/norm 𝐱 + 1/2*𝑚*norm 𝐯◝2 ]]""
      
 
 
