@@ -695,7 +695,7 @@ traject1Body_ConsE :: ODESolver -> Mass -> PhaseSpace
 traject1Body_ConsE solver ms (x₀,v₀) = snd <$>
    solver (\(xe,veDir)
             -> let absv = sqrt $ 2*(energy - epot xe)
-                   accTn:@._ = coEmbed ( gravAcc ms (negateV xe) :@. embed veDir
+                   accTn:@._ = coEmbed ( gravAcc ms (negateV xe)^/absv :@. embed veDir
                                            :: TangentBundle ℝ³ )
                                  :: TangentBundle S²
                in (absv*^embed veDir, accTn)
