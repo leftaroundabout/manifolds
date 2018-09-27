@@ -184,7 +184,7 @@ main = do
             (^+^) :: v -> v -> v
             negateV :: v -> v
             zeroV :: v
-          class VectorSpace v where
+          class AdditiveGroup v => VectorSpace v where
             type Scalar v :: *
             (*^) :: Scalar v -> v -> v
          |]
@@ -517,6 +517,35 @@ main = do
            , unitAspect, xInterval (-earthDist, earthDist)
                        , yInterval (0, earthDist) ]
 
+   "Distance metrics"
+    ====== do
+     "Distance between points in "<>ℝ◝𝑛$<>": length of the connecting vector."
+      ── imageFromFile "img/concepts/cartesian-distance.svg"
+      ── maths [[ 𝑑◞(𝑝،𝑞) ⩵ sqrt (δ⁀𝑥◝2 + δ⁀𝑦◝2) ]]""
+       ┃ "Distance between points in a manifold: length of the connecting needles?"
+     [plaintext|
+       class AdditiveGroup (Needle x) => PseudoAffine x where
+         type Needle x :: *
+         (.-~.) :: x -> x -> Needle x
+         (.+~^) :: x -> Needle x -> x
+      |]
+     [plaintext|
+       class VectorSpace v => InnerSpace v where
+         (<.>) :: v -> v -> Scalar v
+      |]
+     [plaintext|
+       class (PseudoAffine x, VectorSpace (Needle x))
+                => Riemannian x where
+         rieMetric :: x -> Metric x
+       type Metric x = Needle x -> Needle x -> Scalar x
+      |]
+     [plaintext|
+       class (PseudoAffine x, VectorSpace (Needle x))
+                => Riemannian x where
+         rieMetric :: x -> Metric x
+       type Metric x = Needle x -> Needle' x
+      |]
+      
 
 style = [cassius|
    body
