@@ -457,7 +457,7 @@ main = do
               > euler (\((xe,ve), (xs,vs))
                           -> ( (ve, gravAcc sunMass $ xs.-.xe)
                              , (vs, gravAcc earthMass $ xe.-.xs) ) )
-         |] & plotServ
+             |] & plotServ
            [ trajectoryPlot 2
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (xs, ys)]
@@ -524,26 +524,71 @@ main = do
       ── maths [[ 𝑑◞(𝑝،𝑞) ⩵ sqrt (δ⁀𝑥◝2 + δ⁀𝑦◝2) ]]""
        ┃ "Distance between points in a manifold: length of the connecting needles?"
      [plaintext|
-       class AdditiveGroup (Needle x) => PseudoAffine x where
-         type Needle x :: *
-         (.-~.) :: x -> x -> Needle x
-         (.+~^) :: x -> Needle x -> x
-      |]
-     [plaintext|
        class VectorSpace v => InnerSpace v where
          (<.>) :: v -> v -> Scalar v
+       
+       magnitude :: InnerSpace v => v -> Scalar v
+       magnitude v = sqrt $ v<.>v
       |]
+     [plaintext|
+       -- | A very rough globe model, representing the continents as circular blobs.
+       earthFn :: S² -> Dia.Colour ℝ
+       earthFn p
+          = case [ colour
+                 |  (    loc   ,  size,    colour          ) <-
+                  [ (  90 ◯    0,  0.3 , Dia.aliceblue      )  -- Arctic
+                  , ( -90 ◯    0,  0.5 , Dia.aliceblue      )  -- Antarctic
+                  , (  48 ◯  -86,  0.6 , Dia.forestgreen    )  -- Asia
+                  , (  50 ◯  -15,  0.3 , Dia.darkgreen      )  -- Europe
+                  , (  19 ◯    0,  0.27, Dia.darkkhaki      )  -- northern Africa
+                  , (  18 ◯  -30,  0.32, Dia.khaki          )  -- Middle East
+                  , ( -13 ◯  -26,  0.27, Dia.forestgreen    )  -- southern Africa
+                  , (  46 ◯  100,  0.5 , Dia.darkolivegreen )  -- North America
+                  , (  12 ◯   83,  0.15, Dia.darkgreen      )  -- Middle America
+                  , (  -9 ◯   57,  0.4 , Dia.darkgreen      )  -- northern South America
+                  , ( -37 ◯   66,  0.2 , Dia.forestgreen    )  -- southern South America
+                  , ( -25 ◯ -133,  0.4 , Dia.orange         )  -- Australia
+                  ]
+                 , magnitudeSq (p.-~.loc) < size^2 ] of
+               (c:_) -> c
+               _     -> Dia.midnightblue
+        where infix 4 ◯
+              lat ◯ lon = S²Polar ((90-lat)*pi/180)
+                                  (  lon   *pi/180)
+      |] & plotServ
+        [ withInteractiveRotation (earthDist,0) earthRadius `id` \iaRotn ->
+                colourPaintPlot `id` (\pHelC
+                   -> let p@(x,y) = pHelC ^-^ (earthDist, 0)
+                          r = magnitude p
+                          re = earthRadius
+                      in guard (r < re)
+                          >> let ϑ = acos $ y/re
+                                 φ = -asin $ x/(sin ϑ * re)
+                             in Just . earthFn . iaRotn $ S²Polar ϑ φ )
+                 <> shapePlot (Dia.lwO 3 . Dia.lc Dia.blue
+                      . Dia.moveTo (Dia.p2 (earthDist,0)) $ Dia.circle earthRadius )
+        , unitAspect
+        ]
      [plaintext|
        class (PseudoAffine x, VectorSpace (Needle x))
                 => Riemannian x where
          rieMetric :: x -> Metric x
+       
        type Metric x = Needle x -> Needle x -> Scalar x
       |]
      [plaintext|
        class (PseudoAffine x, VectorSpace (Needle x))
                 => Riemannian x where
          rieMetric :: x -> Metric x
+       
        type Metric x = Needle x -> Needle' x
+      |]
+     [plaintext|
+       class (PseudoAffine x, VectorSpace (Needle x))
+                => Riemannian x where
+         rieMetric :: x -> Metric x
+       
+       type Metric x = Needle x +> Needle' x
       |]
       
 
