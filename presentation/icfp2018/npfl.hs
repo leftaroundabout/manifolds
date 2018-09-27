@@ -27,6 +27,7 @@ import Control.Monad (guard)
 
 import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
+import Data.Manifold.FibreBundle
 import Data.VectorSpace
 import Data.VectorSpace.Free
 import Math.LinearMap.Category
@@ -478,9 +479,9 @@ main = do
        "Euler's method is unstable and can cause energy to grow without bounds!"
         <> do
           maths [[ 𝐸 ⩵ 𝑈 + 𝑇 ]]""
-          maths [[ 𝐸 ⩵ 𝐺*𝑀*𝑚/norm 𝐱 + 𝑇 ]]""
-          maths [[ 𝐸 ⩵ 𝐺*𝑀*𝑚/norm 𝐱 + 1/2*𝑚*norm 𝐯◝2 ]]""
-          maths [[ 𝐸 ⩵ 𝐺*𝑀*𝑚/norm 𝐱 + 1/2*𝑚*𝑣*norm (hat%$>𝐯)◝2 ]]""
+          maths [[ 𝐸 ⩵ -𝐺*𝑀*𝑚/norm 𝐱 + 𝑇 ]]""
+          maths [[ 𝐸 ⩵ -𝐺*𝑀*𝑚/norm 𝐱 + 1/2*𝑚*norm 𝐯◝2 ]]""
+          maths [[ 𝐸 ⩵ -𝐺*𝑀*𝑚/norm 𝐱 + 1/2*𝑚*𝑣*norm (hat%$>𝐯)◝2 ]]""
      
    "Solving of ODEs on manifolds"
     ====== do
@@ -490,7 +491,16 @@ main = do
            => (y -> Needle y) -> Needle ℝ -> y -> [(ℝ,y)]
        euler f h y₀ = go 0 y₀
         where go ti yi = (ti, yi) : go (ti+h) (yi .+~^ h*^f y)
-      |]
+      |] & plotServ
+           [ trajectoryPlot 10
+               [("Earth", earthRadius), ("Sun", sunRadius)]
+               [ [(xe,ye), (0, 0)]
+               | (V3 xe ye _, _)
+                  <- traject1Body_ConsE
+                          euler sunMass
+                             (V3 earthDist 0 0, V3 0 earthSpeed 0) ]
+           , unitAspect, xInterval (-earthDist, earthDist)
+                       , yInterval (0, earthDist) ]
 
 
 style = [cassius|
@@ -679,6 +689,21 @@ traject2Body solver (me, ms) xv₀ = snd <$>
                )
           120000
           (0, xv₀)
+
+traject1Body_ConsE :: ODESolver -> Mass -> PhaseSpace
+                                        -> [PhaseSpace_ConsE]
+traject1Body_ConsE solver ms (x₀,v₀) = snd <$>
+   solver (\(xe,veDir)
+            -> let absv = sqrt $ 2*(energy - epot xe)
+                   accTn:@._ = coEmbed ( gravAcc ms (negateV xe) :@. embed veDir
+                                           :: TangentBundle ℝ³ )
+                                 :: TangentBundle S²
+               in (absv*^embed veDir, accTn)
+               )
+          120000
+          (0, (x₀, coEmbed v₀))
+ where energy = epot x₀ + 1/2*magnitudeSq v₀
+       epot x = -gravConst*ms/magnitude x
 
 -- | A very rough globe model, representing the continents as circular blobs.
 earthFn :: S² -> Dia.Colour ℝ
