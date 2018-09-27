@@ -414,6 +414,12 @@ main = do
                              <> lineSegPlot [ (t₀-μ*s, y+μ*c)
                                             | μ <- [-0.01, 0.01] ]
         where (s,c) = sin&&&cos $ atan y'
+       eulerCode_vectSpc = [plaintext|
+            euler :: VectorSpace v 
+                => (v -> v) -> ℝ -> v -> [(ℝ,v)]
+            euler f h y₀ = go 0 y₀
+             where go ti yi = (ti, yi) : go (ti+h) (yi ^+^ h*^f yi)
+           |]
    "Numerical solving of ODEs"
     ====== do
     "“Follow the derivatives” (tangents)"
@@ -441,11 +447,16 @@ main = do
        "Euler's method:"
         <> maths [ [ 𝑡◞(𝑖+1) ⩵ 𝑡◞𝑖 + ℎ ]
                  , [ 𝑦◞(𝑖+1) ⩵ 𝑦◞𝑖 + ℎ*𝑓°(𝑦◞𝑖) ] ]""
+        ── eulerCode_vectSpc
+       eulerCode_vectSpc
         ── [plaintext|
-            euler :: VectorSpace v => (ℝ -> v) -> ℝ -> v -> [(ℝ,v)]
-            euler f h y₀ = go 0 y₀
-             where go ti yi = (ti, yi) : go (ti+h) (yi ^+^ h*^f yi)
-          |] & plotServ
+              gravAcc :: Mass -> Diff Pos -> Diff Velo
+              gravAcc mt δx = (gravConst * mt / magnitude δx^3) · δx
+              
+              > euler (\((xe,ve), (xs,vs))
+                          -> ( (ve, gravAcc sunMass $ xs.-.xe)
+                             , (vs, gravAcc earthMass $ xe.-.xs) ) )
+         |] & plotServ
            [ trajectoryPlot 2
                [("Earth", earthRadius), ("Sun", sunRadius)]
                [ [(xe,ye), (xs, ys)]
@@ -453,7 +464,7 @@ main = do
                   <- traject2Body euler (earthMass                            , sunMass)
                                         ((V3 earthDist 0 0, V3 0 earthSpeed 0), zeroV) ]
            , unitAspect, xInterval (-earthDist, earthDist)
-                       , yInterval (0, earthDist) ]
+                         , yInterval (0, earthDist), dynamicAxes ]
        "Euler's method is unstable and can cause energy to grow without bounds!"
          & plotServ
            [ trajectoryPlot 10
@@ -469,7 +480,17 @@ main = do
           maths [[ 𝐸 ⩵ 𝑈 + 𝑇 ]]""
           maths [[ 𝐸 ⩵ 𝐺*𝑀*𝑚/norm 𝐱 + 𝑇 ]]""
           maths [[ 𝐸 ⩵ 𝐺*𝑀*𝑚/norm 𝐱 + 1/2*𝑚*norm 𝐯◝2 ]]""
+          maths [[ 𝐸 ⩵ 𝐺*𝑀*𝑚/norm 𝐱 + 1/2*𝑚*𝑣*norm (hat%$>𝐯)◝2 ]]""
      
+   "Solving of ODEs on manifolds"
+    ====== do
+     eulerCode_vectSpc
+     [plaintext|
+       euler :: PseudoAffine y
+           => (y -> Needle y) -> Needle ℝ -> y -> [(ℝ,y)]
+       euler f h y₀ = go 0 y₀
+        where go ti yi = (ti, yi) : go (ti+h) (yi .+~^ h*^f y)
+      |]
 
 
 style = [cassius|
@@ -567,6 +588,7 @@ type Speed = ℝ -- in m/s
 type Velo = V3 Speed
 type PhaseSpace = (Pos, Velo)
 type Mass = ℝ   -- in kg
+type PhaseSpace_ConsE = (Pos, S²)
 
 type T² = (S¹, S¹)
 
@@ -600,21 +622,21 @@ opac :: Double -> DynamicPlottable -> DynamicPlottable
 opac = tweakPrerendered . Dia.opacity
 
 
-type ODESolver = ∀ y t . (AffineSpace y, RealSpace (Diff y), t ~ ℝ)
-    => (y -> Diff y) -> Diff t -> (t,y) -> [(t,y)]
+type ODESolver = ∀ y t . (PseudoAffine y, RealSpace (Needle y), t ~ ℝ, Interior y ~ y)
+    => (y -> Needle y) -> Needle t -> (t,y) -> [(t,y)]
 
 euler :: ODESolver
 euler f h = go
- where go (t,y) = (t,y) : go (t+h, y .+^ h · f y)
+ where go (t,y) = (t,y) : go (t+h, y .+~^ h · f y)
 
 rk4 :: ODESolver
 rk4 f h = go
  where go (t,y) = (t,y) : go
-            (t+h, y .+^ h/6 · (k₁ ^+^ 2·k₂ ^+^ 2·k₃ ^+^ k₄))
+            (t+h, y .+~^ h/6 · (k₁ ^+^ 2·k₂ ^+^ 2·k₃ ^+^ k₄))
         where k₁ = f y
-              k₂ = f $ y .+^ h/2 · k₁
-              k₃ = f $ y .+^ h/2 · k₂
-              k₄ = f $ y .+^ h · k₃
+              k₂ = f $ y .+~^ h/2 · k₁
+              k₃ = f $ y .+~^ h/2 · k₂
+              k₄ = f $ y .+~^ h · k₃
 
 trajectoryPlot :: Int -> [(String, Distance)] -> [[(ℝ,ℝ)]] -> DynamicPlottable
 trajectoryPlot speed meta = plotLatest
