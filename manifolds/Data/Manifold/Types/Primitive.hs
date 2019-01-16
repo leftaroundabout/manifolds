@@ -78,6 +78,8 @@ import Control.Applicative (Const(..), Alternative(..))
 
 import Control.Lens ((^.))
 
+import Data.Binary
+
 import qualified Prelude
 
 import Control.Category.Constrained.Prelude hiding ((^))
@@ -267,3 +269,18 @@ instance (QC.Arbitrary m, QC.Arbitrary f) => QC.Arbitrary (FibreBundle m f) wher
   shrink (FibreBundle m v) = [ FibreBundle m' v'
                              | m' <- QC.shrink m
                              , v' <- QC.shrink v ]
+
+
+instance Binary (ZeroDim a) where
+  put Origin = return ()
+  get = return Origin
+instance Binary S⁰
+instance Binary S¹
+instance Binary S²
+instance Binary ℝP⁰
+instance Binary ℝP¹
+instance Binary ℝP²
+instance Binary D¹
+instance Binary D²
+instance Binary y => Binary (CD¹ y)
+instance Binary y => Binary (Cℝay y)
