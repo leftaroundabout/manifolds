@@ -1,5 +1,5 @@
 Name:                manifolds-presentation
-Version:             0.5.0.0
+Version:             0.5.0.1
 Category:            Math
 Synopsis:            Coordinate-free hypersurfaces
 Description:         Presentations for the ideas behind the manifolds library
@@ -17,7 +17,7 @@ Source-Repository head
 
 executable icfp2018-npfl_manifolds
   Build-Depends:     base>=4.10 && <4.11
-                     , manifolds==0.5.0.0
+                     , manifolds==0.5.0.1
                      , linearmap-category
                      , vector-space
                      , free-vector-spaces
