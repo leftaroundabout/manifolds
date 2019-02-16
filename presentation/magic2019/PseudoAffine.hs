@@ -72,15 +72,25 @@ main = do
        let vsClass = [plaintext|
               class VectorSpace v where
                 type Scalar v :: *
-                (^+^) :: v -> v -> v
-                (*^) :: Scalar v -> v -> v
+                (⨣) :: v -> v -> v
+                (·) :: Scalar v -> v -> v
              |]
        vsClass
        vsClass──[plaintext|
               instance VectorSpace (ℝ,ℝ) where
                 type Scalar (ℝ,ℝ) = ℝ
-                (x₀,y₀) ^+^ (x₁,y₁) = (x₀+x₁, y₀+y₁)
-                μ *^ (x,y) = (μ*x, μ*y)
+                (x₀,y₀) ⨣ (x₁,y₁) = (x₀+x₁, y₀+y₁)
+                μ · (x,y) = (μ*x, μ*y)
+             |]
+       vsClass
+         ── law[plaintext|(u ⨣ v) ⨣ w ≡ u ⨣ (v ⨣ w)  |]
+         ── law[plaintext|u ⨣ v       ≡ v ⨣ u        |]
+         ── law[plaintext|(λ+μ)·v     ≡ λ·v ⨣ μ·v    |]
+       [plaintext|
+              class VectorSpace (Diff p) => AffineSpace p where
+                type Diff p :: *
+                (.-.) :: p -> p -> Diff p
+                (.+^) :: p -> Diff p -> p
              |]
       
       
