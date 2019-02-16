@@ -64,6 +64,25 @@ main = do
    "Magnetohydrodynamics"
     ====== do
      ""
+   
+   "The idea of a pseudo-affine space"
+    ====== do
+     "Within each chart, the manifold can be described as a vector space."
+      ── do
+       let vsClass = [plaintext|
+              class VectorSpace v where
+                type Scalar v :: *
+                (^+^) :: v -> v -> v
+                (*^) :: Scalar v -> v -> v
+             |]
+       vsClass
+       vsClass──[plaintext|
+              instance VectorSpace (ℝ,ℝ) where
+                type Scalar (ℝ,ℝ) = ℝ
+                (x₀,y₀) ^+^ (x₁,y₁) = (x₀+x₁, y₀+y₁)
+                μ *^ (x,y) = (μ*x, μ*y)
+             |]
+      
       
 
 style = [cassius|
