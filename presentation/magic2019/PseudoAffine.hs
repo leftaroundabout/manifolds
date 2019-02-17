@@ -73,14 +73,14 @@ main = do
               class VectorSpace v where
                 type Scalar v :: *
                 (⨣) :: v -> v -> v
-                (·) :: Scalar v -> v -> v
+                (·^) :: Scalar v -> v -> v
              |]
        vsClass
        vsClass──[plaintext|
               instance VectorSpace (ℝ,ℝ) where
                 type Scalar (ℝ,ℝ) = ℝ
                 (x₀,y₀) ⨣ (x₁,y₁) = (x₀+x₁, y₀+y₁)
-                μ · (x,y) = (μ*x, μ*y)
+                μ ·^ (x,y) = (μ*x, μ*y)
              |]
        vsClass
          ── law[plaintext|(u ⨣ v) ⨣ w ≡ u ⨣ (v ⨣ w)  |]
@@ -92,6 +92,9 @@ main = do
                 (.-.) :: p -> p -> Diff p
                 (.+^) :: p -> Diff p -> p
              |]
+         ── law[plaintext|p .-. p         ≡ 0̂              |]
+         ── law[plaintext|p .+^ (q .-. p) ≡ q              |]
+         ── law[plaintext|p .+^ (v ⨣ w)   ≡ (p .+^ v) .+^ w|]
       
       
 
