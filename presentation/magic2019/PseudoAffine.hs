@@ -86,15 +86,24 @@ main = do
          ── law[plaintext|(u ⨣ v) ⨣ w ≡ u ⨣ (v ⨣ w)  |]
          ── law[plaintext|u ⨣ v       ≡ v ⨣ u        |]
          ── law[plaintext|(λ+μ)·v     ≡ λ·v ⨣ μ·v    |]
-       [plaintext|
+     "Globally, the manifold is not a vector space. But around each point?"
+      ── do
+       let affSpClass = [plaintext|
               class VectorSpace (Diff p) => AffineSpace p where
                 type Diff p :: *
                 (.-.) :: p -> p -> Diff p
                 (.+^) :: p -> Diff p -> p
              |]
+       affSpClass
          ── law[plaintext|p .-. p         ≡ 0̂              |]
          ── law[plaintext|p .+^ (q .-. p) ≡ q              |]
          ── law[plaintext|p .+^ (v ⨣ w)   ≡ (p .+^ v) .+^ w|]
+       affSpClass──[plaintext|
+              instance AffineSpace (ℝ,ℝ) where
+                type Diff (ℝ,ℝ) = (ℝ,ℝ)
+                (x₀,y₀) .-. (x₁,y₁) = (x₀-x₁, y₀-y₁)
+                (x, y)  .+^ (δx,δy) = (x+δx , y+δy )
+             |]
       
       
 
@@ -103,7 +112,7 @@ style = [cassius|
      height: 96vh
      color: #ffe
      background: linear-gradient(#263, #516)
-     font-size: 6vmin
+     font-size: 5vmin
      font-family: "Linux libertine", "Times New Roman"
    .main-title
      font-size: 180%
