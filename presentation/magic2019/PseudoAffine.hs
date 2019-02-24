@@ -115,8 +115,47 @@ main = do
            ──law[plaintext|p .+~^(q .-~.p) ≡ q              |]
            ── do
              law[plaintext|p .+~^(v ⨣ w)   ‡ (p .+~^v) .+^ w|]
-             verb"v ↦ p.+~^v"<>" should be continuous"
+             law[plaintext|v ↦ p.+~^v   should be continuous|]
       
+   "The 1-sphere"
+    ====== do
+     let circCtr = (-1.5, -1.2)
+     plotServ [ let plPts :: ([(ℝ,ℝ)], [(ℝ,ℝ)]) -> DynamicPlottable
+                    plPts ([], p₁s) = plPts ([(1.1,0)], p₁s)
+                    plPts (p₀s, []) = plPts (p₀s, [(0.9,0)])
+                    plPts ((x₀,y₀):_, (x₁,y₁):_) = plotMultiple
+                      [ legendName "𝑆¹" . shapePlot . Dia.moveTo (Dia.p2 circCtr)
+                       . Dia.fcA Dia.transparent $ Dia.circle 1
+                      , legendName (printf "p.-~.q = %.2f" v)
+                         $ lineSegPlot [ case embed (p₀ .+~^ η*^v :: S¹) of
+                                           V2 x y -> circCtr .+^ 1.02*^(x,y)
+                                       | η <- [0,0.05..1] ]
+                          <> shapePlot
+                             (Dia.arrowBetween (Dia.P zeroV) (Dia.p2 (v+1e-3,0)))
+                      , mconcat [ diagramPlot $ Dia.text t
+                                  & Dia.scale 0.15
+                                  & Dia.fc Dia.white
+                                  & Dia.moveTo loc
+                                | (t, loc) <- [ ("q", Dia.p2 circCtr.+^embed p₀^*1.1)
+                                              , ("p", Dia.p2 circCtr.+^embed p₁^*0.9) ] ] ]
+                     where [p₀, p₁] = coEmbed <$> [V2 x₀ y₀, V2 x₁ y₁] :: [S¹]
+                           v = p₁ .-~! p₀
+                in plot $ \(MouseClicks clicks)
+                     -> plPts . partition ((>1) . magnitude) $ (^-^circCtr)<$>clicks
+              , unitAspect, xInterval (-pi, pi), dynamicAxes ]
+      [plaintext|
+        data S¹ = S¹Polar { φ :: ℝ  {- actually, only ⌊-π,π⌈ -} }
+        
+        instance PseudoAffine S¹ where
+          type Needle S¹ = ℝ
+          S¹Polar φ₁ .-~. S¹Polar φ₀
+             | δφ > pi     = δφ - (2*pi)
+             | δφ < (-pi)  = δφ + (2*pi)
+             | otherwise   = pure δφ
+           where δφ = φ₁ - φ₀
+          S¹Polar φ₀ .+~^ δφ  = S¹Polar $ φ'
+           where φ' = (φ₀ + δφ) `mod'` (2*pi)
+       |]
       
 
 style = [cassius|
