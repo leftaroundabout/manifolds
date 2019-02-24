@@ -45,6 +45,7 @@ import Control.Lens hiding (set)
 import Control.Concurrent
 import Data.IORef
 import Text.Printf (printf)
+import GHC.Exts (IsString(fromString))
 
 
 main :: IO ()
@@ -110,9 +111,11 @@ main = do
           law   [plaintext|p .-. p         ≡ 0̂              |]
            ──law[plaintext|p .+^ (q .-. p) ≡ q              |]
            ──law[plaintext|p .+^ (v ⨣ w)   ≡ (p .+^ v) .+^ w|]
-          law   [plaintext|p .-. p         ≡ 0̂              |]
-           ──law[plaintext|p .+^ (q .-. p) ≡ q              |]
-           ──law[plaintext|                                 |]
+          law   [plaintext|p .-~. p        ≡ 0̂              |]
+           ──law[plaintext|p .+~^(q .-~.p) ≡ q              |]
+           ── do
+             law[plaintext|p .+~^(v ⨣ w)   ‡ (p .+~^v) .+^ w|]
+             verb"v ↦ p.+~^v"<>" should be continuous"
       
       
 
@@ -204,6 +207,8 @@ hide' f x = do
     "still-hidden"#%x
     "now-visible"#%f x
 
+verb :: String -> Presentation
+verb s = "verb" #% fromString s
 
 type Distance = ℝ  -- in m
 type Pos = V3 Distance
