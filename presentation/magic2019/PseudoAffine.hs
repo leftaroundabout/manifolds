@@ -78,10 +78,10 @@ main = do
              |]
        vsClass
        vsClass──[plaintext|
-              instance VectorSpace (ℝ,ℝ) where
-                type Scalar (ℝ,ℝ) = ℝ
-                (x₀,y₀) ⨣ (x₁,y₁) = (x₀+x₁, y₀+y₁)
-                μ ·^ (x,y) = (μ*x, μ*y)
+              instance VectorSpace (ℝ,ℝ,ℝ) where
+                type Scalar (ℝ,ℝ,ℝ) = ℝ
+                (x₀,y₀,z₀) ⨣ (x₁,y₁,z₁) = (x₀+x₁, y₀+y₁, z₀+z₁)
+                μ ·^ (x,y,z) = (μ*x, μ*y, μ*z)
              |]
        vsClass
          ── law[plaintext|(u ⨣ v) ⨣ w ≡ u ⨣ (v ⨣ w)  |]
