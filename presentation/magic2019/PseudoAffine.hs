@@ -279,11 +279,20 @@ main = do
      let sphereCtr = V3 (-1.5) 0 (-1.2)
          viewAngle = 0.2
          wiremeshResolution = 9
-     plotServ [ let viewProjection (V3 x y z)
-                      = (x, sin viewAngle * y + cos viewAngle * z)
-                    sphereProject :: S² -> (ℝ,ℝ)
-                    sphereProject p = viewProjection $ sphereCtr .+^ embed p
-                    plPts :: S² -> S² -> DynamicPlottable
+         viewProjection (V3 x y z)
+                   = (x, sin viewAngle * y + cos viewAngle * z)
+         viewCoProjection (x, y)
+                   = V3 x
+                        (- sin viewAngle * y + cos viewAngle * z)
+                        (  cos viewAngle * y + sin viewAngle * z)
+          where r²xy = x^2 + y^2
+                z | r²xy   < 1  = sqrt $ 1-r²xy
+                  | otherwise   = 0
+         sphereProject :: S² -> (ℝ,ℝ)
+         sphereProject p = viewProjection $ sphereCtr .+^ embed p
+         sphereCoProject :: (ℝ,ℝ) -> S²
+         sphereCoProject p = coEmbed $ viewCoProjection p .-. sphereCtr
+     plotServ [ let plPts :: S² -> S² -> DynamicPlottable
                     plPts p₀ p₁ = plotMultiple
                       [ legendName "𝑆²" $ plot
                          [ tweakPrerendered (Dia.opacity 0.4) $ lineSegPlot
@@ -346,49 +355,36 @@ main = do
                  
                  S²Polar ϑ₁ δφ = coEmbed $ V3 qx qy qz
        |]
-     plotServ [ let plPts :: S¹ -> DynamicPlottable
+     plotServ [ let plPts :: S² -> DynamicPlottable
                     plPts p = plotMultiple
-                      [ legendName "𝑆¹" . shapePlot . Dia.moveTo (p2 circCtr)
+                      [ legendName "𝑆²" . shapePlot
+                       . Dia.moveTo (p2 $ viewProjection sphereCtr)
                        . Dia.fcA Dia.transparent $ Dia.circle 1
                       , legendName "q.-~.p"
                        . shapePlot $ mconcat
-                          [ (Dia.text (printf "%.1f" δ)
-                                  & Dia.scale (importance / 15)
-                                  & Dia.moveTo loc'')
-                             <> Dia.fromVertices [loc, loc']
-                                  & Dia.opacity (1 / (1 + δ^2/2))
-                          | δ <- [-3, -2.8 .. 3]
-                          , let importance = cos (δ*pi)^4 + 0.5
-                                q = p.+~^δ :: S¹
-                                [loc,loc',loc'']
-                                  = [ p2 circCtr.+^embed q
-                                       ^*(1 - (-1)^^(round $ δ*5)*roff)
-                                    | roff <- [0, (importance+0.5)/25, importance/8] ]
+                          [ Dia.circle 0.01
+                               & Dia.moveTo (p2 loc)
+                                  & Dia.opacity (1 / (1 + (δx^2+δy^2)^2))
+                          | δx <- [-3, -2.8 .. 3]
+                          , δy <- [-3, -2.8 .. 3]
+                          , let importance = cos (δx*pi)^4 * cos (δx*pi)^4 + 0.5
+                                q = p.+~^V2 δx δy :: S²
+                                V3 _ y _ = embed q :: ℝ³
+                                loc = sphereProject q
+                          , y > 0
                           ]
                       , mconcat [ diagramPlot $ Dia.text t
                                   & Dia.scale 0.15
                                   & Dia.fc Dia.white
                                   & Dia.moveTo loc
-                                | (t, loc) <- [ ("p", p2 circCtr.+^embed p^*1.12) ] ] ]
+                                | (t, loc) <- [ ("p", Dia.p2 $ sphereProject p) ] ]
+                      ]
                 in mouseInteractive
-                       (\ev -> const . coEmbed . (.-.p2 circCtr) . p2
+                       (\ev -> const . sphereCoProject
                                    $ ev^.releaseLocation)
-                       (S¹Polar 0) plPts
+                       (S²Polar (pi/2) 0) plPts
               , unitAspect, xInterval (-pi, 1) ]
-      [plaintext|
-        data S² = {- The abstract 2-sphere -}
-        
-        instance PseudoAffine S¹ where
-          type Needle S² = ℝ²
-          p .-~. q = {- rotate the origin to
-                       p and read off the
-                       position of q. Use
-                       its azimuth as the heading,
-                       and co-latitude as distance. -}
-          p .+~^ (δx,δy)  = {- set q up at the azimuth δ,
-                              then rotate circle so the
-                              origin moves to p. -}
-       |]
+        $ "lightbg"#%imageFromFile "img/constructions/sphericoords-needles.svg"
       
 
 style = [cassius|
@@ -435,6 +431,8 @@ style = [cassius|
      font-size: 86%
      background-color: #227
      font-family: "Ubuntu Mono", "Droid Sans mono", "Courier New"
+   .lightbg img
+     background-color: rgba(255,255,255,0.1)
    .still-hidden
      visibility: hidden
    pre
