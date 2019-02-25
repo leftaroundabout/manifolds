@@ -144,7 +144,6 @@ main = do
                               . const . coEmbed . (.-.p2 circCtr) . p2
                                    $ ev^.releaseLocation)
                        (S¹Polar 0, S¹Polar 0) plPts
-                     -- -> plPts . partition ((>1) . magnitude) $ (^-^circCtr)<$>clicks
               , unitAspect, xInterval (-pi, pi), dynamicAxes ]
       [plaintext|
         data S¹ = S¹Polar { φ :: ℝ  {- actually, only ⌊-π,π⌈ -} }
