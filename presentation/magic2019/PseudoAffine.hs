@@ -65,7 +65,7 @@ main = do
    
    "Magnetohydrodynamics"
     ====== do
-     ""
+     "heightlimited"#%mediaFromFile "media/MHD-example.webm"
    
    "The idea of a pseudo-affine space"
     ====== do
@@ -432,7 +432,9 @@ style = [cassius|
      background-color: #227
      font-family: "Ubuntu Mono", "Droid Sans mono", "Courier New"
    .lightbg img
-     background-color: rgba(255,255,255,0.1)
+     background-color: rgba(255,255,255,1)
+   .heightlimited video
+     max-height: 80vh
    .still-hidden
      visibility: hidden
    pre
