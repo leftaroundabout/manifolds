@@ -22,7 +22,7 @@ import Text.Cassius
 import Data.Semigroup
 import Data.Semigroup.Numbered
 import Data.List (transpose, inits, partition)
-import Control.Arrow ((>>>), (&&&), second)
+import Control.Arrow ((>>>), (&&&), first, second)
 import Control.Monad (guard)
 
 import Data.Manifold.Types
@@ -39,6 +39,7 @@ import Math.Rotations.Class (Rotatable, AxisSpace, rotateAbout, zAxis)
 import Graphics.Dynamic.Plot.R2
 import qualified Diagrams.Prelude as Dia
 import qualified Diagrams.Backend.Cairo as Dia
+import Diagrams.Prelude (p2)
 
 import System.Environment
 import Control.Lens hiding (set)
@@ -120,28 +121,30 @@ main = do
    "The 1-sphere"
     ====== do
      let circCtr = (-1.5, -1.2)
-     plotServ [ let plPts :: ([(ℝ,ℝ)], [(ℝ,ℝ)]) -> DynamicPlottable
-                    plPts ([], p₁s) = plPts ([(1.1,0)], p₁s)
-                    plPts (p₀s, []) = plPts (p₀s, [(0.9,0)])
-                    plPts ((x₀,y₀):_, (x₁,y₁):_) = plotMultiple
-                      [ legendName "𝑆¹" . shapePlot . Dia.moveTo (Dia.p2 circCtr)
+     plotServ [ let plPts :: (S¹, S¹) -> DynamicPlottable
+                    plPts (p,q) = plotMultiple
+                      [ legendName "𝑆¹" . shapePlot . Dia.moveTo (p2 circCtr)
                        . Dia.fcA Dia.transparent $ Dia.circle 1
                       , legendName (printf "p.-~.q = %.2f" v)
-                         $ lineSegPlot [ case embed (p₀ .+~^ η*^v :: S¹) of
+                         $ lineSegPlot [ case embed (q .+~^ η*^v :: S¹) of
                                            V2 x y -> circCtr .+^ 1.02*^(x,y)
                                        | η <- [0,0.05..1] ]
                           <> shapePlot
-                             (Dia.arrowBetween (Dia.P zeroV) (Dia.p2 (v+1e-3,0)))
+                             (Dia.arrowBetween (Dia.P zeroV) (p2 (v+1e-3,0)))
                       , mconcat [ diagramPlot $ Dia.text t
                                   & Dia.scale 0.15
                                   & Dia.fc Dia.white
                                   & Dia.moveTo loc
-                                | (t, loc) <- [ ("q", Dia.p2 circCtr.+^embed p₀^*1.1)
-                                              , ("p", Dia.p2 circCtr.+^embed p₁^*0.9) ] ] ]
-                     where [p₀, p₁] = coEmbed <$> [V2 x₀ y₀, V2 x₁ y₁] :: [S¹]
-                           v = p₁ .-~! p₀
-                in plot $ \(MouseClicks clicks)
-                     -> plPts . partition ((>1) . magnitude) $ (^-^circCtr)<$>clicks
+                                | (t, loc) <- [ ("q", p2 circCtr.+^embed q^*0.9)
+                                              , ("p", p2 circCtr.+^embed p^*1.1) ] ] ]
+                     where v = p .-~! q
+                in mouseInteractive
+                       (\ev -> (if magnitude (p2 circCtr .-. p2 (ev^.clickLocation)) > 1
+                                 then first else second)
+                              . const . coEmbed . (.-.p2 circCtr) . p2
+                                   $ ev^.releaseLocation)
+                       (S¹Polar 0, S¹Polar 0) plPts
+                     -- -> plPts . partition ((>1) . magnitude) $ (^-^circCtr)<$>clicks
               , unitAspect, xInterval (-pi, pi), dynamicAxes ]
       [plaintext|
         data S¹ = S¹Polar { φ :: ℝ  {- actually, only ⌊-π,π⌈ -} }
@@ -311,7 +314,7 @@ trajectoryPlot speed meta = plotLatest
            \chunkCompos -> plotMultiple
              [ (if name/="" then legendName name else id)
               $ plot [ lineSegPlot chunkCompo
-                     , shapePlot . Dia.moveTo (Dia.p2 $ last chunkCompo)
+                     , shapePlot . Dia.moveTo (p2 $ last chunkCompo)
                              . Dia.opacity 0.6
                          $ Dia.circle radius ]
              | ((name,radius), chunkCompo) <- zip meta chunkCompos ]
