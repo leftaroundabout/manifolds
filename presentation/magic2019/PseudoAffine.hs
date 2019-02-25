@@ -254,6 +254,141 @@ main = do
           (x₁,y₁) .-~. (x₀,y₀) = (x₁.-~.x₀, y₁.-~.y₀)
           (x₁,y₁) .+~^ (x₀,y₀) = (x₁.+~^x₀, y₁.+~^y₀)
        |]
+   
+   "The 2-sphere"
+    ====== do
+     "Stiefel manifold representation"
+      ── [plaintext|
+           data S² = S²Stiefel
+                      { x,y,z :: ℝ {- subject to x² + y² + z² = 1 -} } |]
+      ── [plaintext|
+        instance PseudoAffine S² where
+          type Needle S² = ℝ³
+          S²Stiefel x₁ y₁ z₁ .-~. S²Stiefel x₀ y₀ z₀
+             = (x₁,y₁,z₁) .-. (x₀,y₀,z₀)
+          S²Stiefel x₀ y₀ z₀ .+~^ v
+             = S²Stiefel (x₁/r) (y₁/r) (z₁/r)
+           where (x₁,y₁,z₁) = (x₀,y₀,z₀) .+^ v
+                 r = sqrt $ x₁^2 + y₁^2 + z₁^2
+            |]
+     "Polar representation"
+      ── [plaintext|
+           data S² = S²Polar
+                      { ϑ :: ℝ {- actually, only ⌊0,π⌈  -}
+                      , φ :: ℝ {- actually, only ⌊-π,π⌈ -} } |]
+     let sphereCtr = V3 (-1.5) 0 (-1.2)
+         viewAngle = 0.2
+         wiremeshResolution = 9
+     plotServ [ let viewProjection (V3 x y z)
+                      = (x, sin viewAngle * y + cos viewAngle * z)
+                    sphereProject :: S² -> (ℝ,ℝ)
+                    sphereProject p = viewProjection $ sphereCtr .+^ embed p
+                    plPts :: S² -> S² -> DynamicPlottable
+                    plPts p₀ p₁ = plotMultiple
+                      [ legendName "𝑆²" $ plot
+                         [ tweakPrerendered (Dia.opacity 0.4) $ lineSegPlot
+                            [ sphereProject ((S²Polar 0 0).+~^disp)
+                            | disp <- (orig.+^).(dir₁^*)
+                                <$>[-wiremeshResolution..wiremeshResolution]
+                            , magnitude disp < pi ]
+                         | [dir₀, dir₁] <- map(^*(pi/(sqrt 2*wiremeshResolution)))
+                                             <$>[ [V2 1 1, V2 1 (-1)]
+                                                , [V2 (-1) 1, V2 1 1] ]
+                         , orig <- (dir₀^*)<$>[-wiremeshResolution..wiremeshResolution] ]
+                      , legendName (printf "p.-~.q = (%.1f,%.1f)" (v^._x) (v^._y))
+                         $ lineSegPlot [ viewProjection
+                                          $ sphereCtr .+^ embed (p₀ .+~^ η*^v :: S²)
+                                       | η <- [0,0.05..1] ]
+                          <> shapePlot
+                             (Dia.arrowBetween (Dia.P zeroV) (Dia.P v))
+                      , mconcat [ diagramPlot $ Dia.text t
+                                  & Dia.scale 0.15
+                                  & Dia.fc Dia.white
+                                  & Dia.moveTo loc
+                                | (t, loc) <- [ ("q", Dia.p2 $ sphereProject p₀)
+                                              , ("p", Dia.p2 $ sphereProject p₁) ] ] ]
+                     where v = p₁ .-~! p₀
+                in plotLatest
+                     [ plPts (S²Polar 0 0.+~^V2 x₀ y₀)
+                             (S²Polar 0 0.+~^V2 x₁ y₁)
+                     | [x₀,y₀,x₁,y₁] <- tail
+                          $ foldr (zipWith (:) . enumFromThen 0) (repeat [])
+                                         [0.02, 1/17, -pi/39, 0.01] ]
+              , unitAspect, xInterval (-pi, pi), dynamicAxes ] $
+       [plaintext|
+        instance PseudoAffine S² where
+          type Needle S² = ℝ²
+          S²Polar ϑ₁ φ₁ .-~. S²Polar ϑ₀ φ₀ = d *^ embed(S¹Polar γc)
+           where V3 qx qy qz = embed $ S²Polar ϑ₁ (φ₁-φ₀)
+                 
+                 sϑ₀ = sin ϑ₀; cϑ₀ = cos ϑ₀
+                 (bx,bz) = ( cϑ₀ * qx - sϑ₀ * qz
+                           , sϑ₀ * qx + cϑ₀ * qz )
+                 by      = qy
+                 
+                 S²Polar d γ = coEmbed $ V3 bx by bz
+                 
+                 γc | ϑ₀ < pi/2   = γ + φ₀
+                    | otherwise   = γ - φ₀
+          S²Polar ϑ₀ φ₀ .+~^ 𝐯 = S²Polar ϑ₁ φ₁
+           where S¹Polar γc = coEmbed 𝐯
+                 γ | ϑ₀ < pi/2   = γc - φ₀
+                   | otherwise   = γc + φ₀
+                 d = magnitude 𝐯
+                 S¹Polar φ₁ = S¹Polar φ₀ .+~^ δφ
+                 
+                 V3 bx by bz = embed $ S²Polar d γ
+                 
+                 sϑ₀ = sin ϑ₀; cϑ₀ = cos ϑ₀
+                 (qx,qz) = ( cϑ₀ * bx + sϑ₀ * bz
+                           ,-sϑ₀ * bx + cϑ₀ * bz )
+                 qy      = by
+                 
+                 S²Polar ϑ₁ δφ = coEmbed $ V3 qx qy qz
+       |]
+     plotServ [ let plPts :: S¹ -> DynamicPlottable
+                    plPts p = plotMultiple
+                      [ legendName "𝑆¹" . shapePlot . Dia.moveTo (p2 circCtr)
+                       . Dia.fcA Dia.transparent $ Dia.circle 1
+                      , legendName "q.-~.p"
+                       . shapePlot $ mconcat
+                          [ (Dia.text (printf "%.1f" δ)
+                                  & Dia.scale (importance / 15)
+                                  & Dia.moveTo loc'')
+                             <> Dia.fromVertices [loc, loc']
+                                  & Dia.opacity (1 / (1 + δ^2/2))
+                          | δ <- [-3, -2.8 .. 3]
+                          , let importance = cos (δ*pi)^4 + 0.5
+                                q = p.+~^δ :: S¹
+                                [loc,loc',loc'']
+                                  = [ p2 circCtr.+^embed q
+                                       ^*(1 - (-1)^^(round $ δ*5)*roff)
+                                    | roff <- [0, (importance+0.5)/25, importance/8] ]
+                          ]
+                      , mconcat [ diagramPlot $ Dia.text t
+                                  & Dia.scale 0.15
+                                  & Dia.fc Dia.white
+                                  & Dia.moveTo loc
+                                | (t, loc) <- [ ("p", p2 circCtr.+^embed p^*1.12) ] ] ]
+                in mouseInteractive
+                       (\ev -> const . coEmbed . (.-.p2 circCtr) . p2
+                                   $ ev^.releaseLocation)
+                       (S¹Polar 0) plPts
+              , unitAspect, xInterval (-pi, 1) ]
+      [plaintext|
+        data S² = {- The abstract 2-sphere -}
+        
+        instance PseudoAffine S¹ where
+          type Needle S² = ℝ²
+          p .-~. q = {- rotate the origin to
+                       p and read off the
+                       position of q. Use
+                       its azimuth as the heading,
+                       and co-latitude as distance. -}
+          p .+~^ (δx,δy)  = {- set q up at the azimuth δ,
+                              then rotate circle so the
+                              origin moves to p. -}
+       |]
       
 
 style = [cassius|
