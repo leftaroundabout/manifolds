@@ -125,8 +125,8 @@ main = do
                     plPts (p,q) = plotMultiple
                       [ legendName "𝑆¹" . shapePlot . Dia.moveTo (p2 circCtr)
                        . Dia.fcA Dia.transparent $ Dia.circle 1
-                      , legendName (printf "p.-~.q = %.2f" v)
-                         $ lineSegPlot [ case embed (q .+~^ η*^v :: S¹) of
+                      , legendName (printf "q.-~.p = %.2f" v)
+                         $ lineSegPlot [ case embed (p .+~^ η*^v :: S¹) of
                                            V2 x y -> circCtr .+^ 1.02*^(x,y)
                                        | η <- [0,0.05..1] ]
                           <> shapePlot
@@ -135,11 +135,11 @@ main = do
                                   & Dia.scale 0.15
                                   & Dia.fc Dia.white
                                   & Dia.moveTo loc
-                                | (t, loc) <- [ ("q", p2 circCtr.+^embed q^*0.9)
-                                              , ("p", p2 circCtr.+^embed p^*1.1) ] ] ]
-                     where v = p .-~! q
+                                | (t, loc) <- [ ("q", p2 circCtr.+^embed q^*1.12)
+                                              , ("p", p2 circCtr.+^embed p^*0.88) ] ] ]
+                     where v = q .-~! p
                 in mouseInteractive
-                       (\ev -> (if magnitude (p2 circCtr .-. p2 (ev^.clickLocation)) > 1
+                       (\ev -> (if magnitude (p2 circCtr .-. p2 (ev^.clickLocation)) < 1
                                  then first else second)
                               . const . coEmbed . (.-.p2 circCtr) . p2
                                    $ ev^.releaseLocation)
@@ -157,6 +157,48 @@ main = do
            where δφ = φ₁ - φ₀
           S¹Polar φ₀ .+~^ δφ  = S¹Polar $ φ'
            where φ' = (φ₀ + δφ) `mod'` (2*pi)
+       |]
+     plotServ [ let plPts :: S¹ -> DynamicPlottable
+                    plPts p = plotMultiple
+                      [ legendName "𝑆¹" . shapePlot . Dia.moveTo (p2 circCtr)
+                       . Dia.fcA Dia.transparent $ Dia.circle 1
+                      , legendName "q.-~.p"
+                       . shapePlot $ mconcat
+                          [ (Dia.text (printf "%.1f" δ)
+                                  & Dia.scale (importance / 15)
+                                  & Dia.moveTo loc'')
+                             <> Dia.fromVertices [loc, loc']
+                                  & Dia.opacity (1 / (1 + δ^2/2))
+                          | δ <- [-3, -2.8 .. 3]
+                          , let importance = cos (δ*pi)^4 + 0.5
+                                q = p.+~^δ :: S¹
+                                [loc,loc',loc'']
+                                  = [ p2 circCtr.+^embed q
+                                       ^*(1 - (-1)^^(round $ δ*5)*roff)
+                                    | roff <- [0, (importance+0.5)/25, importance/8] ]
+                          ]
+                      , mconcat [ diagramPlot $ Dia.text t
+                                  & Dia.scale 0.15
+                                  & Dia.fc Dia.white
+                                  & Dia.moveTo loc
+                                | (t, loc) <- [ ("p", p2 circCtr.+^embed p^*1.12) ] ] ]
+                in mouseInteractive
+                       (\ev -> const . coEmbed . (.-.p2 circCtr) . p2
+                                   $ ev^.releaseLocation)
+                       (S¹Polar 0) plPts
+              , unitAspect, xInterval (-pi, 1) ]
+      [plaintext|
+        data S¹ = {- The abstract circle -}
+        
+        instance PseudoAffine S¹ where
+          type Needle S¹ = ℝ
+          p .-~. q = {- rotate the origin to
+                       p and read off the
+                       position of q. Use
+                       its azimuth as the distance. -}
+          p .+~^ δ  = {- set q up at the azimuth δ,
+                        then rotate circle so the
+                        origin moves to p. -}
        |]
       
 
