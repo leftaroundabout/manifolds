@@ -200,6 +200,60 @@ main = do
                         then rotate circle so the
                         origin moves to p. -}
        |]
+   
+   "The 2-torus"
+    ====== do
+     let torusCtr = V3 (-1.5) 0 (-1.2)
+         viewAngle = 0.2
+         wiremeshResolution = 9
+     plotServ [ let embedding (S¹Polar α, S¹Polar β)
+                      = let thickness = 1/4
+                            r = 1 + cos β*thickness
+                        in V3 (r*cos α) (r*sin α) (sin β*thickness)
+                    viewProjection (V3 x y z)
+                      = (x, sin viewAngle * y + cos viewAngle * z)
+                    torusProject p = viewProjection $ torusCtr .+^ embedding p
+                    plPts :: T² -> T² -> DynamicPlottable
+                    plPts p₀ p₁ = plotMultiple
+                      [ legendName "𝑇²" $ plot
+                         [ tweakPrerendered (Dia.opacity 0.3) $ lineSegPlot
+                            [ torusProject ((S¹Polar 0,S¹Polar 0).+~^disp)
+                            | disp <- (orig.+^).(dir₁^*)
+                                <$>[-wiremeshResolution..wiremeshResolution] ]
+                         | [dir₀, dir₁] <- map(^*(pi/wiremeshResolution))
+                                             <$>[ [(1,0), (0,1)]
+                                                , [(0,1), (1,0)] ]
+                         , orig <- (dir₀^*)<$>[-wiremeshResolution..wiremeshResolution] ]
+                      , legendName (printf "p.-~.q = (%.1f,%.1f)" (fst v) (snd v))
+                         $ (lineSegPlot [ viewProjection
+                                          $ torusCtr .+^ embedding (p₀ .+~^ η*^v)
+                                       | η <- [0,0.05..1] ]
+                             & tweakPrerendered (Dia.lwO 3))
+                          <> shapePlot
+                             (Dia.arrowBetween (Dia.P zeroV) (Dia.p2 v))
+                      , mconcat [ diagramPlot $ Dia.text t
+                                  & Dia.scale 0.15
+                                  & Dia.fc Dia.white
+                                  & Dia.moveTo loc
+                                | (t, loc) <- [ ("q", Dia.p2 $ torusProject p₀)
+                                              , ("p", Dia.p2 $ torusProject p₁) ] ] ]
+                     where v = p₁ .-~! p₀
+                in plotLatest
+                     [ plPts (S¹Polar 0.+~^x₀, S¹Polar 0.+~^y₀)
+                             (S¹Polar 0.+~^x₁, S¹Polar 0.+~^y₁)
+                     | [x₀,y₀,x₁,y₁] <- tail
+                          $ foldr (zipWith (:) . enumFromThen 0) (repeat [])
+                                         [0.02, 1/17, -pi/39, 0.01] ]
+              , unitAspect, xInterval (-pi, pi), dynamicAxes ] $
+      "... or "<>emph"any"<>" cartesian product space:"
+       <>maths[[ 𝑇◝2 ⩵ 𝑆◝1 × 𝑆◝1 ]]""
+        <>
+       [plaintext|
+        instance (PseudoAffine x, PseudoAffine y) => PseudoAffine (x,y) where
+          type Needle (x,y) = (Needle x, Needle y)
+          (x₁,y₁) .-~. (x₀,y₀) = (x₁.-~.x₀, y₁.-~.y₀)
+          (x₁,y₁) .+~^ (x₀,y₀) = (x₁.+~^x₀, y₁.+~^y₀)
+       |]
       
 
 style = [cassius|
