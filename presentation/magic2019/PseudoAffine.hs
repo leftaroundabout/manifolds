@@ -21,7 +21,7 @@ import Text.Cassius
 
 import Data.Semigroup
 import Data.Semigroup.Numbered
-import Data.List (transpose, inits, partition)
+import Data.List (transpose, inits, tails, partition)
 import Control.Arrow ((>>>), (&&&), first, second)
 import Control.Monad (guard)
 
@@ -30,7 +30,7 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.FibreBundle
 import Data.VectorSpace
 import Data.VectorSpace.Free
-import Math.LinearMap.Category
+import Math.LinearMap.Category hiding ((⊗))
 import Math.Manifold.Embedding.Simple.Class
 import Linear.V2
 import Linear.V3
@@ -394,19 +394,32 @@ main = do
               , unitAspect, xInterval (-pi, 1) ]
         $ "invimg"#%imageFromFile "img/constructions/sphericoords-needles.svg"
       
-   "What is this good for?"
+   "What is all of this good for?"
     ====== do
-     items
-      [ verb"Needle m"<>" is isomorphic to the tangent space at any point in "<>verb"m"<>"."
-      , "Suggestive: approximate the tangent bundle as a pairing of points with needles."
-         ──[plaintext|
-             data FibreBundle b f = FibreBundle
-                   { baseSpace :: b
-                   , fibreSpace :: f
-                   }
-             type TangentBundle m = FibreBundle m (Needle m)
+    "(In the context of differential equations)"
+     ──"If "<>verb"Needle m"<>" is isomorphic to the tangent space at any point in "<>verb"m"<>"..."
+     ──do "Suggestive: approximate the tangent bundle as a pairing of points with needles."
+           ──[plaintext|
+              data FibreBundle b f = FibreBundle { baseSpace :: b
+                                                 , fibreSpace :: f }
+              type TangentBundle m = FibreBundle m (Needle m)
            |]
-      ]
+          "Differentiable functions from space "<>𝑋$<>" to space "<>𝑌$<>" are essentially"
+           <>" functions on "<>𝑋$<>" that yield not just a value in "<>𝑌$<>", but also a "
+           <>emph"local linearisation:"
+           ──[plaintext|
+              type DiffableFn x y
+                     = x -> (y, Needle x+>Needle y)
+           |]
+   
+   "Types of linear mappings"
+    ====== do
+     "A linear mapping from "<>𝑉$<>" to "<>𝑊$<>" is:"
+      ──
+      items_p
+       [ striking$ "A matrix with dimensions "<>("dim"<>𝑉×"dim"<>𝑊)$<>"."
+       , "A function from "<>𝑉$<>" to "<>𝑊$<>" that is linear."
+       , "An element of "<>(𝑉◝"*"⊗𝑊)$<>"." ]
 
 style = [cassius|
    body
@@ -462,7 +475,7 @@ style = [cassius|
    .still-hidden
      visibility: hidden
    .strikedOut
-     opacity: 50%
+     opacity: 0.4
      text-decoration: line-through
    pre
      text-align: left
@@ -483,11 +496,10 @@ items :: [Presentation] -> Presentation
 items [] = " "
 items bs = "items-list" #% foldr1 (──) (("list-item"#%)<$>bs)
 
-items_p :: (Presentation -> Presentation)
-          -> [(Presentation -> Presentation, Presentation)] -> Presentation
-items_p f its = mapM_ (uncurry($))
-                $ zip (fmap f <$> id:map fst its)
-                      (map (items . map snd) $ inits its)
+items_p :: [Presentation] -> Presentation
+items_p its = sequence_
+  [ items $ v ++ map hide h
+  | (v,h) <- tail $ zip (inits its) (tails its) ]
 
 emph :: Presentation -> Presentation
 emph = ("emph"#%)
