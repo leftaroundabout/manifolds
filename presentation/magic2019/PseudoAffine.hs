@@ -71,6 +71,7 @@ main = do
     ====== do
      "Within each chart, the manifold can be described as a vector space."
       ── do
+       -- {-# WARNING "items_p" #-}
        let vsClass = [plaintext|
               class VectorSpace v where
                 type Scalar v :: *
@@ -124,7 +125,11 @@ main = do
      plotServ [ let plPts :: (S¹, S¹) -> DynamicPlottable
                     plPts (p,q) = plotMultiple
                       [ legendName "𝑆¹" . shapePlot . Dia.moveTo (p2 circCtr)
-                       . Dia.fcA Dia.transparent $ Dia.circle 1
+                       . Dia.fcA Dia.transparent
+                          $ Dia.circle 1 <> mconcat
+                              [ Dia.fromVertices [p2 t, p2 $ t^*0.98]
+                              | φ <- (pi/180*)<$>[-180, -150 .. 150] 
+                              , let t = (cos φ, sin φ) ]
                       , legendName (printf "q.-~.p = %.2f" v)
                          $ lineSegPlot [ case embed (p .+~^ η*^v :: S¹) of
                                            V2 x y -> circCtr .+^ 1.02*^(x,y)
@@ -135,8 +140,8 @@ main = do
                                   & Dia.scale 0.15
                                   & Dia.fc Dia.white
                                   & Dia.moveTo loc
-                                | (t, loc) <- [ ("q", p2 circCtr.+^embed q^*1.12)
-                                              , ("p", p2 circCtr.+^embed p^*0.88) ] ] ]
+                                | (t, loc) <- [ ("q", p2 circCtr.+^embed q^*1.13)
+                                              , ("p", p2 circCtr.+^embed p^*0.87) ] ] ]
                      where v = q .-~! p
                 in mouseInteractive
                        (\ev -> (if magnitude (p2 circCtr .-. p2 (ev^.clickLocation)) < 1
@@ -163,7 +168,7 @@ main = do
                       [ legendName "𝑆¹" . shapePlot . Dia.moveTo (p2 circCtr)
                        . Dia.fcA Dia.transparent $ Dia.circle 1
                       , legendName "q.-~.p"
-                       . shapePlot $ mconcat
+                       . shapePlot . mconcat $
                           [ (Dia.text (printf "%.1f" δ)
                                   & Dia.scale (importance / 15)
                                   & Dia.moveTo loc'')
@@ -177,11 +182,12 @@ main = do
                                        ^*(1 - (-1)^^(round $ δ*5)*roff)
                                     | roff <- [0, (importance+0.5)/25, importance/8] ]
                           ]
-                      , mconcat [ diagramPlot $ Dia.text t
+                      , diagramPlot $ Dia.text "p"
                                   & Dia.scale 0.15
                                   & Dia.fc Dia.white
                                   & Dia.moveTo loc
-                                | (t, loc) <- [ ("p", p2 circCtr.+^embed p^*1.12) ] ] ]
+                      ]
+                     where loc = p2 circCtr.+^embed p^*1.12
                 in mouseInteractive
                        (\ev -> const . coEmbed . (.-.p2 circCtr) . p2
                                    $ ev^.releaseLocation)
@@ -287,23 +293,20 @@ main = do
          sphereCoProject p = coEmbed viewCoProjection
           where (xvr,yvr) = p .-. viewProjection sphereCtr
                 r²xy = xvr^2 + yvr^2
-                zv | r²xy   < 1  = sqrt $ 1-r²xy
+                zv | r²xy   < 1  = -sqrt (1-r²xy)
                    | otherwise   = 0
                 viewCoProjection = V3 xvr
                         ( sin viewAngle * yvr + cos viewAngle * zv )
                         ( cos viewAngle * yvr - sin viewAngle * zv )
+         spheriGrid = mconcat [ Dia.fromVertices $ p2 . sphereProject
+                               <$> [S²Polar ϑ φ | φ <- (pi/180*)<$>[-180,-175..0]]
+                              | ϑ <- (pi/180*)<$>[0,30..180] ]
+                   <> mconcat [ Dia.fromVertices $ p2 . sphereProject
+                               <$> [S²Polar ϑ φ | ϑ <- (pi/180*)<$>[0,5 .. 180]]
+                              | φ <- (pi/180*)<$>[-180,-150..0] ]
      plotServ [ let plPts :: S² -> S² -> DynamicPlottable
                     plPts p₀ p₁ = plotMultiple
-                      [ legendName "𝑆²" $ plot
-                         [ tweakPrerendered (Dia.opacity 0.4) $ lineSegPlot
-                            [ sphereProject ((S²Polar 0 0).+~^disp)
-                            | disp <- (orig.+^).(dir₁^*)
-                                <$>[-wiremeshResolution..wiremeshResolution]
-                            , magnitude disp < pi ]
-                         | [dir₀, dir₁] <- map(^*(pi/(sqrt 2*wiremeshResolution)))
-                                             <$>[ [V2 1 1, V2 1 (-1)]
-                                                , [V2 (-1) 1, V2 1 1] ]
-                         , orig <- (dir₀^*)<$>[-wiremeshResolution..wiremeshResolution] ]
+                      [ legendName "𝑆²" $ shapePlot spheriGrid
                       , legendName (printf "p.-~.q = (%.1f,%.1f)" (v^._x) (v^._y))
                          $ lineSegPlot [ viewProjection
                                           $ sphereCtr .+^ embed (p₀ .+~^ η*^v :: S²)
@@ -358,31 +361,36 @@ main = do
      plotServ [ let plPts :: S² -> DynamicPlottable
                     plPts p = plotMultiple
                       [ legendName "𝑆²" . shapePlot
-                       . Dia.moveTo (p2 $ viewProjection sphereCtr)
-                       . Dia.fcA Dia.transparent $ Dia.circle 1
+                       $ (Dia.moveTo (p2 $ viewProjection sphereCtr)
+                          . Dia.fcA Dia.transparent $ Dia.circle 1)
+                        <> spheriGrid
                       , legendName "q.-~.p"
-                       . shapePlot $ mconcat
+                       . shapePlot . mconcat $
                           [ Dia.circle 0.01
                                & Dia.moveTo (p2 loc)
-                                  & Dia.opacity (1 / (1 + (δx^2+δy^2)^2))
+                                  & Dia.opacity (1 / (2 + (δx^2+δy^2)^2))
                           | δx <- [-3, -2.8 .. 3]
                           , δy <- [-3, -2.8 .. 3]
-                          , let importance = cos (δx*pi)^4 * cos (δx*pi)^4 + 0.5
-                                q = p.+~^V2 δx δy :: S²
+                          , let q = p.+~^V2 δx δy :: S²
                                 V3 _ y _ = embed q :: ℝ³
                                 loc = sphereProject q
-                          , y > 0
-                          ]
-                      , mconcat [ diagramPlot $ Dia.text t
+                          , y < 0
+                          ] ++
+                          [ Dia.arrowBetween loc (p2 . sphereProject $ p.+~^dir)
+                             <> (Dia.text dirname
+                                  & Dia.scale 0.12
+                                  & Dia.moveTo (p2 . sphereProject $ p.+~^(dir^*1.2)))
+                          | (dir, dirname) <- [(V2 0.4 0, "x̂"), (V2 0 0.4, "ŷ")] ]
+                      , diagramPlot $ Dia.text "p"
                                   & Dia.scale 0.15
                                   & Dia.fc Dia.white
                                   & Dia.moveTo loc
-                                | (t, loc) <- [ ("p", Dia.p2 $ sphereProject p) ] ]
                       ]
+                     where loc = Dia.p2 $ sphereProject p
                 in mouseInteractive
                        (\ev -> const . sphereCoProject
                                    $ ev^.releaseLocation)
-                       (S²Polar (pi/2) 0) plPts
+                       (S²Polar 1.5 (-1.3)) plPts
               , unitAspect, xInterval (-pi, 1) ]
         $ "invimg"#%imageFromFile "img/constructions/sphericoords-needles.svg"
       
@@ -453,6 +461,9 @@ style = [cassius|
      max-height: 80vh
    .still-hidden
      visibility: hidden
+   .strikedOut
+     opacity: 50%
+     text-decoration: line-through
    pre
      text-align: left
      font-size: 86%
@@ -497,6 +508,9 @@ hide' f x = do
 
 verb :: String -> Presentation
 verb s = "verb" #% fromString s
+
+striking :: Presentation -> Presentation
+striking c = c >> "strikedOut"#%c
 
 type Distance = ℝ  -- in m
 type Pos = V3 Distance
