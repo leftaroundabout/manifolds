@@ -281,17 +281,17 @@ main = do
          wiremeshResolution = 9
          viewProjection (V3 x y z)
                    = (x, sin viewAngle * y + cos viewAngle * z)
-         viewCoProjection (x, y)
-                   = V3 x
-                        (- sin viewAngle * y + cos viewAngle * z)
-                        (  cos viewAngle * y + sin viewAngle * z)
-          where r²xy = x^2 + y^2
-                z | r²xy   < 1  = sqrt $ 1-r²xy
-                  | otherwise   = 0
          sphereProject :: S² -> (ℝ,ℝ)
          sphereProject p = viewProjection $ sphereCtr .+^ embed p
          sphereCoProject :: (ℝ,ℝ) -> S²
-         sphereCoProject p = coEmbed $ viewCoProjection p .-. sphereCtr
+         sphereCoProject p = coEmbed viewCoProjection
+          where (xvr,yvr) = p .-. viewProjection sphereCtr
+                r²xy = xvr^2 + yvr^2
+                zv | r²xy   < 1  = sqrt $ 1-r²xy
+                   | otherwise   = 0
+                viewCoProjection = V3 xvr
+                        ( sin viewAngle * yvr + cos viewAngle * zv )
+                        ( cos viewAngle * yvr - sin viewAngle * zv )
      plotServ [ let plPts :: S² -> S² -> DynamicPlottable
                     plPts p₀ p₁ = plotMultiple
                       [ legendName "𝑆²" $ plot
