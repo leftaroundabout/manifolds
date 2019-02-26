@@ -384,8 +384,21 @@ main = do
                                    $ ev^.releaseLocation)
                        (S²Polar (pi/2) 0) plPts
               , unitAspect, xInterval (-pi, 1) ]
-        $ "lightbg"#%imageFromFile "img/constructions/sphericoords-needles.svg"
+        $ "invimg"#%imageFromFile "img/constructions/sphericoords-needles.svg"
       
+   "What is this good for?"
+    ====== do
+     items
+      [ verb"Needle m"<>" is isomorphic to the tangent space at any point in "<>verb"m"<>"."
+      , "Suggestive: approximate the tangent bundle as a pairing of points with needles."
+         ──[plaintext|
+             data FibreBundle b f = FibreBundle
+                   { baseSpace :: b
+                   , fibreSpace :: f
+                   }
+             type TangentBundle m = FibreBundle m (Needle m)
+           |]
+      ]
 
 style = [cassius|
    body
@@ -433,6 +446,9 @@ style = [cassius|
      font-family: "Ubuntu Mono", "Droid Sans mono", "Courier New"
    .lightbg img
      background-color: rgba(255,255,255,1)
+   .invimg img
+     background-color: rgba(255,255,255,1)
+     filter: invert(90%)
    .heightlimited video
      max-height: 80vh
    .still-hidden
