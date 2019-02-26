@@ -57,7 +57,7 @@ main = do
  yeamer . styling style $ do
    ""──
      "global-title"#%
-       "Numerical Algorithms Based on a Naïve “Pseudo-Affine” Abstraction"
+       "What manifolds are “pseudo-affine”? What numerics can be done on this abstraction?"
      ──
      "Justus Sagemüller"
      ──
