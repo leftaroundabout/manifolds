@@ -21,7 +21,8 @@ import Text.Cassius
 
 import Data.Semigroup
 import Data.Semigroup.Numbered
-import Data.List (transpose, inits, tails, partition)
+import Data.List (transpose, inits, tails, partition, minimumBy)
+import Data.Ord (comparing)
 import Control.Arrow ((>>>), (&&&), first, second)
 import Control.Monad (guard)
 
@@ -455,16 +456,29 @@ main = do
       ──items
        ["For each point, use a local metric only to determine angles between its"
         <>" possible neighbours."
-         & plotServ [ plot [ lineSegPlot [zeroV, p]
-                           | Just p <- (`lookup`candidates) <$> neighbours ]
-                    | let candidates :: [(Int, (ℝ,ℝ))]
-                          candidates = 
+         & plotServ [ (\candidates
+                         -> let (neighbours, _)
+                                  = Web.bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ))
+                                         candidates
+                            in plotMultiple
+                                [ plot [ shapePlot $ Dia.circle 0.05
+                                           & Dia.moveTo (Dia.p2 p)
+                                       | p <- (0,0) : (snd<$>candidates) ]
+                                , plot [ lineSegPlot [zeroV, p]
+                                       | Just p <- (`lookup`candidates) <$> neighbours ]
+                                ])
+                       & mouseInteractive
+                          (\ev candidates
+                            -> case minimumBy (comparing $ magnitude .
+                                                (.-.ev^.clickLocation) . snd)
+                                              candidates of
+                                 (i,_) -> (i,ev^.releaseLocation)
+                                            : filter ((/=i).fst) candidates )
                              [               (1, (0,-1)), (2, (1,-1))
                              , (3, (-1,0)),               (4, (1,0))
                              , (5, (-1,1)),  (6, (0,1)),  (7, (1,1)) ]
-                          neighbours :: [Int]
-                          (neighbours, _)
-                             = Web.bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ)) candidates ]
+                    , unitAspect, dynamicAxes
+                    ]
        ,"Divide the data with a tree algorithm, to avoid "<>𝑂°𝑛◝2$<>" cost."
        ]
    
