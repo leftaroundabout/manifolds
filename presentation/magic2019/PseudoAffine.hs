@@ -28,6 +28,8 @@ import Control.Monad (guard)
 import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
 import Data.Manifold.FibreBundle
+import Data.Manifold.Web
+import qualified Data.Manifold.Web.Internal as Web
 import Data.VectorSpace
 import Data.VectorSpace.Free
 import Math.LinearMap.Category hiding ((⊗))
@@ -450,9 +452,21 @@ main = do
       ,"Meshless"]
      
      "Non-symmetric pseudomesh / network:"
-      ──"For each point, use a local metric only to determine angles between its"
+      ──items
+       ["For each point, use a local metric only to determine angles between its"
         <>" possible neighbours."
-      & plotServ []
+         & plotServ [ plot [ lineSegPlot [zeroV, p]
+                           | Just p <- (`lookup`candidates) <$> neighbours ]
+                    | let candidates :: [(Int, (ℝ,ℝ))]
+                          candidates = 
+                             [               (1, (0,-1)), (2, (1,-1))
+                             , (3, (-1,0)),               (4, (1,0))
+                             , (5, (-1,1)),  (6, (0,1)),  (7, (1,1)) ]
+                          neighbours :: [Int]
+                          (neighbours, _)
+                             = Web.bestNeighbours (euclideanNorm :: Norm (ℝ,ℝ)) candidates ]
+       ,"Divide the data with a tree algorithm, to avoid "<>𝑂°𝑛◝2$<>" cost."
+       ]
    
 
 style = [cassius|
