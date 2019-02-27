@@ -63,7 +63,7 @@ main = do
      ──
      "reference"#%("Institut für Geophysik und Meteorologie"──"Universität zu Köln")
    
-   "Magnetohydrodynamics"
+   "Motivation case: Magnetohydrodynamics"
     ====== do
      "heightlimited"#%mediaFromFile "media/MHD-example.webm"
    
@@ -71,15 +71,13 @@ main = do
     ====== do
      "Within each chart, the manifold can be described as a vector space."
       ── do
-       -- {-# WARNING "items_p" #-}
        let vsClass = [plaintext|
               class VectorSpace v where
                 type Scalar v :: *
                 (⨣) :: v -> v -> v
                 (·^) :: Scalar v -> v -> v
              |]
-       vsClass
-       vsClass──[plaintext|
+       vsClass──hide[plaintext|
               instance VectorSpace (ℝ,ℝ,ℝ) where
                 type Scalar (ℝ,ℝ,ℝ) = ℝ
                 (x₀,y₀,z₀) ⨣ (x₁,y₁,z₁) = (x₀+x₁, y₀+y₁, z₀+z₁)
@@ -412,14 +410,50 @@ main = do
                      = x -> (y, Needle x+>Needle y)
            |]
    
-   "Types of linear mappings"
+   "Types for linear mappings"
     ====== do
      "A linear mapping from "<>𝑉$<>" to "<>𝑊$<>" is:"
       ──
       items_p
        [ striking$ "A matrix with dimensions "<>("dim"<>𝑉×"dim"<>𝑊)$<>"."
        , "A function from "<>𝑉$<>" to "<>𝑊$<>" that is linear."
-       , "An element of "<>(𝑉◝"*"⊗𝑊)$<>"." ]
+       , "An element of "<>(𝑉◝"*"⊗𝑊)$<>"."
+          ──
+          [plaintext|
+             type v+>w = DualSpace v ⊗ w
+           |] ]
+     [plaintext|
+        class VectorSpace v => TensorSpace v where
+          type v⊗w :: *
+          (⊗) :: TensorSpace w => v -> w -> v⊗w
+        
+        class TensorSpace v => LinearSpace v where
+          type DualSpace v :: *
+          sampleLinearFunction :: TensorSpace w => (v -> w) -> (v +> w)
+          applyLinear :: TensorSpace w => (v +> w) -> v -> w 
+      |]
+
+   "Riemannian (or otherwise) metrics"
+    ====== do
+     "A scalar product (bilinear form "<>(𝑉×𝑉-→ℝ)$<>") can also be understood as a"
+      <>" linear mapping "<>(𝑉-→𝑉◝"*")$<>". Thus"
+      ──[plaintext|
+          type Metric x = Needle x +> DualSpace (Needle x)
+         |]
+
+   "Mesh generation"
+    ====== do
+     "Standard discretisation approaches for PDEs:"
+      ──items
+      ["Rectangular"
+      ,"Triangulation"
+      ,"Meshless"]
+     
+     "Non-symmetric pseudomesh / network:"
+      ──"For each point, use a local metric only to determine angles between its"
+        <>" possible neighbours."
+      & plotServ []
+   
 
 style = [cassius|
    body
