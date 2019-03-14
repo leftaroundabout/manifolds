@@ -37,3 +37,25 @@ executable icfp2018-npfl_manifolds
   main-is: npfl.hs
   default-language: Haskell2010
 
+executable magic2019_pseudoaffine
+  Build-Depends:     base>=4.10 && <4.11
+                     , manifolds==0.5.0.1
+                     , linearmap-category
+                     , vector-space
+                     , free-vector-spaces
+                     , spatial-rotations
+                     , linear
+                     , dynamic-plot
+                     , yeamer<0.2
+                     , blaze-html
+                     , shakespeare
+                     , numbered-semigroups
+                     , diagrams-lib
+                     , diagrams-cairo
+                     , TeX-my-math
+                     , lens
+  ghc-options:       -O2 -threaded "-with-rtsopts=-N3"
+  hs-source-dirs: magic2019
+  main-is: PseudoAffine.hs
+  default-language: Haskell2010
+
