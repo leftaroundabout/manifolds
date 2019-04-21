@@ -259,6 +259,14 @@ instance QC.Arbitrary ℝP² where
                                     | θ' <- QC.shrink (θ*6/pi)
                                     , φ' <- QC.shrink (φ*12/pi) ]
 
+instance QC.Arbitrary D¹ where
+  arbitrary = D¹ . (\x -> (x`mod'`2) - 1) <$> QC.arbitrary
+  shrink (D¹ p) = D¹ . (\x -> (x`mod'`2) - 1) <$> QC.shrink p
+instance QC.Arbitrary D² where
+  arbitrary = D²Polar . (\x -> x`mod'`1) <$> QC.arbitrary
+               <*> (φParamS¹ <$> QC.arbitrary)
+  shrink (D²Polar r φ) = D²Polar . (\x -> (x`mod'`2) - 1) <$> QC.shrink r
+               <*> (φParamS¹ <$> QC.shrink (S¹Polar φ))
 
 instance (SP.Show m, SP.Show f) => SP.Show (FibreBundle m f) where
   showsPrec p (FibreBundle m v) = showParen (p>9)
