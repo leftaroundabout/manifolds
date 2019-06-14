@@ -65,6 +65,8 @@ import Control.Comonad
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
 
+import Data.Semigroup
+
 import Control.DeepSeq
 
 import GHC.Generics (Generic)
@@ -117,9 +119,11 @@ data PropagationInconsistency x υ = PropagationInconsistency {
  deriving (Show)
 makeLenses ''PropagationInconsistency
 
+instance Semigroup (PropagationInconsistency x υ) where
+  p<>q = mconcat [p,q]
 instance Monoid (PropagationInconsistency x υ) where
   mempty = PropagationInconsistencies []
-  mappend p q = mconcat [p,q]
+  mappend = (<>)
   mconcat = PropagationInconsistencies
 
 instance (NFData x, NFData (Metric x), NFData (Needle' x), NFData y)
