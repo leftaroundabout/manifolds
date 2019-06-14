@@ -10,7 +10,7 @@ homepage:            https://github.com/leftaroundabout/manifolds
 license:             GPL-3
 license-file:        LICENSE
 author:              Justus Sagemüller
-maintainer:          (@) jsagemue $ uni-koeln.de
+maintainer:          (@) jsag $ hvl.no
 -- copyright:           
 category:            Math
 build-type:          Simple

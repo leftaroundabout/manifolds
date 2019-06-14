@@ -26,7 +26,7 @@ License:             GPL-3
 License-file:        COPYING
 Author:              Justus Sagemüller
 Homepage:            https://github.com/leftaroundabout/manifolds
-Maintainer:          (@) sagemueller $ geo.uni-koeln.de
+Maintainer:          (@) jsag $ hvl.no
 Build-Type:          Simple
 Cabal-Version:       >=1.18
 Extra-Doc-Files:     images/examples/*.png,
@@ -63,7 +63,7 @@ Library
                      , placeholders
                      , lens
                      , call-stack
-                     , constrained-categories >= 0.3.1 && < 0.4
+                     , constrained-categories >= 0.3.1 && < 0.5
                      , pragmatic-show
                      , QuickCheck >=2.8 && <3
   other-extensions:  FlexibleInstances
