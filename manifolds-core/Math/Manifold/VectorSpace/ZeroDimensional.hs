@@ -17,14 +17,17 @@ import Data.AffineSpace
 import Data.VectorSpace
 import Data.Basis
 import Data.Void
+import Data.Semigroup
 
 
 
 data ZeroDim s = Origin deriving (Eq, Show)
 
+instance Semigroup (ZeroDim s) where
+  Origin<>Origin = Origin
 instance Monoid (ZeroDim s) where
   mempty = Origin
-  mappend Origin Origin = Origin
+  mappend = (<>)
 
 instance AffineSpace (ZeroDim s) where
   type Diff (ZeroDim s) = ZeroDim s
