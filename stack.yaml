@@ -1,26 +1,15 @@
 flags: {}
 packages:
-- location: './manifolds-core'
-- location: './manifolds'
-- location: './manifold-random'
-- location:
-    git: https://github.com/leftaroundabout/constrained-categories.git
-    commit: master
-- location:
-    git: https://github.com/leftaroundabout/free-vector-spaces.git
-    commit: master
-- location:
-    git: https://github.com/leftaroundabout/linearmap-family.git
-    commit: master
-- location:
-    git: https://github.com/leftaroundabout/spatial-rotations.git
-    commit: master
+- './manifolds-core'
+- './manifolds'
+- './manifold-random'
 extra-deps:
 - number-show-0.1.0.0
 - pragmatic-show-0.1.2.0
-- constrained-categories-0.3.1.0
+- constrained-categories-0.4.0.0
 - free-vector-spaces-0.1.5.0
 - linearmap-category-0.3.5.0
-- vector-space-0.12
-- spatial-rotations-0.1.0.0
-resolver: lts-8.0
+- vector-space-0.14
+- spatial-rotations-0.1.0.1
+- trivial-constraint-0.4.0.0
+resolver: lts-12.0
