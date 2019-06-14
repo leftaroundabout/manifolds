@@ -963,9 +963,11 @@ filterDEqnSolutions_pathsTowards = case ( geodesicWitness :: GeodesicWitness y
 data Average a = Average { weight :: Int
                          , averageAcc :: a
                          } deriving (Hask.Functor)
+instance Num a => Semigroup (Average a) where
+  Average w₀ a₀ <> Average w₁ a₁ = Average (w₀+w₁) (a₀+a₁)
 instance Num a => Monoid (Average a) where
   mempty = Average 0 0
-  mappend (Average w₀ a₀) (Average w₁ a₁) = Average (w₀+w₁) (a₀+a₁)
+  mappend = (<>)
 instance Hask.Applicative Average where
   pure = Average 1
   Average w₀ a₀ <*> Average w₁ a₁ = Average (w₀*w₁) (a₀ a₁)
