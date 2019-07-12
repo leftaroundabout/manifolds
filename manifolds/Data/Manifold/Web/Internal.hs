@@ -3,7 +3,7 @@
 -- Copyright   : (c) Justus Sagemüller 2017
 -- License     : GPL v3
 -- 
--- Maintainer  : (@) sagemueller $ geo.uni-koeln.de
+-- Maintainer  : (@) jsag $ hvl.no
 -- Stability   : experimental
 -- Portability : portable
 -- 
