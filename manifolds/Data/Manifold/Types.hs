@@ -182,6 +182,7 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
   toFlatTensor = LinearFunction $ Tensor . Arr.convert . getStiefel1Tangent
   fromFlatTensor = LinearFunction $ Stiefel1Needle . Arr.convert . getTensorProduct
   addTensors (Tensor a) (Tensor b) = Tensor $ Arr.zipWith (^+^) a b
+  subtractTensors (Tensor a) (Tensor b) = Tensor $ Arr.zipWith (^-^) a b
   scaleTensor = bilinearFunction $ \μ (Tensor a) -> Tensor $ Arr.map (μ*^) a
   negateTensor = LinearFunction $ \(Tensor a) -> Tensor $ Arr.map negateV a
   tensorProduct = bilinearFunction $ \(Stiefel1Needle n) w
