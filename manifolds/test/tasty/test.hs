@@ -42,7 +42,7 @@ import Test.Tasty.QuickCheck ((==>))
 import Data.Typeable
 
 import Data.Foldable (toList)
-import Data.List (nub)
+import Data.List (nub, sort)
 import qualified Data.Graph as Graph
 import qualified Data.Set as Set
 import Control.Arrow
@@ -629,10 +629,10 @@ tests = testGroup "Tests"
                           , info^.webBoundingPlane ) ) web)
                @?= [([1], Just 1), ([0,2], Nothing), ([1], Just $ -1)]
     , testCase "Linear 1D “web”"
-        $ toList (directNeighbours (fromWebNodes euclideanMetric
+        $ map sort (toList $ directNeighbours (fromWebNodes euclideanMetric
                                        [(x, ()) | x<-[0, 0.1 .. 2]] :: PointsWeb ℝ () ))
           @?= [ [1,9], [0,2], [1,3], [2,4], [3], [6,12], [5,7], [6,8], [7,9], [0,8], [11,15]
-              , [10,12],[11,5],[14,20],[13,15],[10,14],[17],[16,18],[17,19],[18,20],[13,19]
+              , [10,12],[5,11],[14,20],[13,15],[10,14],[17],[16,18],[17,19],[18,20],[13,19]
               ]
     , testCase "Small linear 1D web with nonuniform spacing"
         $ toList (directNeighbours (fromWebNodes euclideanMetric
