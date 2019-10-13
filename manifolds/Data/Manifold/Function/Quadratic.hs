@@ -10,6 +10,7 @@
 
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE FlexibleContexts         #-}
+{-# LANGUAGE UndecidableInstances     #-}
 {-# LANGUAGE LiberalTypeSynonyms      #-}
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE TypeOperators            #-}
