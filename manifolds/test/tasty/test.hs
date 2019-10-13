@@ -1002,7 +1002,7 @@ assertParTransportNeedleTargetFixpoint (q, qName) p₀ p₁
 
 
 sphereParallelTransportTest :: S² -> S² -> [ℝ³] -> [ℝ³] -> Assertion
-sphereParallelTransportTest p q [] [] = assert True
+sphereParallelTransportTest p q [] [] = mempty
 sphereParallelTransportTest p q (v:vs) (w:ws)
      = (parallelTransport p (q.-~!p) vSph @?≈ wSph)
         >> sphereParallelTransportTest p q vs ws
