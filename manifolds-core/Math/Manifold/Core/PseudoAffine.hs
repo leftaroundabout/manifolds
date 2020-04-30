@@ -268,6 +268,7 @@ instance (c) => PseudoAffine (t) where {       \
   a.-~.b = pure (a.-.b);      }
 
 deriveAffine((),Double)
+deriveAffine((),Float)
 deriveAffine((),Rational)
 
 
