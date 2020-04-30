@@ -8,7 +8,7 @@ extra-deps:
 - pragmatic-show-0.1.2.1
 - constrained-categories-0.4.0.0
 - free-vector-spaces-0.1.5.0
-- linearmap-category-0.4.0.0
+- linearmap-category-0.4.0.1
 - vector-space-0.16
 - spatial-rotations-0.1.0.1
 - trivial-constraint-0.4.0.0
