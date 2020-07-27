@@ -49,7 +49,7 @@ import Data.CallStack (HasCallStack)
 --   extension, which is not reliable yet.
 -- 
 -- Also, if all those equality constraints are in scope, GHC tends to infer needlessly
--- complicated types like @'Interior' ('Interior' ('Needle' ('Interior' x)))@, which is
+-- complicated types like @'Needle' ('Needle' ('Needle' x))@, which is
 -- the same as just @'Needle' x@.
 data SemimanifoldWitness x where
   SemimanifoldWitness ::
@@ -65,15 +65,17 @@ infix 6 .-~., .-~!
 infixl 6 .+~^, .-~^
 
 class AdditiveGroup (Needle x) => Semimanifold x where
-  -- | The space of &#x201c;natural&#x201d; ways starting from some reference point
+  -- | The space of &#x201c;ways&#x201d; starting from some reference point
   --   and going to some particular target point. Hence,
   --   the name: like a compass needle, but also with an actual length.
   --   For affine spaces, 'Needle' is simply the space of
   --   line segments (aka vectors) between two points, i.e. the same as 'Diff'.
   --   The 'AffineManifold' constraint makes that requirement explicit.
   -- 
-  --   This space should be isomorphic to the tangent space (and is in fact
-  --   used somewhat synonymously).
+  --   This space should be isomorphic to the tangent space (and in fact
+  --   serves an in many ways similar role), however whereas the tangent space
+  --   of a manifold is really infinitesimally small, needles actually allow
+  --   macroscopic displacements.
   type Needle x :: *
   type Needle x = GenericNeedle x
   
@@ -92,8 +94,8 @@ class AdditiveGroup (Needle x) => Semimanifold x where
   -- @
   --   
   --   Meaning: if @v@ is scaled down with sufficiently small factors /&#x3b7;/, then
-  --   the difference @(p.-~^v.+~^v) .-~. p@ should scale down even faster:
-  --   as /O/ (/&#x3b7;/&#xb2;). For large vectors, it will however behave differently,
+  --   the difference @(p.-~^v.+~^v) .-~. p@ should eventually scale down even faster:
+  --   as /O/ (/&#x3b7;/&#xb2;). For large vectors, it may however behave differently,
   --   except in flat spaces (where all this should be equivalent to the 'AffineSpace'
   --   instance).
   (.-~^) :: x -> Needle x -> x
@@ -106,13 +108,9 @@ class AdditiveGroup (Needle x) => Semimanifold x where
   semimanifoldWitness = SemimanifoldWitness
 
   
--- | This is the class underlying manifolds. ('Manifold' only precludes boundaries
---   and adds an extra constraint that would be circular if it was in a single
---   class. You can always just use 'Manifold' as a constraint in your signatures,
---   but you must /define/ only 'PseudoAffine' for manifold types &#x2013;
---   the 'Manifold' instance follows universally from this, if @'Interior x ~ x@.)
+-- | This is the class underlying what we understand as manifolds. 
 --   
---   The interface is (boundaries aside) almost identical to the better-known
+--   The interface is almost identical to the better-known
 --   'AffineSpace' class, but we don't require associativity of '.+~^' with '^+^'
 --   &#x2013; except in an /asymptotic sense/ for small vectors.
 --   
@@ -127,11 +125,8 @@ class AdditiveGroup (Needle x) => Semimanifold x where
 class Semimanifold x => PseudoAffine x where
   {-# MINIMAL (.-~.) | (.-~!) #-}
   -- | The path reaching from one point to another.
-  --   Should only yield 'Nothing' if
-  -- 
-  --   * The points are on disjoint segments of a non&#x2013;path-connected space.
-  -- 
-  --   * Either of the points is on the boundary. Use '|-~.' to deal with this.
+  --   Should only yield 'Nothing' if the points are on disjoint segments
+  --   of a non&#x2013;path-connected space.
   -- 
   --   On manifolds, the identity
   --   
@@ -139,13 +134,11 @@ class Semimanifold x => PseudoAffine x where
   -- p .+~^ (q.-~.p) &#x2261; q
   -- @
   --   
-  --   should hold, at least save for floating-point precision limits etc..
-  -- 
-  --   '.-~.' and '.+~^' only really work in manifolds without boundary. If you consider
-  --   the path between two points, one of which lies on the boundary, it can't really
-  --   be possible to scale this path any longer – it would have to reach “out of the
-  --   manifold”. To adress this problem, these functions basically consider only the
-  --   /interior/ of the space.
+  --   should hold. The reason this is written with approximate equality is only
+  --   because of possible floating point issues etc.; but even if `q` is far away
+  --   from @p@ then it should still hold to a very good approximation
+  --   (unlike with @(p.+~^v).-~^v@, which may end up very different from @p@ if @v@
+  --   is not small).
   (.-~.) :: x -> x -> Maybe (Needle x)
   p.-~.q = return $ p.-~!q
   
