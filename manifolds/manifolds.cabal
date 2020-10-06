@@ -79,6 +79,7 @@ Library
   ghc-options:       -O2
   Exposed-modules:   Data.Manifold
                      Data.Manifold.PseudoAffine
+                     Data.Manifold.WithBoundary
                      Data.Manifold.TreeCover
                      Data.Manifold.Shade
                      Data.Manifold.Web
