@@ -17,6 +17,7 @@
 {-# LANGUAGE DeriveGeneric            #-}
 {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE UnicodeSyntax            #-}
+{-# LANGUAGE EmptyCase                #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE CPP                      #-}
@@ -217,6 +218,14 @@ deriveAffine((),Double)
 deriveAffine((),Float)
 deriveAffine((),Rational)
 
+instance (AdditiveGroup v, Semimanifold v, v ~ Needle v)
+     => Semimanifold (EmptyMfd v) where
+  type Needle (EmptyMfd v) = v
+  p .+~^ _ = case p of {}
+  p .-~^ _ = case p of {}
+instance (AdditiveGroup v, PseudoAffine v, v ~ Needle v)
+     => PseudoAffine (EmptyMfd v) where
+  p .-~. _ = case p of {}
 
 instance Semimanifold (ZeroDim k) where
   type Needle (ZeroDim k) = ZeroDim k

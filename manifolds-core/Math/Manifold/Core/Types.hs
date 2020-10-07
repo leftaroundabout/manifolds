@@ -18,7 +18,7 @@
 
 
 module Math.Manifold.Core.Types
-        ( ℝ⁰, ℝ
+        ( EmptyMfd, ℝ⁰, ℝ
         , S⁰(..), otherHalfSphere, S¹(..), pattern S¹, S²(..), pattern S²
         , D¹(..), fromIntv0to1, D²(..), pattern D²
         , ℝP⁰(..), ℝP¹(..), pattern ℝP¹, ℝP²(..), pattern ℝP²

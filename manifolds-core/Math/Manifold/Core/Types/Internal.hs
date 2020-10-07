@@ -22,6 +22,9 @@ import Data.Fixed (mod')
 import GHC.Generics
 
 
+-- | The empty space can be considered a manifold with any sort of tangent space.
+data EmptyMfd v
+
 -- | The zero-dimensional sphere is actually just two points. Implementation might
 --   therefore change to @ℝ⁰ 'Control.Category.Constrained.+' ℝ⁰@: the disjoint sum of two
 --   single-point spaces.
