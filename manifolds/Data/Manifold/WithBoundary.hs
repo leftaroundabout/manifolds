@@ -18,6 +18,7 @@
 {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
+{-# LANGUAGE EmptyCase                #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE TypeInType               #-}
 
@@ -29,6 +30,7 @@ import Data.AffineSpace
 import Data.Basis
 
 import Math.Manifold.Core.PseudoAffine
+import Math.Manifold.Core.Types
 import Data.Manifold.Types.Primitive
 import Math.Manifold.VectorSpace.ZeroDimensional
 
@@ -56,7 +58,7 @@ instance HalfSpace ℝay where
 
 class ( Semimanifold (Interior m), Semimanifold (Boundary m)
       , HalfSpace (HalfNeedle m), FullSubspace (HalfNeedle m) ~ Needle (Boundary m)
-      ) => BoundedSemimanifold m where
+      ) => SemimanifoldWithBoundary m where
   type Interior m :: Type
   type Boundary m :: Type
   type HalfNeedle m :: Type
@@ -64,4 +66,15 @@ class ( Semimanifold (Interior m), Semimanifold (Boundary m)
   toInterior :: m -> Maybe (Interior m)
   (|+^) :: Boundary m -> HalfNeedle m -> m
   (.-|) :: m -> Boundary m -> HalfNeedle m
+  (.+^|) :: m -> Needle m -> Maybe (Boundary m)
+
+instance SemimanifoldWithBoundary ℝ where
+  type Interior ℝ = ℝ
+  type Boundary ℝ = EmptyMfd ℝ⁰
+  type HalfNeedle ℝ = ℝay
+  fromInterior = id
+  toInterior = Just
+  p|+^_ = case p of {}
+  _.-|p = case p of {}
+  _.+^|_ = Nothing
 
