@@ -1,6 +1,6 @@
 -- |
--- Module      : Math.Manifold.Core.PseudoAffine
--- Copyright   : (c) Justus Sagemüller 2016
+-- Module      : Data.Manifold.WithBoundary
+-- Copyright   : (c) Justus Sagemüller 2020
 -- License     : GPL v3
 -- 
 -- Maintainer  : (@) jsag $ hvl.no
