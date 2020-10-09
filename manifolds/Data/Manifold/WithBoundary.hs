@@ -44,12 +44,19 @@ import Data.Kind (Type)
 import Data.CallStack (HasCallStack)
 
 
-class VectorSpace (FullSubspace h) => HalfSpace h where
+class AdditiveMonoid h where
+  zeroHV :: h
+  addHVs :: h -> h -> h
+
+class (AdditiveMonoid h, VectorSpace (FullSubspace h)) => HalfSpace h where
   type FullSubspace h :: Type
   scaleNonNeg :: ℝay -> h -> h
   fromFullSubspace :: FullSubspace h -> h
   projectToFullSubspace :: h -> FullSubspace h
 
+instance AdditiveMonoid ℝay where
+  zeroHV = Cℝay 0 Origin
+  addHVs (Cℝay a Origin) (Cℝay b Origin) = Cℝay (a+b) Origin
 instance HalfSpace ℝay where
   type FullSubspace ℝay = ℝ⁰
   scaleNonNeg (Cℝay μ Origin) (Cℝay l Origin) = Cℝay (μ*l) Origin
@@ -63,18 +70,27 @@ class ( Semimanifold (Interior m), Semimanifold (Boundary m)
   type Boundary m :: Type
   type HalfNeedle m :: Type
   fromInterior :: Interior m -> m
+  separateInterior :: m -> Either (Boundary m) (Interior m)
   toInterior :: m -> Maybe (Interior m)
+  toInterior p = case separateInterior p of
+    Right i -> Just i
+    Left _  -> Nothing
   (|+^) :: Boundary m -> HalfNeedle m -> m
-  (.-|) :: m -> Boundary m -> HalfNeedle m
   (.+^|) :: m -> Needle m -> Maybe (Boundary m)
+
+class (SemimanifoldWithBoundary m, PseudoAffine (Interior m), PseudoAffine (Boundary m))
+          => PseudoAffineWithBoundary m where
+  (.-|) :: m -> Boundary m -> HalfNeedle m
 
 instance SemimanifoldWithBoundary ℝ where
   type Interior ℝ = ℝ
   type Boundary ℝ = EmptyMfd ℝ⁰
   type HalfNeedle ℝ = ℝay
   fromInterior = id
-  toInterior = Just
+  separateInterior = Right
   p|+^_ = case p of {}
-  _.-|p = case p of {}
   _.+^|_ = Nothing
+
+instance PseudoAffineWithBoundary ℝ where
+  _.-|p = case p of {}
 
