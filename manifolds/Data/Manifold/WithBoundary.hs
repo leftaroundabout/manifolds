@@ -18,6 +18,7 @@
 {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
+{-# LANGUAGE AllowAmbiguousTypes      #-}
 {-# LANGUAGE EmptyCase                #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE TypeInType               #-}
@@ -76,7 +77,7 @@ class ( Semimanifold (Interior m), Semimanifold (Boundary m)
     Right i -> Just i
     Left _  -> Nothing
   (|+^) :: Boundary m -> HalfNeedle m -> m
-  (.+^|) :: m -> Needle m -> Maybe (Boundary m)
+  extendToBoundary :: Interior m -> Needle (Interior m) -> Maybe (Boundary m)
 
 class (SemimanifoldWithBoundary m, PseudoAffine (Interior m), PseudoAffine (Boundary m))
           => PseudoAffineWithBoundary m where
@@ -89,7 +90,7 @@ instance SemimanifoldWithBoundary ℝ where
   fromInterior = id
   separateInterior = Right
   p|+^_ = case p of {}
-  _.+^|_ = Nothing
+  extendToBoundary _ _ = Nothing
 
 instance PseudoAffineWithBoundary ℝ where
   _.-|p = case p of {}

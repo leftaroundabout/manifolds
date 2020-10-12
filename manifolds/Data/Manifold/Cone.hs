@@ -19,6 +19,7 @@
 {-# LANGUAGE TupleSections            #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
+{-# LANGUAGE EmptyCase                #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE MultiWayIf               #-}
@@ -37,6 +38,8 @@ import Data.Maybe
 import Data.VectorSpace
 import Data.Tagged
 import Data.Manifold.Types.Primitive
+import Math.Manifold.Core.Types
+import Data.Manifold.WithBoundary
 import Data.Manifold.Types.Stiefel
 import Math.LinearMap.Category
 
@@ -50,60 +53,48 @@ import Data.Foldable.Constrained
 
 import Data.Manifold.PseudoAffine
 
-
-
-newtype ConeVecArr m = ConeVecArr {getConeVecArr :: CℝayInterior m}
-type ConeNeedle m = Needle (ConeVecArr m)
-data SConn'dConeVecArr m = SConn'dConeVecArr ℝ (Interior m)
-
-
-class ( Semimanifold m, Semimanifold (Interior (Interior m))
-      , Semimanifold (ConeVecArr m)
-      , Interior (ConeVecArr m) ~ ConeVecArr m )
-           => ConeSemimfd m where
-  {-# MINIMAL (fromCℝayInterior | fromCD¹Interior)
-            , (toCℝayInterior | toCD¹Interior) #-}
-  type CℝayInterior m :: *
-  
-  fromCℝayInterior :: ConeVecArr m -> Cℝay m
-  fromCℝayInterior = projCD¹ToCℝay . fromCD¹Interior
-  fromCD¹Interior :: ConeVecArr m -> CD¹ m
-  fromCD¹Interior = embCℝayToCD¹ . fromCℝayInterior
-  
-  toCℝayInterior :: Cℝay m -> Maybe (ConeVecArr m)
-  toCℝayInterior = toCD¹Interior . embCℝayToCD¹
-  toCD¹Interior :: CD¹ m -> Maybe (ConeVecArr m)
-  toCD¹Interior = toCℝayInterior . projCD¹ToCℝay
-
-  
+import Data.Kind (Type)
 
 
 
-instance ∀ m . (ConeSemimfd m) => Semimanifold (Cℝay m) where
-  type Needle (Cℝay m) = ConeNeedle m
-  type Interior (Cℝay m) = ConeVecArr m
-  fromInterior = fromCℝayInterior
-  toInterior = toCℝayInterior
-  translateP = ctp
-   where ctp :: Tagged (Cℝay m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
-         ctp = Tagged ctp'
-          where Tagged ctp' = translateP
-                  :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
-  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness (ConeVecArr m) of
-       SemimanifoldWitness BoundarylessWitness -> SemimanifoldWitness BoundarylessWitness
-  
-instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
-  type Needle (CD¹ m) = ConeNeedle m
-  type Interior (CD¹ m) = ConeVecArr m
-  fromInterior = fromCD¹Interior
-  toInterior = toCD¹Interior
-  translateP = ctp
-   where ctp :: Tagged (CD¹ m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
-         ctp = Tagged ctp'
-          where Tagged ctp' = translateP
-                  :: Tagged (ConeVecArr m) (ConeVecArr m -> ConeNeedle m -> ConeVecArr m)
-  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness (ConeVecArr m) of
-       SemimanifoldWitness BoundarylessWitness -> SemimanifoldWitness BoundarylessWitness
+instance SemimanifoldWithBoundary (CD¹ ℝ⁰) where
+  type Interior (CD¹ ℝ⁰) = ℝ
+  type Boundary (CD¹ ℝ⁰) = S⁰
+  type HalfNeedle (CD¹ ℝ⁰) = ℝay
+  fromInterior l = CD¹ (bijectℝtoIntvplus l) Origin
+  separateInterior (CD¹ 0 Origin) = Left NegativeHalfSphere
+  separateInterior (CD¹ 1 Origin) = Left PositiveHalfSphere
+  separateInterior (CD¹ ρ Origin) = Right $ bijectIntvplustoℝ ρ
+  NegativeHalfSphere |+^ Cℝay a Origin = CD¹ (bijectℝplustoIntv a) Origin
+  extendToBoundary l a
+   | a<0        = Just NegativeHalfSphere
+   | a>0        = Just PositiveHalfSphere
+   | otherwise  = Nothing
+
+instance SemimanifoldWithBoundary ℝay where
+  type Interior ℝay = ℝ
+  type Boundary ℝay = ℝ⁰
+  type HalfNeedle ℝay = ℝay
+  fromInterior l = Cℝay (bijectℝtoℝplus l) Origin
+  separateInterior (Cℝay ρ Origin)
+   | ρ>0        = Right $ bijectℝplustoℝ ρ
+   | otherwise  = Left Origin
+  Origin |+^ a = a
+  extendToBoundary l a
+   | a<0        = Just Origin
+   | otherwise  = Nothing
+
+instance SemimanifoldWithBoundary (Cℝay S⁰) where
+  type Interior (Cℝay S⁰) = ℝ
+  type Boundary (Cℝay S⁰) = EmptyMfd ℝ⁰
+  type HalfNeedle (Cℝay S⁰) = ℝay
+  fromInterior l
+   | l<0        = Cℝay l PositiveHalfSphere
+   | otherwise  = Cℝay (-l) NegativeHalfSphere
+  separateInterior (Cℝay ρ PositiveHalfSphere) = Right ρ
+  separateInterior (Cℝay ρ NegativeHalfSphere) = Right $ -ρ
+  b |+^ _ = case b of {}
+  extendToBoundary _ _ = Nothing 
 
 
 
@@ -117,6 +108,7 @@ instance (ConeSemimfd m) => Semimanifold (CD¹ m) where
 bijectℝtoℝplus      , bijectℝplustoℝ
  , bijectIntvtoℝplus, bijectℝplustoIntv
  ,     bijectIntvtoℝ, bijectℝtoIntv
+ , bijectIntvplustoℝ, bijectℝtoIntvplus
                :: ℝ -> ℝ
 
 bijectℝplustoℝ x = x - 1/x
@@ -133,6 +125,10 @@ bijectℝtoIntv y | y>0        = -1/(2*y) + sqrt(1/(4*y^2) + 1)
                  -- 0 = x² + x/y - 1
                  -- x = -1/2y ± sqrt(1/4y² + 1)
 bijectIntvtoℝ x = x / (1-x^2)
+
+-- ]0, 1[ ↔ ℝ
+bijectℝtoIntvplus y = (bijectℝtoIntv y + 1)/2
+bijectIntvplustoℝ x = bijectIntvtoℝ $ x*2 - 1
 
 embCℝayToCD¹ :: Cℝay m -> CD¹ m
 embCℝayToCD¹ (Cℝay h m) = CD¹ (bijectℝplustoIntv h) m
