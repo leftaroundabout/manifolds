@@ -55,6 +55,15 @@ class (AdditiveMonoid h, VectorSpace (FullSubspace h)) => HalfSpace h where
   fromFullSubspace :: FullSubspace h -> h
   projectToFullSubspace :: h -> FullSubspace h
 
+instance AdditiveMonoid (ZeroDim k) where
+  zeroHV = Origin
+  addHVs Origin Origin = Origin
+instance HalfSpace (ZeroDim k) where
+  type FullSubspace (ZeroDim k) = ZeroDim k
+  scaleNonNeg _ Origin = Origin
+  fromFullSubspace _ = Origin
+  projectToFullSubspace Origin = Origin
+
 instance AdditiveMonoid ℝay where
   zeroHV = Cℝay 0 Origin
   addHVs (Cℝay a Origin) (Cℝay b Origin) = Cℝay (a+b) Origin
@@ -82,6 +91,18 @@ class ( Semimanifold (Interior m), Semimanifold (Boundary m)
 class (SemimanifoldWithBoundary m, PseudoAffine (Interior m), PseudoAffine (Boundary m))
           => PseudoAffineWithBoundary m where
   (.-|) :: m -> Boundary m -> HalfNeedle m
+
+instance SemimanifoldWithBoundary (ZeroDim k) where
+  type Interior (ZeroDim k) = ZeroDim k
+  type Boundary (ZeroDim k) = EmptyMfd (ZeroDim k)
+  type HalfNeedle (ZeroDim k) = ZeroDim k
+  fromInterior = id
+  separateInterior = Right
+  p|+^_ = case p of {}
+  extendToBoundary _ _ = Nothing
+
+instance PseudoAffineWithBoundary (ZeroDim k) where
+  _.-|p = case p of {}
 
 instance SemimanifoldWithBoundary ℝ where
   type Interior ℝ = ℝ
