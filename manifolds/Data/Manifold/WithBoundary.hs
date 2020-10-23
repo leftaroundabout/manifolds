@@ -133,3 +133,19 @@ instance PseudoAffineWithBoundary ℝ where
   _.-|p = case p of {}
   (.--.) = (-)
 
+data ProductBoundary a b
+  = P₀Boundary (Boundary a) (Interior b)
+  | P₁Boundary a (Boundary b)
+
+instance ∀ a b . (SemimanifoldWithBoundary a, SemimanifoldWithBoundary b)
+   => Semimanifold (ProductBoundary a b) where
+  type Needle (ProductBoundary a b) = (Needle (Boundary a), Needle (Interior b))
+  (.+~^) = case semimanifoldWitness @(Interior b) of
+   SemimanifoldWitness -> 
+      \(P₀Boundary ba ib) (δa, δb) -> case fromInterior @b ib .+^| δb of
+         Right ib' -> P₀Boundary (ba.+~^δa) ib'
+         Left q -> undefined
+  semimanifoldWitness = case ( semimanifoldWitness @(Boundary a)
+                             , semimanifoldWitness @(Interior b) ) of
+    (SemimanifoldWitness, SemimanifoldWitness)
+       -> SemimanifoldWitness
