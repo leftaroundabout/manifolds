@@ -19,6 +19,7 @@
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE AllowAmbiguousTypes      #-}
+{-# LANGUAGE TypeApplications         #-}
 {-# LANGUAGE EmptyCase                #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE TypeInType               #-}
@@ -79,18 +80,30 @@ class ( Semimanifold (Interior m), Semimanifold (Boundary m)
   type Interior m :: Type
   type Boundary m :: Type
   type HalfNeedle m :: Type
+  (|+^) :: Boundary m -> HalfNeedle m -> m
+  (.+^|) :: m -> Needle (Interior m)
+           -> Either (Boundary m, Scalar (Needle (Interior m))) (Interior m)
   fromInterior :: Interior m -> m
   separateInterior :: m -> Either (Boundary m) (Interior m)
+  separateInterior p = case p .+^| zeroV of
+    Left (b,_) -> Left b 
+    Right i -> Right i
   toInterior :: m -> Maybe (Interior m)
   toInterior p = case separateInterior p of
     Right i -> Just i
     Left _  -> Nothing
-  (|+^) :: Boundary m -> HalfNeedle m -> m
   extendToBoundary :: Interior m -> Needle (Interior m) -> Maybe (Boundary m)
+  default extendToBoundary :: ( VectorSpace (Needle (Interior m))
+                              , Num (Scalar (Needle (Interior m))) )
+           => Interior m -> Needle (Interior m) -> Maybe (Boundary m)
+  extendToBoundary p dir = case fromInterior @m p .+^| dir of
+    Right _ -> extendToBoundary @m p $ dir^*2
+    Left (p, _) -> Just p
 
 class (SemimanifoldWithBoundary m, PseudoAffine (Interior m), PseudoAffine (Boundary m))
           => PseudoAffineWithBoundary m where
   (.-|) :: m -> Boundary m -> HalfNeedle m
+  (.--.) :: m -> m -> Needle (Interior m)
 
 instance SemimanifoldWithBoundary (ZeroDim k) where
   type Interior (ZeroDim k) = ZeroDim k
@@ -99,10 +112,12 @@ instance SemimanifoldWithBoundary (ZeroDim k) where
   fromInterior = id
   separateInterior = Right
   p|+^_ = case p of {}
+  Origin .+^| Origin = Right Origin
   extendToBoundary _ _ = Nothing
 
 instance PseudoAffineWithBoundary (ZeroDim k) where
   _.-|p = case p of {}
+  Origin .--. Origin = Origin
 
 instance SemimanifoldWithBoundary ℝ where
   type Interior ℝ = ℝ
@@ -111,8 +126,10 @@ instance SemimanifoldWithBoundary ℝ where
   fromInterior = id
   separateInterior = Right
   p|+^_ = case p of {}
+  a.+^|b = Right $ a+b
   extendToBoundary _ _ = Nothing
 
 instance PseudoAffineWithBoundary ℝ where
   _.-|p = case p of {}
+  (.--.) = (-)
 
