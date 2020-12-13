@@ -204,9 +204,6 @@ alerpB p1 p2 = case p2 .-. p1 of
 
 
 
-hugeℝVal :: ℝ
-hugeℝVal = 1e+100
-
 #define deriveAffine(c,t)               \
 instance (c) => Semimanifold (t) where { \
   type Needle (t) = Diff (t);             \
@@ -217,15 +214,6 @@ instance (c) => PseudoAffine (t) where {    \
 deriveAffine((),Double)
 deriveAffine((),Float)
 deriveAffine((),Rational)
-
-instance (AdditiveGroup v, Semimanifold v, v ~ Needle v)
-     => Semimanifold (EmptyMfd v) where
-  type Needle (EmptyMfd v) = v
-  p .+~^ _ = case p of {}
-  p .-~^ _ = case p of {}
-instance (AdditiveGroup v, PseudoAffine v, v ~ Needle v)
-     => PseudoAffine (EmptyMfd v) where
-  p .-~. _ = case p of {}
 
 instance Semimanifold (ZeroDim k) where
   type Needle (ZeroDim k) = ZeroDim k
