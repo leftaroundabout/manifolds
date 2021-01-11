@@ -72,9 +72,12 @@ instance HalfSpace (ZeroDim k) where
 instance (AdditiveMonoid a, AdditiveGroup b) => AdditiveMonoid (a,b) where
   zeroHV = (zeroHV, zeroV)
   addHVs (a,b) (α,β) = (addHVs a α, b^+^β)
-instance (HalfSpace a, VectorSpace b, Scalar (FullSubspace a) ~ Scalar b)
+instance (HalfSpace a, VectorSpace b, Scalar (FullSubspace a) ~ ℝ, Scalar b ~ ℝ)
             => HalfSpace (a,b) where
   type FullSubspace (a,b) = (FullSubspace a, b)
+  scaleNonNeg s@(Cℝay μ Origin) (v,w) = (scaleNonNeg s v, μ*^w)
+  fromFullSubspace (v,w) = (fromFullSubspace v, w)
+  projectToFullSubspace (v',w) = (projectToFullSubspace v', w)
 
 instance AdditiveMonoid ℝay where
   zeroHV = Cℝay 0 Origin
@@ -166,6 +169,10 @@ instance LinearSpace k => SemimanifoldWithBoundary (EmptyMfd k) where
   type Boundary (EmptyMfd k) = EmptyMfd k
   type HalfNeedle (EmptyMfd k) = ZeroDim (Scalar k)
   smfdWBoundWitness = OpenManifoldWitness @(EmptyMfd k) @k
+  q|+^_ = case q of {}
+  q.+^|_ = case q of {}
+  fromInterior = id
+  fromBoundary = id
 
 instance Num' k => SemimanifoldWithBoundary (ZeroDim k) where
   type Interior (ZeroDim k) = ZeroDim k
@@ -182,6 +189,7 @@ instance Num' k => SemimanifoldWithBoundary (ZeroDim k) where
 instance Num' k => PseudoAffineWithBoundary (ZeroDim k) where
   _.-|p = case p of {}
   Origin .--! Origin = Origin
+  _!-|q = case q of {}
 
 instance SemimanifoldWithBoundary ℝ where
   type Interior ℝ = ℝ
@@ -289,6 +297,7 @@ instance ( SameScalar LinearSpace
          , ValidDualness dn
          )
     => PseudoAffine (ProductBoundaryNeedleT dn a b v) where
+  (.-~!) = (^-^)
   
 
 instance ∀ a b . ( ProjectableBoundary a, ProjectableBoundary b
@@ -342,26 +351,35 @@ instance ∀ a b . ( ProjectableBoundary a, ProjectableBoundary b
                      , Needle (Interior a), Needle (Boundary b)
                      , FullSubspace (HalfNeedle a)
                      ]
-                 , Num' (Scalar (Needle (Interior a)))
-                 , Scalar (Scalar (Needle (Interior a))) ~ Scalar (Needle (Interior a))
+                 , Scalar (Needle (Interior a)) ~ ℝ
                  )
    => SemimanifoldWithBoundary (ProductBoundary a b) where
   type Interior (ProductBoundary a b) = ProductBoundary a b
   type Boundary (ProductBoundary a b) = EmptyMfd (Needle (Boundary a), Needle (Boundary b))
   type HalfNeedle (ProductBoundary a b) = (HalfNeedle a, Needle (Boundary b))
+  q|+^_ = case q of {}
+  fromInterior = id
+  fromBoundary q = case q of {}
   smfdWBoundWitness = OpenManifoldWitness
 
 data ProductHalfNeedle a b
-  = ProductHalfNeedle !(Needle a) !(Needle b)
+  = ProductHalfNeedle !(Needle (Interior a)) !(Needle (Interior b))
 
-instance AdditiveMonoid (ProductHalfNeedle a b)
+instance (AdditiveGroup (Needle (Interior a)), AdditiveGroup (Needle (Interior b)))
+             => AdditiveMonoid (ProductHalfNeedle a b) where
+  zeroHV = ProductHalfNeedle zeroV zeroV
+  addHVs (ProductHalfNeedle v w) (ProductHalfNeedle ϋ ĥ)
+            = ProductHalfNeedle (v^+^ϋ) (w^+^ĥ)
 instance ( SameScalar VectorSpace
             '[ Needle (Boundary a), Needle (Interior b)
              , Needle (Interior a), Needle (Boundary b) ]
-         , Num' (Scalar (Needle (Interior a)))
-         , Scalar (Scalar (Needle (Boundary a))) ~ Scalar (Needle (Boundary a))
+         , Scalar (Needle (Boundary a)) ~ ℝ
          ) => HalfSpace (ProductHalfNeedle a b) where
   type FullSubspace (ProductHalfNeedle a b) = ProductBoundaryNeedle a b
+  scaleNonNeg (Cℝay μ Origin) (ProductHalfNeedle v w)
+         = ProductHalfNeedle (μ*^v) (μ*^w)
+  -- fromFullSubspace = _
+  -- projectToFullSubspace = _
 
 data ProductInterior a b
   = ProductInterior !(Interior a) !(Interior b)
@@ -377,8 +395,7 @@ instance ∀ a b .
           (SemimanifoldWitness, SemimanifoldWitness) -> SemimanifoldWitness
         
 instance ∀ a b .
-         ( Num' (Scalar (Needle (Interior a)))
-         , Scalar (Needle (Interior a)) ~ Scalar (Scalar (Needle (Interior a))) -- ???
+         ( Scalar (Needle (Interior a)) ~ ℝ
          , SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
          , SameScalar LinearSpace
             '[ Needle (Interior a), Needle (Interior b)
@@ -395,8 +412,7 @@ instance ∀ a b .
          , SameScalar LinearSpace
             '[ Needle (Interior a), Needle (Interior b)
              , Needle (Boundary a), Needle (Boundary b) ]
-         , Scalar (Needle (Interior a)) ~ Scalar (Scalar (Needle (Interior a))) -- ???
-         , Num' (Scalar (Needle (Boundary b)))
+         , Scalar (Needle (Boundary b)) ~ ℝ
          ) => SemimanifoldWithBoundary (a,b) where
   type Interior (a,b) = ProductInterior a b
   type Boundary (a,b) = ProductBoundary a b
