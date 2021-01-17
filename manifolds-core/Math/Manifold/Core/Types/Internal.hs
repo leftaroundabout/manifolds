@@ -11,6 +11,7 @@
 -- data types. All these are in the 'PseudoAffine' class.
 -- 
 {-# LANGUAGE DeriveGeneric    #-}
+{-# LANGUAGE EmptyCase        #-}
 
 
 module Math.Manifold.Core.Types.Internal where
@@ -19,11 +20,20 @@ import Math.Manifold.VectorSpace.ZeroDimensional
 
 import Data.Fixed (mod')
 
+import Proof.Propositional (Empty(..))
+
 import GHC.Generics
 
 
 -- | The empty space can be considered a manifold with any sort of tangent space.
 data EmptyMfd v
+
+instance Empty (EmptyMfd v) where
+  eliminate p = case p of {}
+instance Eq (EmptyMfd v) where
+  p==q = eliminate p && eliminate q
+instance Ord (EmptyMfd v) where
+  p<q = eliminate p && eliminate q
 
 -- | The zero-dimensional sphere is actually just two points. Implementation might
 --   therefore change to @ℝ⁰ 'Control.Category.Constrained.+' ℝ⁰@: the disjoint sum of two
