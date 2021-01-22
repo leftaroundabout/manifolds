@@ -46,6 +46,7 @@ import Control.Arrow
 import qualified GHC.Generics as Gnrx
 import GHC.Generics (Generic, (:*:)(..))
 import Data.Kind (Type)
+import Proof.Propositional (Empty(..))
 
 import Data.CallStack (HasCallStack)
 
@@ -88,16 +89,16 @@ instance HalfSpace ℝay where
   fromFullSubspace o = Cℝay 0 o
   projectToFullSubspace (Cℝay _ o) = o
 
-type OpenManifold m nb = ( SemimanifoldWithBoundary m
-                         , Interior m ~ m
-                         , Boundary m ~ EmptyMfd nb
-                         )
+type OpenManifold m = ( SemimanifoldWithBoundary m
+                      , Interior m ~ m
+                      , Empty (Boundary m)
+                      )
 
 data SmfdWBoundWitness m where
-  OpenManifoldWitness :: ∀ m nb . OpenManifold m nb
+  OpenManifoldWitness :: ∀ m . OpenManifold m
               => SmfdWBoundWitness m
-  SmfdWBoundWitness :: ∀ m nb ne .
-         ( OpenManifold (Interior m) nb, OpenManifold (Boundary m) ne
+  SmfdWBoundWitness :: ∀ m .
+         ( OpenManifold (Interior m), OpenManifold (Boundary m)
          , FullSubspace (HalfNeedle m) ~ Needle (Boundary m) )
               => SmfdWBoundWitness m
 
@@ -135,12 +136,11 @@ class ( Semimanifold (Interior m), Semimanifold (Boundary m), HalfSpace (HalfNee
     Left (p, _) -> Just p
   smfdWBoundWitness :: SmfdWBoundWitness m
   default smfdWBoundWitness 
-              :: ( OpenManifold (Interior m) (Needle (Boundary m))
-                 , OpenManifold (Boundary m) (Needle (Boundary (Boundary m)))
+              :: ( OpenManifold (Interior m)
+                 , OpenManifold (Boundary m)
                  , FullSubspace (HalfNeedle m) ~ Needle (Boundary m) )
                    => SmfdWBoundWitness m
   smfdWBoundWitness = SmfdWBoundWitness @m
-                           @(Needle (Boundary m)) @(Needle (Boundary (Boundary m)))
 
 class (SemimanifoldWithBoundary m, PseudoAffine (Interior m), PseudoAffine (Boundary m))
           => PseudoAffineWithBoundary m where
@@ -168,7 +168,7 @@ instance LinearSpace k => SemimanifoldWithBoundary (EmptyMfd k) where
   type Interior (EmptyMfd k) = EmptyMfd k
   type Boundary (EmptyMfd k) = EmptyMfd k
   type HalfNeedle (EmptyMfd k) = ZeroDim (Scalar k)
-  smfdWBoundWitness = OpenManifoldWitness @(EmptyMfd k) @k
+  smfdWBoundWitness = OpenManifoldWitness @(EmptyMfd k)
   q|+^_ = case q of {}
   q.+^|_ = case q of {}
   fromInterior = id
@@ -358,9 +358,14 @@ instance ∀ a b . ( ProjectableBoundary a, ProjectableBoundary b
   type Boundary (ProductBoundary a b) = EmptyMfd (Needle (Boundary a), Needle (Boundary b))
   type HalfNeedle (ProductBoundary a b) = (HalfNeedle a, Needle (Boundary b))
   q|+^_ = case q of {}
+  p.+^|q = Right $ p.+~^q
   fromInterior = id
   fromBoundary q = case q of {}
   smfdWBoundWitness = OpenManifoldWitness
+
+instance (Empty (Boundary a), Empty (Boundary b)) => Empty (ProductBoundary a b) where
+  eliminate (BoundOfL ba _) = eliminate ba
+  eliminate (BoundOfR _ bb) = eliminate bb
 
 data ProductHalfNeedle a b
   = ProductHalfNeedle !(Needle (Interior a)) !(Needle (Interior b))
@@ -378,32 +383,8 @@ instance ( SameScalar VectorSpace
   type FullSubspace (ProductHalfNeedle a b) = ProductBoundaryNeedle a b
   scaleNonNeg (Cℝay μ Origin) (ProductHalfNeedle v w)
          = ProductHalfNeedle (μ*^v) (μ*^w)
-  -- fromFullSubspace = _
-  -- projectToFullSubspace = _
-
-data ProductInterior a b
-  = ProductInterior !(Interior a) !(Interior b)
-
-instance ∀ a b .
-         (SemimanifoldWithBoundary a, SemimanifoldWithBoundary b)
-         => Semimanifold (ProductInterior a b) where
-  type Needle (ProductInterior a b) = (Needle (Interior a), Needle (Interior b))
-  ProductInterior x y.+~^(δx,δy) = ProductInterior (x.+~^δx) (y.+~^δy)
-  semimanifoldWitness = case (smfdWBoundWitness @a, smfdWBoundWitness @b) of
-    (SmfdWBoundWitness, SmfdWBoundWitness)
-      -> case (semimanifoldWitness @(Interior a), semimanifoldWitness @(Interior b)) of
-          (SemimanifoldWitness, SemimanifoldWitness) -> SemimanifoldWitness
-        
-instance ∀ a b .
-         ( Scalar (Needle (Interior a)) ~ ℝ
-         , SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
-         , SameScalar LinearSpace
-            '[ Needle (Interior a), Needle (Interior b)
-             , Needle (Boundary a), Needle (Boundary b) ]
-         ) => SemimanifoldWithBoundary (ProductInterior a b) where
-  type Interior (ProductInterior a b) = ProductInterior a b
-  type Boundary (ProductInterior a b) = EmptyMfd (ProductBoundaryNeedle a b)
-  type HalfNeedle (ProductInterior a b) = ProductHalfNeedle a b
+  fromFullSubspace ZeroProductBoundaryNeedle = zeroHV
+  -- projectToFullSubspace = undefined
 
 instance ∀ a b .
          ( ProjectableBoundary a, ProjectableBoundary b
@@ -411,13 +392,16 @@ instance ∀ a b .
          , VectorSpace (Needle (Interior a)), VectorSpace (Needle (Boundary b))
          , SameScalar LinearSpace
             '[ Needle (Interior a), Needle (Interior b)
-             , Needle (Boundary a), Needle (Boundary b) ]
+             , Needle (Boundary a), Needle (Boundary b)
+             , Needle (Boundary (Interior a)), Needle (Boundary (Interior b)) -- ??
+             ]
+         , ProjectableBoundary (Interior a), ProjectableBoundary (Interior b)
          , Scalar (Needle (Boundary b)) ~ ℝ
          ) => SemimanifoldWithBoundary (a,b) where
-  type Interior (a,b) = ProductInterior a b
+  type Interior (a,b) = (Interior a, Interior b)
   type Boundary (a,b) = ProductBoundary a b
   type HalfNeedle (a,b) = ProductHalfNeedle a b
   extendToBoundary = undefined
   smfdWBoundWitness = case (smfdWBoundWitness @a, smfdWBoundWitness @b) of
-    -- (OpenManifoldWitness, OpenManifoldWitness) -> OpenManifoldWitness
+    (OpenManifoldWitness, OpenManifoldWitness) -> OpenManifoldWitness
     (SmfdWBoundWitness, SmfdWBoundWitness) -> SmfdWBoundWitness
