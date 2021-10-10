@@ -39,7 +39,7 @@ instance D_S x => Distribution Shade x where
   rvarT (Shade c e) = shadeT' c e
 
 shadeT' :: (PseudoAffine x, SimpleSpace (Needle x), Scalar (Needle x) ~ ℝ)
-                      => Interior x -> Variance (Needle x) -> RVarT m x
+                      => x -> Variance (Needle x) -> RVarT m x
 shadeT' ctr expa = ((ctr.+~^) . sumV) <$> mapM (\v -> (v^*) <$> stdNormalT) eigSpan
    where eigSpan = varianceSpanningSystem expa
 
@@ -47,10 +47,10 @@ shadeT' ctr expa = ((ctr.+~^) . sumV) <$> mapM (\v -> (v^*) <$> stdNormalT) eigS
 -- 
 --   If you use 'rvar' to sample a large number of points from a shade @sh@ in a sufficiently
 --   flat space, then 'pointsShades' of that sample will again be approximately @[sh]@.
-shade :: (Distribution Shade x, D_S x) => Interior x -> Variance (Needle x) -> RVar x
+shade :: (Distribution Shade x, D_S x) => x -> Variance (Needle x) -> RVar x
 shade ctr expa = rvar $ fullShade ctr expa
 
-shadeT :: (Distribution Shade x, D_S x) => Interior x -> Variance (Needle x) -> RVarT m x
+shadeT :: (Distribution Shade x, D_S x) => x -> Variance (Needle x) -> RVarT m x
 shadeT = shadeT'
 
 
@@ -62,10 +62,9 @@ uncertainFunctionSamplesT :: ∀ x y m .
        => Int -> Shade x -> (x -> Shade y) -> RVarT m (x`Shaded`y)
 uncertainFunctionSamplesT n shx f = case ( dualSpaceWitness :: DualNeedleWitness x
                                          , dualSpaceWitness :: DualNeedleWitness y
-                                         , boundarylessWitness :: BoundarylessWitness x
                                          , pseudoAffineWitness :: PseudoAffineWitness y ) of
-    ( DualSpaceWitness, DualSpaceWitness, BoundarylessWitness
-     ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) ) -> do
+    ( DualSpaceWitness, DualSpaceWitness
+     ,PseudoAffineWitness SemimanifoldWitness ) -> do
       domainSpls <- replicateM n $ rvarT shx
       pts <- forM domainSpls $ \x -> do
          y <- rvarT $ f x
@@ -92,8 +91,8 @@ uncertainFunctionSamplesT n shx f = case ( dualSpaceWitness :: DualNeedleWitness
              css <- mkControlSample [] 0
              let xCtrl :: x
                  [Shade (xCtrl,yCtrl) expaCtrl :: Shade (x,y)]
-                       = pointsShades . catMaybes $ toInterior<$>css
-                 yCtrl :: Interior y
+                       = pointsShades css
+                 yCtrl :: y
                  expayCtrl = dualNorm . snd $ summandSpaceNorms expaCtrl
                  jCtrl = dependence expaCtrl
                  jFin = jOrig^*η ^+^ jCtrl^*η'
