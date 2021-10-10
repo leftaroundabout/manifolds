@@ -59,7 +59,7 @@ pattern f :@. p = FibreBundle p f
 
 -- | A zero vector in the fibre bundle at the given position. Intended to be used
 --   with tangent-modifying lenses such as 'Math.Manifold.Real.Coordinates.delta'.
-tangentAt :: (AdditiveGroup (Needle m), m ~ Interior m) => m -> TangentBundle m
+tangentAt :: (AdditiveGroup (Needle m)) => m -> TangentBundle m
 tangentAt p = zeroV :@. p
 
 data TransportOnNeedleWitness k m f where
@@ -71,7 +71,7 @@ data ForgetTransportProperties k m f where
   ForgetTransportProperties :: ParallelTransporting (->) m f
                      => ForgetTransportProperties k m f
 
-class (PseudoAffine m, m ~ Interior m, Category k, Object k f)
+class (PseudoAffine m, Category k, Object k f)
            => ParallelTransporting k m f where
   transportOnNeedleWitness :: TransportOnNeedleWitness k m f
   default transportOnNeedleWitness
@@ -91,28 +91,28 @@ class (PseudoAffine m, m ~ Interior m, Category k, Object k f)
                     , parallelTransport q $ p.-~!q ))
    where q = p.+~^v
 
-instance ∀ m s . (PseudoAffine m, m ~ Interior m, s ~ (Scalar (Needle m)), Num' s)
+instance ∀ m s . (PseudoAffine m, s ~ (Scalar (Needle m)), Num' s)
       => ParallelTransporting Discrete m (ZeroDim s) where
   transportOnNeedleWitness = case (pseudoAffineWitness :: PseudoAffineWitness m) of
-    (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)) -> TransportOnNeedle
+    (PseudoAffineWitness (SemimanifoldWitness)) -> TransportOnNeedle
   forgetTransportProperties = case (pseudoAffineWitness :: PseudoAffineWitness m) of
-    (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
+    (PseudoAffineWitness (SemimanifoldWitness))
         -> ForgetTransportProperties
   parallelTransport _ _ = id
-instance ∀ m s . (PseudoAffine m, m ~ Interior m, s ~ (Scalar (Needle m)), Num' s)
+instance ∀ m s . (PseudoAffine m, s ~ (Scalar (Needle m)), Num' s)
       => ParallelTransporting (LinearFunction s) m (ZeroDim s) where
   transportOnNeedleWitness = case (pseudoAffineWitness :: PseudoAffineWitness m) of
-    (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)) -> TransportOnNeedle
+    (PseudoAffineWitness (SemimanifoldWitness)) -> TransportOnNeedle
   forgetTransportProperties = case (pseudoAffineWitness :: PseudoAffineWitness m) of
-    (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
+    (PseudoAffineWitness (SemimanifoldWitness))
         -> ForgetTransportProperties
   parallelTransport _ _ = id
-instance ∀ m s . (PseudoAffine m, m ~ Interior m, s ~ (Scalar (Needle m)), Num' s)
+instance ∀ m s . (PseudoAffine m, s ~ (Scalar (Needle m)), Num' s)
       => ParallelTransporting (->) m (ZeroDim s) where
   transportOnNeedleWitness = case (pseudoAffineWitness :: PseudoAffineWitness m) of
-    (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)) -> TransportOnNeedle
+    (PseudoAffineWitness (SemimanifoldWitness)) -> TransportOnNeedle
   forgetTransportProperties = case (pseudoAffineWitness :: PseudoAffineWitness m) of
-    (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
+    (PseudoAffineWitness (SemimanifoldWitness))
         -> ForgetTransportProperties
   parallelTransport _ _ = id
 
@@ -215,10 +215,10 @@ instance {-# OVERLAPS #-} ∀ k a b fa fb s .
          , pseudoAffineWitness :: PseudoAffineWitness fb
          , transportOnNeedleWitness :: TransportOnNeedleWitness k a fa
          , transportOnNeedleWitness :: TransportOnNeedleWitness k b fb ) of
-     ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-      ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-      ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-      ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+     ( PseudoAffineWitness (SemimanifoldWitness)
+      ,PseudoAffineWitness (SemimanifoldWitness)
+      ,PseudoAffineWitness (SemimanifoldWitness)
+      ,PseudoAffineWitness (SemimanifoldWitness)
       ,TransportOnNeedle, TransportOnNeedle)
          -> TransportOnNeedle
   forgetTransportProperties = case
@@ -240,9 +240,9 @@ instance ∀ k a f g s .
          , pseudoAffineWitness :: PseudoAffineWitness g
          , transportOnNeedleWitness :: TransportOnNeedleWitness k a f
          , transportOnNeedleWitness :: TransportOnNeedleWitness k a g ) of
-     ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-      ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-      ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+     ( PseudoAffineWitness (SemimanifoldWitness)
+      ,PseudoAffineWitness (SemimanifoldWitness)
+      ,PseudoAffineWitness (SemimanifoldWitness)
       ,TransportOnNeedle, TransportOnNeedle)
          -> TransportOnNeedle
   forgetTransportProperties = case
@@ -261,31 +261,24 @@ instance ( ParallelTransporting (LinearFunction (Scalar f)) m f, AdditiveGroup m
   negateV (FibreBundle p v) = FibreBundle (negateV p) (negateV v)
 
 instance ∀ m f s .
-         ( ParallelTransporting (->) m (Interior f), Semimanifold f
+         ( ParallelTransporting (->) m f, Semimanifold f
          , ParallelTransporting (LinearFunction s) (Needle m) (Needle f)
          , s ~ Scalar (Needle m) )
                 => Semimanifold (FibreBundle m f) where
-  type Interior (FibreBundle m f) = FibreBundle m (Interior f)
   type Needle (FibreBundle m f) = FibreBundle (Needle m) (Needle f)
-  toInterior (FibreBundle p f) = FibreBundle p <$> toInterior f
-  translateP = Tagged $ case ( translateP :: Tagged m (Interior m -> Needle m -> Interior m)
-                             , semimanifoldWitness :: SemimanifoldWitness f) of
-      (Tagged tpm, SemimanifoldWitness BoundarylessWitness)
-           -> \(FibreBundle p f) (FibreBundle v δf)
-                   -> FibreBundle (tpm p v) (parallelTransport p v f.+~^δf)
   semimanifoldWitness = case ( semimanifoldWitness :: SemimanifoldWitness m
                              , semimanifoldWitness :: SemimanifoldWitness f
                              , forgetTransportProperties
                                :: ForgetTransportProperties (LinearFunction s) (Needle m) (Needle f)
                              ) of
-         (SemimanifoldWitness BoundarylessWitness, SemimanifoldWitness BoundarylessWitness
+         (SemimanifoldWitness, SemimanifoldWitness
           ,ForgetTransportProperties)
-           -> SemimanifoldWitness BoundarylessWitness
+           -> SemimanifoldWitness
   FibreBundle p f .+~^ FibreBundle v δf
       = FibreBundle (p.+~^v) (parallelTransport p v f.+~^δf)
 
 instance ∀ m f s .
-         ( ParallelTransporting (->) m f, ParallelTransporting (->) m (Interior f)
+         ( ParallelTransporting (->) m f
          , PseudoAffine f
          , ParallelTransporting (LinearFunction s) (Needle m) (Needle f)
          , s ~ Scalar (Needle m) )
@@ -295,16 +288,16 @@ instance ∀ m f s .
                              , forgetTransportProperties
                                :: ForgetTransportProperties (LinearFunction s) (Needle m) (Needle f)
                              ) of
-     ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-      ,PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+     ( PseudoAffineWitness (SemimanifoldWitness)
+      ,PseudoAffineWitness (SemimanifoldWitness)
       ,ForgetTransportProperties)
-         -> PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
+         -> PseudoAffineWitness (SemimanifoldWitness)
   FibreBundle p f .-~. FibreBundle q g = case p.-~.q of
       Nothing -> Nothing
       Just v  -> FibreBundle v <$> f .-~. parallelTransport p v g
 
 
-instance (AdditiveGroup f, x ~ Interior x) => NaturallyEmbedded x (FibreBundle x f) where
+instance (AdditiveGroup f) => NaturallyEmbedded x (FibreBundle x f) where
   embed x = FibreBundle x zeroV
   coEmbed (FibreBundle x _) = x
 
@@ -379,8 +372,7 @@ instance NaturallyEmbedded (FibreBundle S² ℝ²) (FibreBundle ℝ³ ℝ³) whe
 
 -- | @ex -> ey@, @ey -> ez@, @ez -> ex@
 transformEmbeddedTangents
-    :: ∀ x f v . ( NaturallyEmbedded (FibreBundle x f) (FibreBundle v v)
-                               , v ~ Interior v )
+    :: ∀ x f v . ( NaturallyEmbedded (FibreBundle x f) (FibreBundle v v) )
            => (v -> v) -> FibreBundle x f -> FibreBundle x f
 transformEmbeddedTangents f p = case embed p :: FibreBundle v v of
     FibreBundle v δv -> coEmbed (FibreBundle (f v) (f δv) :: FibreBundle v v)
@@ -388,5 +380,6 @@ transformEmbeddedTangents f p = case embed p :: FibreBundle v v of
 
 instance Rotatable (FibreBundle S² ℝ²) where
   type AxisSpace (FibreBundle S² ℝ²) = ℝP²
-  rotateAbout axis angle = transformEmbeddedTangents $ rotateℝ³AboutCenteredAxis axis angle
+  rotateAbout axis angle = transformEmbeddedTangents
+        $ rotateℝ³AboutCenteredAxis axis angle
 

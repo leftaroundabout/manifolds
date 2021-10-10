@@ -41,6 +41,7 @@ import Data.Manifold.Types.Primitive
 import Data.Manifold.Types.Stiefel
 import Data.Manifold.PseudoAffine
 import Math.LinearMap.Category
+import Math.VectorSpace.Dual
 import Data.VectorSpace
 
 import Control.Lens hiding ((<.>))
@@ -263,7 +264,7 @@ shrinkElems :: QC.Arbitrary a => [a] -> [[a]]
 shrinkElems l = filter ((==length l) . length) . transpose $ map QC.shrink l
 
 
-location's :: (HasCoordinates b, Interior b ~ b, HasCoordinates f)
+location's :: (HasCoordinates b, HasCoordinates f)
                 => CoordinateIdentifier b -> Coordinate (FibreBundle b f)
 location's = coordinate . BaseSpaceCoordinate
 
@@ -277,7 +278,7 @@ class HasCoordinates m => CoordDifferential m where
   --   because it has to compensate for the sensitive rotation of the @eφ@ unit vector.
   delta :: CoordinateIdentifier m -> Coordinate (TangentBundle m)
 
-instance ( CoordDifferential m, f ~ Needle m, m ~ Interior m
+instance ( CoordDifferential m, f ~ Needle m
          , QC.Arbitrary m
          , QC.Arbitrary (CoordinateIdentifier m)
          , QC.Arbitrary (CoordinateIdentifier f) )

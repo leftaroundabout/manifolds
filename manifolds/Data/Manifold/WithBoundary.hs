@@ -24,6 +24,7 @@
 {-# LANGUAGE EmptyCase                #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE TypeInType               #-}
+{-# LANGUAGE CPP                      #-}
 
 
 module Data.Manifold.WithBoundary where
@@ -36,9 +37,13 @@ import Math.Manifold.Core.PseudoAffine
 import Math.Manifold.Core.Types
 import Data.Manifold.Types.Primitive
 import Math.Manifold.VectorSpace.ZeroDimensional
-import Math.LinearMap.Category (Tensor(..), TensorSpace(..), LinearSpace(..), Num')
+import Math.LinearMap.Category ( Tensor(..), TensorSpace(..)
+                               , LinearMap(..), LinearFunction(..), LinearSpace(..)
+                               , Num'
+                               )
 import Math.VectorSpace.Dual
 import Math.VectorSpace.MiscUtil.MultiConstraints (SameScalar)
+import Linear (V0, V1, V2, V3, V4)
 
 import Control.Applicative
 import Control.Arrow
@@ -191,20 +196,31 @@ instance Num' k => PseudoAffineWithBoundary (ZeroDim k) where
   Origin .--! Origin = Origin
   _!-|q = case q of {}
 
-instance SemimanifoldWithBoundary ℝ where
-  type Interior ℝ = ℝ
-  type Boundary ℝ = EmptyMfd ℝ⁰
-  type HalfNeedle ℝ = ℝay
-  fromInterior = id
-  fromBoundary b = case b of {}
-  separateInterior = Right
-  p|+^_ = case p of {}
-  a.+^|b = Right $ a+b
-  extendToBoundary _ _ = Nothing
+#define VectorSpaceSansBoundary(v, s)                    \
+instance Num (s) => SemimanifoldWithBoundary (v) where {  \
+  type Interior (v) = v;                                 \
+  type Boundary (v) = EmptyMfd ℝ⁰;                        \
+  type HalfNeedle (v) = ℝay;                             \
+  smfdWBoundWitness = OpenManifoldWitness;                \
+  fromInterior = id;                                     \
+  fromBoundary b = case b of {};                          \
+  separateInterior = Right;                              \
+  p|+^_ = case p of {};                                   \
+  a.+^|b = Right $ a^+^b;                                \
+  extendToBoundary _ _ = Nothing };                       \
+instance Num (s) => PseudoAffineWithBoundary (v) where { \
+  _!-|p = case p of {};                                   \
+  (.--!) = (-) };                                        \
+instance Num (s) => ProjectableBoundary (v) where {       \
+  projectToBoundary _ p = case p of {};                  \
+  marginFromBoundary p = case p of {} }
 
-instance PseudoAffineWithBoundary ℝ where
-  _!-|p = case p of {}
-  (.--!) = (-)
+VectorSpaceSansBoundary(ℝ,ℝ)
+VectorSpaceSansBoundary(V0 s, s)
+VectorSpaceSansBoundary(V1 s, s)
+VectorSpaceSansBoundary(V2 s, s)
+VectorSpaceSansBoundary(V3 s, s)
+VectorSpaceSansBoundary(V4 s, s)
 
 data ProductBoundary a b
   = BoundOfL !(Boundary a) !(Interior b)
@@ -405,3 +421,110 @@ instance ∀ a b .
   smfdWBoundWitness = case (smfdWBoundWitness @a, smfdWBoundWitness @b) of
     (OpenManifoldWitness, OpenManifoldWitness) -> OpenManifoldWitness
     (SmfdWBoundWitness, SmfdWBoundWitness) -> SmfdWBoundWitness
+
+instance SemimanifoldWithBoundary S⁰ where
+  type Interior S⁰ = S⁰
+  type Boundary S⁰ = EmptyMfd ℝ⁰
+  type HalfNeedle S⁰ = ℝ⁰
+  fromInterior = id
+  fromBoundary b = case b of {}
+  separateInterior = Right
+  p|+^_ = case p of {}
+  NegativeHalfSphere .+^| Origin = Right NegativeHalfSphere
+  PositiveHalfSphere .+^| Origin = Right PositiveHalfSphere
+  extendToBoundary _ _ = Nothing
+  smfdWBoundWitness = OpenManifoldWitness
+
+instance SemimanifoldWithBoundary S¹ where
+  type Interior S¹ = S¹
+  type Boundary S¹ = EmptyMfd ℝ
+  type HalfNeedle S¹ = ℝay
+  fromInterior = id
+  fromBoundary b = case b of {}
+  separateInterior = Right
+  p|+^_ = case p of {}
+  _ .+^| p = case p of {}
+  extendToBoundary _ _ = Nothing
+  smfdWBoundWitness = OpenManifoldWitness
+
+instance SemimanifoldWithBoundary D¹ where
+  type Interior D¹ = ℝ
+  type Boundary D¹ = S⁰
+  type HalfNeedle D¹ = ℝay
+  fromBoundary NegativeHalfSphere = D¹ (-1)
+  fromBoundary PositiveHalfSphere = D¹ 1
+  fromInterior = D¹ . tanh
+  separateInterior (D¹ (-1)) = Left NegativeHalfSphere
+  separateInterior (D¹ 1) = Left PositiveHalfSphere
+  separateInterior (D¹ x) = Right $ atanh x
+  NegativeHalfSphere|+^Cℝay l Origin = D¹ $ 1 - 4/(l+2)
+  PositiveHalfSphere|+^Cℝay l Origin = D¹ $ 4/(l+2) - 1
+  D¹ p .+^| l
+    | p' >= 1    = Left (PositiveHalfSphere, (p'-1) / l)
+    | p' <= -1   = Left (NegativeHalfSphere, (p'+1) / l)
+    | otherwise  = Right $ atanh p'
+   where p' = p+l
+  extendToBoundary _ dir
+   | dir > 0    = Just PositiveHalfSphere
+   | dir < 0    = Just NegativeHalfSphere
+   | otherwise  = Nothing
+  smfdWBoundWitness = SmfdWBoundWitness
+
+-- Old instances prior to the library's boundary paradigm change:
+-- instance Semimanifold D¹ where
+--   type Needle D¹ = ℝ
+--   type Interior D¹ = ℝ
+--   toInterior (D¹ x) | abs x < 1  = return $ atanh x
+                    -- | otherwise  = empty
+--   translateP = Tagged (+)
+-- instance PseudoAffine D¹ where
+--   D¹ 1 .-~. _ = empty
+--   D¹ (-1) .-~. _ = empty
+--   D¹ x .-~. D¹ y
+--     | abs x < 1, abs y < 1  = return $ atanh x - atanh y
+--     | otherwise             = empty
+
+instance ( TensorSpace v, TensorSpace w
+         , s ~ Scalar v, s ~ Scalar w
+         , Num s
+         ) => SemimanifoldWithBoundary (Tensor s v w) where
+  type Interior (Tensor s v w) = (Tensor s v w)
+  type Boundary (Tensor s v w) = EmptyMfd ℝ
+  type HalfNeedle (Tensor s v w) = ℝay
+  smfdWBoundWitness = OpenManifoldWitness
+  fromInterior = id
+  fromBoundary b = case b of {}
+  separateInterior = Right
+  p|+^_ = case p of {}
+  a.+^|b = Right $ a^+^b
+  extendToBoundary _ _ = Nothing
+
+instance ( LinearSpace v, TensorSpace w
+         , s ~ Scalar v, s ~ Scalar w
+         , Num s
+         ) => SemimanifoldWithBoundary (LinearMap s v w) where
+  type Interior (LinearMap s v w) = (LinearMap s v w)
+  type Boundary (LinearMap s v w) = EmptyMfd ℝ
+  type HalfNeedle (LinearMap s v w) = ℝay
+  smfdWBoundWitness = OpenManifoldWitness
+  fromInterior = id
+  fromBoundary b = case b of {}
+  separateInterior = Right
+  p|+^_ = case p of {}
+  a.+^|b = Right $ a^+^b
+  extendToBoundary _ _ = Nothing
+
+instance ( LinearSpace v, TensorSpace w
+         , s ~ Scalar v, s ~ Scalar w
+         , Num s
+         ) => SemimanifoldWithBoundary (LinearFunction s v w) where
+  type Interior (LinearFunction s v w) = (LinearFunction s v w)
+  type Boundary (LinearFunction s v w) = EmptyMfd ℝ
+  type HalfNeedle (LinearFunction s v w) = ℝay
+  smfdWBoundWitness = OpenManifoldWitness
+  fromInterior = id
+  fromBoundary b = case b of {}
+  separateInterior = Right
+  p|+^_ = case p of {}
+  a.+^|b = Right $ a^+^b
+  extendToBoundary _ _ = Nothing

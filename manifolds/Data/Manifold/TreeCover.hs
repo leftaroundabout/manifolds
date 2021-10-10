@@ -123,7 +123,7 @@ import Development.Placeholders
 
 type Depth = Int
 data Wall x = Wall { _wallID :: (Depth,(Int,Int))
-                   , _wallAnchor :: Interior x
+                   , _wallAnchor :: x
                    , _wallNormal :: Needle' x
                    , _wallDistance :: Scalar (Needle x)
                    }
@@ -143,7 +143,7 @@ subshadeId' c expvs x = case ( dualSpaceWitness :: DualNeedleWitness x
 subshadeId :: ( WithField ℝ PseudoAffine x, LinearSpace (Needle x)
               , FiniteDimensional (Needle' x) )
                     => Shade x -> x -> (Int, HourglassBulb)
-subshadeId (Shade c expa) = subshadeId' (fromInterior c)
+subshadeId (Shade c expa) = subshadeId' c
                               . NE.fromList $ normSpanningSystem' expa
                  
 
@@ -190,7 +190,7 @@ data Shaded x y = PlainLeaves [(x,y)]
                 | OverlappingBranches !LeafCount !(Shade x) (NonEmpty (DBranch x y))
   deriving (Generic, Hask.Functor, Hask.Foldable, Hask.Traversable)
 deriving instance ( WithField ℝ PseudoAffine x, Show x
-                  , Show (Interior x), Show (Needle' x), Show (Metric' x) )
+                  , Show x, Show (Needle' x), Show (Metric' x) )
              => Show (ShadeTree x)
            
 data DBranch' x c = DBranch { boughDirection :: !(Needle' x)
@@ -412,9 +412,9 @@ positionIndex m (DisjointBranches _ brs) x
                        (empty, 0)
               $        brs
 positionIndex _ sh@(OverlappingBranches n (Shade c ce) brs) x
-   | PseudoAffineWitness (SemimanifoldWitness _)
+   | PseudoAffineWitness SemimanifoldWitness
                <- pseudoAffineWitness :: PseudoAffineWitness x
-   , Just vx <- toInterior x>>=(.-~.c)
+   , Just vx <- x.-~.c
         = let (_,(i₀,t')) = maximumBy (comparing fst)
                        [ (σ*ω, t')
                        | DBranch d (Hourglass t'u t'd) <- NE.toList $ indexDBranches brs
@@ -429,9 +429,9 @@ positionIndex _ _ _ = empty
 
 fromLeafPoints' :: ∀ x y. (WithField ℝ Manifold x, SimpleSpace (Needle x)) =>
     (Shade x -> [(x,y)] -> NonEmpty (DBranch' x [(x,y)])) -> [(x,y)] -> x`Shaded`y
-fromLeafPoints' sShIdPart = go boundarylessWitness mempty
- where go :: BoundarylessWitness x -> Metric' x -> [(x,y)] -> x`Shaded`y
-       go bw@BoundarylessWitness preShExpa
+fromLeafPoints' sShIdPart = go mempty
+ where go :: Metric' x -> [(x,y)] -> x`Shaded`y
+       go preShExpa
             = \xs -> case pointsShades' (scaleNorm (1/3) preShExpa) xs of
                      [] -> PlainLeaves []
                      [(_,rShade)] -> let trials = sShIdPart rShade xs
@@ -443,9 +443,9 @@ fromLeafPoints' sShIdPart = go boundarylessWitness mempty
                                          _ -> PlainLeaves xs
                      partitions -> DisjointBranches (length xs)
                                    . NE.fromList
-                                    $ map (\(xs',pShade) -> go bw mempty xs') partitions
+                                    $ map (\(xs',pShade) -> go mempty xs') partitions
         where 
-              branchProc redSh = fmap (fmap $ go bw redSh)
+              branchProc redSh = fmap (fmap $ go redSh)
                                  
               reduce :: Shade x -> NonEmpty (DBranch' x [(x,y)])
                                       -> Maybe (NonEmpty (DBranch' x [(x,y)]))
@@ -464,7 +464,7 @@ fromLeafPoints' sShIdPart = go boundarylessWitness mempty
 
 
 sShIdPartition' :: (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
-        => Interior x -> [(x,y)] -> NonEmpty (DBranch' x [(x,y)])
+        => x -> [(x,y)] -> NonEmpty (DBranch' x [(x,y)])
                                  -> NonEmpty (DBranch' x [(x,y)])
 sShIdPartition' c xs st
            = foldr (\(p,y) -> let (i,h) = ssi p
@@ -472,7 +472,7 @@ sShIdPartition' c xs st
                                                     -> DBranch d (oneBulb h ((p,y):) c))
                                       i )
                    st xs
- where ssi = subshadeId' (fromInterior c) (boughDirection<$>st)
+ where ssi = subshadeId' c (boughDirection<$>st)
 sShIdPartition :: (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                     => Shade x -> [(x,y)] -> NonEmpty (DBranch' x [(x,y)])
 sShIdPartition (Shade c expa) xs
@@ -516,8 +516,8 @@ sortByKey = map snd . sortBy (comparing fst)
 trunks :: ∀ x y . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
                   => x`Shaded`y -> [Shade x]
 trunks t = case (pseudoAffineWitness :: PseudoAffineWitness x, t) of
-  (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness), PlainLeaves lvs)
-                                    -> pointsCovers . catMaybes $ toInterior.fst<$>lvs
+  (PseudoAffineWitness SemimanifoldWitness, PlainLeaves lvs)
+                                    -> pointsCovers $ fst<$>lvs
   (_, DisjointBranches _ brs)       -> Hask.foldMap trunks brs
   (_, OverlappingBranches _ sh _)   -> [sh]
 
@@ -604,7 +604,7 @@ traverseTwigsWithEnvirons f = fst . go pseudoAffineWitness [] . (0,)
                                                    $ NE.zip ioffs djbs
                                                , False )
         where ioffs = NE.scanl (\i -> (+i) . nLeaves) i₀ djbs
-       go sw@(PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)) envi
+       go sw@(PseudoAffineWitness SemimanifoldWitness) envi
            ct@(i₀, (OverlappingBranches nlvs rob@(Shade robc _) brs))
                 = ( case descentResult of
                      OuterNothing -> f
@@ -632,15 +632,15 @@ traverseTwigsWithEnvirons f = fst . go pseudoAffineWitness [] . (0,)
                        ++ [(nLeaves bdc₁, bdc₂) | overlap < 1]
                       where overlap = bdir<.>^δxenv
               approach q = [q]
-       go (PseudoAffineWitness (SemimanifoldWitness _)) envi plvs@(i₀, (PlainLeaves _))
+       go (PseudoAffineWitness SemimanifoldWitness) envi plvs@(i₀, (PlainLeaves _))
                          = (f $ purgeRemotes (plvs, envi), True)
        
-       twigProximæ :: PseudoAffineWitness x -> Interior x -> x`Shaded`y -> TwigEnviron x y
+       twigProximæ :: PseudoAffineWitness x -> x -> x`Shaded`y -> TwigEnviron x y
        twigProximæ sw x₀ (DisjointBranches _ djbs)
                = Hask.foldMap (\(i₀,st) -> first (+i₀) <$> twigProximæ sw x₀ st)
                     $ NE.zip ioffs djbs
         where ioffs = NE.scanl (\i -> (+i) . nLeaves) 0 djbs
-       twigProximæ sw@(PseudoAffineWitness (SemimanifoldWitness _))
+       twigProximæ sw@(PseudoAffineWitness SemimanifoldWitness)
                           x₀ ct@(OverlappingBranches _ (Shade xb qb) brs)
                    = twigsaveTrim hither ct
         where Just δxb = x₀ .-~. xb
@@ -669,15 +669,13 @@ completeTopShading :: ∀ x y . ( WithField ℝ PseudoAffine x, WithField ℝ Ps
 completeTopShading (PlainLeaves plvs) = case ( dualSpaceWitness :: DualNeedleWitness x
                                              , dualSpaceWitness :: DualNeedleWitness y ) of
        (DualSpaceWitness, DualSpaceWitness)
-          -> pointsShade's . catMaybes
-               $ toInterior <$> plvs
+          -> pointsShade's plvs
 completeTopShading (DisjointBranches _ bqs)
                      = take 1 . completeTopShading =<< NE.toList bqs
 completeTopShading t = case ( dualSpaceWitness :: DualNeedleWitness x
                             , dualSpaceWitness :: DualNeedleWitness y ) of
        (DualSpaceWitness, DualSpaceWitness)
-          -> pointsCover's . catMaybes
-                . map toInterior $ onlyLeaves t
+          -> pointsCover's $ onlyLeaves t
 
 
 transferAsNormsDo :: ∀ v . LSpace v => Norm v -> Variance v -> v-+>v
@@ -696,7 +694,7 @@ flexTopShading f tr = seq (assert_onlyToplevDisjoint tr)
                             (completeTopShading tr) tr
  where recst _ qsh@(_:_) (DisjointBranches n bqs)
           = undefined -- DisjointBranches n $ NE.zipWith (recst . (:[])) (NE.fromList qsh) bqs
-       recst (DualSpaceWitness,DualSpaceWitness,PseudoAffineWitness (SemimanifoldWitness _))
+       recst (DualSpaceWitness,DualSpaceWitness,PseudoAffineWitness SemimanifoldWitness)
                [sha@(Shade' (_,yc₀) expa₀)] t = fmap fts $ f sha
         where expa'₀ = dualNorm expa₀
               j₀ :: LocalLinear x y
@@ -740,10 +738,10 @@ leavesWithPotentialNeighbours :: ∀ x y
 leavesWithPotentialNeighbours = map (second snd) . go pseudoAffineWitness 0 0 []
  where go :: PseudoAffineWitness x -> Depth -> Int -> [Wall x] -> x`Shaded`y
                 -> [((x,y), ([Wall x], [Int]))]
-       go (PseudoAffineWitness (SemimanifoldWitness _)) depth n₀ walls (PlainLeaves lvs)
+       go (PseudoAffineWitness SemimanifoldWitness) depth n₀ walls (PlainLeaves lvs)
                = [ ((x,y), ( [ wall & wallDistance .~ d
                          | wall <- walls
-                         , Just vw <- [toInterior x>>=(.-~.wall^.wallAnchor)]
+                         , Just vw <- [x.-~.wall^.wallAnchor]
                          , let d = (wall^.wallNormal)<.>^vw
                          , d < wall^.wallDistance ]
                        , [] ))
@@ -752,7 +750,7 @@ leavesWithPotentialNeighbours = map (second snd) . go pseudoAffineWitness 0 0 []
          = snd (foldl' (\(n₀',prev) br -> ( n₀'+nLeaves br
                                           , prev . (go pw depth n₀' walls br++)))
                         (n₀,id) dp) []
-       go pw@(PseudoAffineWitness (SemimanifoldWitness _))
+       go pw@(PseudoAffineWitness SemimanifoldWitness)
                depth n₀ walls (OverlappingBranches _ (Shade brCtr _) dp)
          = reassemble $ snd
              (foldl' assignWalls (n₀,id) . directionIChoices 0 $ NE.toList dp) []
@@ -839,7 +837,7 @@ onlyNodes (PlainLeaves ps) = let (ctr,_) = pseudoECM ([]::[x]) $ NE.fromList ps
                              in GenericTree [ (ctr, GenericTree $ (,mempty).fst <$> ps) ]
 onlyNodes (DisjointBranches _ brs) = Hask.foldMap onlyNodes brs
 onlyNodes (OverlappingBranches _ (Shade ctr _) brs)
-              = GenericTree [ ( fromInterior ctr
+              = GenericTree [ ( ctr
                               , Hask.foldMap (Hask.foldMap onlyNodes) brs ) ]
 
 entireTree :: ∀ x y . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
@@ -855,7 +853,7 @@ entireTree (DisjointBranches _ brs)
                   | GenericTree sub <- NE.toList $ fmap entireTree brs
                   , (x, GenericTree subt) <- sub ]
 entireTree (OverlappingBranches _ (Shade ctr _) brs)
-    = GenericTree [ ( fromInterior ctr
+    = GenericTree [ ( ctr
                     , GenericTree . ListT . Right
                        $ Hask.foldMap (Hask.foldMap $ treeBranches . entireTree) brs ) ]
 
@@ -936,11 +934,9 @@ stiWithDensity :: ∀ x y . ( WithField ℝ PseudoAffine x, LinearSpace y, Scala
                           , SimpleSpace (Needle x) )
          => x`Shaded`y -> x -> Cℝay y
 stiWithDensity (PlainLeaves lvs)
-  | [Shade baryc expa :: Shade x] <- pointsShades . catMaybes 
-                                       $ toInterior . fst <$> lvs
+  | [Shade baryc expa :: Shade x] <- pointsShades $ fst <$> lvs
        = let nlvs = fromIntegral $ length lvs :: ℝ
-             indiShapes = [(Shade pi expa, y) | (p,y) <- lvs
-                                              , Just pi <- [toInterior p]]
+             indiShapes = [(Shade p expa, y) | (p,y) <- lvs]
          in \x -> let lcCoeffs = [ occlusion psh x | (psh, _) <- indiShapes ]
                       dens = sum lcCoeffs
                   in mkCone dens . linearCombo . zip (snd<$>indiShapes)
@@ -952,8 +948,8 @@ stiWithDensity (DisjointBranches _ lvs)
 stiWithDensity (OverlappingBranches n (Shade bc extend) brs)
            = ovbSWD (dualSpaceWitness, pseudoAffineWitness)
  where ovbSWD :: (DualNeedleWitness x, PseudoAffineWitness x) -> x -> Cℝay y
-       ovbSWD (DualSpaceWitness, PseudoAffineWitness (SemimanifoldWitness _)) x
-                     = case toInterior x>>=(.-~.bc) of
+       ovbSWD (DualSpaceWitness, PseudoAffineWitness SemimanifoldWitness) x
+                     = case x.-~.bc of
            Just v
              | dist² <- normSq ε v
              , dist² < 9
@@ -981,10 +977,10 @@ spanShading :: ∀ x y . ( WithField ℝ Manifold x, WithField ℝ Manifold y
           => (Shade x -> Shade y) -> ShadeTree x -> x`Shaded`y
 spanShading f = unsafeFmapTree (addYs . fmap fst) id id
  where addYs :: NonEmpty x -> NonEmpty (x,y)
-       addYs l = foldr (NE.<|) (fmap (,fromInterior ymid) l     )
-                               (fmap (fromInterior xmid,) yexamp)
-          where [xsh@(Shade xmid _)] = pointsCovers . catMaybes . toList
-                                           $ toInterior<$>l
+       addYs l = foldr (NE.<|) (fmap (,ymid) l     )
+                               (fmap (xmid,) yexamp)
+          where [xsh@(Shade xmid _)] = pointsCovers . toList
+                                           $ l
                 Shade ymid yexpa = f xsh
                 yexamp = [ ymid .+~^ σ*^δy
                          | δy <- varianceSpanningSystem yexpa, σ <- [-1,1] ]

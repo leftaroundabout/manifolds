@@ -50,20 +50,21 @@
 
 module Data.Manifold.PseudoAffine (
             -- * Manifold class
-              Manifold(inInterior)
+              Manifold
             , Semimanifold(..), Needle'
             , PseudoAffine(..)
             -- * Type definitions
             -- ** Needles
-            , Local(..), (⊙+^), (!+~^)
+            , Local(..)
+#if !MIN_VERSION_manifolds_core(0,6,0)
+            , (!+~^)
+#endif
             -- ** Metrics
             , Metric, Metric'
             , RieMetric, RieMetric'
             -- ** Constraints
             , SemimanifoldWitness(..)
             , PseudoAffineWitness(..)
-            , BoundarylessWitness(..)
-            , boundarylessWitness
             , DualNeedleWitness 
             , WithField
             , LocallyScalable
@@ -114,14 +115,11 @@ import GHC.Exts (Constraint)
   
 
 -- | See 'Semimanifold' and 'PseudoAffine' for the methods.
+--   As a 'Manifold' we understand a pseudo-affine space whose 'Needle'
+--   space is a well-behaved vector space that is isomorphic to
+--   all of the manifold's tangent spaces.
 class (PseudoAffine m, LSpace (Needle m)) => Manifold m where
-  boundarylessWitness :: BoundarylessWitness m
-  default boundarylessWitness :: (m ~ Interior m) => BoundarylessWitness m
-  boundarylessWitness = BoundarylessWitness
-  inInterior :: m -> Interior m
-  default inInterior :: (m ~ Interior m) => m -> Interior m
-  inInterior = id
-instance (PseudoAffine m, LSpace (Needle m), Interior m ~ m) => Manifold m
+instance (PseudoAffine m, LSpace (Needle m)) => Manifold m
 
 
 
@@ -157,11 +155,6 @@ class ( Semimanifold x, Semimanifold ξ, LSpace (Needle x), LSpace (Needle ξ)
   oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x
   default oppositeLocalCoercion :: LocallyCoercible ξ x => CanonicalDiffeomorphism ξ x
   oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion :: Functor p (->) (->) 
-                  => p (x,ξ) -> CanonicalDiffeomorphism (Interior x) (Interior ξ)
-  default interiorLocalCoercion :: LocallyCoercible (Interior x) (Interior ξ)
-                  => p (x,ξ) -> CanonicalDiffeomorphism (Interior x) (Interior ξ)
-  interiorLocalCoercion _ = CanonicalDiffeomorphism
 
 type NumPrime n = (Num' n, Eq n)
 
@@ -170,8 +163,7 @@ instance (c) => LocallyCoercible (t) (t) where { \
   locallyTrivialDiffeomorphism = id;              \
   coerceNeedle _ = id;                             \
   coerceNeedle' _ = id;                             \
-  oppositeLocalCoercion = CanonicalDiffeomorphism;   \
-  interiorLocalCoercion _ = CanonicalDiffeomorphism }
+  oppositeLocalCoercion = CanonicalDiffeomorphism }
 identityCoercion(NumPrime s, ZeroDim s)
 identityCoercion(NumPrime s, V0 s)
 identityCoercion((), ℝ)
@@ -337,13 +329,6 @@ instance ( Semimanifold a, Semimanifold b, Semimanifold c
   coerceNeedle _ = regroup
   coerceNeedle' _ = regroup
   oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion _ = case ( semimanifoldWitness :: SemimanifoldWitness a
-                                 , semimanifoldWitness :: SemimanifoldWitness b
-                                 , semimanifoldWitness :: SemimanifoldWitness c ) of
-       ( SemimanifoldWitness BoundarylessWitness
-        ,SemimanifoldWitness BoundarylessWitness
-        ,SemimanifoldWitness BoundarylessWitness )
-              -> CanonicalDiffeomorphism
 instance ∀ a b c .
          ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
@@ -355,23 +340,13 @@ instance ∀ a b c .
   coerceNeedle _ = regroup'
   coerceNeedle' _ = regroup'
   oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion _ = case ( semimanifoldWitness :: SemimanifoldWitness a
-                                 , semimanifoldWitness :: SemimanifoldWitness b
-                                 , semimanifoldWitness :: SemimanifoldWitness c ) of
-       ( SemimanifoldWitness BoundarylessWitness
-        ,SemimanifoldWitness BoundarylessWitness
-        ,SemimanifoldWitness BoundarylessWitness )
-            -> CanonicalDiffeomorphism
 
 
-instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
+instance (LinearSpace (a n), Needle (a n) ~ a n)
             => Semimanifold (LinAff.Point a n) where
   type Needle (LinAff.Point a n) = a n
-  fromInterior = id
-  toInterior = pure
   LinAff.P v .+~^ w = LinAff.P $ v ^+^ w
-  translateP = Tagged $ \(LinAff.P v) w -> LinAff.P $ v ^+^ w
-instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
+instance (LinearSpace (a n), Needle (a n) ~ a n)
             => PseudoAffine (LinAff.Point a n) where
   LinAff.P v .-~. LinAff.P w = return $ v ^-^ w
 
@@ -380,9 +355,6 @@ instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
 
 instance Semimanifold S² where
   type Needle S² = ℝ²
-  fromInterior = id
-  toInterior = pure
-  translateP = Tagged (.+~^)
   S²Polar θ₀ φ₀ .+~^ 𝐯 = S²Polar θ₁ φ₁
    where -- See images/constructions/sphericoords-needles.svg.
          S¹Polar γc = coEmbed 𝐯
@@ -424,9 +396,6 @@ instance PseudoAffine S² where
 
 instance Semimanifold ℝP² where
   type Needle ℝP² = ℝ²
-  fromInterior = id
-  toInterior = pure
-  translateP = Tagged (.+~^)
   HemisphereℝP²Polar θ₀ φ₀ .+~^ v
       = case S²Polar θ₀ φ₀ .+~^ v of
           S²Polar θ₁ φ₁
@@ -476,18 +445,14 @@ type DualNeedleWitness x = DualSpaceWitness (Needle x)
 
 
 
+#if !MIN_VERSION_manifolds_core(0,6,0)
 infixl 6 !+~^
 -- | Boundary-unsafe version of `.+~^`.
 (!+~^) :: ∀ x . (Semimanifold x, HasCallStack) => x -> Needle x -> x
 p!+~^v = case toInterior p of
            Just p' -> p'.+~^v
+#endif
 
-
-infix 6 ⊙+^
--- | Proxy-version of `translateP`.
-(⊙+^) :: ∀ x proxy . Semimanifold x => Interior x -> Needle x -> proxy x -> Interior x
-(⊙+^) x v _ = tp x v
- where Tagged tp = translateP :: Tagged x (Interior x -> Needle x -> Interior x)
 
 
 

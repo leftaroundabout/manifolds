@@ -60,7 +60,7 @@ module Data.Manifold.Types.Primitive (
 
 
 import Math.Manifold.Core.Types
-import Math.Manifold.Core.PseudoAffine (FibreBundle(..), TangentBundle, Interior)
+import Math.Manifold.Core.PseudoAffine (FibreBundle(..), TangentBundle)
 
 import Data.VectorSpace
 import Data.VectorSpace.Free

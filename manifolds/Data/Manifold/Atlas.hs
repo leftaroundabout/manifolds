@@ -38,14 +38,11 @@ import qualified Linear.Affine as LinAff
 class Semimanifold m => Atlas m where
   type ChartIndex m :: *
   chartReferencePoint :: ChartIndex m -> m
-  chartReferencePoint = fromInterior . interiorChartReferencePoint ([]::[m])
-  interiorChartReferencePoint :: Hask.Functor p => p m -> ChartIndex m -> Interior m
   lookupAtlas :: m -> ChartIndex m
 
 #define VectorSpaceAtlas(c,v)              \
 instance (c) => Atlas (v) where {           \
   type ChartIndex (v) = ();                  \
-  interiorChartReferencePoint _ () = zeroV;   \
   chartReferencePoint () = zeroV;              \
   lookupAtlas _ = () }
 
@@ -62,36 +59,29 @@ VectorSpaceAtlas((TensorSpace v, Scalar v ~ s, TensorSpace w, Scalar w ~ s), Ten
 instance (Atlas x, Atlas y) => Atlas (x,y) where
   type ChartIndex (x,y) = (ChartIndex x, ChartIndex y)
   chartReferencePoint = chartReferencePoint *** chartReferencePoint
-  interiorChartReferencePoint p
-         = interiorChartReferencePoint (fst<$>p) *** interiorChartReferencePoint (snd<$>p)
   lookupAtlas = lookupAtlas *** lookupAtlas
 
 instance Atlas S⁰ where
   type ChartIndex S⁰ = S⁰
   chartReferencePoint = id
-  interiorChartReferencePoint _ = id
   lookupAtlas = id
 instance Atlas S¹ where
   type ChartIndex S¹ = S⁰
   chartReferencePoint NegativeHalfSphere = S¹Polar $ -pi/2
   chartReferencePoint PositiveHalfSphere = S¹Polar $ pi/2
-  interiorChartReferencePoint _ NegativeHalfSphere = S¹Polar $ -pi/2
-  interiorChartReferencePoint _ PositiveHalfSphere = S¹Polar $ pi/2
   lookupAtlas (S¹Polar φ) | φ<0        = NegativeHalfSphere
                      | otherwise  = PositiveHalfSphere
 instance Atlas S² where
   type ChartIndex S² = S⁰
   chartReferencePoint PositiveHalfSphere = S²Polar 0 0
   chartReferencePoint NegativeHalfSphere = S²Polar pi 0
-  interiorChartReferencePoint _ PositiveHalfSphere = S²Polar 0 0
-  interiorChartReferencePoint _ NegativeHalfSphere = S²Polar pi 0
   lookupAtlas (S²Polar ϑ _) | ϑ<pi/2     = PositiveHalfSphere
                             | otherwise  = NegativeHalfSphere
 
-instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
+instance (LinearSpace (a n), Needle (a n) ~ a n)
               => Atlas (LinAff.Point a n) where
   type ChartIndex (LinAff.Point a n) = ()
-  interiorChartReferencePoint _ () = LinAff.P zeroV
+  chartReferencePoint () = LinAff.P zeroV
   lookupAtlas _ = ()
 
 

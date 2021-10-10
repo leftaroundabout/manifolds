@@ -280,20 +280,6 @@ instance PseudoAffine S¹ where
      | otherwise   = pure δφ
    where δφ = φ₁ - φ₀
 
--- This does not work anymore, because it is a manifold with boundary:
--- instance Semimanifold D¹ where
---   type Needle D¹ = ℝ
---   type Interior D¹ = ℝ
---   fromInterior = D¹ . tanh
---   toInterior (D¹ x) | abs x < 1  = return $ atanh x
-                    -- | otherwise  = empty
---   translateP = Tagged (+)
--- instance PseudoAffine D¹ where
---   D¹ 1 .-~. _ = empty
---   D¹ (-1) .-~. _ = empty
---   D¹ x .-~. D¹ y
---     | abs x < 1, abs y < 1  = return $ atanh x - atanh y
---     | otherwise             = empty
 
 
 

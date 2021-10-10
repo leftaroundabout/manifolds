@@ -31,8 +31,6 @@ module Data.Manifold.Function.LocalModel (
     -- ** Differential equations
     , DifferentialEqn, LocalDifferentialEqn(..)
     , propagateDEqnSolution_loc, LocalDataPropPlan(..)
-    -- ** Range interpolation
-    , rangeWithinVertices
     ) where
 
 
@@ -66,12 +64,12 @@ makeLenses ''LocalDifferentialEqn
 type DifferentialEqn ㄇ x y = Shade (x,y) -> LocalDifferentialEqn ㄇ x y
 
 data LocalDataPropPlan x y = LocalDataPropPlan
-       { _sourcePosition :: !(Interior x)
+       { _sourcePosition :: !x
        , _targetPosOffset :: !(Needle x)
        , _sourceData, _targetAPrioriData :: !y
        , _relatedData :: [(Needle x, y)]
        }
-deriving instance (Show (Interior x), Show y, Show (Needle x))
+deriving instance (Show x, Show y, Show (Needle x))
              => Show (LocalDataPropPlan x y)
 
 makeLenses ''LocalDataPropPlan
@@ -84,8 +82,8 @@ estimateLocalJacobian :: ∀ x y . ( WithField ℝ Manifold x, Refinable y
                              -> Maybe (Shade' (LocalLinear x y))
 estimateLocalJacobian = elj ( pseudoAffineWitness :: PseudoAffineWitness x
                             , pseudoAffineWitness :: PseudoAffineWitness y )
- where elj ( PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-           , PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness) )
+ where elj ( PseudoAffineWitness SemimanifoldWitness
+           , PseudoAffineWitness SemimanifoldWitness )
         mex [(Local x₁, Shade' y₁ ey₁),(Local x₀, Shade' y₀ ey₀)]
          = return $ Shade' (dx-+|>δy)
                           (Norm . LinearFunction $ \δj -> δx ⊗ (σey<$|δj $ δx))
@@ -138,7 +136,7 @@ quadratic_linearRegression = case ( dualSpaceWitness :: DualSpaceWitness (Needle
          (\δx -> lfun $ \(c,(b,a)) -> (a $ squareV δx) ^+^ (b $ δx) ^+^ c )
          (\cmy (cBest, (bBest, aBest)) σ
             -> let (σc, (σb, σa)) = second summandSpaceNorms $ summandSpaceNorms σ
-               in QuadraticModel (Shade (cmy⊙+^cBest $ ([]::[y])) σc)
+               in QuadraticModel (Shade (cmy.+~^cBest) σc)
                               (Shade bBest σb)
                               (Shade aBest σa) )
 
@@ -148,12 +146,12 @@ gLinearRegression :: ∀ s x y ㄇ ψ.
                       , SimpleSpace (Needle x), SimpleSpace (Needle y)
                       , SimpleSpace ψ, Scalar ψ ~ s )
             => (Needle x -> ψ -+> Needle y)
-               -> (Interior y -> ψ -> Variance ψ -> ㄇ x y)
+               -> (y -> ψ -> Variance ψ -> ㄇ x y)
                -> NE.NonEmpty (Needle x, Shade' y) -> ㄇ x y
-gLinearRegression fwdCalc analyse = qlr (pseudoAffineWitness, geodesicWitness)
- where qlr :: (PseudoAffineWitness y, GeodesicWitness y)
+gLinearRegression fwdCalc analyse = qlr (pseudoAffineWitness)
+ where qlr :: (PseudoAffineWitness y)
                    -> NE.NonEmpty (Needle x, Shade' y) -> ㄇ x y
-       qlr (PseudoAffineWitness (SemimanifoldWitness _), GeodesicWitness _) ps
+       qlr (PseudoAffineWitness SemimanifoldWitness) ps
                  = analyse cmy ψ σψ
         where Just cmy = pointsBarycenter $ _shade'Ctr.snd<$>ps
               Just vsxy = Hask.mapM (\(x, Shade' y ey) -> (x,).(,ey)<$>y.-~.cmy) ps
@@ -177,7 +175,7 @@ quadraticModel_derivatives :: ∀ x y .
           , Scalar (Needle y) ~ Scalar (Needle x) ) =>
      QuadraticModel x y -> (Shade' y, (Shade' (LocalLinear x y), Shade' (LocalBilinear x y))) 
 quadraticModel_derivatives (QuadraticModel sh shð shð²)
-    | (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
+    | (PseudoAffineWitness SemimanifoldWitness)
                                      :: PseudoAffineWitness y <- pseudoAffineWitness
     , DualSpaceWitness :: DualSpaceWitness (Needle x) <- dualSpaceWitness
     , DualSpaceWitness :: DualSpaceWitness (Needle y) <- dualSpaceWitness
@@ -218,12 +216,9 @@ propagateDEqnSolution_loc :: ∀ x y ㄇ . (ModellableRelation x y, LocalModel �
 propagateDEqnSolution_loc f propPlan
                   = pdesl (dualSpaceWitness :: DualNeedleWitness x)
                           (dualSpaceWitness :: DualNeedleWitness y)
-                          (boundarylessWitness :: BoundarylessWitness x)
                           (pseudoAffineWitness :: PseudoAffineWitness y)
-                          (geodesicWitness :: GeodesicWitness y)
- where pdesl DualSpaceWitness DualSpaceWitness BoundarylessWitness
-             (PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness))
-             (GeodesicWitness _)
+ where pdesl DualSpaceWitness DualSpaceWitness
+             (PseudoAffineWitness SemimanifoldWitness)
           | Nothing <- jacobian  = Nothing
           | otherwise            = pure result
          where (_,jacobian) = f shxy ^. rescanDifferentialEqn
@@ -288,7 +283,7 @@ instance LocalModel AffineModel where
                             (\δx -> lfun $ \(b,a) -> (a $ δx) ^+^ b )
                             (\cmy (bBest, aBest) σ
                                -> let (σb, σa) = summandSpaceNorms σ
-                                  in AffineModel (Shade (cmy⊙+^bBest $ ([]::[y]))
+                                  in AffineModel (Shade (cmy.+~^bBest)
                                                         $ scaleNorm 2 σb)
                                -- The magic factor 2 seems dubious ↗, but testing indicates
                                -- that this is necessary to not overrate the accuracy.
@@ -300,7 +295,7 @@ instance LocalModel AffineModel where
   evalLocalModel = aEvL pseudoAffineWitness
    where aEvL :: ∀ x y . ModellableRelation x y
                 => PseudoAffineWitness y -> AffineModel x y -> Needle x -> Shade' y
-         aEvL (PseudoAffineWitness (SemimanifoldWitness _)) (AffineModel shy₀ shj) δx
+         aEvL (PseudoAffineWitness SemimanifoldWitness) (AffineModel shy₀ shj) δx
           = convolveShade' (dualShade shy₀)
                            (dualShade . linearProjectShade (lfun ($ δx)) $ shj)
 
@@ -318,7 +313,7 @@ instance LocalModel QuadraticModel where
   evalLocalModel = aEvL pseudoAffineWitness
    where aEvL :: ∀ x y . ModellableRelation x y
                 => PseudoAffineWitness y -> QuadraticModel x y -> Needle x -> Shade' y
-         aEvL (PseudoAffineWitness (SemimanifoldWitness _))
+         aEvL (PseudoAffineWitness SemimanifoldWitness)
               (QuadraticModel shy₀ shj shjj) δx
           = (dualShade shy₀)
            `convolveShade'`

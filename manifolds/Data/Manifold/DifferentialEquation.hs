@@ -102,8 +102,8 @@ constLinearDEqn = case ( linearManifoldWitness :: LinearManifoldWitness x
                        , dualSpaceWitness :: DualSpaceWitness x
                        , linearManifoldWitness :: LinearManifoldWitness y
                        , dualSpaceWitness :: DualSpaceWitness y ) of
-   ( LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
-    ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt'inv bwt' ->
+   ( LinearManifoldWitness, DualSpaceWitness
+    ,LinearManifoldWitness, DualSpaceWitness ) -> \bwt'inv bwt' ->
         \(Shade (_x,y) δxy) -> LocalDifferentialEqn
          { _rescanDifferentialEqn
             = \(QuadraticModel shy' shj'Apriori _) ->
@@ -128,8 +128,8 @@ constLinearODE = case ( linearManifoldWitness :: LinearManifoldWitness x
                       , dualSpaceWitness :: DualSpaceWitness x
                       , linearManifoldWitness :: LinearManifoldWitness y
                       , dualSpaceWitness :: DualSpaceWitness y ) of
-   ( LinearManifoldWitness BoundarylessWitness, DualSpaceWitness
-    ,LinearManifoldWitness BoundarylessWitness, DualSpaceWitness ) -> \bwt' ->
+   ( LinearManifoldWitness, DualSpaceWitness
+    ,LinearManifoldWitness, DualSpaceWitness ) -> \bwt' ->
     let bwt'inv = pseudoInverse bwt'
     in \(Shade (_x,y) δxy) -> LocalDifferentialEqn
             (\(QuadraticModel shy' _ _) ->

@@ -112,7 +112,7 @@ instance Griddable ℝ String where
 
 instance ∀ m n a
     . ( SimpleSpace (Needle m), SimpleSpace (Needle n), SimpleSpace (Needle a)
-      , Griddable m a, Griddable n a, m ~ Interior m, n ~ Interior n )
+      , Griddable m a, Griddable n a )
              => Griddable (m,n) a where
   data GriddingParameters (m,n) a = PairGriddingParameters {
                fstGriddingParams :: GriddingParameters m a

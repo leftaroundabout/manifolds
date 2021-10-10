@@ -61,6 +61,7 @@ instance SemimanifoldWithBoundary (CD¹ ℝ⁰) where
   type Interior (CD¹ ℝ⁰) = ℝ
   type Boundary (CD¹ ℝ⁰) = S⁰
   type HalfNeedle (CD¹ ℝ⁰) = ℝay
+  smfdWBoundWitness = SmfdWBoundWitness
   fromInterior l = CD¹ (bijectℝtoIntvplus l) Origin
   separateInterior (CD¹ 0 Origin) = Left NegativeHalfSphere
   separateInterior (CD¹ 1 Origin) = Left PositiveHalfSphere
@@ -75,7 +76,11 @@ instance SemimanifoldWithBoundary ℝay where
   type Interior ℝay = ℝ
   type Boundary ℝay = ℝ⁰
   type HalfNeedle ℝay = ℝay
+  Cℝay ρ Origin .+^| w
+   | ρ >= -w    = Right $ ρ+w
+   | otherwise  = Left (Origin, (ρ+w)/w)
   fromInterior l = Cℝay (bijectℝtoℝplus l) Origin
+  fromBoundary Origin = Cℝay 0 Origin
   separateInterior (Cℝay ρ Origin)
    | ρ>0        = Right $ bijectℝplustoℝ ρ
    | otherwise  = Left Origin
