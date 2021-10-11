@@ -12,4 +12,5 @@ extra-deps:
 - vector-space-0.16
 - spatial-rotations-0.1.0.1
 - trivial-constraint-0.4.0.0
+- equational-reasoning-0.6.0.4
 resolver: lts-14.0
