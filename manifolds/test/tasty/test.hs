@@ -821,7 +821,7 @@ class AEq e where
 instance AEq Double where
   fuzzyEq η x y  = x + abs x*η >= y
           && x - abs x*η <= y
-instance (SimpleSpace v, Needle v~v, Interior v~v, Floating (Scalar v))
+instance (SimpleSpace v, Needle v~v, Floating (Scalar v))
              => AEq (Shade' v) where
   fuzzyEq η (Shade' c₀ σ₀) (Shade' c₁ σ₁)
     = (σ₀|$|δ) < ε && (σ₀|$|δ) < ε
@@ -830,7 +830,7 @@ instance (SimpleSpace v, Needle v~v, Interior v~v, Floating (Scalar v))
    where δ = c₁ ^-^ c₀
          ε = 1e-2 + realToFrac η
          is1 x = abs (x-1) < ε
-instance ( SimpleSpace v, DualVector (Needle' v) ~ v, Interior v ~ v
+instance ( SimpleSpace v, DualVector (Needle' v) ~ v
          , InnerSpace (Scalar v), Scalar (Needle' v) ~ Scalar v )
               => AEq (Shade v) where
   fuzzyEq η (Shade c₀ σ₀) (Shade c₁ σ₁)
@@ -912,7 +912,7 @@ instance QC.Arbitrary ℝ³ where
                          <*> ((/12)<$>QC.shrink (y*12))
                          <*> ((/12)<$>QC.shrink (z*12))
 
-nearlyAssociative :: ∀ m . ( AEq m, Semimanifold m, Interior m ~ m
+nearlyAssociative :: ∀ m . ( AEq m, Semimanifold m
                            , InnerSpace (Needle m), RealFloat (Scalar (Needle m)) )
                          => m -> Needle m -> Needle m -> QC.Property
 nearlyAssociative p v w = maximum (map magnitude [v,w]) < 1e6
@@ -920,9 +920,8 @@ nearlyAssociative p v w = maximum (map magnitude [v,w]) < 1e6
 
 originCancellation :: ∀ m . (AEq m, Manifold m, Show m, Show (Needle m))
                          => m -> m -> QC.Property
-originCancellation p q = case ( boundarylessWitness :: BoundarylessWitness m
-                              , p.-~.q ) of
-      (BoundarylessWitness, Just v)
+originCancellation p q = case p.-~.q of
+      Just v
           -> let p' = q.+~^v
              in QC.counterexample ("v = "++show v++", q+v = "++show p') $ p' ≈ p
 
@@ -935,7 +934,6 @@ embeddingBackProject p = QC.counterexample ("Embedded: "++SP.show ep
        p' = coEmbed ep
 
 embeddingTangentiality :: ∀ m n . ( Semimanifold m, Semimanifold n
-                                  , Interior m ~ m, Interior n ~ n
                                   , NaturallyEmbedded n m
                                   , NaturallyEmbedded (TangentBundle n) (TangentBundle m)
                                   , SP.Show n, AEq n
@@ -953,13 +951,12 @@ embeddingTangentiality consistRadius p vub
 
 nearbyTangentSpaceEmbedding :: ∀ m n
                      . ( Semimanifold m, Semimanifold n
-                       , m ~ Interior m, n ~ Interior n
                        , NaturallyEmbedded n m
                        , NaturallyEmbedded (TangentBundle n) (TangentBundle m)
                        , ParallelTransporting (->) n (Needle n)
                        , SP.Show n, SP.Show (Needle n), AEq (Needle n)
                        , InnerSpace (Needle n), RealFloat (Scalar (Needle n)) )
-       => Scalar (Needle n) -> Interior n -> Needle n -> Needle n -> QC.Property
+       => Scalar (Needle n) -> n -> Needle n -> Needle n -> QC.Property
 nearbyTangentSpaceEmbedding consistRadius p vub f
          = QC.counterexample ("𝑓 embd. at 𝑝, then proj. at 𝑝+𝑣 = "++SP.show fReProj
                               ++", 𝑓 moved by 𝑣 = "++SP.show g)
@@ -1057,7 +1054,7 @@ asinh x
 
 
 coordinateFiniteDifference :: ∀ m .
-       ( Semimanifold m, HasCoordinates m, m ~ Interior m
+       ( Semimanifold m, HasCoordinates m
        , HasCoordinates (Needle m), CoordDifferential m
        , AEq (Needle m), InnerSpace (Needle m), Scalar (Needle m) ~ ℝ
        , SP.Show m )

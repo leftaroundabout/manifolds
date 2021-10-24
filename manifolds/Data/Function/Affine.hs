@@ -218,8 +218,7 @@ correspondingDirections :: ∀ s x c t
                           , SemiInner (Needle c), SemiInner (Needle x)
                           , RealFrac' s
                           , Traversable t )
-              => (c, x)
-                  -> t (Needle c, Needle x) -> Maybe (Embedding (Affine s) c x)
+         => (c, x) -> t (Needle c, Needle x) -> Maybe (Embedding (Affine s) c x)
 correspondingDirections (c₀, x₀) dirMap
    = freeEmbeddings $> Embedding (Affine . trie $ c2x)
                                  (Affine . trie $ x2c)
