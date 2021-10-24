@@ -668,6 +668,28 @@ minusLogOcclusion (Shade p₀ δ)
 
 
 
+rangeWithinVertices :: ∀ s i m t
+        . ( Geodesic i
+          , Geodesic m
+          , WithField s AffineManifold (Interior i)
+          , WithField s AffineManifold (Interior m)
+          , SimpleSpace (Diff (Interior i))
+          , SimpleSpace (Diff (Interior m))
+          , SimpleSpace (Needle' (Interior i))
+          , SimpleSpace (Needle' (Interior m))
+          , RealFrac' s
+          , Hask.Traversable t )
+          => (Interior i,Interior m) -> t (i,m)
+               -> Maybe (Shade (Interior i) -> Shade (Interior m))
+rangeWithinVertices (cii,cmi) verts = do
+           vs <- sequenceA [ fzip ( middleBetween pi ci >>= (toInterior>=>(.-~.cii))
+                                  , middleBetween pm cm >>= (toInterior>=>(.-~.cmi)) )
+                           | (pi, pm) <- Hask.toList verts ]
+           affinSys <- correspondingDirections @s @(Interior m) @(Interior i)
+                         (cii,cmi) vs
+           return $ embedShade affinSys
+ where ci = fromInterior cii
+       cm = fromInterior cmi
 
 
 
