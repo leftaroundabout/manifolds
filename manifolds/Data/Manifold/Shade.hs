@@ -49,6 +49,8 @@ module Data.Manifold.Shade (
        , mixShade's, dualShade, dualShade', wellDefinedShade', linearProjectShade
        , shadesMerge, pointsShades', pseudoECM, convolveMetric
        , WithAny(..), shadeWithAny, shadeWithoutAnything
+       -- * Misc
+       , rangeWithinVertices
     ) where
 
 

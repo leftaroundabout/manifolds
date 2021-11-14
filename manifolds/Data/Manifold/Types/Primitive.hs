@@ -39,8 +39,9 @@ module Data.Manifold.Types.Primitive (
         , Projective0, Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
         , FibreBundle(..), TangentBundle
+        -- * Trivial manifolds
+        , EmptyMfd(..), ZeroDim(..)
         -- * Linear manifolds
-        , ZeroDim(..)
         , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
         -- * Hyperspheres
         , S⁰(..), otherHalfSphere, S¹(..), pattern S¹, S²(..), pattern S²
