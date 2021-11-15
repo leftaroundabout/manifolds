@@ -102,6 +102,7 @@ Library
                      Math.Manifold.Embedding.Simple.Class
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive
+                   Data.Manifold.WithBoundary.Class
                    Data.SetLike.Intersection
                    Data.Manifold.Cone
                    Data.Embedding
