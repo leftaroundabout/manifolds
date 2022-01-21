@@ -33,7 +33,7 @@ import Data.Basis
 import Data.Fixed (mod')
 import Data.Void
 
-import Math.Manifold.Core.Types
+import Math.Manifold.Core.Types.Internal
 import Math.Manifold.VectorSpace.ZeroDimensional
 
 import Control.Applicative
@@ -439,3 +439,27 @@ instance ∀ f g p . (PseudoAffine (f p), PseudoAffine (g p))
 
 
 type VRep x = Gnrx.Rep x Void
+
+
+
+-- | A (closed) cone over a space @x@ is the product of @x@ with the closed interval 'D¹'
+--   of “heights”,
+--   except on its “tip”: here, @x@ is smashed to a single point.
+--   
+--   This construct becomes (homeomorphic-to-) an actual geometric cone (and to 'D²') in the
+--   special case @x = 'S¹'@.
+data CD¹ x = CD¹ { hParamCD¹ :: !(Scalar (Needle x)) -- ^ Range @[0, 1]@
+                 , pParamCD¹ :: !x                   -- ^ Irrelevant at @h = 0@.
+                 } deriving (Generic)
+deriving instance (Show x, Show (Scalar (Needle x))) => Show (CD¹ x)
+
+
+-- | An open cone is homeomorphic to a closed cone without the “lid”,
+--   i.e. without the “last copy” of @x@, at the far end of the height
+--   interval. Since that means the height does not include its supremum, it is actually
+--   more natural to express it as the entire real ray, hence the name.
+data Cℝay x = Cℝay { hParamCℝay :: !(Scalar (Needle x))  -- ^ Range @[0, ∞[@
+                   , pParamCℝay :: !x                    -- ^ Irrelevant at @h = 0@.
+                   } deriving (Generic)
+deriving instance (Show x, Show (Scalar (Needle x))) => Show (Cℝay x)
+

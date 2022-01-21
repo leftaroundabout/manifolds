@@ -44,12 +44,12 @@ module Data.Manifold.Types.Primitive (
         -- * Linear manifolds
         , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
         -- * Hyperspheres
-        , S⁰(..), otherHalfSphere, S¹(..), pattern S¹, S²(..), pattern S²
+        , S⁰, S⁰_(..), otherHalfSphere, S¹, S¹_(..), pattern S¹, S², S²_(..), pattern S²
         -- * Projective spaces
-        , ℝP⁰(..), ℝP¹(..), pattern ℝP¹,  ℝP²(..), pattern ℝP²
+        , ℝP⁰, ℝP⁰_(..), ℝP¹, ℝP¹_(..), pattern ℝP¹,  ℝP²,  ℝP²_(..), pattern ℝP²
         -- * Intervals\/disks\/cones
-        , D¹(..), fromIntv0to1, D²(..), pattern D²
-        , ℝay
+        , D¹, D¹_(..), fromIntv0to1, D², D²_(..), pattern D²
+        , ℝay, ℝay_
         , CD¹(..), Cℝay(..)
         -- * Tensor products
         , type (⊗)(..)
@@ -61,7 +61,7 @@ module Data.Manifold.Types.Primitive (
 
 
 import Math.Manifold.Core.Types
-import Math.Manifold.Core.PseudoAffine (FibreBundle(..), TangentBundle)
+import Math.Manifold.Core.PseudoAffine (FibreBundle(..), TangentBundle, Semimanifold(..))
 
 import Data.VectorSpace
 import Data.VectorSpace.Free
@@ -155,7 +155,8 @@ instance NaturallyEmbedded D¹ ℝ where
   embed = xParamD¹
   coEmbed = D¹ . max (-1) . min 1
 
-instance (NaturallyEmbedded x p) => NaturallyEmbedded (Cℝay x) (p,ℝ) where
+instance (Real s, NaturallyEmbedded x p, s ~ Scalar (Needle x))
+            => NaturallyEmbedded (Cℝay x) (p, s) where
   embed (Cℝay h p) = (embed p, h)
   coEmbed (v,z) = Cℝay (max 0 z) (coEmbed v)
 
@@ -173,6 +174,8 @@ type ℝ⁴ = V4 ℝ
 -- | Better known as &#x211d;&#x207a; (which is not a legal Haskell name), the ray
 --   of positive numbers (including zero, i.e. closed on one end).
 type ℝay = Cℝay ℝ⁰
+
+type ℝay_ r = Cℝay (ZeroDim r)
 
 
 
@@ -291,5 +294,5 @@ instance Binary ℝP¹
 instance Binary ℝP²
 instance Binary D¹
 instance Binary D²
-instance Binary y => Binary (CD¹ y)
-instance Binary y => Binary (Cℝay y)
+instance (Binary y, Binary (Scalar (Needle y))) => Binary (CD¹ y)
+instance (Binary y, Binary (Scalar (Needle y))) => Binary (Cℝay y)

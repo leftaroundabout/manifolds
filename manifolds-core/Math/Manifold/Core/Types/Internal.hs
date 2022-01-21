@@ -92,29 +92,6 @@ data D²_ r = D²Polar { rParamD² :: !r -- ^ Range @[0, 1]@.
                      , φParamD² :: !r -- ^ Range @[-π, π[@.
                      } deriving (Show, Generic)
 
--- | A (closed) cone over a space @x@ is the product of @x@ with the closed interval 'D¹'
---   of “heights”,
---   except on its “tip”: here, @x@ is smashed to a single point.
---   
---   This construct becomes (homeomorphic-to-) an actual geometric cone (and to 'D²') in the
---   special case @x = 'S¹'@.
-type CD¹ = CD¹_ Double
-
-data CD¹_ r x = CD¹ { hParamCD¹ :: !r -- ^ Range @[0, 1]@
-                    , pParamCD¹ :: !x -- ^ Irrelevant at @h = 0@.
-                    } deriving (Show, Generic)
-
-
--- | An open cone is homeomorphic to a closed cone without the “lid”,
---   i.e. without the “last copy” of @x@, at the far end of the height
---   interval. Since that means the height does not include its supremum, it is actually
---   more natural to express it as the entire real ray, hence the name.
-type Cℝay = Cℝay_ Double
-
-data Cℝay_ r x = Cℝay { hParamCℝay :: !r  -- ^ Range @[0, ∞[@
-                      , pParamCℝay :: !x  -- ^ Irrelevant at @h = 0@.
-                      } deriving (Show, Generic)
-
 
 -- | The “one-dimensional disk” – really just the line segment between
 --   the two points -1 and 1 of 'S⁰', i.e. this is simply a closed interval.

@@ -22,10 +22,11 @@ module Math.Manifold.Core.Types
         , S⁰, S⁰_(..), otherHalfSphere, S¹, S¹_(..), pattern S¹, S², S²_(..), pattern S²
         , D¹, D¹_(..), fromIntv0to1, D², D²_(..), pattern D²
         , ℝP⁰, ℝP⁰_(..), ℝP¹, ℝP¹_(..), pattern ℝP¹, ℝP², ℝP²_(..), pattern ℝP²
-        , Cℝay, Cℝay_(..), CD¹, CD¹_(..)
+        , Cℝay(..), CD¹(..)
         ) where
 
 import Math.Manifold.Core.Types.Internal
+import Math.Manifold.Core.PseudoAffine
 
 import Data.VectorSpace
 import Math.Manifold.VectorSpace.ZeroDimensional
