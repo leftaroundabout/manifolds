@@ -18,6 +18,7 @@
 {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE EmptyCase                #-}
+{-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE CPP                      #-}
@@ -43,6 +44,7 @@ import GHC.Generics (Generic, (:*:)(..))
 
 import Data.CallStack (HasCallStack)
 
+type ℝeal r = (RealFloat r, PseudoAffine r, Semimanifold r, Needle r ~ r)
 
 -- | This is the reified form of the property that the interior of a semimanifold
 --   is a manifold. These constraints would ideally be expressed directly as
@@ -260,20 +262,20 @@ instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c
 
 
 
-instance Semimanifold S⁰ where
-  type Needle S⁰ = ZeroDim ℝ
+instance ℝeal r => Semimanifold (S⁰_ r) where
+  type Needle (S⁰_ r) = ZeroDim r
   p .+~^ Origin = p
   p .-~^ Origin = p
-instance PseudoAffine S⁰ where
+instance ℝeal r => PseudoAffine (S⁰_ r) where
   PositiveHalfSphere .-~. PositiveHalfSphere = pure Origin
   NegativeHalfSphere .-~. NegativeHalfSphere = pure Origin
   _ .-~. _ = Nothing
 
-instance Semimanifold S¹ where
-  type Needle S¹ = ℝ
+instance ℝeal r => Semimanifold (S¹_ r) where
+  type Needle (S¹_ r) = r
   S¹Polar φ₀ .+~^ δφ  = S¹Polar $ φ'
    where φ' = toS¹range $ φ₀ + δφ
-instance PseudoAffine S¹ where
+instance ℝeal r => PseudoAffine (S¹_ r) where
   S¹Polar φ₁ .-~. S¹Polar φ₀
      | δφ > pi     = pure (δφ - tau)
      | δφ < (-pi)  = pure (δφ + tau)
@@ -283,17 +285,17 @@ instance PseudoAffine S¹ where
 
 
 
-instance Semimanifold ℝP⁰ where
-  type Needle ℝP⁰ = ZeroDim ℝ
+instance Semimanifold (ℝP⁰_ r) where
+  type Needle (ℝP⁰_ r) = ZeroDim r
   p .+~^ Origin = p
   p .-~^ Origin = p
-instance PseudoAffine ℝP⁰ where
+instance PseudoAffine (ℝP⁰_ r) where
   ℝPZero .-~. ℝPZero = pure Origin
 
-instance Semimanifold ℝP¹ where
-  type Needle ℝP¹ = ℝ
+instance ℝeal r => Semimanifold (ℝP¹_ r) where
+  type Needle (ℝP¹_ r) = r
   HemisphereℝP¹Polar r₀ .+~^ δr = HemisphereℝP¹Polar . toℝP¹range $ r₀ + δr
-instance PseudoAffine ℝP¹ where
+instance ℝeal r => PseudoAffine (ℝP¹_ r) where
   HemisphereℝP¹Polar φ₁ .-~. HemisphereℝP¹Polar φ₀
      | δφ > pi/2     = pure (δφ - pi)
      | δφ < (-pi/2)  = pure (δφ + pi)
@@ -305,16 +307,16 @@ instance PseudoAffine ℝP¹ where
 
 
 
-tau :: ℝ
+tau :: RealFloat r => r
 tau = 2 * pi
 
-toS¹range :: ℝ -> ℝ
+toS¹range :: RealFloat r => r -> r
 toS¹range φ = (φ+pi)`mod'`tau - pi
 
-toℝP¹range :: ℝ -> ℝ
+toℝP¹range :: RealFloat r => r -> r
 toℝP¹range φ = (φ+pi/2)`mod'`pi - pi/2
 
-toUnitrange :: ℝ -> ℝ
+toUnitrange :: RealFloat r => r -> r
 toUnitrange φ = (φ+1)`mod'`2 - 1
 
 
