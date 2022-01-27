@@ -60,9 +60,10 @@ import Math.LinearMap.Category
 import Linear (V0(..), V1(..), V2(..), V3(..), V4(..))
 
 import Data.Manifold.Types
-import Data.Manifold.Types.Primitive ((^), empty, embed, coEmbed)
+import Data.Manifold.Types.Primitive ( (^), empty, embed, coEmbed )
 import Data.Manifold.Types.Stiefel
 import Data.Manifold.WithBoundary
+import Data.Manifold.WithBoundary.Class
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Atlas (AffineManifold)
     
@@ -106,7 +107,7 @@ instance Geodesic x where {                                        \
 
 deriveAffineGD (ℝ)
 
-instance Num' s => Geodesic (ZeroDim s) where
+instance (Num' s, OpenManifold s) => Geodesic (ZeroDim s) where
   geodesicBetween Origin Origin = return $ \_ -> Origin
   middleBetween Origin Origin = return Origin
 
@@ -223,13 +224,13 @@ deriveAffineGD (ℝ²)
 deriveAffineGD (ℝ³)
 deriveAffineGD (ℝ⁴)
 
-instance (TensorSpace v, Scalar v ~ ℝ, TensorSpace w, Scalar w ~ ℝ)
+instance (LinearSpace v, Scalar v ~ ℝ, LinearSpace w, Scalar w ~ ℝ)
              => Geodesic (Tensor ℝ v w) where
   geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹
-instance (LinearSpace v, Scalar v ~ ℝ, TensorSpace w, Scalar w ~ ℝ)
+instance (LinearSpace v, Scalar v ~ ℝ, LinearSpace w, Scalar w ~ ℝ)
              => Geodesic (LinearMap ℝ v w) where
   geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹
-instance (LinearSpace v, Scalar v ~ ℝ, TensorSpace w, Scalar w ~ ℝ)
+instance (LinearSpace v, Scalar v ~ ℝ, LinearSpace w, Scalar w ~ ℝ)
              => Geodesic (LinearFunction ℝ v w) where
   geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹
 

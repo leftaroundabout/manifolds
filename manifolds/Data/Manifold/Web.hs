@@ -27,6 +27,7 @@
 {-# LANGUAGE PatternGuards              #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE LiberalTypeSynonyms        #-}
 {-# LANGUAGE TemplateHaskell            #-}
@@ -92,6 +93,8 @@ import Data.Manifold.Shade
 import Data.Manifold.TreeCover
 import Data.SetLike.Intersection
 import Data.Manifold.Riemannian
+import Data.Manifold.WithBoundary
+import Data.Manifold.WithBoundary.Class
 import Data.Manifold.Atlas
 import Data.Manifold.Function.LocalModel
 import Data.Manifold.Function.Quadratic
@@ -670,13 +673,17 @@ localModels_CGrid = Hask.concatMap theCGrid . Hask.toList . webLocalInfo
                        ]
 
 
-acoSnd :: ∀ s v y . ( Object (Affine s) y, Object (Affine s) v
+acoSnd :: ∀ s v y . ( RealFloat'' s, Object (Affine s) y, Object (Affine s) v
                     , LinearSpace v, Scalar v ~ s ) => Affine s y (v,y)
-acoSnd = case ( linearManifoldWitness :: LinearManifoldWitness v
-              , dualSpaceWitness :: DualSpaceWitness (Needle v)
-              , dualSpaceWitness :: DualSpaceWitness (Needle y) ) of
-   (LinearManifoldWitness, DualSpaceWitness, DualSpaceWitness)
+acoSnd = needleIsOpenMfd @y (boundaryHasSameScalar @y (
+           needleBoundaryIsTrivallyProjectible @y (boundaryHasSameScalar @v (case
+              ( linearManifoldWitness @v
+              , dualSpaceWitness @(Needle v), dualSpaceWitness @(Needle y)
+              , semimanifoldWitness @y
+              ) of
+   (LinearManifoldWitness, DualSpaceWitness, DualSpaceWitness, SemimanifoldWitness)
        -> const zeroV &&& id
+  ))))
 
 
 differentiate²UncertainWebFunction :: ∀ x y

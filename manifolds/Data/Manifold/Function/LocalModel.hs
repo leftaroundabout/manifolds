@@ -36,6 +36,7 @@ module Data.Manifold.Function.LocalModel (
 
 import Data.Manifold.Types
 import Data.Manifold.PseudoAffine
+import Data.Manifold.WithBoundary
 import Data.Manifold.Types.Primitive ((^))
 import Data.Manifold.Shade
 import Data.Manifold.Riemannian

@@ -237,6 +237,7 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
          -> Arr.ifoldl' (\w i u -> w ^+^ ((asLinearMap $ f Arr.! i) +$> u)) zeroV t
   composeLinear = bilinearFunction $ \f (LinearMap g)
                      -> LinearMap $ Arr.map (getLinearFunction applyLinear f$) g
+  useTupleLinearSpaceComponents _ = undefined
 
 instance ∀ v .
    ( LinearSpace v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)

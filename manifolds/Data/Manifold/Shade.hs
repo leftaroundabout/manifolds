@@ -372,7 +372,7 @@ instance ( VectorSpace (Needle x)
          ) => HalfSpace (ShadeHalfNeedle x) where
   type FullSubspace (ShadeHalfNeedle x) = Needle x
 
-instance ( AffineSpace x, PseudoAffine x, Diff x ~ Needle x
+instance ( AffineSpace x, Manifold x, Diff x ~ Needle x
          , Atlas x, HasTrie (ChartIndex x)   -- ??
          , LinearSpace (Needle x), LinearSpace (Needle' x)
          , Num' (Scalar (Needle x))
@@ -382,8 +382,10 @@ instance ( AffineSpace x, PseudoAffine x, Diff x ~ Needle x
   type HalfNeedle (Shade x) = ShadeHalfNeedle x
   extendToBoundary = undefined
   smfdWBoundWitness = undefined
+  needleIsOpenMfd = undefined
+  scalarIsOpenMfd = undefined
 
-instance ( AffineSpace x, PseudoAffine x, Diff x ~ Needle x
+instance ( AffineSpace x, Manifold x, Diff x ~ Needle x
          , Atlas x, HasTrie (ChartIndex x)   -- ??
          , Geodesic x
          , LinearSpace (Needle x), LinearSpace (Needle' x)
@@ -424,16 +426,17 @@ instance ( VectorSpace (Needle x)
          ) => HalfSpace (Shade'HalfNeedle x) where
   type FullSubspace (Shade'HalfNeedle x) = Needle x
 
-instance ( AffineSpace x, PseudoAffine x, Diff x ~ Needle x
-         , Atlas x, HasTrie (ChartIndex x)   -- ??
+instance ( AffineSpace x, Manifold x, Diff x ~ Needle x
+         , Atlas' x
          , LinearSpace (Needle x), LinearSpace (Needle' x)
-         , Num' (Scalar (Needle x))
          ) => SemimanifoldWithBoundary (Shade' x) where
   type Interior (Shade' x) = Shade x
   type Boundary (Shade' x) = x
   type HalfNeedle (Shade' x) = Shade'HalfNeedle x
   extendToBoundary = undefined
   smfdWBoundWitness = undefined
+  needleIsOpenMfd = undefined
+  scalarIsOpenMfd = undefined
 
 instance ∀ x . (WithField ℝ AffineManifold x, Geodesic x, SimpleSpace (Needle x))
             => Geodesic (Shade' x) where
@@ -675,8 +678,8 @@ rangeWithinVertices :: ∀ s i m t
           , Geodesic m
           , WithField s AffineManifold (Interior i)
           , WithField s AffineManifold (Interior m)
-          , SimpleSpace (Diff (Interior i))
-          , SimpleSpace (Diff (Interior m))
+          , SimpleSpace (Needle (Interior i))
+          , SimpleSpace (Needle (Interior m))
           , SimpleSpace (Needle' (Interior i))
           , SimpleSpace (Needle' (Interior m))
           , RealFrac' s

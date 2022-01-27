@@ -81,6 +81,7 @@ module Data.Manifold.PseudoAffine (
     
 
 import Math.Manifold.Core.PseudoAffine
+import Data.Manifold.WithBoundary.Class
 
 import Data.Maybe
 import Data.Fixed
@@ -121,8 +122,12 @@ import GHC.Exts (Constraint)
 --   As a 'Manifold' we understand a pseudo-affine space whose 'Needle'
 --   space is a well-behaved vector space that is isomorphic to
 --   all of the manifold's tangent spaces.
-class (PseudoAffine m, LSpace (Needle m)) => Manifold m where
-instance (PseudoAffine m, LSpace (Needle m)) => Manifold m
+--   It must also be an instance of the 'SemimanifoldWithBoundary' class
+--   with explicitly empty boundary (in other words, with /no/ boundary).
+class (OpenManifold m, ProjectableBoundary m, LSpace (Needle m))
+            => Manifold m where
+instance (OpenManifold m, ProjectableBoundary m, LSpace (Needle m))
+            => Manifold m
 
 
 

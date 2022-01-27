@@ -24,6 +24,7 @@
 {-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE TemplateHaskell            #-}
@@ -934,7 +935,8 @@ stiWithDensity :: ∀ x y . ( WithField ℝ PseudoAffine x, LinearSpace y, Scala
                           , SimpleSpace (Needle x) )
          => x`Shaded`y -> x -> Cℝay y
 stiWithDensity (PlainLeaves lvs)
-  | [Shade baryc expa :: Shade x] <- pointsShades $ fst <$> lvs
+  | LinearManifoldWitness <- linearManifoldWitness @y
+  , [Shade baryc expa :: Shade x] <- pointsShades $ fst <$> lvs
        = let nlvs = fromIntegral $ length lvs :: ℝ
              indiShapes = [(Shade p expa, y) | (p,y) <- lvs]
          in \x -> let lcCoeffs = [ occlusion psh x | (psh, _) <- indiShapes ]
@@ -942,13 +944,16 @@ stiWithDensity (PlainLeaves lvs)
                   in mkCone dens . linearCombo . zip (snd<$>indiShapes)
                        $ (/dens)<$>lcCoeffs
 stiWithDensity (DisjointBranches _ lvs)
-           = \x -> foldr1 qGather $ (`stiWithDensity`x)<$>lvs
+           = case linearManifoldWitness @y of
+          LinearManifoldWitness -> \x -> foldr1 qGather $ (`stiWithDensity`x)<$>lvs
  where qGather (Cℝay 0 _) o = o
        qGather o _ = o
 stiWithDensity (OverlappingBranches n (Shade bc extend) brs)
-           = ovbSWD (dualSpaceWitness, pseudoAffineWitness)
- where ovbSWD :: (DualNeedleWitness x, PseudoAffineWitness x) -> x -> Cℝay y
-       ovbSWD (DualSpaceWitness, PseudoAffineWitness SemimanifoldWitness) x
+           = ovbSWD (dualSpaceWitness, pseudoAffineWitness, linearManifoldWitness)
+ where ovbSWD :: (DualNeedleWitness x, PseudoAffineWitness x, LinearManifoldWitness y)
+                     -> x -> Cℝay y
+       ovbSWD (DualSpaceWitness
+          , PseudoAffineWitness SemimanifoldWitness, LinearManifoldWitness) x
                      = case x.-~.bc of
            Just v
              | dist² <- normSq ε v
@@ -987,10 +992,10 @@ spanShading f = unsafeFmapTree (addYs . fmap fst) id id
                       
 
 
-coneTip :: (AdditiveGroup v) => Cℝay v
+coneTip :: (AdditiveGroup v, Num (Scalar (Needle v))) => Cℝay v
 coneTip = Cℝay 0 zeroV
 
-mkCone :: AdditiveGroup v => ℝ -> v -> Cℝay v
+mkCone :: (AdditiveGroup v, Real (Scalar (Needle v))) => Scalar (Needle v) -> v -> Cℝay v
 mkCone 0 _ = coneTip
 mkCone h v = Cℝay h v
 

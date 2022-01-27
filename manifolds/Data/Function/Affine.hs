@@ -22,6 +22,7 @@
 {-# LANGUAGE PatternSynonyms          #-}
 {-# LANGUAGE ViewPatterns             #-}
 {-# LANGUAGE TypeOperators            #-}
+{-# LANGUAGE TypeApplications         #-}
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE MultiWayIf               #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
@@ -47,6 +48,7 @@ import Data.AffineSpace
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
+import Data.Manifold.WithBoundary
 import Data.Manifold.Atlas
 import Data.Embedding
 
@@ -72,15 +74,15 @@ data Affine s d c where
 
 instance Category (Affine s) where
   type Object (Affine s) x = ( Manifold x
-                             , Atlas x, LinearSpace (Needle x)
-                             , Scalar (Needle x) ~ s, HasTrie (ChartIndex x) )
+                             , Atlas' x
+                             , Scalar (Needle x) ~ s )
   id = Affine . trie $ chartReferencePoint >>> id &&& const id
   Affine f . Affine g = Affine . trie
       $ \ixa -> case untrie g ixa of
            (b, ða'b) -> case untrie f $ lookupAtlas b of
             (c, ðb'c) -> (c, ðb'c . ða'b)
 
-instance ∀ s . Num' s => Cartesian (Affine s) where
+instance ∀ s . (ScalarManifold s, Eq s) => Cartesian (Affine s) where
   type UnitObject (Affine s) = ZeroDim s
   swap = Affine . trie $ chartReferencePoint >>> swap &&& const swap
   attachUnit = Affine . trie $ chartReferencePoint >>> \a -> ((a,Origin), attachUnit)
@@ -89,32 +91,32 @@ instance ∀ s . Num' s => Cartesian (Affine s) where
   regroup = Affine . trie $ chartReferencePoint >>> regroup &&& const regroup
   regroup' = Affine . trie $ chartReferencePoint >>> regroup' &&& const regroup'
 
-instance ∀ s . Num' s => Morphism (Affine s) where
+instance ∀ s . (ScalarManifold s, Eq s) => Morphism (Affine s) where
   Affine f *** Affine g = Affine . trie
       $ \(ixα,ixβ) -> case (untrie f ixα, untrie g ixβ) of
             ((fα, ðα'f), (gβ,ðβ'g)) -> ((fα,gβ), ðα'f***ðβ'g)
   
-instance ∀ s . Num' s => PreArrow (Affine s) where
+instance ∀ s . (ScalarManifold s, Eq s) => PreArrow (Affine s) where
   Affine f &&& Affine g = Affine . trie
       $ \ix -> case (untrie f ix, untrie g ix) of
             ((fα, ðα'f), (gβ,ðβ'g)) -> ((fα,gβ), ðα'f&&&ðβ'g)
   terminal = Affine . trie $ \_ -> (Origin, zeroV)
   fst = afst
-   where afst :: ∀ x y . ( Atlas x, Atlas y
+   where afst :: ∀ x y . ( Manifold (x, y), Atlas (x, y)
                          , LinearSpace (Needle x), LinearSpace (Needle y)
                          , Scalar (Needle x) ~ s, Scalar (Needle y) ~ s
                          , HasTrie (ChartIndex x), HasTrie (ChartIndex y) )
                    => Affine s (x,y) x
-         afst = Affine . trie $ chartReferencePoint >>> \(x,_::y) -> (x, fst)
+         afst = Affine . trie $ chartReferencePoint @(x,y) >>> \(x,_::y) -> (x, fst)
   snd = asnd
-   where asnd :: ∀ x y . ( Atlas x, Atlas y
+   where asnd :: ∀ x y . ( Manifold (x, y), Atlas (x, y)
                          , LinearSpace (Needle x), LinearSpace (Needle y)
                          , Scalar (Needle x) ~ s, Scalar (Needle y) ~ s
                          , HasTrie (ChartIndex x), HasTrie (ChartIndex y) )
                    => Affine s (x,y) y
          asnd = Affine . trie $ chartReferencePoint >>> \(_::x,y) -> (y, snd)
   
-instance ∀ s . Num' s => WellPointed (Affine s) where
+instance ∀ s . (ScalarManifold s, Eq s) => WellPointed (Affine s) where
   const x = Affine . trie $ const (x, zeroV)
   unit = Tagged Origin
   
@@ -133,32 +135,38 @@ instance EnhancedCat (Affine s) (LinearMap s) where
                    >>> \x₀ -> let y₀ = f $ x₀
                               in (negateV y₀, f)
 
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , Manifold y, Scalar (Needle y) ~ s )
-              => Semimanifold (Affine s x y) where
+instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold (Needle y), Scalar (Needle y) ~ s
+         ) => Semimanifold (Affine s x y) where
   type Needle (Affine s x y) = Affine s x (Needle y)
   (.+~^) = case ( semimanifoldWitness :: SemimanifoldWitness y ) of
     (SemimanifoldWitness) -> \(Affine f) (Affine g)
       -> Affine . trie $ \ix -> case (untrie f ix, untrie g ix) of
           ((fx₀,f'), (gx₀,g')) -> (fx₀.+~^gx₀, f'^+^g')
-  semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness y of
-    SemimanifoldWitness -> SemimanifoldWitness
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , Manifold y, Scalar (Needle y) ~ s )
-              => PseudoAffine (Affine s x y) where
+  semimanifoldWitness = case smfdWBoundWitness @y of
+    OpenManifoldWitness -> case semimanifoldWitness @y of
+        SemimanifoldWitness -> needleIsOpenMfd @y SemimanifoldWitness
+instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold (Needle y), Scalar (Needle y) ~ s
+         ) => PseudoAffine (Affine s x y) where
   (.-~!) = case ( semimanifoldWitness :: SemimanifoldWitness y ) of
     (SemimanifoldWitness) -> \(Affine f) (Affine g)
       -> Affine . trie $ \ix -> case (untrie f ix, untrie g ix) of
           ((fx₀,f'), (gx₀,g')) -> (fx₀.-~!gx₀, f'^-^g')
   pseudoAffineWitness = case semimanifoldWitness :: SemimanifoldWitness y of
     SemimanifoldWitness -> PseudoAffineWitness (SemimanifoldWitness)
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
+instance ( Atlas x, HasTrie (ChartIndex x)
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold (Needle y), Scalar (Needle y) ~ s
          , Manifold y, Scalar (Needle y) ~ s )
               => AffineSpace (Affine s x y) where
   type Diff (Affine s x y) = Affine s x (Needle y)
   (.+^) = (.+~^); (.-.) = (.-~!)
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , LinearSpace y, Scalar y ~ s, Num' s )
+instance ( Atlas x, HasTrie (ChartIndex x)
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold y, Scalar y ~ s, Num' s )
             => AdditiveGroup (Affine s x y) where
   zeroV = case linearManifoldWitness :: LinearManifoldWitness y of
        LinearManifoldWitness -> Affine . trie $ const (zeroV, zeroV)
@@ -168,8 +176,9 @@ instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Need
   negateV = case linearManifoldWitness :: LinearManifoldWitness y of
        LinearManifoldWitness -> \(Affine f) -> Affine . trie $
              untrie f >>> negateV***negateV
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , LinearSpace y, Scalar y ~ s, Num' s )
+instance ( Atlas x, HasTrie (ChartIndex x)
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold y, Scalar y ~ s, Num' s )
             => VectorSpace (Affine s x y) where
   type Scalar (Affine s x y) = s
   (*^) = case linearManifoldWitness :: LinearManifoldWitness y of

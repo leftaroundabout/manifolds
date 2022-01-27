@@ -55,9 +55,11 @@ affineQuadratic :: (WithField s AffineManifold d, WithField s AffineManifold c)
 affineQuadratic (Affine f) = Quadratic . trie
                   $ untrie f >>> second (id &&& const zeroV)
 
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , Manifold y, Scalar (Needle y) ~ s )
-              => Semimanifold (Quadratic s x y) where
+instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold (Needle y), Scalar (Needle y) ~ s
+         , Needle (Needle y) ~ Needle y
+         ) => Semimanifold (Quadratic s x y) where
   type Needle (Quadratic s x y) = Quadratic s x (Needle y)
   (.+~^) = case ( semimanifoldWitness :: SemimanifoldWitness y ) of
     (SemimanifoldWitness) -> \(Quadratic f) (Quadratic g)
@@ -65,23 +67,29 @@ instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Need
           ((fx₀,f'), (gx₀,g')) -> (fx₀.+~^gx₀, f'^+^g')
   semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness y of
     SemimanifoldWitness -> SemimanifoldWitness
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , Manifold y, Scalar (Needle y) ~ s )
-              => PseudoAffine (Quadratic s x y) where
+instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold (Needle y), Scalar (Needle y) ~ s
+         , Needle (Needle y) ~ Needle y
+         ) => PseudoAffine (Quadratic s x y) where
   (.-~!) = case ( semimanifoldWitness :: SemimanifoldWitness y ) of
     (SemimanifoldWitness) -> \(Quadratic f) (Quadratic g)
       -> Quadratic . trie $ \ix -> case (untrie f ix, untrie g ix) of
           ((fx₀,f'), (gx₀,g')) -> (fx₀.-~!gx₀, f'^-^g')
   pseudoAffineWitness = case semimanifoldWitness :: SemimanifoldWitness y of
     SemimanifoldWitness -> PseudoAffineWitness (SemimanifoldWitness)
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , Manifold y, Scalar (Needle y) ~ s )
-              => AffineSpace (Quadratic s x y) where
+instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold (Needle y), Scalar (Needle y) ~ s
+         , Needle (Needle y) ~ Needle y
+         ) => AffineSpace (Quadratic s x y) where
   type Diff (Quadratic s x y) = Quadratic s x (Needle y)
   (.+^) = (.+~^); (.-.) = (.-~!)
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , LinearSpace y, Scalar y ~ s, Num' s )
-            => AdditiveGroup (Quadratic s x y) where
+instance ( Atlas x, HasTrie (ChartIndex x)
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold y, Scalar y ~ s
+         , Needle y ~ y
+         ) => AdditiveGroup (Quadratic s x y) where
   zeroV = case linearManifoldWitness :: LinearManifoldWitness y of
        LinearManifoldWitness -> Quadratic . trie $ const (zeroV, zeroV)
   (^+^) = case ( linearManifoldWitness :: LinearManifoldWitness y
@@ -90,9 +98,11 @@ instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Need
   negateV = case linearManifoldWitness :: LinearManifoldWitness y of
        LinearManifoldWitness -> \(Quadratic f) -> Quadratic . trie $
              untrie f >>> negateV***negateV
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , LinearSpace y, Scalar y ~ s, Num' s )
-            => VectorSpace (Quadratic s x y) where
+instance ( Atlas x, HasTrie (ChartIndex x)
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold y, Scalar y ~ s
+         , Needle y ~ y
+         ) => VectorSpace (Quadratic s x y) where
   type Scalar (Quadratic s x y) = s
   (*^) = case linearManifoldWitness :: LinearManifoldWitness y of
        LinearManifoldWitness -> \μ (Quadratic f) -> Quadratic . trie $
