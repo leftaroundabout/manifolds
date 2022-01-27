@@ -114,7 +114,7 @@ bijectℝtoℝplus      , bijectℝplustoℝ
  , bijectIntvtoℝplus, bijectℝplustoIntv
  ,     bijectIntvtoℝ, bijectℝtoIntv
  , bijectIntvplustoℝ, bijectℝtoIntvplus
-               :: ℝ -> ℝ
+               :: RealFloat r => r -> r
 
 bijectℝplustoℝ x = x - 1/x
 bijectℝtoℝplus y = y/2 + sqrt(y^2/4 + 1)
@@ -135,10 +135,10 @@ bijectIntvtoℝ x = x / (1-x^2)
 bijectℝtoIntvplus y = (bijectℝtoIntv y + 1)/2
 bijectIntvplustoℝ x = bijectIntvtoℝ $ x*2 - 1
 
-embCℝayToCD¹ :: Cℝay m -> CD¹ m
+embCℝayToCD¹ :: RealFloat (Scalar (Needle m)) => Cℝay m -> CD¹ m
 embCℝayToCD¹ (Cℝay h m) = CD¹ (bijectℝplustoIntv h) m
 
-projCD¹ToCℝay :: CD¹ m -> Cℝay m
+projCD¹ToCℝay :: RealFloat (Scalar (Needle m)) => CD¹ m -> Cℝay m
 projCD¹ToCℝay (CD¹ h m) = Cℝay (bijectIntvtoℝplus h) m
 
 

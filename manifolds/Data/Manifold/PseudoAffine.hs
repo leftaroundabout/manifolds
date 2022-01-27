@@ -44,6 +44,7 @@
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE MultiWayIf               #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
+{-# LANGUAGE TypeApplications         #-}
 {-# LANGUAGE RecordWildCards          #-}
 {-# LANGUAGE CPP                      #-}
 
@@ -53,6 +54,8 @@ module Data.Manifold.PseudoAffine (
               Manifold
             , Semimanifold(..), Needle'
             , PseudoAffine(..)
+            , LinearManifold, ScalarManifold
+            , Num'', RealFrac'', RealFloat''
             -- * Type definitions
             -- ** Needles
             , Local(..)
@@ -353,30 +356,33 @@ instance (LinearSpace (a n), Needle (a n) ~ a n)
 
 
 
-instance Semimanifold S² where
-  type Needle S² = ℝ²
-  S²Polar θ₀ φ₀ .+~^ 𝐯 = S²Polar θ₁ φ₁
-   where -- See images/constructions/sphericoords-needles.svg.
-         S¹Polar γc = coEmbed 𝐯
-         γ | θ₀ < pi/2   = γc - φ₀
-           | otherwise   = γc + φ₀
-         d = magnitude 𝐯
-         S¹Polar φ₁ = S¹Polar φ₀ .+~^ δφ
-         
-         -- Cartesian coordinates of p₁ in the system whose north pole is p₀
-         -- with φ₀ as the zero meridian
-         V3 bx by bz = embed $ S²Polar d γ
-         
-         sθ₀ = sin θ₀; cθ₀ = cos θ₀
-         -- Cartesian coordinates of p₁ in the system with the standard north pole,
-         -- but still φ₀ as the zero meridian
-         (qx,qz) = ( cθ₀ * bx + sθ₀ * bz
-                   ,-sθ₀ * bx + cθ₀ * bz )
-         qy      = by
-         
-         S²Polar θ₁ δφ = coEmbed $ V3 qx qy qz
+instance RealFloat' s => Semimanifold (S²_ s) where
+  type Needle (S²_ s) = V2 s
+  (.+~^) = case linearManifoldWitness @s of
+   LinearManifoldWitness ->
+      let addS² (S²Polar θ₀ φ₀) 𝐯 = S²Polar θ₁ φ₁
+           where -- See images/constructions/sphericoords-needles.svg.
+                 S¹Polar γc = coEmbed 𝐯
+                 γ | θ₀ < pi/2   = γc - φ₀
+                   | otherwise   = γc + φ₀
+                 d = magnitude 𝐯
+                 S¹Polar φ₁ = S¹Polar φ₀ .+~^ δφ
+                 
+                 -- Cartesian coordinates of p₁ in the system whose north pole is p₀
+                 -- with φ₀ as the zero meridian
+                 V3 bx by bz = embed $ S²Polar d γ
+                 
+                 sθ₀ = sin θ₀; cθ₀ = cos θ₀
+                 -- Cartesian coordinates of p₁ in the system with the standard north pole,
+                 -- but still φ₀ as the zero meridian
+                 (qx,qz) = ( cθ₀ * bx + sθ₀ * bz
+                           ,-sθ₀ * bx + cθ₀ * bz )
+                 qy      = by
+                 
+                 S²Polar θ₁ δφ = coEmbed $ V3 qx qy qz
+      in addS²
 
-instance PseudoAffine S² where
+instance RealFloat' s => PseudoAffine (S²_ s) where
   S²Polar θ₁ φ₁ .-~! S²Polar θ₀ φ₀ = d *^ embed(S¹Polar γc)
    where -- See images/constructions/sphericoords-needles.svg.
          V3 qx qy qz = embed $ S²Polar θ₁ (φ₁-φ₀)
@@ -480,3 +486,11 @@ instance (Connected x, Connected y) => Connected (x,y)
 instance (Connected x, Connected y, PseudoAffine (FibreBundle x y))
                => Connected (FibreBundle x y)
 
+
+
+type LinearManifold m = (LinearSpace m, Manifold m)
+
+type ScalarManifold s = (Num' s, Manifold s, Manifold (ZeroDim s))
+type Num'' s = ScalarManifold s
+type RealFrac'' s = (RealFrac' s, ScalarManifold s)
+type RealFloat'' s = (RealFloat' s, SimpleSpace s, ScalarManifold s)

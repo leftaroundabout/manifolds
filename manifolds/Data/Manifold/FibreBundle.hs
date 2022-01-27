@@ -14,6 +14,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE UnicodeSyntax              #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE DefaultSignatures          #-}
@@ -42,8 +43,7 @@ import Control.Category.Constrained.Prelude hiding ((^))
 import Control.Category.Discrete
 import Control.Arrow.Constrained
 
-import Linear.V2 (V2(V2))
-import Linear.V3 (V3(V3))
+import Linear (V2(V2), V3(V3), V4(V4))
 
 import Data.Tagged
 
@@ -302,7 +302,7 @@ instance (AdditiveGroup f) => NaturallyEmbedded x (FibreBundle x f) where
   coEmbed (FibreBundle x _) = x
 
 instance (NaturallyEmbedded m v, VectorSpace f)
-    => NaturallyEmbedded (FibreBundle m ℝ⁰) (FibreBundle v f) where
+    => NaturallyEmbedded (FibreBundle m (ZeroDim s)) (FibreBundle v f) where
   embed (FibreBundle x Origin) = FibreBundle (embed x) zeroV
   coEmbed (FibreBundle u _) = FibreBundle (coEmbed u) Origin
 
@@ -315,20 +315,21 @@ instance NaturallyEmbedded v w
       => NaturallyEmbedded (FibreBundle ℝ v) (FibreBundle ℝ w) where
   embed (FibreBundle p v) = FibreBundle p $ embed v
   coEmbed (FibreBundle p w) = FibreBundle p $ coEmbed w
-instance NaturallyEmbedded v w
-      => NaturallyEmbedded (FibreBundle ℝ² v) (FibreBundle ℝ² w) where
+instance (NaturallyEmbedded v w, s'~s)
+      => NaturallyEmbedded (FibreBundle (V2 s) v) (FibreBundle (V2 s') w) where
   embed (FibreBundle p v) = FibreBundle p $ embed v
   coEmbed (FibreBundle p w) = FibreBundle p $ coEmbed w
-instance NaturallyEmbedded v w
-      => NaturallyEmbedded (FibreBundle ℝ³ v) (FibreBundle ℝ³ w) where
+instance (NaturallyEmbedded v w, s'~s)
+      => NaturallyEmbedded (FibreBundle (V3 s) v) (FibreBundle (V3 s') w) where
   embed (FibreBundle p v) = FibreBundle p $ embed v
   coEmbed (FibreBundle p w) = FibreBundle p $ coEmbed w
-instance NaturallyEmbedded v w
-      => NaturallyEmbedded (FibreBundle ℝ⁴ v) (FibreBundle ℝ⁴ w) where
+instance (NaturallyEmbedded v w, s'~s)
+      => NaturallyEmbedded (FibreBundle (V4 s) v) (FibreBundle (V4 s') w) where
   embed (FibreBundle p v) = FibreBundle p $ embed v
   coEmbed (FibreBundle p w) = FibreBundle p $ coEmbed w
 
-instance NaturallyEmbedded (FibreBundle S¹ ℝ) (FibreBundle ℝ² ℝ²) where
+instance (RealFloat s, InnerSpace s, s~s', s~s'', s~s''')
+      => NaturallyEmbedded (FibreBundle (S¹_ s) s') (FibreBundle (V2 s'') (V2 s''')) where
   embed (FibreBundle (S¹Polar φ) l) = FibreBundle (V2 cφ sφ) $ l*^(V2 (-sφ) cφ)
    where (cφ, sφ) = (cos &&& sin) φ
   coEmbed (FibreBundle (V2 0 0) (V2 _ δy)) = FibreBundle (S¹Polar 0) δy
@@ -336,14 +337,15 @@ instance NaturallyEmbedded (FibreBundle S¹ ℝ) (FibreBundle ℝ² ℝ²) where
    where V2 cφ sφ = p^/r
          r = magnitude p
 
-instance NaturallyEmbedded (FibreBundle S² ℝ²) (FibreBundle ℝ³ ℝ³) where
-  embed (FibreBundle (S²Polar θ φ) 𝐯@(V2 δξ δυ))
+instance ∀ s s' s'' s''' . (RealFloat' s, InnerSpace s, s~s', s~s'', s~s''')
+   => NaturallyEmbedded (FibreBundle (S²_ s) (V2 s')) (FibreBundle (V3 s'') (V3 s''')) where
+  embed (FibreBundle (S²Polar θ φ) v@(V2 δξ δυ))
        = FibreBundle (V3 (sθ*cφ) (sθ*sφ) cθ) 𝐯r
    where [V2 cθ sθ, V2 cφ sφ] = embed . S¹Polar <$> [θ,φ]
-         S¹Polar γc = coEmbed 𝐯
+         S¹Polar γc = coEmbed v
          γ | θ < pi/2   = γc - φ
            | otherwise  = γc + φ
-         d = magnitude 𝐯
+         d = magnitude v
 
          V2 δθ δφ = d *^ embed (S¹Polar γ)
          
@@ -351,23 +353,23 @@ instance NaturallyEmbedded (FibreBundle S² ℝ²) (FibreBundle ℝ³ ℝ³) whe
          𝐞θ = V3 (cθ*cφ) (cθ*sφ) (-sθ)
          𝐯r = δθ*^𝐞θ ^+^ δφ*^𝐞φ
   
-  coEmbed (FibreBundle (V3 x y z) 𝐯r)
-           = FibreBundle (S²Polar θ φ) (magnitude (δθ,δφ) *^ embed (S¹Polar γc))
-   where r = sqrt $ x^2 + y^2 + z^2
-         rxy = sqrt $ x^2 + y^2
-         θ = atan2 rxy z
-         φ = atan2 y x
-         cθ = z / r
-         sθ = rxy / r
-         (cφ,sφ) | rxy>0      = (x,y)^/rxy
-                 | otherwise  = (1,0)
-         𝐞φ = V3 (-sφ) cφ 0
-         𝐞θ = V3 (cθ*cφ) (cθ*sφ) (-sθ)
-         δθ = 𝐞θ <.> 𝐯r
-         δφ = 𝐞φ <.> 𝐯r
-         γ = atan2 δφ δθ
-         γc | θ < pi/2   = γ + φ
-            | otherwise  = γ - φ
+  coEmbed (FibreBundle (V3 x y z) 𝐯r) = case closedScalarWitness @s of
+   ClosedScalarWitness -> FibreBundle (S²Polar θ φ) (magnitude (δθ,δφ) *^ embed (S¹Polar γc))
+     where r = sqrt $ x^2 + y^2 + z^2
+           rxy = sqrt $ x^2 + y^2
+           θ = atan2 rxy z
+           φ = atan2 y x
+           cθ = z / r
+           sθ = rxy / r
+           (cφ,sφ) | rxy>0      = (x,y)^/rxy
+                   | otherwise  = (1,0)
+           𝐞φ = V3 (-sφ) cφ 0
+           𝐞θ = V3 (cθ*cφ) (cθ*sφ) (-sθ)
+           δθ = 𝐞θ <.> 𝐯r
+           δφ = 𝐞φ <.> 𝐯r
+           γ = atan2 δφ δθ
+           γc | θ < pi/2   = γ + φ
+              | otherwise  = γ - φ
 
 
 -- | @ex -> ey@, @ey -> ez@, @ez -> ex@
@@ -378,8 +380,8 @@ transformEmbeddedTangents f p = case embed p :: FibreBundle v v of
     FibreBundle v δv -> coEmbed (FibreBundle (f v) (f δv) :: FibreBundle v v)
 
 
-instance Rotatable (FibreBundle S² ℝ²) where
-  type AxisSpace (FibreBundle S² ℝ²) = ℝP²
+instance (s~ℝ, s'~ℝ) => Rotatable (FibreBundle (S²_ s) (V2 s')) where
+  type AxisSpace (FibreBundle (S²_ s) (V2 s')) = ℝP²_ s
   rotateAbout axis angle = transformEmbeddedTangents
         $ rotateℝ³AboutCenteredAxis axis angle
 

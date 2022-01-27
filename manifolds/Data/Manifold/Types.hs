@@ -47,11 +47,11 @@ module Data.Manifold.Types (
         , Stiefel1(..), stiefel1Project, stiefel1Embed
         -- ** Specific examples
         , HasUnitSphere(..)
-        , S⁰(..), S¹(..), pattern S¹, S²(..), pattern S²
+        , S⁰, S⁰_(..), S¹, S¹_(..), pattern S¹, S², S²_(..), pattern S²
         -- * Projective spaces
-        , ℝP⁰(..), ℝP¹(..), pattern ℝP¹,  ℝP²(..), pattern ℝP²
+        , ℝP⁰, ℝP⁰_(..), ℝP¹, ℝP¹_(..), pattern ℝP¹,  ℝP²,  ℝP²_(..), pattern ℝP²
         -- * Intervals\/disks\/cones
-        , D¹(..), D²(..), pattern D²
+        , D¹, D¹_(..), D², D²_(..), pattern D²
         , ℝay
         , CD¹(..), Cℝay(..)
         -- * Affine subspaces

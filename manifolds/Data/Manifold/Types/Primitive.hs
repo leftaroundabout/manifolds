@@ -123,21 +123,25 @@ instance (VectorSpace y, VectorSpace z) => NaturallyEmbedded x ((x,y),z) where
   embed x = (embed x, zeroV)
   coEmbed (x,_) = coEmbed x
 
-instance NaturallyEmbedded ℝ⁰ ℝ⁰ where embed = id; coEmbed = id
+instance (Num s, s~s') => NaturallyEmbedded (ZeroDim s) (ZeroDim s') where
+  embed = id; coEmbed = id
 instance NaturallyEmbedded ℝ  ℝ  where embed = id; coEmbed = id
-instance NaturallyEmbedded ℝ² ℝ² where embed = id; coEmbed = id
-instance NaturallyEmbedded ℝ³ ℝ³ where embed = id; coEmbed = id
-instance NaturallyEmbedded ℝ⁴ ℝ⁴ where embed = id; coEmbed = id
+instance (Num s, s~s') => NaturallyEmbedded (V2 s) (V2 s') where
+  embed = id; coEmbed = id
+instance (Num s, s~s') => NaturallyEmbedded (V3 s) (V3 s') where
+  embed = id; coEmbed = id
+instance (Num s, s~s') => NaturallyEmbedded (V4 s) (V4 s') where
+  embed = id; coEmbed = id
 
-instance NaturallyEmbedded S⁰ ℝ where
+instance (RealFloat s, VectorSpace s, s'~s) => NaturallyEmbedded (S⁰_ s) s' where
   embed PositiveHalfSphere = 1
   embed NegativeHalfSphere = -1
   coEmbed x | x>=0       = PositiveHalfSphere
             | otherwise  = NegativeHalfSphere
-instance NaturallyEmbedded S¹ ℝ² where
+instance (RealFloat s, s'~s) => NaturallyEmbedded (S¹_ s) (V2 s') where
   embed (S¹Polar φ) = V2 (cos φ) (sin φ)
   coEmbed (V2 x y) = S¹Polar $ atan2 y x
-instance NaturallyEmbedded S² ℝ³ where
+instance (RealFloat s, s'~s) => NaturallyEmbedded (S²_ s) (V3 s') where
   embed (S²Polar ϑ φ) = V3 (cos φ * sϑ) (sin φ * sϑ) (cos ϑ)
    where sϑ = sin ϑ
   {-# INLINE embed #-}
@@ -145,13 +149,13 @@ instance NaturallyEmbedded S² ℝ³ where
    where rxy = sqrt $ x^2 + y^2
   {-# INLINE coEmbed #-}
  
-instance NaturallyEmbedded ℝP² ℝ³ where
+instance (RealFloat s, s'~s) => NaturallyEmbedded (ℝP²_ s) (V3 s') where
   embed (HemisphereℝP²Polar θ φ) = V3 (cθ * cos φ) (cθ * sin φ) (sin θ)
    where cθ = cos θ
   coEmbed (V3 x y z) = HemisphereℝP²Polar (atan2 rxy z) (atan2 y x)
    where rxy = sqrt $ x^2 + y^2
 
-instance NaturallyEmbedded D¹ ℝ where
+instance (RealFloat s, VectorSpace s, s'~s) => NaturallyEmbedded (D¹_ s) s' where
   embed = xParamD¹
   coEmbed = D¹ . max (-1) . min 1
 
