@@ -354,6 +354,28 @@ instance (LinearSpace (a n), Needle (a n) ~ a n)
   LinAff.P v .-~. LinAff.P w = return $ v ^-^ w
 
 
+instance RealFloat' r => Semimanifold (S⁰_ r) where
+  type Needle (S⁰_ r) = ZeroDim r
+  p .+~^ Origin = p
+  p .-~^ Origin = p
+instance RealFloat' r => PseudoAffine (S⁰_ r) where
+  PositiveHalfSphere .-~. PositiveHalfSphere = pure Origin
+  NegativeHalfSphere .-~. NegativeHalfSphere = pure Origin
+  _ .-~. _ = Nothing
+
+instance RealFloat' r => Semimanifold (S¹_ r) where
+  type Needle (S¹_ r) = r
+  S¹Polar φ₀ .+~^ δφ  = S¹Polar $ φ'
+   where φ' = toS¹range $ φ₀ + δφ
+  semimanifoldWitness = case linearManifoldWitness @r of
+    LinearManifoldWitness -> SemimanifoldWitness
+instance RealFloat' r => PseudoAffine (S¹_ r) where
+  S¹Polar φ₁ .-~. S¹Polar φ₀
+     | δφ > pi     = pure (δφ - tau)
+     | δφ < (-pi)  = pure (δφ + tau)
+     | otherwise   = pure δφ
+   where δφ = φ₁ - φ₀
+
 
 
 instance RealFloat' s => Semimanifold (S²_ s) where
