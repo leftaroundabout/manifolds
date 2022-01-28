@@ -509,7 +509,7 @@ actuallyAffine y₀ f = AffinDiffable NotDiffableEndo $ fromOffsetSlope y₀ f
 -- affinPoint p = GenericAgent (AffinDiffable (const p))
 
 
-dfblFnValsFunc :: ∀ s c c' d v v' ε
+dfblFnValsFunc :: ∀ c c' d v v' ε s
      . ( Manifold c, Manifold d, Manifold c'
        , Atlas' c, Atlas' d, Atlas' c'
        , ProjectableBoundary s, ProjectableBoundary v'
@@ -650,7 +650,7 @@ instance ∀ n a . ( RealFloat'' n, Manifold a, LocallyScalable n a
 
 
 -- | Important special operator needed to compute intersection of 'Region's.
-minDblfuncs :: ∀ s m . (LocallyScalable s m, RealFloat'' s)
+minDblfuncs :: ∀ m s . (LocallyScalable s m, RealFloat'' s)
      => Differentiable s m s -> Differentiable s m s -> Differentiable s m s
 minDblfuncs (Differentiable f) (Differentiable g)
              = Differentiable $ h linearManifoldWitness closedScalarWitness
@@ -679,7 +679,7 @@ postEndo = genericAgentMap
 
 
 
-genericisePreRegion :: ∀ s m
+genericisePreRegion :: ∀ m s
     . ( RealFloat'' s, LocallyScalable s m, Manifold m
       , Atlas' m, Atlas' s, LinearSpace (Needle m)
       )
@@ -700,7 +700,7 @@ genericisePreRegion
 --   or even have the reference point of one region contained in the other. This
 --   combinator assumes (unchecked) that the references are in a connected
 --   sub-intersection, which is used as the result.
-unsafePreRegionIntersect :: ∀ s a
+unsafePreRegionIntersect :: ∀ a s
     . (RealFloat'' s, LocallyScalable s a, Manifold a, Atlas' a, Atlas' s)
                   => PreRegion s a -> PreRegion s a -> PreRegion s a
 unsafePreRegionIntersect GlobalRegion r = r
@@ -715,12 +715,12 @@ unsafePreRegionIntersect ra rb
    = unsafePreRegionIntersect (genericisePreRegion ra) (genericisePreRegion rb)
 
 -- | Cartesian product of two regions.
-regionProd :: ( RealDimension s, ObjectPair (Differentiable s) a b )
+regionProd :: ∀ a b s . ( RealDimension s, ObjectPair (Differentiable s) a b )
                   => Region s a -> Region s b -> Region s (a,b)
 regionProd (Region a₀ ra) (Region b₀ rb) = Region (a₀,b₀) (preRegionProd ra rb)
 
 -- | Cartesian product of two pre-regions.
-preRegionProd :: ∀ s a b . ( RealDimension s, ObjectPair (Differentiable s) a b )
+preRegionProd :: ∀ a b s . ( RealDimension s, ObjectPair (Differentiable s) a b )
                   => PreRegion s a -> PreRegion s b -> PreRegion s (a,b)
 preRegionProd = boundaryHasSameScalar @b
               ( case ( semimanifoldWitness @a, semimanifoldWitness @b
@@ -1027,7 +1027,7 @@ grwDfblFnValsCombine cmb fv gv
         = grwDfblFnValsCombine cmb (genericiseRWDFV fv) (genericiseRWDFV gv)
 
           
-rwDfbl_plus :: ∀ s a v .
+rwDfbl_plus :: ∀ a v s .
         ( RealDimension s
         , Object (Differentiable s) a, Object (Differentiable s) v
         , LinearSpace v )
@@ -1064,7 +1064,7 @@ rwDfbl_plus (RWDiffable f) (RWDiffable g) = RWDiffable
                 fgplus (AffinDiffable fe fa) (AffinDiffable ge ga)
                            = AffinDiffable (fe<>ge) (fa^+^ga)
 
-rwDfbl_negateV :: ∀ s a v .
+rwDfbl_negateV :: ∀ a v s .
         ( WithField s Manifold a
         , LinearSpace v, Scalar v ~ s
         , RealDimension s )
@@ -1086,8 +1086,10 @@ rwDfbl_negateV (RWDiffable f) = RWDiffable
                         where (fx, jf, δf) = fd x
                 fneg (AffinDiffable ef af) = AffinDiffable ef $ negateV af
 
-postCompRW :: ( RealDimension s
-              , Object (Differentiable s) a, Object (Differentiable s) b, Object (Differentiable s) c )
+postCompRW :: ∀ a b c s . ( RealDimension s
+                          , Object (Differentiable s) a
+                          , Object (Differentiable s) b
+                          , Object (Differentiable s) c )
               => RWDiffable s b c -> RWDfblFuncValue s a b -> RWDfblFuncValue s a c
 postCompRW (RWDiffable f) (ConstRWDFV x) = case f x of
      (_, Just fd) -> ConstRWDFV $ fd $ x

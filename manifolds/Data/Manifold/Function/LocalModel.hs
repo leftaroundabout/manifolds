@@ -126,7 +126,7 @@ type QModelTup s x y = ( Needle y, (Needle x+>Needle y
 
 
 
-quadratic_linearRegression :: ∀ s x y .
+quadratic_linearRegression :: ∀ x y s .
                       ( WithField s PseudoAffine x
                       , WithField s PseudoAffine y, Geodesic y
                       , SimpleSpace (Needle x), SimpleSpace (Needle y) )
@@ -141,7 +141,7 @@ quadratic_linearRegression = case ( dualSpaceWitness :: DualSpaceWitness (Needle
                               (Shade bBest σb)
                               (Shade aBest σa) )
 
-gLinearRegression :: ∀ s x y ㄇ ψ.
+gLinearRegression :: ∀ x y ㄇ ψ s .
                       ( WithField s PseudoAffine x
                       , WithField s PseudoAffine y, Geodesic y
                       , SimpleSpace (Needle x), SimpleSpace (Needle y)

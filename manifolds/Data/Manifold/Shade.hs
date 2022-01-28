@@ -161,7 +161,7 @@ class IsShade shade where
                               -> shade x -> shade y
   
 
-linearProjectShade :: ∀ s x y
+linearProjectShade :: ∀ x y s
           . (Num' s, LinearSpace x, SimpleSpace y, Scalar x ~ s, Scalar y ~ s)
                   => (x+>y) -> Shade x -> Shade y
 linearProjectShade = case ( linearManifoldWitness :: LinearManifoldWitness x
@@ -673,7 +673,7 @@ minusLogOcclusion (Shade p₀ δ)
 
 
 
-rangeWithinVertices :: ∀ s i m t
+rangeWithinVertices :: ∀ i m t s
         . ( Geodesic i
           , Geodesic m
           , WithField s AffineManifold (Interior i)
@@ -690,7 +690,7 @@ rangeWithinVertices (cii,cmi) verts = do
            vs <- sequenceA [ fzip ( middleBetween pi ci >>= (toInterior>=>(.-~.cii))
                                   , middleBetween pm cm >>= (toInterior>=>(.-~.cmi)) )
                            | (pi, pm) <- Hask.toList verts ]
-           affinSys <- correspondingDirections @s @(Interior m) @(Interior i)
+           affinSys <- correspondingDirections @(Interior m) @(Interior i)
                          (cii,cmi) vs
            return $ embedShade affinSys
  where ci = fromInterior cii

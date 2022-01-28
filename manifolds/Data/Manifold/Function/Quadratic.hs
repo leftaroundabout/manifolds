@@ -108,7 +108,7 @@ instance ( Atlas x, HasTrie (ChartIndex x)
        LinearManifoldWitness -> \μ (Quadratic f) -> Quadratic . trie $
              untrie f >>> (μ*^)***(μ*^)
 
-evalQuadratic :: ∀ s x y . ( Manifold x, Atlas x, HasTrie (ChartIndex x)
+evalQuadratic :: ∀ x y s . ( Manifold x, Atlas x, HasTrie (ChartIndex x)
                            , Manifold y
                            , s ~ Scalar (Needle x), s ~ Scalar (Needle y) )
                => Quadratic s x y -> x

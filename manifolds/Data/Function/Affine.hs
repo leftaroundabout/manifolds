@@ -185,7 +185,7 @@ instance ( Atlas x, HasTrie (ChartIndex x)
        LinearManifoldWitness -> \μ (Affine f) -> Affine . trie $
              untrie f >>> (μ*^)***(μ*^)
 
-evalAffine :: ∀ s x y . ( Manifold x, Atlas x, HasTrie (ChartIndex x)
+evalAffine :: ∀ x y s . ( Manifold x, Atlas x, HasTrie (ChartIndex x)
                         , Manifold y
                         , s ~ Scalar (Needle x), s ~ Scalar (Needle y) )
                => Affine s x y -> x -> (y, LinearMap s (Needle x) (Needle y))
@@ -194,7 +194,7 @@ evalAffine (Affine f) x = (fx₀.+~^(ðx'f $ v), ðx'f)
        chIx = lookupAtlas x
        (fx₀, ðx'f) = untrie f chIx
 
-fromOffsetSlope :: ∀ s x y . ( LinearSpace x, Atlas x, HasTrie (ChartIndex x)
+fromOffsetSlope :: ∀ x y s . ( LinearSpace x, Atlas x, HasTrie (ChartIndex x)
                              , Manifold y
                              , s ~ Scalar x, s ~ Scalar (Needle y) )
                => y -> LinearMap s x (Needle y) -> Affine s x y
@@ -209,7 +209,7 @@ instance EnhancedCat (Embedding (Affine s)) (Embedding (LinearMap s)) where
   arr (Embedding e p) = Embedding (arr e) (arr p)
 
 
-lensEmbedding :: ∀ k s x c .
+lensEmbedding :: ∀ k x c s .
                  ( Num' s
                  , LinearSpace x, LinearSpace c, Object k x, Object k c
                  , Scalar x ~ s, Scalar c ~ s
@@ -221,7 +221,7 @@ lensEmbedding l = Embedding (arr $ (arr $ LinearFunction (\c -> zeroV & l .~ c)
                                      :: LinearMap s x c) )
 
 
-correspondingDirections :: ∀ s x c t
+correspondingDirections :: ∀ x c t s
                         . ( WithField s AffineManifold c
                           , WithField s AffineManifold x
                           , SemiInner (Needle c), SemiInner (Needle x)
