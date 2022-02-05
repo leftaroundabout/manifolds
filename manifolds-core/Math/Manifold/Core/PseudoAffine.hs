@@ -125,32 +125,72 @@ class AdditiveGroup (Needle x) => Semimanifold x where
 --   manifolds in their usual maths definition (with an atlas of charts: a family of
 --   overlapping regions of the topological space, each homeomorphic to the 'Needle'
 --   vector space or some simply-connected subset thereof).
+-- 
+--   The 'Semimanifold' and 'PseudoAffine' classes can be @anyclass@-derived
+--   or empty-instantiated based on 'Generic' for product types (including newtypes) of
+--   existing 'PseudoAffine' instances. For example, the definition
+--
+-- @
+-- data Cylinder = CylinderPolar { zCyl :: !D¹, φCyl :: !S¹ }
+--   deriving (Generic, Semimanifold, PseudoAffine)
+-- @
+-- 
+--   is equivalent to
+--
+-- @
+-- data Cylinder = CylinderPolar { zCyl :: !D¹, φCyl :: !S¹ }
+--
+-- data CylinderNeedle = CylinderPolarNeedle { δzCyl :: !(Needle D¹), δφCyl :: !(Needle S¹) }
+-- 
+-- instance Semimanifold Cylinder where
+--   type Needle Cylinder = CylinderNeedle
+--   CylinderPolar z φ .+~^ CylinderPolarNeedle δz δφ
+--        = CylinderPolar (z.+~^δz) (φ.+~^δφ)
+-- 
+-- instance PseudoAffine Cylinder where
+--   CylinderPolar z₁ φ₁ .-~. CylinderPolar z₀ φ₀
+--        = CylinderPolarNeedle <$> z₁.-~.z₀ <*> φ₁.-~.φ₀
+--   CylinderPolar z₁ φ₁ .-~! CylinderPolar z₀ φ₀
+--        = CylinderPolarNeedle (z₁.-~!z₀) (φ₁.-~.φ₀)
+-- @
 class Semimanifold x => PseudoAffine x where
-  {-# MINIMAL (.-~.) | (.-~!) #-}
   -- | The path reaching from one point to another.
   --   Should only yield 'Nothing' if the points are on disjoint segments
   --   of a non&#x2013;path-connected space.
-  -- 
-  --   On manifolds, the identity
-  --   
+  --
+  --   For a connected manifold, you may define this method as
+  --
   -- @
-  -- p .+~^ (q.-~.p) &#x2261; q
+  --   p.-~.q = pure (p.-~!q)
   -- @
-  --   
-  --   should hold. The reason this is written with approximate equality is only
-  --   because of possible floating point issues etc.; but even if `q` is far away
-  --   from @p@ then it should still hold to a very good approximation
-  --   (unlike with @(p.+~^v).-~^v@, which may end up very different from @p@ if @v@
-  --   is not small).
   (.-~.) :: x -> x -> Maybe (Needle x)
-  p.-~.q = return $ p.-~!q
+  default (.-~.) :: ( Generic x, PseudoAffine (VRep x)
+                    , Needle x ~ GenericNeedle x )
+        => x -> x -> Maybe (Needle x)
+  p.-~.q = GenericNeedle <$> Gnrx.from p .-~. (Gnrx.from q :: Gnrx.Rep x Void)
   
   -- | Unsafe version of '.-~.'. If the two points lie in disjoint regions,
   --   the behaviour is undefined.
+  -- 
+  --   Whenever @p@ and @q@ lie in a connected region, the identity
+  --   
+  -- @
+  -- p .+~^ (q.-~.p) ≡ q
+  -- @
+  --   
+  --   should hold (up to possible floating point rounding etc.).
+  --   Meanwhile, you will in general have
+  -- 
+  -- @
+  -- (p.+~^v).-~^v ≠ p
+  -- @
+  -- 
+  -- (though in many instances this is at least for sufficiently small @v@ approximately equal).
   (.-~!) :: HasCallStack => x -> x -> Needle x
-  p.-~!q = case p.-~.q of
-      Just v -> v
-      Nothing -> error "Attempt to calculate vector between points on disjoint manifold-regions."
+  default (.-~!) :: ( Generic x, PseudoAffine (VRep x)
+                    , Needle x ~ GenericNeedle x )
+        => x -> x -> Needle x
+  p.-~!q = GenericNeedle $ Gnrx.from p .-~! (Gnrx.from q :: Gnrx.Rep x Void)
   {-# INLINE (.-~!) #-}
   
   pseudoAffineWitness :: PseudoAffineWitness x
@@ -211,7 +251,8 @@ instance (c) => Semimanifold (t) where { \
   type Needle (t) = Diff (t);             \
   (.+~^) = (.+^) };                        \
 instance (c) => PseudoAffine (t) where {    \
-  a.-~.b = pure (a.-.b);      }
+  a.-~.b = pure (a.-.b);                     \
+  (.-~!) = (.-.) }
 
 deriveAffine((),Double)
 deriveAffine((),Float)
@@ -222,6 +263,7 @@ instance Semimanifold (ZeroDim k) where
   Origin .+~^ Origin = Origin
   Origin .-~^ Origin = Origin
 instance PseudoAffine (ZeroDim k) where
+  Origin .-~! Origin = Origin
   Origin .-~. Origin = pure Origin
 
 instance ∀ a b . (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
@@ -233,6 +275,7 @@ instance ∀ a b . (Semimanifold a, Semimanifold b) => Semimanifold (a,b) where
      (SemimanifoldWitness, SemimanifoldWitness) -> SemimanifoldWitness
 instance (PseudoAffine a, PseudoAffine b) => PseudoAffine (a,b) where
   (a,b).-~.(c,d) = liftA2 (,) (a.-~.c) (b.-~.d)
+  (a,b).-~!(c,d) = (a.-~!c, b.-~!d)
   pseudoAffineWitness = case ( pseudoAffineWitness :: PseudoAffineWitness a
                              , pseudoAffineWitness :: PseudoAffineWitness b ) of
              (  PseudoAffineWitness (SemimanifoldWitness)
@@ -250,6 +293,7 @@ instance ∀ a b c . (Semimanifold a, Semimanifold b, Semimanifold c)
              ( SemimanifoldWitness, SemimanifoldWitness, SemimanifoldWitness )
                    -> SemimanifoldWitness
 instance (PseudoAffine a, PseudoAffine b, PseudoAffine c) => PseudoAffine (a,b,c) where
+  (a,b,c).-~!(d,e,f) = (a.-~!d, b.-~!e, c.-~!f)
   (a,b,c).-~.(d,e,f) = liftA3 (,,) (a.-~.d) (b.-~.e) (c.-~.f)
   pseudoAffineWitness = case ( pseudoAffineWitness :: PseudoAffineWitness a
                              , pseudoAffineWitness :: PseudoAffineWitness b
@@ -270,16 +314,18 @@ instance Semimanifold (ℝP⁰_ r) where
   p .+~^ Origin = p
   p .-~^ Origin = p
 instance PseudoAffine (ℝP⁰_ r) where
+  ℝPZero .-~! ℝPZero = Origin
   ℝPZero .-~. ℝPZero = pure Origin
 
 instance ℝeal r => Semimanifold (ℝP¹_ r) where
   type Needle (ℝP¹_ r) = r
   HemisphereℝP¹Polar r₀ .+~^ δr = HemisphereℝP¹Polar . toℝP¹range $ r₀ + δr
 instance ℝeal r => PseudoAffine (ℝP¹_ r) where
-  HemisphereℝP¹Polar φ₁ .-~. HemisphereℝP¹Polar φ₀
-     | δφ > pi/2     = pure (δφ - pi)
-     | δφ < (-pi/2)  = pure (δφ + pi)
-     | otherwise     = pure δφ
+  p.-~.q = pure (p.-~!q)
+  HemisphereℝP¹Polar φ₁ .-~! HemisphereℝP¹Polar φ₀
+     | δφ > pi/2     = δφ - pi
+     | δφ < (-pi/2)  = δφ + pi
+     | otherwise     = δφ
    where δφ = φ₁ - φ₀
 
 
