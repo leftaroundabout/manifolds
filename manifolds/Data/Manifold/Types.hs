@@ -101,9 +101,10 @@ type StiefelScalar s = (RealFloat s, UArr.Unbox s)
 #define deriveAffine(c,t)                \
 instance (c) => Semimanifold (t) where {  \
   type Needle (t) = Diff (t);              \
-  (.+~^) = (.+^) };                            \
-instance (c) => PseudoAffine (t) where {        \
-  a.-~.b = pure (a.-.b);      }
+  (.+~^) = (.+^) };                         \
+instance (c) => PseudoAffine (t) where {     \
+  a.-~.b = pure (a.-.b);                      \
+  a.-~!b = a.-.b }
 
 
 newtype Stiefel1Needle v = Stiefel1Needle { getStiefel1Tangent :: UArr.Vector (Scalar v) }
@@ -272,10 +273,11 @@ instance ∀ v .
 instance ∀ v .
    ( LinearSpace v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
    , StiefelScalar (Scalar v) ) => PseudoAffine (Stiefel1 v) where
-  (.-~.) = dpst dualSpaceWitness
-   where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (Stiefel1Needle v)
+  p.-~.q = pure (p.-~!q)
+  (.-~!) = dpst dualSpaceWitness
+   where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Stiefel1Needle v
          dpst DualSpaceWitness (Stiefel1 s) (Stiefel1 t)
-             = pure . Stiefel1Needle $ case s' UArr.! im of
+             = Stiefel1Needle $ case s' UArr.! im of
                    0 -> uarrScale (recip $ l2norm delis) delis
                    s'i | v <- uarrScale (recip s'i) delis `uarrSubtract` tpro
                        , absv <- l2norm v

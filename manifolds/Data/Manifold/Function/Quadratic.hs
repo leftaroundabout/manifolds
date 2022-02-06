@@ -72,6 +72,7 @@ instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
          , LinearManifold (Needle y), Scalar (Needle y) ~ s
          , Needle (Needle y) ~ Needle y
          ) => PseudoAffine (Quadratic s x y) where
+  p.-~.q = pure (p.-~!q)
   (.-~!) = case ( semimanifoldWitness :: SemimanifoldWitness y ) of
     (SemimanifoldWitness) -> \(Quadratic f) (Quadratic g)
       -> Quadratic . trie $ \ix -> case (untrie f ix, untrie g ix) of

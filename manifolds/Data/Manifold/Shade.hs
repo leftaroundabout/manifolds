@@ -963,6 +963,7 @@ instance ∀ x y . (Semimanifold x) => Semimanifold (x`WithAny`y) where
       SemimanifoldWitness -> SemimanifoldWitness
             
 instance (PseudoAffine x) => PseudoAffine (x`WithAny`y) where
+  WithAny _ x .-~! WithAny _ ξ = x.-~!ξ
   WithAny _ x .-~. WithAny _ ξ = x.-~.ξ
   pseudoAffineWitness = case pseudoAffineWitness :: PseudoAffineWitness x of
       PseudoAffineWitness (SemimanifoldWitness)

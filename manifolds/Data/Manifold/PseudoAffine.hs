@@ -357,6 +357,7 @@ instance (LinearSpace (a n), Needle (a n) ~ a n)
 instance (LinearSpace (a n), Needle (a n) ~ a n)
             => PseudoAffine (LinAff.Point a n) where
   LinAff.P v .-~. LinAff.P w = return $ v ^-^ w
+  LinAff.P v .-~! LinAff.P w = v ^-^ w
 
 
 instance RealFloat' r => Semimanifold (S⁰_ r) where
@@ -367,6 +368,9 @@ instance RealFloat' r => PseudoAffine (S⁰_ r) where
   PositiveHalfSphere .-~. PositiveHalfSphere = pure Origin
   NegativeHalfSphere .-~. NegativeHalfSphere = pure Origin
   _ .-~. _ = Nothing
+  PositiveHalfSphere .-~! PositiveHalfSphere = Origin
+  NegativeHalfSphere .-~! NegativeHalfSphere = Origin
+  _ .-~! _ = error "There is no path between the two 0-dimensional half spheres."
 
 instance RealFloat' r => Semimanifold (S¹_ r) where
   type Needle (S¹_ r) = r
@@ -375,10 +379,11 @@ instance RealFloat' r => Semimanifold (S¹_ r) where
   semimanifoldWitness = case linearManifoldWitness @r of
     LinearManifoldWitness -> SemimanifoldWitness
 instance RealFloat' r => PseudoAffine (S¹_ r) where
-  S¹Polar φ₁ .-~. S¹Polar φ₀
-     | δφ > pi     = pure (δφ - tau)
-     | δφ < (-pi)  = pure (δφ + tau)
-     | otherwise   = pure δφ
+  p .-~. q = pure (p.-~!q)
+  S¹Polar φ₁ .-~! S¹Polar φ₀
+     | δφ > pi     = δφ - tau
+     | δφ < (-pi)  = δφ + tau
+     | otherwise   = δφ
    where δφ = φ₁ - φ₀
 
 
@@ -410,6 +415,7 @@ instance RealFloat' s => Semimanifold (S²_ s) where
       in addS²
 
 instance RealFloat' s => PseudoAffine (S²_ s) where
+  p.-~.q = pure (p.-~!q)
   S²Polar θ₁ φ₁ .-~! S²Polar θ₀ φ₀ = d *^ embed(S¹Polar γc)
    where -- See images/constructions/sphericoords-needles.svg.
          V3 qx qy qz = embed $ S²Polar θ₁ (φ₁-φ₀)
@@ -435,6 +441,7 @@ instance Semimanifold ℝP² where
            | θ₁ > pi/2   -> HemisphereℝP²Polar (pi-θ₁) (-φ₁)
            | otherwise   -> HemisphereℝP²Polar θ₁        φ₁
 instance PseudoAffine ℝP² where
+  p.-~.q = pure (p.-~!q)
   HemisphereℝP²Polar θ₁ φ₁ .-~! HemisphereℝP²Polar θ₀ φ₀
       = case S²Polar θ₁ φ₁ .-~! S²Polar θ₀ φ₀ of
           v -> let r² = magnitudeSq v

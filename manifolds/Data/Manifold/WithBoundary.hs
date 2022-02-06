@@ -232,6 +232,7 @@ instance ( SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
          , ValidDualness dn
          )
     => PseudoAffine (ProductBoundaryNeedleT dn a b v) where
+  p.-~.q = pure (p^-^q)
   (.-~!) = (^-^)
   
 instance ( SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
@@ -271,6 +272,9 @@ instance ∀ a b . ( ProjectableBoundary a, ProjectableBoundary b
                  , Num' (Scalar (Needle (Interior a)))
                  )
    => PseudoAffine (ProductBoundary a b) where
+  p.-~!q = case p.-~.q of
+             Just v -> v
+             Nothing -> error "No path found in product-space boundary."
   (.-~.) = case ( pseudoAffineWitness @(Interior a)
                 , pseudoAffineWitness @(Interior b) ) of
    (PseudoAffineWitness SemimanifoldWitness, PseudoAffineWitness SemimanifoldWitness)

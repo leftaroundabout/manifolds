@@ -151,6 +151,7 @@ instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
          , LinearManifold (Needle x), Scalar (Needle x) ~ s
          , LinearManifold (Needle y), Scalar (Needle y) ~ s
          ) => PseudoAffine (Affine s x y) where
+  p.-~.q = pure (p.-~!q)
   (.-~!) = case ( semimanifoldWitness :: SemimanifoldWitness y ) of
     (SemimanifoldWitness) -> \(Affine f) (Affine g)
       -> Affine . trie $ \ix -> case (untrie f ix, untrie g ix) of

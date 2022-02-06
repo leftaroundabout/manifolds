@@ -292,6 +292,8 @@ instance ∀ m f s .
       ,PseudoAffineWitness (SemimanifoldWitness)
       ,ForgetTransportProperties)
          -> PseudoAffineWitness (SemimanifoldWitness)
+  FibreBundle p f .-~! FibreBundle q g = case p.-~!q of
+      v  -> FibreBundle v $ f .-~! parallelTransport p v g
   FibreBundle p f .-~. FibreBundle q g = case p.-~.q of
       Nothing -> Nothing
       Just v  -> FibreBundle v <$> f .-~. parallelTransport p v g
