@@ -36,6 +36,7 @@ import Data.Basis
 
 import Math.Manifold.Core.PseudoAffine
 import Math.Manifold.Core.Types
+import Math.Manifold.VectorSpace.ZeroDimensional
 import Control.Applicative
 import Control.Arrow
 
@@ -54,7 +55,7 @@ class AdditiveMonoid h where
 class AdditiveMonoid h => HalfSpace h where
   type FullSubspace h :: Type
   type Ray h :: Type
-  type Ray h = ℝay
+  type Ray h = Cℝay ℝ⁰
   scaleNonNeg :: Ray h -> h -> h
   fromFullSubspace :: FullSubspace h -> h
   projectToFullSubspace :: h -> FullSubspace h
