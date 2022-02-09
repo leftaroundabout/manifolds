@@ -46,6 +46,7 @@ import Math.VectorSpace.Dual
 import Math.VectorSpace.MiscUtil.MultiConstraints (SameScalar)
 import Linear (V0, V1, V2, V3, V4)
 import qualified Linear.Affine as LinAff
+import Data.Monoid.Additive
 
 import Control.Applicative
 import Control.Arrow
@@ -57,31 +58,6 @@ import Proof.Propositional (Empty(..))
 
 import Data.CallStack (HasCallStack)
 
-
-class AdditiveMonoid h where
-  zeroHV :: h
-  addHVs :: h -> h -> h
-
-class AdditiveMonoid h => HalfSpace h where
-  type FullSubspace h :: Type
-  type Ray h :: Type
-  type Ray h = ℝay
-  scaleNonNeg :: Ray h -> h -> h
-  fromFullSubspace :: FullSubspace h -> h
-  projectToFullSubspace :: h -> FullSubspace h
-  fullSubspaceIsVectorSpace :: (VectorSpace (FullSubspace h) => r) -> r
-  default fullSubspaceIsVectorSpace :: VectorSpace (FullSubspace h)
-                              => (VectorSpace (FullSubspace h) => r) -> r
-  fullSubspaceIsVectorSpace q = q
-
-instance AdditiveMonoid (ZeroDim k) where
-  zeroHV = Origin
-  addHVs Origin Origin = Origin
-instance HalfSpace (ZeroDim k) where
-  type FullSubspace (ZeroDim k) = ZeroDim k
-  scaleNonNeg _ Origin = Origin
-  fromFullSubspace _ = Origin
-  projectToFullSubspace Origin = Origin
 
 type OpenManifold m = ( SemimanifoldWithBoundary m
                       , SemimanifoldWithBoundary (Needle m)

@@ -29,7 +29,7 @@
 
 
 module Data.Manifold.WithBoundary
-        ( SemimanifoldWithBoundary(..), PseudoAffineWithBoundary(..)
+        ( SemimanifoldWithBoundary(..), PseudoAffineWithBoundary(..), ProjectableBoundary(..)
         , SmfdWBoundWitness(..)
         , AdditiveMonoid(..), HalfSpace(..)
         ) where
