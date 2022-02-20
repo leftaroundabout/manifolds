@@ -102,6 +102,8 @@ class AdditiveMonoid h => HalfSpace h where
   type FullSubspace h = GenericFullSubspace h
   type Ray h :: Type
   type Ray h = Ray (AMRep h)
+  type MirrorJoin h :: Type
+  type MirrorJoin h = GenericMirrorJoin h
   scaleNonNeg :: Ray h -> h -> h
   default scaleNonNeg :: ( Generic h, HalfSpace (AMRep h)
                          , FullSubspace h ~ GenericFullSubspace h
@@ -115,10 +117,33 @@ class AdditiveMonoid h => HalfSpace h where
              => FullSubspace h -> h
   fromFullSubspace (GenericFullSubspace x) = Gnrx.to (fromFullSubspace x :: AMRep h)
   projectToFullSubspace :: h -> FullSubspace h
-  fullSubspaceIsVectorSpace :: (VectorSpace (FullSubspace h) => r) -> r
-  default fullSubspaceIsVectorSpace :: VectorSpace (FullSubspace h)
-                              => (VectorSpace (FullSubspace h) => r) -> r
+  fullSubspaceIsVectorSpace
+   :: ( (VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h)) => r) -> r
+  default fullSubspaceIsVectorSpace
+       :: ( VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h) )
+   => ( (VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h)) => r) -> r
   fullSubspaceIsVectorSpace q = q
+  rayIsHalfSpace :: (HalfSpace (Ray h) => r) -> r
+  default rayIsHalfSpace :: HalfSpace (Ray h) => (HalfSpace (Ray h) => r) -> r
+  rayIsHalfSpace q = q
+  mirrorJoinIsVectorSpace
+   :: ((VectorSpace (MirrorJoin h), Scalar (MirrorJoin h) ~ MirrorJoin (Ray h)) => r) -> r
+  default mirrorJoinIsVectorSpace
+       :: ( VectorSpace (MirrorJoin h), Scalar (MirrorJoin h) ~ MirrorJoin (Ray h) )
+   => ((VectorSpace (MirrorJoin h), Scalar (MirrorJoin h) ~ MirrorJoin (Ray h)) => r) -> r
+  mirrorJoinIsVectorSpace q = q
+  fromPositiveHalf :: h -> MirrorJoin h
+  default fromPositiveHalf :: ( Generic h, HalfSpace (AMRep h)
+                              , MirrorJoin h ~ GenericMirrorJoin h
+                              , Ray h ~ Ray (AMRep h) )
+             => h -> MirrorJoin h
+  fromPositiveHalf p = GenericMirrorJoin $ fromPositiveHalf (Gnrx.from p :: AMRep h)
+  fromNegativeHalf :: h -> MirrorJoin h
+  default fromNegativeHalf :: ( Generic h, HalfSpace (AMRep h)
+                              , MirrorJoin h ~ GenericMirrorJoin h
+                              , Ray h ~ Ray (AMRep h) )
+             => h -> MirrorJoin h
+  fromNegativeHalf p = GenericMirrorJoin $ fromNegativeHalf (Gnrx.from p :: AMRep h)
 
 newtype GenericFullSubspace h = GenericFullSubspace
     { getGenericFullSubspace :: FullSubspace (AMRep h) }
@@ -126,20 +151,36 @@ newtype GenericFullSubspace h = GenericFullSubspace
 instance AdditiveGroup (FullSubspace (AMRep h)) => AdditiveGroup (GenericFullSubspace h)
 instance VectorSpace (FullSubspace (AMRep h)) => VectorSpace (GenericFullSubspace h)
 
+newtype GenericMirrorJoin h = GenericMirrorJoin
+    { getGenericMirrorJoin :: MirrorJoin (AMRep h) }
+  deriving (Generic)
+instance AdditiveGroup (MirrorJoin (AMRep h)) => AdditiveGroup (GenericMirrorJoin h)
+instance VectorSpace (MirrorJoin (AMRep h)) => VectorSpace (GenericMirrorJoin h)
+
 instance ∀ h s . HalfSpace h => HalfSpace (Gnrx.Rec0 h s) where
   type FullSubspace (Gnrx.Rec0 h s) = FullSubspace h
   type Ray (Gnrx.Rec0 h s) = Ray h
+  type MirrorJoin (Gnrx.Rec0 h s) = MirrorJoin h
   scaleNonNeg μ (Gnrx.K1 p) = Gnrx.K1 $ scaleNonNeg μ p
   fullSubspaceIsVectorSpace c = fullSubspaceIsVectorSpace @h c
+  mirrorJoinIsVectorSpace c = mirrorJoinIsVectorSpace @h c
+  rayIsHalfSpace c = rayIsHalfSpace @h c
   fromFullSubspace x = Gnrx.K1 $ fromFullSubspace x
   projectToFullSubspace (Gnrx.K1 p) = projectToFullSubspace p
+  fromPositiveHalf (Gnrx.K1 p) = fromPositiveHalf p
+  fromNegativeHalf (Gnrx.K1 p) = fromNegativeHalf p
 instance HalfSpace (f p) => HalfSpace (Gnrx.M1 i c f p) where
   type FullSubspace (Gnrx.M1 i c f p) = FullSubspace (f p)
   type Ray (Gnrx.M1 i c f p) = Ray (f p)
+  type MirrorJoin (Gnrx.M1 i c f p) = MirrorJoin (f p)
   scaleNonNeg μ (Gnrx.M1 p) = Gnrx.M1 $ scaleNonNeg μ p
   fullSubspaceIsVectorSpace c = fullSubspaceIsVectorSpace @(f p) c
+  mirrorJoinIsVectorSpace c = mirrorJoinIsVectorSpace @(f p) c
+  rayIsHalfSpace c = rayIsHalfSpace @(f p) c
   fromFullSubspace x = Gnrx.M1 $ fromFullSubspace x
   projectToFullSubspace (Gnrx.M1 p) = projectToFullSubspace p
+  fromPositiveHalf (Gnrx.M1 p) = fromPositiveHalf p
+  fromNegativeHalf (Gnrx.M1 p) = fromNegativeHalf p
 
 data GenericProductFullSubspace f g p
    = GenericProductFullSubspace { lFullSubspace :: !(FullSubspace (f p))
@@ -152,29 +193,19 @@ data GenericProductFullSubspace f g p
 instance AdditiveMonoid (ZeroDim k) where
   zeroHV = Origin
   addHVs Origin Origin = Origin
-instance HalfSpace (ZeroDim k) where
-  type FullSubspace (ZeroDim k) = ZeroDim k
-  scaleNonNeg _ Origin = Origin
-  fromFullSubspace _ = Origin
-  projectToFullSubspace Origin = Origin
 
-#define WordHalfSpace(w)             \
-instance HalfSpace (w) where {        \
-  type FullSubspace (w) = ZeroDim (w); \
-  type Ray (w) = (w);                   \
-  scaleNonNeg = (*);                     \
-  fromFullSubspace Origin = 0;            \
-  projectToFullSubspace _ = Origin }
-
-WordHalfSpace(Word)
-WordHalfSpace(Word8)
-WordHalfSpace(Word16)
-WordHalfSpace(Word32)
-WordHalfSpace(Word64)
+instance ∀ k . Num k => AdditiveMonoid (Cℝay (ZeroDim k)) where
+  zeroHV = Cℝay 0 Origin
+  addHVs (Cℝay a Origin) (Cℝay b Origin) = Cℝay (a+b) Origin
+instance (Num k, VectorSpace k, Scalar k ~ k) => HalfSpace (Cℝay (ZeroDim k)) where
+  type FullSubspace (Cℝay (ZeroDim k)) = ZeroDim k
+  type Ray (Cℝay (ZeroDim k)) = Cℝay (ZeroDim k)
+  type MirrorJoin (Cℝay (ZeroDim k)) = k
+  scaleNonNeg (Cℝay μ Origin) (Cℝay l Origin) = Cℝay (μ*l) Origin
+  fromFullSubspace Origin = Cℝay 0 Origin
+  projectToFullSubspace (Cℝay _ Origin) = Origin
+  fromPositiveHalf (Cℝay l Origin) = l
+  fromNegativeHalf (Cℝay l Origin) = -l
+  
 
 
-newtype GnTestHS = GnTestHS Word
-  deriving (Generic)
-
-instance AdditiveMonoid GnTestHS
-instance HalfSpace GnTestHS
