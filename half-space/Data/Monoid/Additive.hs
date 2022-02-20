@@ -15,6 +15,7 @@
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE DefaultSignatures        #-}
 {-# LANGUAGE DeriveGeneric            #-}
+{-# LANGUAGE DeriveAnyClass           #-}
 {-# LANGUAGE StandaloneDeriving       #-}
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE UnicodeSyntax            #-}
@@ -117,8 +118,14 @@ class AdditiveMonoid h => HalfSpace h where
              => FullSubspace h -> h
   fromFullSubspace (GenericFullSubspace x) = Gnrx.to (fromFullSubspace x :: AMRep h)
   projectToFullSubspace :: h -> FullSubspace h
+  default projectToFullSubspace :: ( Generic h, HalfSpace (AMRep h)
+                                   , FullSubspace h ~ GenericFullSubspace h
+                                   , Ray h ~ Ray (AMRep h) )
+             => h -> FullSubspace h
+  projectToFullSubspace p
+           = GenericFullSubspace (projectToFullSubspace (Gnrx.from p :: AMRep h))
   fullSubspaceIsVectorSpace
-   :: ( (VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h)) => r) -> r
+   :: ((VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h)) => r) -> r
   default fullSubspaceIsVectorSpace
        :: ( VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h) )
    => ( (VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h)) => r) -> r
@@ -185,10 +192,37 @@ instance HalfSpace (f p) => HalfSpace (Gnrx.M1 i c f p) where
 data GenericProductFullSubspace f g p
    = GenericProductFullSubspace { lFullSubspace :: !(FullSubspace (f p))
                                 , rFullSpace :: !(g p) }
+  deriving (Generic)
+deriving instance (AdditiveGroup (FullSubspace (f p)), AdditiveGroup (g p))
+           => AdditiveGroup (GenericProductFullSubspace f g p)
+deriving instance ( VectorSpace (FullSubspace (f p)), VectorSpace (g p)
+                  , Scalar (FullSubspace (f p)) ~ Scalar (g p) )
+           => VectorSpace (GenericProductFullSubspace f g p)
 
--- instance (HalfSpace (f p), VectorSpace (g p), Scalar (Ray (f p)), FullScalar) => HalfSpace ((f:*:g) p) where
---   type FullSubspace ((f:*:g) p) = GenericProductFullSubspace f g p
---   type Ray (Gnrx.Rec0 h s) = Ray h
+data GenericProductMirrorJoin f g p
+   = GenericProductMirrorJoin { lPMJcomponent :: !(MirrorJoin (f p))
+                              , rPMJcomponent :: !(g p) }
+  deriving (Generic)
+deriving instance (AdditiveGroup (MirrorJoin (f p)), AdditiveGroup (g p))
+           => AdditiveGroup (GenericProductMirrorJoin f g p)
+deriving instance ( VectorSpace (MirrorJoin (f p)), VectorSpace (g p)
+                  , Scalar (MirrorJoin (f p)) ~ Scalar (g p) )
+           => VectorSpace (GenericProductMirrorJoin f g p)
+
+instance ∀ f g p . ( HalfSpace (f p), VectorSpace (g p), AdditiveMonoid (g p)
+                   , Ray (f p) ~ Cℝay (ZeroDim (Scalar (g p))) )
+             => HalfSpace ((f:*:g) p) where
+  type FullSubspace ((f:*:g) p) = GenericProductFullSubspace f g p
+  type Ray ((f:*:g) p) = Cℝay (ZeroDim (Scalar (g p)))
+  type MirrorJoin ((f:*:g) p) = GenericProductMirrorJoin f g p
+  scaleNonNeg (Cℝay μ Origin) (x:*:y) = scaleNonNeg (Cℝay μ Origin) x :*: (μ*^y)
+  fromFullSubspace (GenericProductFullSubspace xf y) = fromFullSubspace xf :*: y
+  fullSubspaceIsVectorSpace c = fullSubspaceIsVectorSpace @(f p) c
+  mirrorJoinIsVectorSpace c = mirrorJoinIsVectorSpace @(f p) c
+  rayIsHalfSpace c = rayIsHalfSpace @(f p) c
+  fromPositiveHalf (x:*:y) = GenericProductMirrorJoin (fromPositiveHalf x) y
+  fromNegativeHalf (x:*:y) = GenericProductMirrorJoin (fromNegativeHalf x) y
+  projectToFullSubspace (x:*:y) = GenericProductFullSubspace (projectToFullSubspace x) y
 
 instance AdditiveMonoid (ZeroDim k) where
   zeroHV = Origin
@@ -207,5 +241,9 @@ instance (Num k, VectorSpace k, Scalar k ~ k) => HalfSpace (Cℝay (ZeroDim k)) 
   fromPositiveHalf (Cℝay l Origin) = l
   fromNegativeHalf (Cℝay l Origin) = -l
   
-
+instance ∀ x y . ( HalfSpace x, VectorSpace y, AdditiveMonoid y
+                 , Ray x ~ Cℝay (ZeroDim (Scalar y)) ) => HalfSpace (x,y) where
+  fullSubspaceIsVectorSpace c = fullSubspaceIsVectorSpace @x c
+  rayIsHalfSpace c = rayIsHalfSpace @x c
+  mirrorJoinIsVectorSpace c = mirrorJoinIsVectorSpace @x c
 
