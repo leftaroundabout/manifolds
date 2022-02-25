@@ -32,6 +32,7 @@
 module Data.Monoid.Additive (AdditiveMonoid(..), HalfSpace(..)) where
 
 import Data.VectorSpace
+import Math.Manifold.VectorSpace.Scalar
 import Data.AffineSpace
 import Data.Int
 import Data.Word
@@ -125,10 +126,17 @@ class AdditiveMonoid h => HalfSpace h where
   projectToFullSubspace p
            = GenericFullSubspace (projectToFullSubspace (Gnrx.from p :: AMRep h))
   fullSubspaceIsVectorSpace
-   :: ((VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h)) => r) -> r
+   :: ( (VectorSpace (FullSubspace h)
+        , ScalarSpace (Scalar (FullSubspace h))
+        , Scalar (FullSubspace h) ~ MirrorJoin (Ray h) ) => r) -> r
   default fullSubspaceIsVectorSpace
-       :: ( VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h) )
-   => ( (VectorSpace (FullSubspace h), Scalar (FullSubspace h) ~ MirrorJoin (Ray h)) => r) -> r
+       :: ( VectorSpace (FullSubspace h)
+          , ScalarSpace (Scalar (FullSubspace h))
+          , Scalar (FullSubspace h) ~ MirrorJoin (Ray h) )
+   => ( ( VectorSpace (FullSubspace h)
+        , ScalarSpace (Scalar (FullSubspace h))
+        , Scalar (FullSubspace h) ~ MirrorJoin (Ray h)
+        ) => r) -> r
   fullSubspaceIsVectorSpace q = q
   rayIsHalfSpace :: (HalfSpace (Ray h) => r) -> r
   default rayIsHalfSpace :: HalfSpace (Ray h) => (HalfSpace (Ray h) => r) -> r
@@ -227,6 +235,17 @@ instance ∀ f g p . ( HalfSpace (f p), VectorSpace (g p), AdditiveMonoid (g p)
 instance AdditiveMonoid (ZeroDim k) where
   zeroHV = Origin
   addHVs Origin Origin = Origin
+
+instance ScalarSpace k => HalfSpace (ZeroDim k) where
+  type FullSubspace (ZeroDim k) = ZeroDim k
+  type Ray (ZeroDim k) = Cℝay (ZeroDim k)
+  type MirrorJoin (ZeroDim k) = ZeroDim k
+  scaleNonNeg _ Origin = Origin
+  fromFullSubspace = id
+  projectToFullSubspace = id
+  rayIsHalfSpace q = q
+  fromPositiveHalf = id
+  fromNegativeHalf = id
 
 instance ∀ k . Num k => AdditiveMonoid (Cℝay (ZeroDim k)) where
   zeroHV = Cℝay 0 Origin
