@@ -366,11 +366,23 @@ instance ∀ x . (PseudoAffine x, VectorSpace (Needle x)) => Semimanifold (Shade
 
 data ShadeHalfNeedle x = ShadeHalfNeedle -- TODO add shade-spread information
 
-instance AdditiveMonoid (ShadeHalfNeedle x)
+instance AdditiveMonoid (ShadeHalfNeedle x) where
+  zeroHV = undefined
+  addHVs = undefined
 
 instance ( VectorSpace (Needle x)
          ) => HalfSpace (ShadeHalfNeedle x) where
   type FullSubspace (ShadeHalfNeedle x) = Needle x
+  type Ray (ShadeHalfNeedle x) = Ray x
+  type MirrorJoin (ShadeHalfNeedle x) = Needle x
+  scaleNonNeg = undefined
+  fromFullSubspace = undefined
+  projectToFullSubspace = undefined
+  fullSubspaceIsVectorSpace = undefined
+  rayIsHalfSpace = undefined
+  mirrorJoinIsVectorSpace = undefined
+  fromPositiveHalf = undefined
+  fromNegativeHalf = undefined
 
 instance ( AffineSpace x, Manifold x, Diff x ~ Needle x
          , Atlas x, HasTrie (ChartIndex x)   -- ??
@@ -420,11 +432,23 @@ instance (AffineManifold x) => Semimanifold (Shade' x) where
 
 data Shade'HalfNeedle x = Shade'HalfNeedle -- TODO add shade-spread information
 
-instance AdditiveMonoid (Shade'HalfNeedle x)
+instance AdditiveMonoid (Shade'HalfNeedle x) where
+  zeroHV = undefined
+  addHVs = undefined
 
 instance ( VectorSpace (Needle x)
          ) => HalfSpace (Shade'HalfNeedle x) where
   type FullSubspace (Shade'HalfNeedle x) = Needle x
+  type Ray (Shade'HalfNeedle x) = Ray x
+  type MirrorJoin (Shade'HalfNeedle x) = Needle x
+  scaleNonNeg = undefined
+  fromFullSubspace = undefined
+  projectToFullSubspace = undefined
+  fullSubspaceIsVectorSpace = undefined
+  rayIsHalfSpace = undefined
+  mirrorJoinIsVectorSpace = undefined
+  fromPositiveHalf = undefined
+  fromNegativeHalf = undefined
 
 instance ( AffineSpace x, Manifold x, Diff x ~ Needle x
          , Atlas' x

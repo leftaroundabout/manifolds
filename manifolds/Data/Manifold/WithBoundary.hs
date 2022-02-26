@@ -53,6 +53,7 @@ import Math.LinearMap.Category ( Tensor(..), TensorSpace(..)
                                )
 import Math.VectorSpace.Dual
 import Math.VectorSpace.MiscUtil.MultiConstraints (SameScalar)
+import Data.Monoid.Additive
 import Linear (V0, V1, V2, V3, V4)
 import qualified Linear.Affine as LinAff
 
@@ -67,28 +68,6 @@ import Proof.Propositional (Empty(..))
 import Data.CallStack (HasCallStack)
 
 
-instance (AdditiveMonoid a, AdditiveGroup b) => AdditiveMonoid (a,b) where
-  zeroHV = (zeroHV, zeroV)
-  addHVs (a,b) (α,β) = (addHVs a α, b^+^β)
-instance ∀ a b . ( HalfSpace a, Ray a ~ ℝay_ (Scalar b), VectorSpace b
-                 , RealFrac'' (Scalar b), Scalar (FullSubspace a) ~ Scalar b )
-                    => HalfSpace (a,b) where
-  type FullSubspace (a,b) = (FullSubspace a, b)
-  type Ray (a,b) = ℝay_ (Scalar b)
-  scaleNonNeg s@(Cℝay μ Origin) (v,w) = (scaleNonNeg s v, μ*^w)
-  fromFullSubspace (v,w) = (fromFullSubspace v, w)
-  projectToFullSubspace (v',w) = (projectToFullSubspace v', w)
-  fullSubspaceIsVectorSpace q = fullSubspaceIsVectorSpace @a q
-
-instance Num s => AdditiveMonoid (ℝay_ s) where
-  zeroHV = Cℝay 0 Origin
-  addHVs (Cℝay a Origin) (Cℝay b Origin) = Cℝay (a+b) Origin
-instance Num s => HalfSpace (ℝay_ s) where
-  type FullSubspace (ℝay_ s) = ZeroDim s
-  type Ray (ℝay_ s) = ℝay_ s
-  scaleNonNeg (Cℝay μ Origin) (Cℝay l Origin) = Cℝay (μ*l) Origin
-  fromFullSubspace o = Cℝay 0 o
-  projectToFullSubspace (Cℝay _ o) = o
 
 
 
@@ -343,13 +322,17 @@ instance ( SemimanifoldWithBoundary a
          ) => HalfSpace (ProductHalfNeedle a b) where
   type FullSubspace (ProductHalfNeedle a b) = ProductBoundaryNeedle a b
   type Ray (ProductHalfNeedle a b) = ℝay_ (Scalar (Needle (Interior a)))
+  type MirrorJoin (ProductHalfNeedle a b) = (Needle (Interior a), Needle (Interior b))
   scaleNonNeg = case smfdWBoundWitness @a of
      SmfdWBoundWitness 
         -> boundaryHasSameScalar @a (\(Cℝay μ Origin) (ProductHalfNeedle v w)
          -> ProductHalfNeedle (μ*^v) (μ*^w))
   fromFullSubspace ZeroProductBoundaryNeedle = zeroHV
   fullSubspaceIsVectorSpace q = undefined
-  -- projectToFullSubspace = undefined
+  projectToFullSubspace = undefined
+  rayIsHalfSpace = undefined
+  fromPositiveHalf = undefined
+  fromNegativeHalf = undefined
 
 instance ∀ a b .
          ( ProjectableBoundary a, ProjectableBoundary b

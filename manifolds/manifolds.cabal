@@ -44,6 +44,7 @@ Library
                      , transformers
                      , vector-space>=0.8
                      , free-vector-spaces>=0.1.5
+                     , half-space >=0.1 && <0.2
                      , linear
                      , MemoTrie
                      , vector
