@@ -54,6 +54,7 @@ import Math.LinearMap.Category ( Tensor(..), TensorSpace(..)
 import Math.VectorSpace.Dual
 import Math.VectorSpace.MiscUtil.MultiConstraints (SameScalar)
 import Data.Monoid.Additive
+import Data.Void
 import Linear (V0, V1, V2, V3, V4)
 import qualified Linear.Affine as LinAff
 
@@ -579,4 +580,34 @@ instance ( LinearSpace v, LinearSpace w
          , Num' s, OpenManifold s
          ) => PseudoAffineWithBoundary (LinearFunction s v w) where
   _!-|p = case p of {}
+  (.--!) = (^-^)
+
+
+
+instance ( Semimanifold a
+         , Semimanifold (VRep a), Needle a ~ GenericNeedle a
+         , OpenManifold (Scalar (Needle (Gnrx.Rep a Void)))
+         , LinearSpace (Needle (Gnrx.Rep a Void))
+         , Num' (Scalar (Needle (Gnrx.Rep a Void))) )
+            => SemimanifoldWithBoundary (GenericNeedle a) where
+  type Interior (GenericNeedle a) = GenericNeedle a
+  type Boundary (GenericNeedle a) = EmptyMfd (ZeroDim (Scalar (Needle (Gnrx.Rep a Void))))
+  type HalfNeedle (GenericNeedle a) = ℝay_ (Scalar (Needle (Gnrx.Rep a Void)))
+  extendToBoundary _ _ = Nothing
+  smfdWBoundWitness = OpenManifoldWitness
+  needleIsOpenMfd q = q
+  scalarIsOpenMfd q = q
+  boundaryHasSameScalar q = q
+  b|+^_ = case b of {}
+  p .+^| k = Right $ p^+^k
+  fromBoundary b = case b of {}
+
+
+instance ( Semimanifold a
+         , Semimanifold (VRep a), Needle a ~ GenericNeedle a
+         , OpenManifold (Scalar (Needle (Gnrx.Rep a Void)))
+         , LinearSpace (Needle (Gnrx.Rep a Void))
+         , Num' (Scalar (Needle (Gnrx.Rep a Void))) )
+            => PseudoAffineWithBoundary (GenericNeedle a) where
+  _ !-| b = case b of {}
   (.--!) = (^-^)
