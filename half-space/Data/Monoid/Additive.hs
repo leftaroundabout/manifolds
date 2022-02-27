@@ -266,3 +266,8 @@ instance ∀ x y . ( HalfSpace x, VectorSpace y, AdditiveMonoid y
   rayIsHalfSpace c = rayIsHalfSpace @x c
   mirrorJoinIsVectorSpace c = mirrorJoinIsVectorSpace @x c
 
+
+instance AdditiveGroup (Needle (Gnrx.Rep a Void))
+            => AdditiveMonoid (GenericNeedle a) where
+  zeroHV = GenericNeedle zeroV
+  addHVs (GenericNeedle v) (GenericNeedle w) = GenericNeedle $ v^+^w
