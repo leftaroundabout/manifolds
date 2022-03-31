@@ -75,13 +75,20 @@ data SmfdWBoundWitness m where
          , FullSubspace (HalfNeedle m) ~ Needle (Boundary m) )
               => SmfdWBoundWitness m
 
+-- | The class of spaces with a displacement operation like 'Semimanifold', but there
+--   may be a limited range how far it is possible to move before leaving the space.
+-- 
+--   Such spaces decompose into two 'Semimanifold' spaces: the 'Interior' and the 'Boundary'.
 class -- ( Semimanifold (Interior m), Semimanifold (Boundary m)
       -- , HalfSpace (HalfNeedle m) ) =>
     SemimanifoldWithBoundary m where
+  -- | Subspace of @m@ representing the set of points where it is possible to move at
+  --   least a small distance in any direction (with '.+^|') without leaving @m@.
   type Interior m :: Type
+  -- | The set of points where an infinitesimal movement is sufficient to leave @m@.
   type Boundary m :: Type
   type HalfNeedle m :: Type
-  (|+^) :: Boundary m -> HalfNeedle m -> m
+  -- | Boundary-aware pendant to '.+~^'.
   (.+^|) :: m
          -- ^ Starting point @p@
          -> Needle (Interior m)
@@ -90,9 +97,10 @@ class -- ( Semimanifold (Interior m), Semimanifold (Boundary m)
                    (Interior m)
          -- ^ If @v@ is enough to leave @m@, yield the point where it does and what
          --   fraction of the length is still left (i.e. how much of @v@ “pokes out
-         --   of the space). If it stays within the space, just give back the result.
+         --   of the space”). If it stays within the space, just give back the result.
   fromInterior :: Interior m -> m
   fromBoundary :: Boundary m -> m
+  (|+^) :: Boundary m -> HalfNeedle m -> m
   separateInterior :: m -> Either (Boundary m) (Interior m)
   separateInterior p = case smfdWBoundWitness @m of
    OpenManifoldWitness -> Right p
@@ -139,12 +147,26 @@ class -- ( Semimanifold (Interior m), Semimanifold (Boundary m)
 
 class (SemimanifoldWithBoundary m, PseudoAffine (Interior m), PseudoAffine (Boundary m))
           => PseudoAffineWithBoundary m where
+  -- | Inverse of '.+^|', provided the space is connected. For @p :: Interior m@, @q :: m@
+  --   and @v = fromInterior p.--!q@,
+  -- 
+  --   @
+  --   q '.+^|' v ≡ Right p
+  --   @
+  --
+  --   (up to floating-point). Similary, for @b :: Boundary m@ and @w = fromBoundary m.--!q@,
+  -- 
+  --   @
+  --   q '.+^|' w ≡ Left (b, 0)
+  --   @
+  (.--!) :: m -> m -> Needle (Interior m)
+  
   (.-|) :: m -> Boundary m -> Maybe (HalfNeedle m)
   p.-|b = Just $ p!-|b
   (!-|) :: m -> Boundary m -> HalfNeedle m
   (.--.) :: m -> m -> Maybe (Needle (Interior m))
   p.--.q = Just $ p.--!q
-  (.--!) :: m -> m -> Needle (Interior m)
+
 
 class PseudoAffineWithBoundary m => ProjectableBoundary m where
   projectToBoundary :: m
