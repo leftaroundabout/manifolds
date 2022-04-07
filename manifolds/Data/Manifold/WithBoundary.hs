@@ -508,6 +508,22 @@ instance ( Num' n, OpenManifold n, LinearManifold (a n)
   type Interior (LinAff.Point a n) = LinAff.Point a n
   type HalfNeedle (LinAff.Point a n) = ℝay
   smfdWBoundWitness = OpenManifoldWitness
+  LinAff.P p.+^|v = Right . LinAff.P $ p^+^v
+  fromInterior = id
+  fromBoundary b = case b of {}
+  b|+^_ = case b of {}
+
+instance ( Num' n, OpenManifold n, LinearManifold (a n)
+         , Scalar (a n) ~ n, Needle (a n) ~ a n )
+            => PseudoAffineWithBoundary (LinAff.Point a n) where
+  LinAff.P p.--!LinAff.P q = p^-^q
+  _!-|b = case b of {}
+
+instance ∀ n a .  ( Num' n, OpenManifold n, LinearManifold (a n), ProjectableBoundary n
+                  , Scalar (a n) ~ n, Needle (a n) ~ a n )
+            => ProjectableBoundary (LinAff.Point a n) where
+  projectToBoundary _ b = case b of {}
+  marginFromBoundary b _ = case b of {}
 
 instance ( LinearSpace v, LinearSpace w
          , s ~ Scalar v, s ~ Scalar w
