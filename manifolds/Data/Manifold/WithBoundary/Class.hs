@@ -180,17 +180,17 @@ class PseudoAffineWithBoundary m => ProjectableBoundary m where
                     --   a measure @d@ of normal-distance such that
                     --   @'marginFromBoundary' (r.+~^δr) d == p@.
   marginFromBoundary :: Boundary m -> Scalar (Needle (Interior m)) -> m
-  needleBoundaryIsTrivallyProjectible :: ∀ r .
+  needleBoundaryIsTriviallyProjectible :: ∀ r .
         (ProjectableBoundary (Needle (Interior m)) => r) -> r
-  default needleBoundaryIsTrivallyProjectible :: ProjectableBoundary (Needle (Interior m))
+  default needleBoundaryIsTriviallyProjectible :: ProjectableBoundary (Needle (Interior m))
            => (ProjectableBoundary (Needle (Interior m)) => r) -> r
-  needleBoundaryIsTrivallyProjectible q = q
-  scalarBoundaryIsTrivallyProjectible :: ∀ r .
+  needleBoundaryIsTriviallyProjectible q = q
+  scalarBoundaryIsTriviallyProjectible :: ∀ r .
         (ProjectableBoundary (Scalar (Needle (Interior m))) => r) -> r
-  default scalarBoundaryIsTrivallyProjectible
+  default scalarBoundaryIsTriviallyProjectible
                       :: ProjectableBoundary (Scalar (Needle (Interior m)))
            => (ProjectableBoundary (Scalar (Needle (Interior m))) => r) -> r
-  scalarBoundaryIsTrivallyProjectible q = q
+  scalarBoundaryIsTriviallyProjectible q = q
 
 instance ∀ k . ( LinearSpace k, OpenManifold k, OpenManifold (Scalar k) )
              => SemimanifoldWithBoundary (EmptyMfd k) where

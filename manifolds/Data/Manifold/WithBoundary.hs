@@ -353,8 +353,8 @@ instance ∀ a b .
              boundaryHasSameScalar @(Needle a) (boundaryHasSameScalar @(Needle b)
                (case (semimanifoldWitness @(Interior a), semimanifoldWitness @(Interior b))
                  of (SemimanifoldWitness, SemimanifoldWitness)
-                        -> needleBoundaryIsTrivallyProjectible @a
-                            (needleBoundaryIsTrivallyProjectible @b OpenManifoldWitness) )
+                        -> needleBoundaryIsTriviallyProjectible @a
+                            (needleBoundaryIsTriviallyProjectible @b OpenManifoldWitness) )
             )))
     (SmfdWBoundWitness, SmfdWBoundWitness)
         -> boundaryHasSameScalar @a
@@ -366,8 +366,8 @@ instance ∀ a b .
                         , closedScalarWitness @(Scalar (Needle (Interior a)))
                         )
                  of (SemimanifoldWitness, SemimanifoldWitness, ClosedScalarWitness)
-                        -> needleBoundaryIsTrivallyProjectible @a
-                            (needleBoundaryIsTrivallyProjectible @b
+                        -> needleBoundaryIsTriviallyProjectible @a
+                            (needleBoundaryIsTriviallyProjectible @b
                               (boundaryHasSameScalar @(Needle (Interior a))
                                 (boundaryHasSameScalar @(Needle (Interior b))
                                   SmfdWBoundWitness)))))))
@@ -393,9 +393,9 @@ instance ∀ a b .
          , ProjectableBoundary (Interior a), ProjectableBoundary (Interior b)
          , RealFrac'' (Scalar (Needle (Interior a)))
          ) => ProjectableBoundary (a,b) where
-  needleBoundaryIsTrivallyProjectible q
-      = needleBoundaryIsTrivallyProjectible @a
-         (needleBoundaryIsTrivallyProjectible @b
+  needleBoundaryIsTriviallyProjectible q
+      = needleBoundaryIsTriviallyProjectible @a
+         (needleBoundaryIsTriviallyProjectible @b
            (boundaryHasSameScalar @(Needle (Interior a))
              (boundaryHasSameScalar @(Needle (Interior b))
                (needleIsOpenMfd @a
@@ -435,7 +435,7 @@ instance ∀ s . RealFloat'' s => PseudoAffineWithBoundary (S¹_ s) where
   (.--!) = (.-~!)
 
 instance ∀ s . RealFloat'' s => ProjectableBoundary (S¹_ s) where
-  scalarBoundaryIsTrivallyProjectible q = case closedScalarWitness @s of
+  scalarBoundaryIsTriviallyProjectible q = case closedScalarWitness @s of
      ClosedScalarWitness -> q
   projectToBoundary _ p = case p of {}
   marginFromBoundary p = case p of {}
@@ -459,7 +459,7 @@ instance ∀ s . RealFloat'' s => PseudoAffineWithBoundary (S²_ s) where
   (.--!) = (.-~!)
 
 instance ∀ s . RealFloat'' s => ProjectableBoundary (S²_ s) where
-  scalarBoundaryIsTrivallyProjectible q = case closedScalarWitness @s of
+  scalarBoundaryIsTriviallyProjectible q = case closedScalarWitness @s of
      ClosedScalarWitness -> q
   projectToBoundary _ p = case p of {}
   marginFromBoundary p = case p of {}

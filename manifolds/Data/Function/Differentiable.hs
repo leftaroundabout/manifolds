@@ -575,8 +575,8 @@ instance ∀ v s a . ( LinearManifold v, Scalar v ~ s
                ) of
      (LinearManifoldWitness, DualSpaceWitness, SemimanifoldWitness)
          -> needleIsOpenMfd @a (scalarIsOpenMfd @a
-               (needleBoundaryIsTrivallyProjectible @a (point zeroV)))
-  (^+^) = needleIsOpenMfd @a ( needleBoundaryIsTrivallyProjectible @a
+               (needleBoundaryIsTriviallyProjectible @a (point zeroV)))
+  (^+^) = needleIsOpenMfd @a ( needleBoundaryIsTriviallyProjectible @a
                (case ( linearManifoldWitness @v
                      , linearManifoldWitness @(Needle a)
                      , dualSpaceWitness @v
@@ -592,7 +592,7 @@ instance ∀ v s a . ( LinearManifold v, Scalar v ~ s
                                      , semimanifoldWitness @a
                                      ) of
      (LinearManifoldWitness, DualSpaceWitness, SemimanifoldWitness)
-         -> needleBoundaryIsTrivallyProjectible @a (\case
+         -> needleBoundaryIsTriviallyProjectible @a (\case
          (GenericAgent (AffinDiffable ef f))
            -> GenericAgent $ AffinDiffable ef (negateV f)
          α -> dfblFnValsFunc (\a -> (negateV a, negateV id, const mempty)) α
@@ -609,7 +609,7 @@ instance ∀ n a . ( RealFloat'' n, Manifold a, LocallyScalable n a
                      ) of
      (LinearManifoldWitness, DualSpaceWitness, SemimanifoldWitness, ClosedScalarWitness)
          -> needleIsOpenMfd @a (scalarIsOpenMfd @a
-               (needleBoundaryIsTrivallyProjectible @a (point . fromInteger)))
+               (needleBoundaryIsTriviallyProjectible @a (point . fromInteger)))
   (+) = case closedScalarWitness :: ClosedScalarWitness n of
       ClosedScalarWitness -> (^+^)
   (*) = case ( linearManifoldWitness :: LinearManifoldWitness n
@@ -625,7 +625,7 @@ instance ∀ n a . ( RealFloat'' n, Manifold a, LocallyScalable n a
                   )
   negate = case closedScalarWitness :: ClosedScalarWitness n of
      ClosedScalarWitness -> negateV
-  abs = needleBoundaryIsTrivallyProjectible @a (
+  abs = needleBoundaryIsTriviallyProjectible @a (
    case (linearManifoldWitness @n, closedScalarWitness @n) of
          (LinearManifoldWitness, ClosedScalarWitness) -> dfblFnValsFunc dfblAbs
           where dfblAbs a
@@ -634,7 +634,7 @@ instance ∀ n a . ( RealFloat'' n, Manifold a, LocallyScalable n a
                                        $ \ε -> ε/2 - a)
                  | otherwise  = (0, zeroV, scaleNorm (sqrt 0.5))
      )
-  signum = needleBoundaryIsTrivallyProjectible @a (
+  signum = needleBoundaryIsTriviallyProjectible @a (
    case (linearManifoldWitness @n, closedScalarWitness @n) of
          (LinearManifoldWitness, ClosedScalarWitness) -> dfblFnValsFunc dfblSgn
           where dfblSgn a
@@ -693,8 +693,8 @@ genericisePreRegion :: ∀ m s
       )
                           => PreRegion s m -> PreRegion s m
 genericisePreRegion
- = scalarIsOpenMfd @m (needleIsOpenMfd @m (needleBoundaryIsTrivallyProjectible @m 
-    (scalarBoundaryIsTrivallyProjectible @m (
+ = scalarIsOpenMfd @m (needleIsOpenMfd @m (needleBoundaryIsTriviallyProjectible @m 
+    (scalarBoundaryIsTriviallyProjectible @m (
       case ( linearManifoldWitness @s, closedScalarWitness @s, semimanifoldWitness @m ) of
     (LinearManifoldWitness, ClosedScalarWitness, SemimanifoldWitness)
           -> \case
@@ -1043,7 +1043,7 @@ rwDfbl_plus :: ∀ a v s .
         , LinearSpace v )
       => RWDiffable s a v -> RWDiffable s a v -> RWDiffable s a v
 rwDfbl_plus (RWDiffable f) (RWDiffable g) = RWDiffable
-              $ needleIsOpenMfd @a (needleBoundaryIsTrivallyProjectible @a (
+              $ needleIsOpenMfd @a (needleBoundaryIsTriviallyProjectible @a (
                    h linearManifoldWitness linearManifoldWitness
                         dualSpaceWitness dualSpaceWitness))
    where h :: (OpenManifold (Needle a), ProjectableBoundary (Needle a))
@@ -1080,7 +1080,7 @@ rwDfbl_negateV :: ∀ a v s .
         , RealDimension s )
       => RWDiffable s a v -> RWDiffable s a v
 rwDfbl_negateV (RWDiffable f) = RWDiffable
-           $ needleIsOpenMfd @a (needleBoundaryIsTrivallyProjectible @a (
+           $ needleIsOpenMfd @a (needleBoundaryIsTriviallyProjectible @a (
                   h linearManifoldWitness dualSpaceWitness
                     linearManifoldWitness dualSpaceWitness))
    where h :: (OpenManifold (Needle a), ProjectableBoundary (Needle a))

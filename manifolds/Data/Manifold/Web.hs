@@ -676,7 +676,7 @@ localModels_CGrid = Hask.concatMap theCGrid . Hask.toList . webLocalInfo
 acoSnd :: ∀ s v y . ( RealFloat'' s, Object (Affine s) y, Object (Affine s) v
                     , LinearSpace v, Scalar v ~ s ) => Affine s y (v,y)
 acoSnd = needleIsOpenMfd @y (boundaryHasSameScalar @y (
-           needleBoundaryIsTrivallyProjectible @y (boundaryHasSameScalar @v (case
+           needleBoundaryIsTriviallyProjectible @y (boundaryHasSameScalar @v (case
               ( linearManifoldWitness @v
               , dualSpaceWitness @(Needle v), dualSpaceWitness @(Needle y)
               , semimanifoldWitness @y
