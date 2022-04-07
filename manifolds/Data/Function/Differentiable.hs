@@ -218,7 +218,7 @@ analyseLocalBehaviour (RWDiffable f) x₀ = case f x₀ of
 
 -- | Represent a 'Region' by a smooth function which is positive within the region,
 --   and crosses zero at the boundary.
-smoothIndicator :: (LocallyScalable ℝ q, Manifold q, Atlas' q)
+smoothIndicator :: (LocallyScalable ℝ q, Manifold q, Atlas' q, SimpleSpace (Needle q))
                        => Region ℝ q -> Differentiable ℝ q ℝ
 smoothIndicator (Region _ r₀) = let (PreRegion r) = genericisePreRegion r₀
                                 in  r
@@ -322,7 +322,8 @@ genericiseDifferentiable f = f
 
 
 instance RealFrac' s => Category (Differentiable s) where
-  type Object (Differentiable s) o = ( Manifold o, Atlas' o, LocallyScalable s o )
+  type Object (Differentiable s) o = ( Manifold o, Atlas' o
+                                     , LocallyScalable s o, SimpleSpace (Needle o) )
   id = Differentiable $ \x -> (x, id, const mempty)
   Differentiable f . Differentiable g = Differentiable $
      \x -> let (y, g', devg) = g x
@@ -342,7 +343,7 @@ instance (RealDimension s) => EnhancedCat (->) (Differentiable s) where
   arr (Differentiable f) x = let (y,_,_) = f x in y
   arr (AffinDiffable _ f) x = f $ x
 
-instance (RealFrac'' s) => Cartesian (Differentiable s) where
+instance (RealFrac'' s, SimpleSpace s) => Cartesian (Differentiable s) where
   type UnitObject (Differentiable s) = ZeroDim s
   swap = Differentiable $ \(x,y) -> ((y,x), swap, const mempty)
   attachUnit = Differentiable $ \x -> ((x, Origin), attachUnit, const mempty)
@@ -351,7 +352,7 @@ instance (RealFrac'' s) => Cartesian (Differentiable s) where
   regroup' = Differentiable $ \((x,y),z) -> ((x,(y,z)), regroup', const mempty)
 
 
-instance ∀ s . (RealFrac'' s) => Morphism (Differentiable s) where
+instance ∀ s . (RealFrac'' s, SimpleSpace s) => Morphism (Differentiable s) where
   (***) = prll
    where prll :: ∀ b β c γ . ( ObjectPair (Differentiable s) b β
                              , ObjectPair (Differentiable s) c γ )
@@ -392,7 +393,7 @@ instance ∀ s . (RealFrac'' s) => Morphism (Differentiable s) where
          prll f g = genericiseDifferentiable f *** genericiseDifferentiable g
 
 
-instance (RealFrac'' s) => PreArrow (Differentiable s) where
+instance (RealFrac'' s, SimpleSpace s) => PreArrow (Differentiable s) where
   terminal = Differentiable $ \_ -> (Origin, zeroV, const mempty)
   fst = Differentiable $ \(x,_) -> (x, fst, const mempty)
   snd = Differentiable $ \(_,y) -> (y, snd, const mempty)
@@ -405,7 +406,7 @@ instance (RealFrac'' s) => PreArrow (Differentiable s) where
   f &&& g = genericiseDifferentiable f &&& genericiseDifferentiable g
 
 
-instance (RealFrac'' s) => WellPointed (Differentiable s) where
+instance (RealFrac'' s, SimpleSpace s) => WellPointed (Differentiable s) where
   unit = Tagged Origin
   globalElement x = Differentiable $ \Origin -> (x, zeroV, const mempty)
   const x = Differentiable $ \_ -> (x, zeroV, const mempty)
@@ -417,7 +418,7 @@ type DfblFuncValue s = GenericAgent (Differentiable s)
 instance (RealFrac'' s) => HasAgent (Differentiable s) where
   alg = genericAlg
   ($~) = genericAgentMap
-instance ∀ s . (RealFloat'' s) => CartesianAgent (Differentiable s) where
+instance ∀ s . (RealFloat'' s, SimpleSpace s) => CartesianAgent (Differentiable s) where
   alg1to2 = genericAlg1to2
   alg2to1 = a2t1
    where a2t1 :: ∀ α β γ . ( Manifold α, Manifold β
@@ -429,6 +430,7 @@ instance ∀ s . (RealFloat'' s) => CartesianAgent (Differentiable s) where
                      , Interior (Needle q) ~ Needle q
                      , PseudoAffineWithBoundary (Needle q)
                      , LinearManifold (Needle q)
+                     , SimpleSpace (Needle q)
                      , HasTrie (ChartIndex q) )
                => DfblFuncValue s q α -> DfblFuncValue s q β -> DfblFuncValue s q γ )
            -> Differentiable s (α,β) γ
@@ -453,6 +455,7 @@ instance ∀ s . (RealFloat'' s) => CartesianAgent (Differentiable s) where
                      , Interior (Needle q) ~ Needle q
                      , PseudoAffineWithBoundary (Needle q)
                      , LinearManifold (Needle q)
+                     , SimpleSpace (Needle q)
                      , HasTrie (ChartIndex q) )
                => DfblFuncValue s q α -> DfblFuncValue s q β
                      -> (DfblFuncValue s q γ, DfblFuncValue s q δ) )
@@ -479,7 +482,7 @@ instance ∀ s . (RealFloat'' s) => CartesianAgent (Differentiable s) where
                               (boundaryHasSameScalar @(Needle δ)
                                (undefined -- genericAlg2to2 f
                                  ))))))))))))
-instance (RealFrac'' s)
+instance (RealFrac'' s, SimpleSpace s)
       => PointAgent (DfblFuncValue s) (Differentiable s) a x where
   point = genericPoint
 
@@ -514,9 +517,11 @@ dfblFnValsFunc :: ∀ c c' d v v' ε s
        , Atlas' c, Atlas' d, Atlas' c'
        , ProjectableBoundary s, ProjectableBoundary v'
        , ProjectableBoundary (Needle d)
+       , SimpleSpace (Needle d)
        , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
        , v ~ Needle c, v' ~ Needle c'
        , ε ~ Norm v, ε ~ Norm v'
+       , SimpleSpace v'
        , RealFrac'' s )
              => (c' -> (c, v'+>v, ε->ε)) -> DfblFuncValue s d c' -> DfblFuncValue s d c
 dfblFnValsFunc f = case ( scalarSpaceWitness @s
@@ -532,6 +537,7 @@ dfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s.
          ,  LocallyScalable s d
          , v ~ Needle c, v' ~ Needle c', v'' ~ Needle c''
          , ε ~ Norm v  , ε' ~ Norm v'  , ε'' ~ Norm v'', ε~ε', ε~ε'' 
+         , SimpleSpace (Needle d)
          , RealFrac' s )
        => (  c' -> c'' -> (c, (v',v'')+>v, ε -> (ε',ε''))  )
          -> DfblFuncValue s d c' -> DfblFuncValue s d c'' -> DfblFuncValue s d c
@@ -561,6 +567,7 @@ dfblFnValsCombine cmb (GenericAgent fa) (GenericAgent ga)
 
 instance ∀ v s a . ( LinearManifold v, Scalar v ~ s
                    , LocallyScalable s a, Manifold a, Atlas' a, Atlas' v
+                   , SimpleSpace v, SimpleSpace (Needle a)
                    , RealFloat'' s )
     => AdditiveGroup (DfblFuncValue s a v) where
   zeroV = case ( linearManifoldWitness @v, dualSpaceWitness @v
@@ -593,6 +600,7 @@ instance ∀ v s a . ( LinearManifold v, Scalar v ~ s
     )
   
 instance ∀ n a . ( RealFloat'' n, Manifold a, LocallyScalable n a
+                 , SimpleSpace (Needle a)
                  , Atlas' a, Atlas' n
                  )
             => Num (DfblFuncValue n a n) where
@@ -681,7 +689,7 @@ postEndo = genericAgentMap
 
 genericisePreRegion :: ∀ m s
     . ( RealFloat'' s, LocallyScalable s m, Manifold m
-      , Atlas' m, Atlas' s, LinearSpace (Needle m)
+      , Atlas' m, Atlas' s, SimpleSpace (Needle m)
       )
                           => PreRegion s m -> PreRegion s m
 genericisePreRegion
@@ -701,7 +709,9 @@ genericisePreRegion
 --   combinator assumes (unchecked) that the references are in a connected
 --   sub-intersection, which is used as the result.
 unsafePreRegionIntersect :: ∀ a s
-    . (RealFloat'' s, LocallyScalable s a, Manifold a, Atlas' a, Atlas' s)
+    . ( RealFloat'' s, LocallyScalable s a
+      , Manifold a, Atlas' a, Atlas' s
+      , SimpleSpace (Needle a) )
                   => PreRegion s a -> PreRegion s a -> PreRegion s a
 unsafePreRegionIntersect GlobalRegion r = r
 unsafePreRegionIntersect r GlobalRegion = r
