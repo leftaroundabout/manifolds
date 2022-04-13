@@ -378,9 +378,9 @@ instance ( VectorSpace (Needle x)
   scaleNonNeg = undefined
   fromFullSubspace = undefined
   projectToFullSubspace = undefined
-  fullSubspaceIsVectorSpace = undefined
-  rayIsHalfSpace = undefined
-  mirrorJoinIsVectorSpace = undefined
+  fullSubspaceIsVectorSpace _ = undefined
+  rayIsHalfSpace _ = undefined
+  mirrorJoinIsVectorSpace _ = undefined
   fromPositiveHalf = undefined
   fromNegativeHalf = undefined
 
@@ -394,8 +394,8 @@ instance ( AffineSpace x, Manifold x, Diff x ~ Needle x
   type HalfNeedle (Shade x) = ShadeHalfNeedle x
   extendToBoundary = undefined
   smfdWBoundWitness = undefined
-  needleIsOpenMfd = undefined
-  scalarIsOpenMfd = undefined
+  needleIsOpenMfd _ = undefined
+  scalarIsOpenMfd _ = undefined
 
 instance ( AffineSpace x, Manifold x, Diff x ~ Needle x
          , Atlas x, HasTrie (ChartIndex x)   -- ??
@@ -444,9 +444,9 @@ instance ( VectorSpace (Needle x)
   scaleNonNeg = undefined
   fromFullSubspace = undefined
   projectToFullSubspace = undefined
-  fullSubspaceIsVectorSpace = undefined
-  rayIsHalfSpace = undefined
-  mirrorJoinIsVectorSpace = undefined
+  fullSubspaceIsVectorSpace _ = undefined
+  rayIsHalfSpace _ = undefined
+  mirrorJoinIsVectorSpace _ = undefined
   fromPositiveHalf = undefined
   fromNegativeHalf = undefined
 
@@ -459,8 +459,8 @@ instance ( AffineSpace x, Manifold x, Diff x ~ Needle x
   type HalfNeedle (Shade' x) = Shade'HalfNeedle x
   extendToBoundary = undefined
   smfdWBoundWitness = undefined
-  needleIsOpenMfd = undefined
-  scalarIsOpenMfd = undefined
+  needleIsOpenMfd _ = undefined
+  scalarIsOpenMfd _ = undefined
 
 instance ∀ x . (WithField ℝ AffineManifold x, Geodesic x, SimpleSpace (Needle x))
             => Geodesic (Shade' x) where

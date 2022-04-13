@@ -331,7 +331,7 @@ instance ( SemimanifoldWithBoundary a
   fromFullSubspace ZeroProductBoundaryNeedle = zeroHV
   fullSubspaceIsVectorSpace q = undefined
   projectToFullSubspace = undefined
-  rayIsHalfSpace = undefined
+  rayIsHalfSpace _ = undefined
   fromPositiveHalf = undefined
   fromNegativeHalf = undefined
 
