@@ -7,11 +7,11 @@ packages:
 extra-deps:
 - number-show-0.1.0.0
 - pragmatic-show-0.1.2.1
-- constrained-categories-0.4.0.0
+- constrained-categories-0.4.1.0
 - free-vector-spaces-0.1.5.1
 - linearmap-category-0.4.2.0
 - vector-space-0.16
-- spatial-rotations-0.1.0.1
+- spatial-rotations-0.1.0.2
 - trivial-constraint-0.4.0.0
 - equational-reasoning-0.6.0.4
-resolver: lts-14.0
+resolver: lts-18.28
