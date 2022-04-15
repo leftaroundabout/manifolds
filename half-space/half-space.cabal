@@ -26,6 +26,6 @@ library
                        , vector-space >=0.16 && <0.17
                        , manifolds-core >=0.6 && <0.7
                        , equational-reasoning >=0.7 && <0.8
-                       , call-stack >=0.4 && <0.5
+                       , call-stack >=0.3 && <0.5
   -- hs-source-dirs:
   default-language:    Haskell2010
