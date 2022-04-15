@@ -76,7 +76,7 @@ adjustMetricToModel = _interpWeb >>> webLocalInfo
         where localModel = nd^.dataAtNode.thisNodeData
               newNorm = spanNorm
                   [ dx ^/ ((0.1 + occlusion (ngb^.thisNodeData.tweakLocalOffset)
-                                            (fromInterior ySynth))
+                                            ySynth)
                            * (dx<.>^δx))
                   | (δx,ngb) <- concat . take 2 $ localOnion (nd^.dataAtNode) []
                   , let dx = nd^.localScalarProduct<$|δx
@@ -88,14 +88,14 @@ upsampleAtLargeDist :: (ModellableRelation x y, LocalModel ㄇ)
         => ℝ -> (x -> ㄇ x y -> Needle x -> Shade' y)
             -> InterpolationFunction ㄇ x y -> PointsWeb x (Shade' y)
 upsampleAtLargeDist dmax gapFillFunc (InterpolationFunction web)
-     = fromWebNodes (\(Shade x _) -> case nearestNeighbour webI (fromInterior x) of
+     = fromWebNodes (\(Shade x _) -> case nearestNeighbour webI x of
                          Just (_,nearest) -> nearest ^. nodeLocalScalarProduct) $ do
           local <- toList webI
           (local^.thisNodeCoord, evalLocalModel (local^.thisNodeData) zeroV) : do 
              (ngId, (δx, ngb)) <- local^.nodeNeighbours
              guard (ngId > local^.thisNodeId
                    && (local^.nodeLocalScalarProduct|$|δx) > dmax)
-             return ( local^.thisNodeCoord !+~^ δx^/2
+             return ( local^.thisNodeCoord .+~^ δx^/2
                     , gapFillFunc (local^.thisNodeCoord)
                                   (local^.thisNodeData)
                                   (δx^/2) )

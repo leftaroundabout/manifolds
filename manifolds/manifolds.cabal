@@ -1,5 +1,5 @@
 Name:                manifolds
-Version:             0.5.1.0
+Version:             0.6.0.0
 Category:            Math
 Synopsis:            Coordinate-free hypersurfaces
 Description:         Manifolds, a generalisation of the notion of &#x201c;smooth curves&#x201d; or surfaces,
@@ -40,14 +40,15 @@ Source-Repository head
 
 Library
   Build-Depends:     base>=4.5 && < 6
-                     , manifolds-core == 0.5.1.0
+                     , manifolds-core == 0.6.0.0
                      , transformers
                      , vector-space>=0.8
                      , free-vector-spaces>=0.1.5
+                     , half-space >=0.1 && <0.2
                      , linear
                      , MemoTrie
                      , vector
-                     , linearmap-category >= 0.3.4 && < 0.5
+                     , linearmap-category >= 0.4.2.0 && < 0.5
                      , spatial-rotations >= 0.1 && < 0.2
                      , containers
                      , array
@@ -59,6 +60,7 @@ Library
                      , number-show >= 0.1 && < 0.2
                      , ieee754 >= 0.8 && < 1
                      , tagged
+                     , equational-reasoning
                      , deepseq
                      , placeholders
                      , lens
@@ -79,6 +81,7 @@ Library
   ghc-options:       -O2
   Exposed-modules:   Data.Manifold
                      Data.Manifold.PseudoAffine
+                     Data.Manifold.WithBoundary
                      Data.Manifold.TreeCover
                      Data.Manifold.Shade
                      Data.Manifold.Web
@@ -100,6 +103,7 @@ Library
                      Math.Manifold.Embedding.Simple.Class
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive
+                   Data.Manifold.WithBoundary.Class
                    Data.SetLike.Intersection
                    Data.Manifold.Cone
                    Data.Embedding

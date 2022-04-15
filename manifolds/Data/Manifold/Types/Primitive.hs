@@ -39,16 +39,17 @@ module Data.Manifold.Types.Primitive (
         , Projective0, Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
         , FibreBundle(..), TangentBundle
+        -- * Trivial manifolds
+        , EmptyMfd(..), ZeroDim(..)
         -- * Linear manifolds
-        , ZeroDim(..)
         , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
         -- * Hyperspheres
-        , S⁰(..), otherHalfSphere, S¹(..), pattern S¹, S²(..), pattern S²
+        , S⁰, S⁰_(..), otherHalfSphere, S¹, S¹_(..), pattern S¹, S², S²_(..), pattern S²
         -- * Projective spaces
-        , ℝP⁰(..), ℝP¹(..), pattern ℝP¹,  ℝP²(..), pattern ℝP²
+        , ℝP⁰, ℝP⁰_(..), ℝP¹, ℝP¹_(..), pattern ℝP¹,  ℝP²,  ℝP²_(..), pattern ℝP²
         -- * Intervals\/disks\/cones
-        , D¹(..), fromIntv0to1, D²(..), pattern D²
-        , ℝay
+        , D¹, D¹_(..), fromIntv0to1, D², D²_(..), pattern D²
+        , ℝay, ℝay_
         , CD¹(..), Cℝay(..)
         -- * Tensor products
         , type (⊗)(..)
@@ -60,7 +61,7 @@ module Data.Manifold.Types.Primitive (
 
 
 import Math.Manifold.Core.Types
-import Math.Manifold.Core.PseudoAffine (FibreBundle(..), TangentBundle, Interior)
+import Math.Manifold.Core.PseudoAffine (FibreBundle(..), TangentBundle, Semimanifold(..))
 
 import Data.VectorSpace
 import Data.VectorSpace.Free
@@ -122,21 +123,25 @@ instance (VectorSpace y, VectorSpace z) => NaturallyEmbedded x ((x,y),z) where
   embed x = (embed x, zeroV)
   coEmbed (x,_) = coEmbed x
 
-instance NaturallyEmbedded ℝ⁰ ℝ⁰ where embed = id; coEmbed = id
+instance (Num s, s~s') => NaturallyEmbedded (ZeroDim s) (ZeroDim s') where
+  embed = id; coEmbed = id
 instance NaturallyEmbedded ℝ  ℝ  where embed = id; coEmbed = id
-instance NaturallyEmbedded ℝ² ℝ² where embed = id; coEmbed = id
-instance NaturallyEmbedded ℝ³ ℝ³ where embed = id; coEmbed = id
-instance NaturallyEmbedded ℝ⁴ ℝ⁴ where embed = id; coEmbed = id
+instance (Num s, s~s') => NaturallyEmbedded (V2 s) (V2 s') where
+  embed = id; coEmbed = id
+instance (Num s, s~s') => NaturallyEmbedded (V3 s) (V3 s') where
+  embed = id; coEmbed = id
+instance (Num s, s~s') => NaturallyEmbedded (V4 s) (V4 s') where
+  embed = id; coEmbed = id
 
-instance NaturallyEmbedded S⁰ ℝ where
+instance (RealFloat s, VectorSpace s, s'~s) => NaturallyEmbedded (S⁰_ s) s' where
   embed PositiveHalfSphere = 1
   embed NegativeHalfSphere = -1
   coEmbed x | x>=0       = PositiveHalfSphere
             | otherwise  = NegativeHalfSphere
-instance NaturallyEmbedded S¹ ℝ² where
+instance (RealFloat s, s'~s) => NaturallyEmbedded (S¹_ s) (V2 s') where
   embed (S¹Polar φ) = V2 (cos φ) (sin φ)
   coEmbed (V2 x y) = S¹Polar $ atan2 y x
-instance NaturallyEmbedded S² ℝ³ where
+instance (RealFloat s, s'~s) => NaturallyEmbedded (S²_ s) (V3 s') where
   embed (S²Polar ϑ φ) = V3 (cos φ * sϑ) (sin φ * sϑ) (cos ϑ)
    where sϑ = sin ϑ
   {-# INLINE embed #-}
@@ -144,17 +149,18 @@ instance NaturallyEmbedded S² ℝ³ where
    where rxy = sqrt $ x^2 + y^2
   {-# INLINE coEmbed #-}
  
-instance NaturallyEmbedded ℝP² ℝ³ where
+instance (RealFloat s, s'~s) => NaturallyEmbedded (ℝP²_ s) (V3 s') where
   embed (HemisphereℝP²Polar θ φ) = V3 (cθ * cos φ) (cθ * sin φ) (sin θ)
    where cθ = cos θ
   coEmbed (V3 x y z) = HemisphereℝP²Polar (atan2 rxy z) (atan2 y x)
    where rxy = sqrt $ x^2 + y^2
 
-instance NaturallyEmbedded D¹ ℝ where
+instance (RealFloat s, VectorSpace s, s'~s) => NaturallyEmbedded (D¹_ s) s' where
   embed = xParamD¹
   coEmbed = D¹ . max (-1) . min 1
 
-instance (NaturallyEmbedded x p) => NaturallyEmbedded (Cℝay x) (p,ℝ) where
+instance (Real s, NaturallyEmbedded x p, s ~ Scalar (Needle x))
+            => NaturallyEmbedded (Cℝay x) (p, s) where
   embed (Cℝay h p) = (embed p, h)
   coEmbed (v,z) = Cℝay (max 0 z) (coEmbed v)
 
@@ -172,6 +178,8 @@ type ℝ⁴ = V4 ℝ
 -- | Better known as &#x211d;&#x207a; (which is not a legal Haskell name), the ray
 --   of positive numbers (including zero, i.e. closed on one end).
 type ℝay = Cℝay ℝ⁰
+
+type ℝay_ r = Cℝay (ZeroDim r)
 
 
 
@@ -290,5 +298,5 @@ instance Binary ℝP¹
 instance Binary ℝP²
 instance Binary D¹
 instance Binary D²
-instance Binary y => Binary (CD¹ y)
-instance Binary y => Binary (Cℝay y)
+instance (Binary y, Binary (Scalar (Needle y))) => Binary (CD¹ y)
+instance (Binary y, Binary (Scalar (Needle y))) => Binary (Cℝay y)

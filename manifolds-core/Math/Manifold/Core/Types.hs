@@ -18,14 +18,15 @@
 
 
 module Math.Manifold.Core.Types
-        ( ℝ⁰, ℝ
-        , S⁰(..), otherHalfSphere, S¹(..), pattern S¹, S²(..), pattern S²
-        , D¹(..), fromIntv0to1, D²(..), pattern D²
-        , ℝP⁰(..), ℝP¹(..), pattern ℝP¹, ℝP²(..), pattern ℝP²
+        ( EmptyMfd(..), ℝ⁰, ℝ
+        , S⁰, S⁰_(..), otherHalfSphere, S¹, S¹_(..), pattern S¹, S², S²_(..), pattern S²
+        , D¹, D¹_(..), fromIntv0to1, D², D²_(..), pattern D²
+        , ℝP⁰, ℝP⁰_(..), ℝP¹, ℝP¹_(..), pattern ℝP¹, ℝP², ℝP²_(..), pattern ℝP²
         , Cℝay(..), CD¹(..)
         ) where
 
 import Math.Manifold.Core.Types.Internal
+import Math.Manifold.Core.PseudoAffine
 
 import Data.VectorSpace
 import Math.Manifold.VectorSpace.ZeroDimensional

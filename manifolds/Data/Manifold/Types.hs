@@ -38,19 +38,20 @@ module Data.Manifold.Types (
         , Projective0, Projective1, Projective2
         , Disk1, Disk2, Cone, OpenCone
         , FibreBundle(..), TangentBundle
+        -- * Trivial manifolds
+        , EmptyMfd(..), ZeroDim(..)
         -- * Linear manifolds
-        , ZeroDim(..)
         , ℝ, ℝ⁰, ℝ¹, ℝ², ℝ³, ℝ⁴
         -- * Hyperspheres
         -- ** General form: Stiefel manifolds
         , Stiefel1(..), stiefel1Project, stiefel1Embed
         -- ** Specific examples
         , HasUnitSphere(..)
-        , S⁰(..), S¹(..), pattern S¹, S²(..), pattern S²
+        , S⁰, S⁰_(..), S¹, S¹_(..), pattern S¹, S², S²_(..), pattern S²
         -- * Projective spaces
-        , ℝP⁰(..), ℝP¹(..), pattern ℝP¹,  ℝP²(..), pattern ℝP²
+        , ℝP⁰, ℝP⁰_(..), ℝP¹, ℝP¹_(..), pattern ℝP¹,  ℝP²,  ℝP²_(..), pattern ℝP²
         -- * Intervals\/disks\/cones
-        , D¹(..), D²(..), pattern D²
+        , D¹, D¹_(..), D², D²_(..), pattern D²
         , ℝay
         , CD¹(..), Cℝay(..)
         -- * Affine subspaces
@@ -100,12 +101,10 @@ type StiefelScalar s = (RealFloat s, UArr.Unbox s)
 #define deriveAffine(c,t)                \
 instance (c) => Semimanifold (t) where {  \
   type Needle (t) = Diff (t);              \
-  fromInterior = id;                        \
-  toInterior = pure;                         \
-  translateP = Tagged (.+~^);                 \
-  (.+~^) = (.+^) };                            \
-instance (c) => PseudoAffine (t) where {        \
-  a.-~.b = pure (a.-.b);      }
+  (.+~^) = (.+^) };                         \
+instance (c) => PseudoAffine (t) where {     \
+  a.-~.b = pure (a.-.b);                      \
+  a.-~!b = a.-.b }
 
 
 newtype Stiefel1Needle v = Stiefel1Needle { getStiefel1Tangent :: UArr.Vector (Scalar v) }
@@ -177,7 +176,7 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
   type TensorProduct (Stiefel1Needle v) w = Array w
   scalarSpaceWitness = case scalarSpaceWitness :: ScalarSpaceWitness v of
          ScalarSpaceWitness -> ScalarSpaceWitness
-  linearManifoldWitness = LinearManifoldWitness BoundarylessWitness
+  linearManifoldWitness = LinearManifoldWitness
   zeroTensor = Tensor $ Arr.replicate (freeDimension ([]::[v]) - 1) zeroV
   toFlatTensor = LinearFunction $ Tensor . Arr.convert . getStiefel1Tangent
   fromFlatTensor = LinearFunction $ Stiefel1Needle . Arr.convert . getTensorProduct
@@ -239,14 +238,12 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
          -> Arr.ifoldl' (\w i u -> w ^+^ ((asLinearMap $ f Arr.! i) +$> u)) zeroV t
   composeLinear = bilinearFunction $ \f (LinearMap g)
                      -> LinearMap $ Arr.map (getLinearFunction applyLinear f$) g
+  useTupleLinearSpaceComponents _ = undefined
 
 instance ∀ v .
    ( LinearSpace v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
    , StiefelScalar (Scalar v) ) => Semimanifold (Stiefel1 v) where
   type Needle (Stiefel1 v) = Stiefel1Needle v
-  fromInterior = id
-  toInterior = pure
-  translateP = Tagged (.+~^)
   (.+~^) = tpst dualSpaceWitness
    where tpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1Needle v -> Stiefel1 v
          tpst DualSpaceWitness (Stiefel1 s) (Stiefel1Needle n)
@@ -276,10 +273,11 @@ instance ∀ v .
 instance ∀ v .
    ( LinearSpace v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
    , StiefelScalar (Scalar v) ) => PseudoAffine (Stiefel1 v) where
-  (.-~.) = dpst dualSpaceWitness
-   where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (Stiefel1Needle v)
+  p.-~.q = pure (p.-~!q)
+  (.-~!) = dpst dualSpaceWitness
+   where dpst :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Stiefel1Needle v
          dpst DualSpaceWitness (Stiefel1 s) (Stiefel1 t)
-             = pure . Stiefel1Needle $ case s' UArr.! im of
+             = Stiefel1Needle $ case s' UArr.! im of
                    0 -> uarrScale (recip $ l2norm delis) delis
                    s'i | v <- uarrScale (recip s'i) delis `uarrSubtract` tpro
                        , absv <- l2norm v

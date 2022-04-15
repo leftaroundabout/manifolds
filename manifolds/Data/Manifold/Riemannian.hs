@@ -41,6 +41,7 @@
 {-# LANGUAGE LiberalTypeSynonyms        #-}
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE DefaultSignatures          #-}
 
 
@@ -59,8 +60,10 @@ import Math.LinearMap.Category
 import Linear (V0(..), V1(..), V2(..), V3(..), V4(..))
 
 import Data.Manifold.Types
-import Data.Manifold.Types.Primitive ((^), empty, embed, coEmbed)
+import Data.Manifold.Types.Primitive ( (^), empty, embed, coEmbed )
 import Data.Manifold.Types.Stiefel
+import Data.Manifold.WithBoundary
+import Data.Manifold.WithBoundary.Class
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Atlas (AffineManifold)
     
@@ -78,11 +81,7 @@ import Control.Monad.Constrained hiding (forM)
 import Data.Foldable.Constrained
 
 
-data GeodesicWitness x where
-  GeodesicWitness :: Geodesic (Interior x)
-       => SemimanifoldWitness x -> GeodesicWitness x
-
-class Semimanifold x => Geodesic x where
+class SemimanifoldWithBoundary x => Geodesic x where
   geodesicBetween ::
           x -- ^ Starting point; the interpolation will yield this at -1.
        -> x -- ^ End point, for +1.
@@ -90,9 +89,6 @@ class Semimanifold x => Geodesic x where
             --   If the two points are actually connected by a path...
        -> Maybe (D¹ -> x) -- ^ ...then this is the interpolation function. Attention: 
                           --   the type will change to 'Differentiable' in the future.
-  geodesicWitness :: GeodesicWitness x
-  default geodesicWitness :: Geodesic (Interior x) => GeodesicWitness x
-  geodesicWitness = GeodesicWitness semimanifoldWitness
   middleBetween :: x -> x -> Maybe x
   middleBetween p₀ p₁ = ($ D¹ 0) <$> geodesicBetween p₀ p₁
 
@@ -111,49 +107,45 @@ instance Geodesic x where {                                        \
 
 deriveAffineGD (ℝ)
 
-instance Geodesic (ZeroDim s) where
+instance (Num' s, OpenManifold s) => Geodesic (ZeroDim s) where
   geodesicBetween Origin Origin = return $ \_ -> Origin
   middleBetween Origin Origin = return Origin
 
-instance ∀ a b . (Geodesic a, Geodesic b) => Geodesic (a,b) where
+instance ∀ a b . ( Geodesic a, Geodesic b
+                 , Scalar (Needle (Interior a)) ~ Scalar (Needle (Interior b))
+                 , SemimanifoldWithBoundary (a,b)
+                 )
+      => Geodesic (a,b) where
   geodesicBetween (a,b) (α,β) = liftA2 (&&&) (geodesicBetween a α) (geodesicBetween b β)
-  geodesicWitness = case ( geodesicWitness :: GeodesicWitness a
-                         , geodesicWitness :: GeodesicWitness b ) of
-     (GeodesicWitness _, GeodesicWitness _) -> GeodesicWitness semimanifoldWitness
   middleBetween (a,b) (α,β) = fzip (middleBetween a α, middleBetween b β)
 
-instance ∀ a b c . (Geodesic a, Geodesic b, Geodesic c) => Geodesic (a,b,c) where
-  geodesicBetween (a,b,c) (α,β,γ)
-      = liftA3 (\ia ib ic t -> (ia t, ib t, ic t))
-           (geodesicBetween a α) (geodesicBetween b β) (geodesicBetween c γ)
-  geodesicWitness = case ( geodesicWitness :: GeodesicWitness a
-                         , geodesicWitness :: GeodesicWitness b
-                         , geodesicWitness :: GeodesicWitness c ) of
-     (GeodesicWitness _, GeodesicWitness _, GeodesicWitness _)
-         -> GeodesicWitness semimanifoldWitness
+-- instance ∀ a b c . (Geodesic a, Geodesic b, Geodesic c) => Geodesic (a,b,c) where
+--   geodesicBetween (a,b,c) (α,β,γ)
+--       = liftA3 (\ia ib ic t -> (ia t, ib t, ic t))
+--            (geodesicBetween a α) (geodesicBetween b β) (geodesicBetween c γ)
 
 -- instance (KnownNat n) => Geodesic (FreeVect n ℝ) where
 --   geodesicBetween (FreeVect v) (FreeVect w)
 --       = return $ \(D¹ t) -> let μv = (1-t)/2; μw = (t+1)/2
 --                             in FreeVect $ Arr.zipWith (\vi wi -> μv*vi + μw*wi) v w
 
-instance ∀ v . ( Geodesic v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
-               , LinearSpace v, Scalar v ~ ℝ, Geodesic (DualVector v)
-               , InnerSpace (DualVector v) )
-             => Geodesic (Stiefel1 v) where
-  geodesicBetween = gb dualSpaceWitness
-   where gb :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (D¹ -> Stiefel1 v)
-         gb DualSpaceWitness (Stiefel1 p') (Stiefel1 q')
-           = (\f -> \(D¹ t) -> Stiefel1 . f . D¹ $ g * tan (ϑ*t))
-            <$> geodesicBetween p q
-          where p = normalized p'; q = normalized q'
-                l = magnitude $ p^-^q
-                ϑ = asin $ l/2
-                g = sqrt $ 4/l^2 - 1
-  middleBetween = gb dualSpaceWitness
-   where gb :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (Stiefel1 v)
-         gb DualSpaceWitness  (Stiefel1 p) (Stiefel1 q)
-             = Stiefel1 <$> middleBetween (normalized p) (normalized q)
+-- instance ∀ v . ( Geodesic v, FiniteFreeSpace v, FiniteFreeSpace (DualVector v)
+--                , LinearSpace v, Scalar v ~ ℝ, Geodesic (DualVector v)
+--                , InnerSpace (DualVector v) )
+--              => Geodesic (Stiefel1 v) where
+--   geodesicBetween = gb dualSpaceWitness
+--    where gb :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (D¹ -> Stiefel1 v)
+--          gb DualSpaceWitness (Stiefel1 p') (Stiefel1 q')
+--            = (\f -> \(D¹ t) -> Stiefel1 . f . D¹ $ g * tan (ϑ*t))
+--             <$> geodesicBetween p q
+--           where p = normalized p'; q = normalized q'
+--                 l = magnitude $ p^-^q
+--                 ϑ = asin $ l/2
+--                 g = sqrt $ 4/l^2 - 1
+--   middleBetween = gb dualSpaceWitness
+--    where gb :: DualSpaceWitness v -> Stiefel1 v -> Stiefel1 v -> Maybe (Stiefel1 v)
+--          gb DualSpaceWitness  (Stiefel1 p) (Stiefel1 q)
+--              = Stiefel1 <$> middleBetween (normalized p) (normalized q)
 
 
 instance Geodesic S⁰ where
@@ -232,19 +224,19 @@ deriveAffineGD (ℝ²)
 deriveAffineGD (ℝ³)
 deriveAffineGD (ℝ⁴)
 
-instance (TensorSpace v, Scalar v ~ ℝ, TensorSpace w, Scalar w ~ ℝ)
+instance (LinearSpace v, Scalar v ~ ℝ, LinearSpace w, Scalar w ~ ℝ)
              => Geodesic (Tensor ℝ v w) where
   geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹
-instance (LinearSpace v, Scalar v ~ ℝ, TensorSpace w, Scalar w ~ ℝ)
+instance (LinearSpace v, Scalar v ~ ℝ, LinearSpace w, Scalar w ~ ℝ)
              => Geodesic (LinearMap ℝ v w) where
   geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹
-instance (TensorSpace v, Scalar v ~ ℝ, TensorSpace w, Scalar w ~ ℝ)
+instance (LinearSpace v, Scalar v ~ ℝ, LinearSpace w, Scalar w ~ ℝ)
              => Geodesic (LinearFunction ℝ v w) where
   geodesicBetween a b = return $ alerp a b . (/2) . (+1) . xParamD¹
 
 
 -- | One-dimensional manifolds, whose closure is homeomorpic to the unit interval.
-class WithField ℝ PseudoAffine i => IntervalLike i where
+class WithField ℝ PseudoAffine (Interior i) => IntervalLike i where
   toClosedInterval :: i -> D¹ -- Differentiable ℝ i D¹
 
 instance IntervalLike D¹ where

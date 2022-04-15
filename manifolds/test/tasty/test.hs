@@ -74,82 +74,83 @@ tests = testGroup "Tests"
    , QC.testProperty "2-sphere" (originCancellation @S²)
    , testGroup "2-sphere corner cases"
     [ QC.testProperty "To north pole"
-        $ \(S¹Polar φ) p -> originCancellation (S²Polar 0 φ) p
+        $ \(S¹Polar φ) p -> originCancellation @S² (S²Polar 0 φ) p
     , QC.testProperty "From north pole"
-        $ \(S¹Polar φ) p -> originCancellation p (S²Polar 0 φ)
+        $ \(S¹Polar φ) p -> originCancellation @S² p (S²Polar 0 φ)
     , QC.testProperty "To south pole"
-        $ \(S¹Polar φ) p -> originCancellation (S²Polar pi φ) p
+        $ \(S¹Polar φ) p -> originCancellation @S² (S²Polar pi φ) p
     , QC.testProperty "From south pole"
-        $ \(S¹Polar φ) p -> originCancellation p (S²Polar pi φ)
+        $ \(S¹Polar φ) p -> originCancellation @S² p (S²Polar pi φ)
     , QC.testProperty "South- to north pole"
-        $ \(S¹Polar φ) (S¹Polar ψ) -> originCancellation (S²Polar 0 φ) (S²Polar pi ψ)
+        $ \(S¹Polar φ) (S¹Polar ψ) -> originCancellation @S² (S²Polar 0 φ) (S²Polar pi ψ)
     , QC.testProperty "North- to south pole"
-        $ \(S¹Polar φ) (S¹Polar ψ) -> originCancellation (S²Polar pi ψ) (S²Polar 0 φ)
+        $ \(S¹Polar φ) (S¹Polar ψ) -> originCancellation @S² (S²Polar pi ψ) (S²Polar 0 φ)
     , QC.testProperty "Along equator"
-        $ \(S¹Polar φ) (S¹Polar ψ) -> originCancellation (S²Polar (pi/2) ψ) (S²Polar (pi/2) φ)
+        $ \(S¹Polar φ) (S¹Polar ψ) -> originCancellation @S² (S²Polar (pi/2) ψ) (S²Polar (pi/2) φ)
     , QC.testProperty "Just south of equator"
-        $ \(S¹Polar φ) (S¹Polar ψ) -> originCancellation (S²Polar (pi/2 + 1e-10) ψ) (S²Polar (pi/2 + 1e-10) φ)
+        $ \(S¹Polar φ) (S¹Polar ψ) -> originCancellation @S² (S²Polar (pi/2 + 1e-10) ψ) (S²Polar (pi/2 + 1e-10) φ)
     , QC.testProperty "Just across the equator"
-        $ \(S¹Polar φ) (S¹Polar ψ) -> originCancellation (S²Polar (pi/2) ψ) (S²Polar (pi/2 + 1e-10) φ)
+        $ \(S¹Polar φ) (S¹Polar ψ)
+              -> originCancellation @S² (S²Polar (pi/2) ψ) (S²Polar (pi/2 + 1e-10) φ)
     , QC.testProperty "To equator"
-        $ \(S¹Polar φ) p -> originCancellation (S²Polar (pi/2) φ) p
+        $ \(S¹Polar φ) p -> originCancellation @S² (S²Polar (pi/2) φ) p
     , QC.testProperty "From equator"
-        $ \(S¹Polar φ) p -> originCancellation p (S²Polar (pi/2) φ)
+        $ \(S¹Polar φ) p -> originCancellation @S² p (S²Polar (pi/2) φ)
     ]
    , QC.testProperty "Projective plane" (originCancellation @ℝP²)
    ]
   ]
  , testGroup "Natural embeddings"
   [ testGroup "1-sphere"
-     [ testCase "North pole" $ embed (S¹Polar $ pi/2) @?≈ (V2 0 1 :: ℝ²)
-     , testCase "South pole" $ embed (S¹Polar $ -pi/2) @?≈ (V2 0 (-1) :: ℝ²)
+     [ testCase "North pole" $ embed @S¹ (S¹Polar $ pi/2) @?≈ (V2 0 1 :: ℝ²)
+     , testCase "South pole" $ embed @S¹ (S¹Polar $ -pi/2) @?≈ (V2 0 (-1) :: ℝ²)
      ]
   , testGroup "2-sphere"
-     [ testCase "North pole" $ embed (S²Polar 0 0) @?≈ (V3 0 0 1 :: ℝ³)
-     , testCase "South pole" $ embed (S²Polar pi 0) @?≈ (V3 0 0 (-1) :: ℝ³)
+     [ testCase "North pole" $ embed @S² (S²Polar 0 0) @?≈ (V3 0 0 1 :: ℝ³)
+     , testCase "South pole" $ embed @S² (S²Polar pi 0) @?≈ (V3 0 0 (-1) :: ℝ³)
      ]
   , testGroup "1-sphere tangent bundle"
      [ testCase "North pole"
-           $ embed (TangentBundle (S¹Polar $  pi/2) 1)
-               @?≈ (FibreBundle (V2 0 1) (V2 (-1) 0) :: TangentBundle ℝ²)
+           $ embed (TangentBundle @S¹ (S¹Polar $  pi/2) 1)
+               @?≈ (FibreBundle @ℝ² (V2 0 1) (V2 (-1) 0))
      , testCase "South pole"
-           $ embed (TangentBundle (S¹Polar $ -pi/2) 1)
-               @?≈ (FibreBundle (V2 0 (-1)) (V2 1 0) :: TangentBundle ℝ²)
+           $ embed (TangentBundle @S¹ (S¹Polar $ -pi/2) 1)
+               @?≈ (FibreBundle @ℝ² (V2 0 (-1)) (V2 1 0))
      , testCase "45°"
-           $ embed (TangentBundle (S¹Polar $ pi/4) 1)
-               @?≈ (FibreBundle (V2 1 1^/sqrt 2) (V2 (-1) 1^/sqrt 2) :: TangentBundle ℝ²)
+           $ embed (TangentBundle @S¹ (S¹Polar $ pi/4) 1)
+               @?≈ (FibreBundle @ℝ² (V2 1 1^/sqrt 2) (V2 (-1) 1^/sqrt 2))
      ]
   , testGroup "2-sphere tangent bundle"
      [ testCase "North pole, x-dir"
-           $ embed (TangentBundle (S²Polar 0 0) (V2 1 0))
-               @?≈ (FibreBundle (V3 0 0 1) (V3 1 0 0) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar 0 0) (V2 1 0))
+               @?≈ (FibreBundle @ℝ³ (V3 0 0 1) (V3 1 0 0))
      , testCase "North pole (alternative φ), x-dir"
-           $ embed (TangentBundle (S²Polar 0 1.524) (V2 1 0))
-               @?≈ (FibreBundle (V3 0 0 1) (V3 1 0 0) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar 0 1.524) (V2 1 0))
+               @?≈ (FibreBundle @ℝ³ (V3 0 0 1) (V3 1 0 0))
      , testCase "North pole, y-dir"
-           $ embed (TangentBundle (S²Polar 0 0) (V2 0 1))
-               @?≈ (FibreBundle (V3 0 0 1) (V3 0 1 0) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar 0 0) (V2 0 1))
+               @?≈ (FibreBundle @ℝ³ (V3 0 0 1) (V3 0 1 0))
      , testCase "Close to north pole"
-           $ embed (TangentBundle (S²Polar 1e-11 0.602) (V2 3.7 1.1))
-               @?≈ (FibreBundle (V3 0 0 1) (V3 3.7 1.1 0) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar 1e-11 0.602) (V2 3.7 1.1))
+               @?≈ (FibreBundle @ℝ³ (V3 0 0 1) (V3 3.7 1.1 0))
      , testCase "South pole, x-dir"
-           $ embed (TangentBundle (S²Polar pi 0) (V2 1 0))
-               @?≈ (FibreBundle (V3 0 0 (-1)) (V3 (-1) 0 0) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar pi 0) (V2 1 0))
+               @?≈ (FibreBundle @ℝ³ (V3 0 0 (-1)) (V3 (-1) 0 0))
      , testCase "South pole, y-dir"
-           $ embed (TangentBundle (S²Polar pi 0) (V2 0 1))
-               @?≈ (FibreBundle (V3 0 0 (-1)) (V3 0 1 0) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar pi 0) (V2 0 1))
+               @?≈ (FibreBundle @ℝ³ (V3 0 0 (-1)) (V3 0 1 0))
      , testCase "Close to south pole"
-           $ embed (TangentBundle (S²Polar (pi-1e-11) 0.602) (V2 3.7 1.1))
-               @?≈ (FibreBundle (V3 0 0 (-1)) (V3 (-3.7) 1.1 0) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar (pi-1e-11) 0.602) (V2 3.7 1.1))
+               @?≈ (FibreBundle @ℝ³ (V3 0 0 (-1)) (V3 (-3.7) 1.1 0))
      , testCase "Equator, y-dir"
-           $ embed (TangentBundle (S²Polar (pi/2) 0) (V2 0 1))
-               @?≈ (FibreBundle (V3 1 0 0) (V3 0 1 0) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar (pi/2) 0) (V2 0 1))
+               @?≈ (FibreBundle @ℝ³ (V3 1 0 0) (V3 0 1 0))
      , testCase "Equator, x-dir"
-           $ embed (TangentBundle (S²Polar (pi/2) (pi/2)) (V2 1 0))
-               @?≈ (FibreBundle (V3 0 1 0) (V3 (-1) 0 0) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar (pi/2) (pi/2)) (V2 1 0))
+               @?≈ (FibreBundle @ℝ³ (V3 0 1 0) (V3 (-1) 0 0))
      , testCase "Equator, z-dir"
-           $ embed (TangentBundle (S²Polar (pi/2) 0) (V2 1 0))
-               @?≈ (FibreBundle (V3 1 0 0) (V3 0 0 (-1)) :: TangentBundle ℝ³)
+           $ embed (TangentBundle @S² (S²Polar (pi/2) 0) (V2 1 0))
+               @?≈ (FibreBundle @ℝ³ (V3 1 0 0) (V3 0 0 (-1)))
      ]
   ]
  , testGroup "Embedding tangent bundles"
@@ -187,11 +188,11 @@ tests = testGroup "Tests"
   ]
  , testGroup "Rotation"
   [ testCase "Pole to eqt / prime meridian"
-           $ let rotated = 90° yAxis $ V2 1 0 :@. S²Polar 0 0
+           $ let rotated = 90° yAxis $ V2 1 0 :@. (S²Polar 0 0 :: S²)
              in V2 (rotated ^. delta zenithAngle) (rotated ^. delta azimuth)
                     @?≈ V2 1 0
   , testCase "Pole to eqt / 90°E"
-           $ let rotated = 90° xAxis $ V2 1 0 :@. S²Polar 0 0
+           $ let rotated = 90° xAxis $ V2 1 0 :@. (S²Polar 0 0 :: S²)
              in V2 (rotated ^. delta zenithAngle) (rotated ^. delta azimuth)
                     @?≈ V2 0 1
   , QC.testProperty "Undo – arbitrary axis / angle and points in 𝑇S²."
@@ -263,16 +264,16 @@ tests = testGroup "Tests"
                -> (zenithAngle .~ θ₁) (S²Polar θ₀ φ) ≈ S²Polar θ₁ φ
     , testGroup "Tangent space examples"
      [ testCase "Zenith-angle at equator | prime meridian"
-         $ (TangentBundle (S²Polar (pi/2-1e-6) 0) (V2 1 0))
+         $ (TangentBundle @S² (S²Polar (pi/2-1e-6) 0) (V2 1 0))
               ^. delta zenithAngle @?≈ 1
      , testCase "Azimuth at just north of equator | prime meridian"
-         $ (TangentBundle (S²Polar (pi/2-1e-6) 0) (V2 0 1))
+         $ (TangentBundle @S² (S²Polar (pi/2-1e-6) 0) (V2 0 1))
               ^. delta azimuth @?≈ 1
      , testCase "Azimuth at just north of equator | 90°E"
-         $ (TangentBundle (S²Polar (pi/2-1e-6) (pi/2)) (V2 1 0))
+         $ (TangentBundle @S² (S²Polar (pi/2-1e-6) (pi/2)) (V2 1 0))
               ^. delta azimuth @?≈ -1
      , testCase "Azimuth at 45°N | prime meridian"
-         $ (TangentBundle (S²Polar (pi/4) 0) (V2 0 1))
+         $ (TangentBundle @S² (S²Polar (pi/4) 0) (V2 0 1))
               ^. delta azimuth @?≈ sqrt 2
      ]
     ]
@@ -331,29 +332,29 @@ tests = testGroup "Tests"
             (S²Polar (pi/4) (-pi/2)) (S²Polar (3*pi/4) (-pi/2)) [V3 1 0 0, V3 0   1  1]
                                                                 [V3 1 0 0, V3 0 (-1) 1]
    , QC.testProperty "Movement on the equator" . QC.expectFailure
-        $ \(S¹Polar φ₀) (S¹Polar φ₁) -> assertParTransportNeedleTargetFixpoint
+        $ \(S¹Polar φ₀) (S¹Polar φ₁) -> assertParTransportNeedleTargetFixpoint @S²
                  (S²Polar 0 0, Just "north pole")
                  (S²Polar (pi/2) φ₀)
                  (S²Polar (pi/2) φ₁)
    , QC.testProperty "Just north of the equator"
         $ \p@(S¹Polar φ₀) q@(S¹Polar φ₁) -> abs (p.-~!q) < 2
-            ==> assertParTransportNeedleTargetFixpoint
+            ==> assertParTransportNeedleTargetFixpoint @S²
                  (S²Polar 0 0, Just "north pole")
                  (S²Polar (pi/2-1e-13) φ₀)
                  (S²Polar (pi/2-1e-13) φ₁)
    , QC.testProperty "Just slightly crossing the equator"
-        $ \(S¹Polar φ₀) (S¹Polar φ₁) -> assertParTransportNeedleTargetFixpoint
+        $ \(S¹Polar φ₀) (S¹Polar φ₁) -> assertParTransportNeedleTargetFixpoint @S²
                  (S²Polar 0 0, Just "north pole")
                  (S²Polar (pi/2-1e-13) φ₀)
                  (S²Polar (pi/2+1e-13) φ₁)
    , QC.testProperty "Just south of the equator"
         $ \p@(S¹Polar φ₀) q@(S¹Polar φ₁) -> abs (p.-~!q) < 2
-            ==> assertParTransportNeedleTargetFixpoint
+            ==> assertParTransportNeedleTargetFixpoint @S²
                  (S²Polar pi 0, Just "south pole")
                  (S²Polar (pi/2+1e-13) φ₀)
                  (S²Polar (pi/2+1e-13) φ₁)
    , QC.testProperty "Movement on the zero meridian"
-        $ \(S¹Polar θ₀) (S¹Polar θ₁) -> assertParTransportNeedleTargetFixpoint
+        $ \(S¹Polar θ₀) (S¹Polar θ₁) -> assertParTransportNeedleTargetFixpoint @S²
                  (S²Polar (pi/2) (pi/2), Nothing)
                  (S²Polar (abs θ₀) (if θ₀>0 then 0 else pi))
                  (S²Polar (abs θ₁) (if θ₁>0 then 0 else pi))
@@ -821,7 +822,7 @@ class AEq e where
 instance AEq Double where
   fuzzyEq η x y  = x + abs x*η >= y
           && x - abs x*η <= y
-instance (SimpleSpace v, Needle v~v, Interior v~v, Floating (Scalar v))
+instance (SimpleSpace v, Needle v~v, Floating (Scalar v))
              => AEq (Shade' v) where
   fuzzyEq η (Shade' c₀ σ₀) (Shade' c₁ σ₁)
     = (σ₀|$|δ) < ε && (σ₀|$|δ) < ε
@@ -830,7 +831,7 @@ instance (SimpleSpace v, Needle v~v, Interior v~v, Floating (Scalar v))
    where δ = c₁ ^-^ c₀
          ε = 1e-2 + realToFrac η
          is1 x = abs (x-1) < ε
-instance ( SimpleSpace v, DualVector (Needle' v) ~ v, Interior v ~ v
+instance ( SimpleSpace v, DualVector (Needle' v) ~ v
          , InnerSpace (Scalar v), Scalar (Needle' v) ~ Scalar v )
               => AEq (Shade v) where
   fuzzyEq η (Shade c₀ σ₀) (Shade c₁ σ₁)
@@ -912,17 +913,16 @@ instance QC.Arbitrary ℝ³ where
                          <*> ((/12)<$>QC.shrink (y*12))
                          <*> ((/12)<$>QC.shrink (z*12))
 
-nearlyAssociative :: ∀ m . ( AEq m, Semimanifold m, Interior m ~ m
+nearlyAssociative :: ∀ m . ( AEq m, Semimanifold m
                            , InnerSpace (Needle m), RealFloat (Scalar (Needle m)) )
                          => m -> Needle m -> Needle m -> QC.Property
 nearlyAssociative p v w = maximum (map magnitude [v,w]) < 1e6
          ==> (p .+~^ v) .+~^ w ≈ (p .+~^ (v^+^w) :: m)
 
-originCancellation :: ∀ m . (AEq m, Manifold m, Show m, Show (Needle m))
+originCancellation :: ∀ m . (AEq m, PseudoAffine m, Show m, Show (Needle m))
                          => m -> m -> QC.Property
-originCancellation p q = case ( boundarylessWitness :: BoundarylessWitness m
-                              , p.-~.q ) of
-      (BoundarylessWitness, Just v)
+originCancellation p q = case p.-~.q of
+      Just v
           -> let p' = q.+~^v
              in QC.counterexample ("v = "++show v++", q+v = "++show p') $ p' ≈ p
 
@@ -935,7 +935,6 @@ embeddingBackProject p = QC.counterexample ("Embedded: "++SP.show ep
        p' = coEmbed ep
 
 embeddingTangentiality :: ∀ m n . ( Semimanifold m, Semimanifold n
-                                  , Interior m ~ m, Interior n ~ n
                                   , NaturallyEmbedded n m
                                   , NaturallyEmbedded (TangentBundle n) (TangentBundle m)
                                   , SP.Show n, AEq n
@@ -953,13 +952,12 @@ embeddingTangentiality consistRadius p vub
 
 nearbyTangentSpaceEmbedding :: ∀ m n
                      . ( Semimanifold m, Semimanifold n
-                       , m ~ Interior m, n ~ Interior n
                        , NaturallyEmbedded n m
                        , NaturallyEmbedded (TangentBundle n) (TangentBundle m)
                        , ParallelTransporting (->) n (Needle n)
                        , SP.Show n, SP.Show (Needle n), AEq (Needle n)
                        , InnerSpace (Needle n), RealFloat (Scalar (Needle n)) )
-       => Scalar (Needle n) -> Interior n -> Needle n -> Needle n -> QC.Property
+       => Scalar (Needle n) -> n -> Needle n -> Needle n -> QC.Property
 nearbyTangentSpaceEmbedding consistRadius p vub f
          = QC.counterexample ("𝑓 embd. at 𝑝, then proj. at 𝑝+𝑣 = "++SP.show fReProj
                               ++", 𝑓 moved by 𝑣 = "++SP.show g)
@@ -1057,7 +1055,7 @@ asinh x
 
 
 coordinateFiniteDifference :: ∀ m .
-       ( Semimanifold m, HasCoordinates m, m ~ Interior m
+       ( Semimanifold m, HasCoordinates m
        , HasCoordinates (Needle m), CoordDifferential m
        , AEq (Needle m), InnerSpace (Needle m), Scalar (Needle m) ~ ℝ
        , SP.Show m )

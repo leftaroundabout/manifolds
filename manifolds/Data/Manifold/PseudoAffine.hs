@@ -44,26 +44,30 @@
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE MultiWayIf               #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
+{-# LANGUAGE TypeApplications         #-}
 {-# LANGUAGE RecordWildCards          #-}
 {-# LANGUAGE CPP                      #-}
 
 
 module Data.Manifold.PseudoAffine (
             -- * Manifold class
-              Manifold(inInterior)
+              Manifold
             , Semimanifold(..), Needle'
             , PseudoAffine(..)
+            , LinearManifold, ScalarManifold
+            , Num'', RealFrac'', RealFloat''
             -- * Type definitions
             -- ** Needles
-            , Local(..), (⊙+^), (!+~^)
+            , Local(..)
+#if !MIN_VERSION_manifolds_core(0,6,0)
+            , (!+~^)
+#endif
             -- ** Metrics
             , Metric, Metric'
             , RieMetric, RieMetric'
             -- ** Constraints
             , SemimanifoldWitness(..)
             , PseudoAffineWitness(..)
-            , BoundarylessWitness(..)
-            , boundarylessWitness
             , DualNeedleWitness 
             , WithField
             , LocallyScalable
@@ -77,6 +81,7 @@ module Data.Manifold.PseudoAffine (
     
 
 import Math.Manifold.Core.PseudoAffine
+import Data.Manifold.WithBoundary.Class
 
 import Data.Maybe
 import Data.Fixed
@@ -114,14 +119,15 @@ import GHC.Exts (Constraint)
   
 
 -- | See 'Semimanifold' and 'PseudoAffine' for the methods.
-class (PseudoAffine m, LSpace (Needle m)) => Manifold m where
-  boundarylessWitness :: BoundarylessWitness m
-  default boundarylessWitness :: (m ~ Interior m) => BoundarylessWitness m
-  boundarylessWitness = BoundarylessWitness
-  inInterior :: m -> Interior m
-  default inInterior :: (m ~ Interior m) => m -> Interior m
-  inInterior = id
-instance (PseudoAffine m, LSpace (Needle m), Interior m ~ m) => Manifold m
+--   As a 'Manifold' we understand a pseudo-affine space whose 'Needle'
+--   space is a well-behaved vector space that is isomorphic to
+--   all of the manifold's tangent spaces.
+--   It must also be an instance of the 'SemimanifoldWithBoundary' class
+--   with explicitly empty boundary (in other words, with /no/ boundary).
+class (OpenManifold m, ProjectableBoundary m, LSpace (Needle m))
+            => Manifold m where
+instance (OpenManifold m, ProjectableBoundary m, LSpace (Needle m))
+            => Manifold m
 
 
 
@@ -157,11 +163,6 @@ class ( Semimanifold x, Semimanifold ξ, LSpace (Needle x), LSpace (Needle ξ)
   oppositeLocalCoercion :: CanonicalDiffeomorphism ξ x
   default oppositeLocalCoercion :: LocallyCoercible ξ x => CanonicalDiffeomorphism ξ x
   oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion :: Functor p (->) (->) 
-                  => p (x,ξ) -> CanonicalDiffeomorphism (Interior x) (Interior ξ)
-  default interiorLocalCoercion :: LocallyCoercible (Interior x) (Interior ξ)
-                  => p (x,ξ) -> CanonicalDiffeomorphism (Interior x) (Interior ξ)
-  interiorLocalCoercion _ = CanonicalDiffeomorphism
 
 type NumPrime n = (Num' n, Eq n)
 
@@ -170,8 +171,7 @@ instance (c) => LocallyCoercible (t) (t) where { \
   locallyTrivialDiffeomorphism = id;              \
   coerceNeedle _ = id;                             \
   coerceNeedle' _ = id;                             \
-  oppositeLocalCoercion = CanonicalDiffeomorphism;   \
-  interiorLocalCoercion _ = CanonicalDiffeomorphism }
+  oppositeLocalCoercion = CanonicalDiffeomorphism }
 identityCoercion(NumPrime s, ZeroDim s)
 identityCoercion(NumPrime s, V0 s)
 identityCoercion((), ℝ)
@@ -337,13 +337,6 @@ instance ( Semimanifold a, Semimanifold b, Semimanifold c
   coerceNeedle _ = regroup
   coerceNeedle' _ = regroup
   oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion _ = case ( semimanifoldWitness :: SemimanifoldWitness a
-                                 , semimanifoldWitness :: SemimanifoldWitness b
-                                 , semimanifoldWitness :: SemimanifoldWitness c ) of
-       ( SemimanifoldWitness BoundarylessWitness
-        ,SemimanifoldWitness BoundarylessWitness
-        ,SemimanifoldWitness BoundarylessWitness )
-              -> CanonicalDiffeomorphism
 instance ∀ a b c .
          ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
@@ -355,56 +348,74 @@ instance ∀ a b c .
   coerceNeedle _ = regroup'
   coerceNeedle' _ = regroup'
   oppositeLocalCoercion = CanonicalDiffeomorphism
-  interiorLocalCoercion _ = case ( semimanifoldWitness :: SemimanifoldWitness a
-                                 , semimanifoldWitness :: SemimanifoldWitness b
-                                 , semimanifoldWitness :: SemimanifoldWitness c ) of
-       ( SemimanifoldWitness BoundarylessWitness
-        ,SemimanifoldWitness BoundarylessWitness
-        ,SemimanifoldWitness BoundarylessWitness )
-            -> CanonicalDiffeomorphism
 
 
-instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
+instance (LinearSpace (a n), Needle (a n) ~ a n)
             => Semimanifold (LinAff.Point a n) where
   type Needle (LinAff.Point a n) = a n
-  fromInterior = id
-  toInterior = pure
   LinAff.P v .+~^ w = LinAff.P $ v ^+^ w
-  translateP = Tagged $ \(LinAff.P v) w -> LinAff.P $ v ^+^ w
-instance (LinearSpace (a n), Needle (a n) ~ a n, Interior (a n) ~ a n)
+instance (LinearSpace (a n), Needle (a n) ~ a n)
             => PseudoAffine (LinAff.Point a n) where
   LinAff.P v .-~. LinAff.P w = return $ v ^-^ w
+  LinAff.P v .-~! LinAff.P w = v ^-^ w
+
+
+instance RealFloat' r => Semimanifold (S⁰_ r) where
+  type Needle (S⁰_ r) = ZeroDim r
+  p .+~^ Origin = p
+  p .-~^ Origin = p
+instance RealFloat' r => PseudoAffine (S⁰_ r) where
+  PositiveHalfSphere .-~. PositiveHalfSphere = pure Origin
+  NegativeHalfSphere .-~. NegativeHalfSphere = pure Origin
+  _ .-~. _ = Nothing
+  PositiveHalfSphere .-~! PositiveHalfSphere = Origin
+  NegativeHalfSphere .-~! NegativeHalfSphere = Origin
+  _ .-~! _ = error "There is no path between the two 0-dimensional half spheres."
+
+instance RealFloat' r => Semimanifold (S¹_ r) where
+  type Needle (S¹_ r) = r
+  S¹Polar φ₀ .+~^ δφ  = S¹Polar $ φ'
+   where φ' = toS¹range $ φ₀ + δφ
+  semimanifoldWitness = case linearManifoldWitness @r of
+    LinearManifoldWitness -> SemimanifoldWitness
+instance RealFloat' r => PseudoAffine (S¹_ r) where
+  p .-~. q = pure (p.-~!q)
+  S¹Polar φ₁ .-~! S¹Polar φ₀
+     | δφ > pi     = δφ - tau
+     | δφ < (-pi)  = δφ + tau
+     | otherwise   = δφ
+   where δφ = φ₁ - φ₀
 
 
 
+instance RealFloat' s => Semimanifold (S²_ s) where
+  type Needle (S²_ s) = V2 s
+  (.+~^) = case linearManifoldWitness @s of
+   LinearManifoldWitness ->
+      let addS² (S²Polar θ₀ φ₀) 𝐯 = S²Polar θ₁ φ₁
+           where -- See images/constructions/sphericoords-needles.svg.
+                 S¹Polar γc = coEmbed 𝐯
+                 γ | θ₀ < pi/2   = γc - φ₀
+                   | otherwise   = γc + φ₀
+                 d = magnitude 𝐯
+                 S¹Polar φ₁ = S¹Polar φ₀ .+~^ δφ
+                 
+                 -- Cartesian coordinates of p₁ in the system whose north pole is p₀
+                 -- with φ₀ as the zero meridian
+                 V3 bx by bz = embed $ S²Polar d γ
+                 
+                 sθ₀ = sin θ₀; cθ₀ = cos θ₀
+                 -- Cartesian coordinates of p₁ in the system with the standard north pole,
+                 -- but still φ₀ as the zero meridian
+                 (qx,qz) = ( cθ₀ * bx + sθ₀ * bz
+                           ,-sθ₀ * bx + cθ₀ * bz )
+                 qy      = by
+                 
+                 S²Polar θ₁ δφ = coEmbed $ V3 qx qy qz
+      in addS²
 
-instance Semimanifold S² where
-  type Needle S² = ℝ²
-  fromInterior = id
-  toInterior = pure
-  translateP = Tagged (.+~^)
-  S²Polar θ₀ φ₀ .+~^ 𝐯 = S²Polar θ₁ φ₁
-   where -- See images/constructions/sphericoords-needles.svg.
-         S¹Polar γc = coEmbed 𝐯
-         γ | θ₀ < pi/2   = γc - φ₀
-           | otherwise   = γc + φ₀
-         d = magnitude 𝐯
-         S¹Polar φ₁ = S¹Polar φ₀ .+~^ δφ
-         
-         -- Cartesian coordinates of p₁ in the system whose north pole is p₀
-         -- with φ₀ as the zero meridian
-         V3 bx by bz = embed $ S²Polar d γ
-         
-         sθ₀ = sin θ₀; cθ₀ = cos θ₀
-         -- Cartesian coordinates of p₁ in the system with the standard north pole,
-         -- but still φ₀ as the zero meridian
-         (qx,qz) = ( cθ₀ * bx + sθ₀ * bz
-                   ,-sθ₀ * bx + cθ₀ * bz )
-         qy      = by
-         
-         S²Polar θ₁ δφ = coEmbed $ V3 qx qy qz
-
-instance PseudoAffine S² where
+instance RealFloat' s => PseudoAffine (S²_ s) where
+  p.-~.q = pure (p.-~!q)
   S²Polar θ₁ φ₁ .-~! S²Polar θ₀ φ₀ = d *^ embed(S¹Polar γc)
    where -- See images/constructions/sphericoords-needles.svg.
          V3 qx qy qz = embed $ S²Polar θ₁ (φ₁-φ₀)
@@ -424,15 +435,13 @@ instance PseudoAffine S² where
 
 instance Semimanifold ℝP² where
   type Needle ℝP² = ℝ²
-  fromInterior = id
-  toInterior = pure
-  translateP = Tagged (.+~^)
   HemisphereℝP²Polar θ₀ φ₀ .+~^ v
       = case S²Polar θ₀ φ₀ .+~^ v of
           S²Polar θ₁ φ₁
            | θ₁ > pi/2   -> HemisphereℝP²Polar (pi-θ₁) (-φ₁)
            | otherwise   -> HemisphereℝP²Polar θ₁        φ₁
 instance PseudoAffine ℝP² where
+  p.-~.q = pure (p.-~!q)
   HemisphereℝP²Polar θ₁ φ₁ .-~! HemisphereℝP²Polar θ₀ φ₀
       = case S²Polar θ₁ φ₁ .-~! S²Polar θ₀ φ₀ of
           v -> let r² = magnitudeSq v
@@ -476,18 +485,14 @@ type DualNeedleWitness x = DualSpaceWitness (Needle x)
 
 
 
+#if !MIN_VERSION_manifolds_core(0,6,0)
 infixl 6 !+~^
 -- | Boundary-unsafe version of `.+~^`.
 (!+~^) :: ∀ x . (Semimanifold x, HasCallStack) => x -> Needle x -> x
 p!+~^v = case toInterior p of
            Just p' -> p'.+~^v
+#endif
 
-
-infix 6 ⊙+^
--- | Proxy-version of `translateP`.
-(⊙+^) :: ∀ x proxy . Semimanifold x => Interior x -> Needle x -> proxy x -> Interior x
-(⊙+^) x v _ = tp x v
- where Tagged tp = translateP :: Tagged x (Interior x -> Needle x -> Interior x)
 
 
 
@@ -515,3 +520,11 @@ instance (Connected x, Connected y) => Connected (x,y)
 instance (Connected x, Connected y, PseudoAffine (FibreBundle x y))
                => Connected (FibreBundle x y)
 
+
+
+type LinearManifold m = (LinearSpace m, Manifold m)
+
+type ScalarManifold s = (Num' s, Manifold s, Manifold (ZeroDim s))
+type Num'' s = ScalarManifold s
+type RealFrac'' s = (RealFrac' s, ScalarManifold s)
+type RealFloat'' s = (RealFloat' s, SimpleSpace s, ScalarManifold s)

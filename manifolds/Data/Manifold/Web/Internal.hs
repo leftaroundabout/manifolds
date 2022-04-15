@@ -345,7 +345,7 @@ tweakWebGeometry :: (WithField ℝ Manifold x, SimpleSpace (Needle x))
                         -> PointsWeb x y -> PointsWeb x y
 tweakWebGeometry metricf reknit = webLocalInfo >>> fmapNodesInEnvi`id`
          \(NodeInWeb (x₀, (Neighbourhood info _ lm bound)) _)
-             -> let lm' = metricf . Shade (inInterior x₀) $ dualNorm lm
+             -> let lm' = metricf . Shade x₀ $ dualNorm lm
                 in Neighbourhood (info^.thisNodeData)
                             (UArr.fromList . map (subtract $ info^.thisNodeId)
                                      $ reknit info)

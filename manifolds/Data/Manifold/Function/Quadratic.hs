@@ -55,66 +55,70 @@ affineQuadratic :: (WithField s AffineManifold d, WithField s AffineManifold c)
 affineQuadratic (Affine f) = Quadratic . trie
                   $ untrie f >>> second (id &&& const zeroV)
 
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , Manifold y, Scalar (Needle y) ~ s )
-              => Semimanifold (Quadratic s x y) where
+instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold (Needle y), Scalar (Needle y) ~ s
+         , Needle (Needle y) ~ Needle y
+         ) => Semimanifold (Quadratic s x y) where
   type Needle (Quadratic s x y) = Quadratic s x (Needle y)
-  toInterior = pure
-  fromInterior = id
-  (.+~^) = case ( semimanifoldWitness :: SemimanifoldWitness y
-                , boundarylessWitness :: BoundarylessWitness y ) of
-    (SemimanifoldWitness _, BoundarylessWitness) -> \(Quadratic f) (Quadratic g)
+  (.+~^) = case ( semimanifoldWitness :: SemimanifoldWitness y ) of
+    (SemimanifoldWitness) -> \(Quadratic f) (Quadratic g)
       -> Quadratic . trie $ \ix -> case (untrie f ix, untrie g ix) of
           ((fx₀,f'), (gx₀,g')) -> (fx₀.+~^gx₀, f'^+^g')
-  translateP = Tagged (.+~^)
   semimanifoldWitness = case semimanifoldWitness :: SemimanifoldWitness y of
-    SemimanifoldWitness _ -> SemimanifoldWitness BoundarylessWitness
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , Manifold y, Scalar (Needle y) ~ s )
-              => PseudoAffine (Quadratic s x y) where
-  (.-~!) = case ( semimanifoldWitness :: SemimanifoldWitness y
-                , boundarylessWitness :: BoundarylessWitness y ) of
-    (SemimanifoldWitness _, BoundarylessWitness) -> \(Quadratic f) (Quadratic g)
+    SemimanifoldWitness -> SemimanifoldWitness
+instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold (Needle y), Scalar (Needle y) ~ s
+         , Needle (Needle y) ~ Needle y
+         ) => PseudoAffine (Quadratic s x y) where
+  p.-~.q = pure (p.-~!q)
+  (.-~!) = case ( semimanifoldWitness :: SemimanifoldWitness y ) of
+    (SemimanifoldWitness) -> \(Quadratic f) (Quadratic g)
       -> Quadratic . trie $ \ix -> case (untrie f ix, untrie g ix) of
           ((fx₀,f'), (gx₀,g')) -> (fx₀.-~!gx₀, f'^-^g')
   pseudoAffineWitness = case semimanifoldWitness :: SemimanifoldWitness y of
-    SemimanifoldWitness _ -> PseudoAffineWitness (SemimanifoldWitness BoundarylessWitness)
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , Manifold y, Scalar (Needle y) ~ s )
-              => AffineSpace (Quadratic s x y) where
+    SemimanifoldWitness -> PseudoAffineWitness (SemimanifoldWitness)
+instance ( Atlas x, HasTrie (ChartIndex x), Manifold y
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold (Needle y), Scalar (Needle y) ~ s
+         , Needle (Needle y) ~ Needle y
+         ) => AffineSpace (Quadratic s x y) where
   type Diff (Quadratic s x y) = Quadratic s x (Needle y)
   (.+^) = (.+~^); (.-.) = (.-~!)
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , LinearSpace y, Scalar y ~ s, Num' s )
-            => AdditiveGroup (Quadratic s x y) where
+instance ( Atlas x, HasTrie (ChartIndex x)
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold y, Scalar y ~ s
+         , Needle y ~ y
+         ) => AdditiveGroup (Quadratic s x y) where
   zeroV = case linearManifoldWitness :: LinearManifoldWitness y of
-       LinearManifoldWitness _ -> Quadratic . trie $ const (zeroV, zeroV)
+       LinearManifoldWitness -> Quadratic . trie $ const (zeroV, zeroV)
   (^+^) = case ( linearManifoldWitness :: LinearManifoldWitness y
                , dualSpaceWitness :: DualSpaceWitness y ) of
-      (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness) -> (.+~^)
+      (LinearManifoldWitness, DualSpaceWitness) -> (.+~^)
   negateV = case linearManifoldWitness :: LinearManifoldWitness y of
-       LinearManifoldWitness _ -> \(Quadratic f) -> Quadratic . trie $
+       LinearManifoldWitness -> \(Quadratic f) -> Quadratic . trie $
              untrie f >>> negateV***negateV
-instance ( Atlas x, HasTrie (ChartIndex x), LinearSpace (Needle x), Scalar (Needle x) ~ s
-         , LinearSpace y, Scalar y ~ s, Num' s )
-            => VectorSpace (Quadratic s x y) where
+instance ( Atlas x, HasTrie (ChartIndex x)
+         , LinearManifold (Needle x), Scalar (Needle x) ~ s
+         , LinearManifold y, Scalar y ~ s
+         , Needle y ~ y
+         ) => VectorSpace (Quadratic s x y) where
   type Scalar (Quadratic s x y) = s
   (*^) = case linearManifoldWitness :: LinearManifoldWitness y of
-       LinearManifoldWitness _ -> \μ (Quadratic f) -> Quadratic . trie $
+       LinearManifoldWitness -> \μ (Quadratic f) -> Quadratic . trie $
              untrie f >>> (μ*^)***(μ*^)
 
-evalQuadratic :: ∀ s x y . ( Manifold x, Atlas x, HasTrie (ChartIndex x)
+evalQuadratic :: ∀ x y s . ( Manifold x, Atlas x, HasTrie (ChartIndex x)
                            , Manifold y
                            , s ~ Scalar (Needle x), s ~ Scalar (Needle y) )
                => Quadratic s x y -> x
                     -> (y, ( LinearMap s (Needle x) (Needle y)
                            , LinearMap s (SymmetricTensor s (Needle x)) (Needle y) ))
-evalQuadratic = ea (boundarylessWitness, boundarylessWitness)
- where ea :: (BoundarylessWitness x, BoundarylessWitness y)
-             -> Quadratic s x y -> x -> (y, ( LinearMap s (Needle x) (Needle y)
+evalQuadratic = ea
+ where ea :: Quadratic s x y -> x -> (y, ( LinearMap s (Needle x) (Needle y)
                                             , LinearMap s (SymmetricTensor s (Needle x)) (Needle y) ))
-       ea (BoundarylessWitness, BoundarylessWitness)
-          (Quadratic f) x = ( fx₀.+~^(ðx'f₀ $ v).+~^(ð²x'f $ squareV v)
+       ea (Quadratic f) x = ( fx₀.+~^(ðx'f₀ $ v).+~^(ð²x'f $ squareV v)
                             , ( ðx'f₀ ^+^ 2*^((currySymBilin $ ð²x'f) $ v)
                               , ð²x'f
                               ) )

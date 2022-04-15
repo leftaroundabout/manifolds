@@ -43,6 +43,8 @@ import Math.LinearMap.Category
 import Data.Manifold.Types
 import Data.Manifold.Types.Primitive ((^), (^.))
 import Data.Manifold.PseudoAffine
+import Data.Manifold.WithBoundary
+import Data.Manifold.WithBoundary.Class
 import Data.Manifold.TreeCover (Shade(..), fullShade, shadeCtr, shadeExpanse)
     
 import Data.Embedding
@@ -86,7 +88,7 @@ axisGrLength (GridAxInterval _) = 0
 axisGrLength (GridAxCons _ _ ax) = 1 + axisGrLength ax
 axisGrLength (GridAxisClosed _ ax) = axisGrLength ax
 
-class (WithField ℝ Manifold m) => Griddable m g where
+class (WithField ℝ PseudoAffine m) => Griddable m g where
   data GriddingParameters m g :: *
   mkGridding :: GriddingParameters m g -> Int -> Shade m -> [GridAxis m g]
 
@@ -112,7 +114,10 @@ instance Griddable ℝ String where
 
 instance ∀ m n a
     . ( SimpleSpace (Needle m), SimpleSpace (Needle n), SimpleSpace (Needle a)
-      , Griddable m a, Griddable n a, m ~ Interior m, n ~ Interior n )
+      , Griddable m a, Griddable n a
+      , PseudoAffineWithBoundary (m,n)
+      , ProjectableBoundary (m,n)
+      )
              => Griddable (m,n) a where
   data GriddingParameters (m,n) a = PairGriddingParameters {
                fstGriddingParams :: GriddingParameters m a

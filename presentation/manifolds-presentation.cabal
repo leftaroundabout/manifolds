@@ -16,7 +16,7 @@ Source-Repository head
     location: git://github.com/leftaroundabout/manifolds.git
 
 executable icfp2018-npfl_manifolds
-  Build-Depends:     base>=4.10 && <4.11
+  Build-Depends:     base>=4.10 && <4.13
                      , manifolds==0.5.0.1
                      , linearmap-category
                      , vector-space
@@ -38,7 +38,7 @@ executable icfp2018-npfl_manifolds
   default-language: Haskell2010
 
 executable magic2019_pseudoaffine
-  Build-Depends:     base>=4.10 && <4.11
+  Build-Depends:     base>=4.10 && <4.13
                      , manifolds==0.5.0.1
                      , linearmap-category
                      , vector-space

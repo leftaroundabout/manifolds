@@ -20,6 +20,7 @@
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
 {-# LANGUAGE TypeOperators            #-}
+{-# LANGUAGE TypeApplications         #-}
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE MultiWayIf               #-}
 {-# LANGUAGE LambdaCase               #-}
@@ -65,6 +66,8 @@ import Data.Basis
 import Data.Tagged
 import Data.Manifold.Types.Primitive
 import Data.Manifold.PseudoAffine
+import Data.Manifold.WithBoundary
+import Data.Manifold.WithBoundary.Class
 import Data.Manifold.Atlas
 
 import qualified Prelude
@@ -78,8 +81,8 @@ import Data.Foldable.Constrained
 
 
 type RealDimension s
-       = ( RealFloat' s, SimpleSpace s, Show s, Atlas s, HasTrie (ChartIndex s)
-         , s ~ Needle s, s ~ Interior s, s ~ Scalar s, s ~ DualVector s )
+       = ( RealFloat' s, Manifold s, SimpleSpace s, Atlas' s
+         , s ~ Needle s, s ~ Scalar s, s ~ DualVector s )
 
 
 discretisePathIn :: (WithField ℝ Manifold y, SimpleSpace (Needle y))
@@ -215,7 +218,8 @@ analyseLocalBehaviour (RWDiffable f) x₀ = case f x₀ of
 
 -- | Represent a 'Region' by a smooth function which is positive within the region,
 --   and crosses zero at the boundary.
-smoothIndicator :: LocallyScalable ℝ q => Region ℝ q -> Differentiable ℝ q ℝ
+smoothIndicator :: (LocallyScalable ℝ q, Manifold q, Atlas' q, SimpleSpace (Needle q))
+                       => Region ℝ q -> Differentiable ℝ q ℝ
 smoothIndicator (Region _ r₀) = let (PreRegion r) = genericisePreRegion r₀
                                 in  r
 
@@ -265,14 +269,15 @@ hugeℝVal = 1e+100
 
 
 
-
+showℝ :: RealFloat r => r -> String
+showℝ x = show (realToFrac x :: Double)
 
 
 unsafe_dev_ε_δ :: ∀ a . RealDimension a
                 => String -> (a -> a) -> LinDevPropag a a
 unsafe_dev_ε_δ = case ( linearManifoldWitness :: LinearManifoldWitness a
                       , closedScalarWitness :: ClosedScalarWitness a ) of
- (LinearManifoldWitness _, ClosedScalarWitness) -> \errHint f d
+ (LinearManifoldWitness, ClosedScalarWitness) -> \errHint f d
            -> let ε'² = normSq d 1
               in if ε'²>0
                   then let δ = f . sqrt $ recip ε'²
@@ -280,14 +285,15 @@ unsafe_dev_ε_δ = case ( linearManifoldWitness :: LinearManifoldWitness a
                            then spanNorm [recip δ]
                            else error $ "ε-δ propagator function for "
                                     ++errHint++", with ε="
-                                    ++show(sqrt $ recip ε'²)
-                                    ++ " gives non-positive δ="++show δ++"."
+                                    ++showℝ (sqrt $ recip ε'²)
+                                    ++ " gives non-positive δ="
+                                    ++showℝ (realToFrac δ)++"."
                   else mempty
 dev_ε_δ :: ∀ a . RealDimension a
          => (a -> a) -> Metric a -> Maybe (Metric a)
 dev_ε_δ = case ( linearManifoldWitness :: LinearManifoldWitness a
                       , closedScalarWitness :: ClosedScalarWitness a ) of
- (LinearManifoldWitness _, ClosedScalarWitness) -> \f d
+ (LinearManifoldWitness, ClosedScalarWitness) -> \f d
            -> let ε'² = normSq d 1
               in if ε'²>0
                   then let δ = f . sqrt $ recip ε'²
@@ -299,7 +305,7 @@ dev_ε_δ = case ( linearManifoldWitness :: LinearManifoldWitness a
 as_devεδ :: ∀ a . RealDimension a => LinDevPropag a a -> a -> a
 as_devεδ = asdevεδ linearManifoldWitness closedScalarWitness where
  asdevεδ :: LinearManifoldWitness a -> ClosedScalarWitness a -> LinDevPropag a a -> a -> a
- asdevεδ (LinearManifoldWitness _) ClosedScalarWitness
+ asdevεδ LinearManifoldWitness ClosedScalarWitness
          ldp ε | ε>0
                , δ'² <- normSq (ldp $ spanNorm [recip ε]) 1
                , δ'² > 0
@@ -316,7 +322,8 @@ genericiseDifferentiable f = f
 
 
 instance RealFrac' s => Category (Differentiable s) where
-  type Object (Differentiable s) o = LocallyScalable s o
+  type Object (Differentiable s) o = ( Manifold o, Atlas' o
+                                     , LocallyScalable s o, SimpleSpace (Needle o) )
   id = Differentiable $ \x -> (x, id, const mempty)
   Differentiable f . Differentiable g = Differentiable $
      \x -> let (y, g', devg) = g x
@@ -336,7 +343,7 @@ instance (RealDimension s) => EnhancedCat (->) (Differentiable s) where
   arr (Differentiable f) x = let (y,_,_) = f x in y
   arr (AffinDiffable _ f) x = f $ x
 
-instance (RealFrac' s) => Cartesian (Differentiable s) where
+instance (RealFrac'' s, SimpleSpace s) => Cartesian (Differentiable s) where
   type UnitObject (Differentiable s) = ZeroDim s
   swap = Differentiable $ \(x,y) -> ((y,x), swap, const mempty)
   attachUnit = Differentiable $ \x -> ((x, Origin), attachUnit, const mempty)
@@ -345,22 +352,48 @@ instance (RealFrac' s) => Cartesian (Differentiable s) where
   regroup' = Differentiable $ \((x,y),z) -> ((x,(y,z)), regroup', const mempty)
 
 
-instance (RealFrac' s) => Morphism (Differentiable s) where
-  Differentiable f *** Differentiable g = Differentiable h
-   where h (x,y) = ((fx, gy), f'***g', devfg)
-          where (fx, f', devf) = f x
-                (gy, g', devg) = g y
-                devfg δs = transformNorm fst δx 
-                           <> transformNorm snd δy
-                  where δx = devf $ transformNorm (id&&&zeroV) δs
-                        δy = devg $ transformNorm (zeroV&&&id) δs
-  AffinDiffable IsDiffableEndo f *** AffinDiffable IsDiffableEndo g
-         = AffinDiffable IsDiffableEndo $ f *** g
-  AffinDiffable _ f *** AffinDiffable _ g = AffinDiffable NotDiffableEndo $ f *** g
-  f *** g = genericiseDifferentiable f *** genericiseDifferentiable g
+instance ∀ s . (RealFrac'' s, SimpleSpace s) => Morphism (Differentiable s) where
+  (***) = prll
+   where prll :: ∀ b β c γ . ( ObjectPair (Differentiable s) b β
+                             , ObjectPair (Differentiable s) c γ )
+                   => Differentiable s b c -> Differentiable s β γ
+                        -> Differentiable s (b,β) (c,γ)
+         prll (Differentiable f) (Differentiable g) = Differentiable h
+          where h (x,y) = ((fx, gy), f'***g', devfg)
+                 where (fx, f', devf) = f x
+                       (gy, g', devg) = g y
+                       devfg δs = transformNorm fst δx 
+                                  <> transformNorm snd δy
+                         where δx = devf $ transformNorm (id&&&zeroV) δs
+                               δy = devg $ transformNorm (zeroV&&&id) δs
+         prll (AffinDiffable IsDiffableEndo f) (AffinDiffable IsDiffableEndo g)
+                 = case ( semimanifoldWitness @b, semimanifoldWitness @β
+                        , smfdWBoundWitness @b, smfdWBoundWitness @β
+                        , dualSpaceWitness @(Needle b), dualSpaceWitness @(Needle β)
+                        , smfdWBoundWitness @s
+                        ) of
+           ( SemimanifoldWitness, SemimanifoldWitness
+            ,OpenManifoldWitness, OpenManifoldWitness
+            ,DualSpaceWitness, DualSpaceWitness
+            ,OpenManifoldWitness )
+             -> boundaryHasSameScalar @(Needle b)
+                 ( boundaryHasSameScalar @(Needle β)
+                 ( AffinDiffable IsDiffableEndo $ f *** g ))
+         prll (AffinDiffable _ f) (AffinDiffable _ g)
+          = boundaryHasSameScalar @(Needle β) (
+             boundaryHasSameScalar @(Needle γ) (
+              boundaryHasSameScalar @(Needle b) (
+               boundaryHasSameScalar @(Needle c) (
+              case ( semimanifoldWitness @β, semimanifoldWitness @γ
+                   , semimanifoldWitness @b, semimanifoldWitness @c ) of
+                 (SemimanifoldWitness, SemimanifoldWitness
+                  , SemimanifoldWitness, SemimanifoldWitness)
+                   -> AffinDiffable NotDiffableEndo $ f *** g
+             ))))
+         prll f g = genericiseDifferentiable f *** genericiseDifferentiable g
 
 
-instance (RealFrac' s) => PreArrow (Differentiable s) where
+instance (RealFrac'' s, SimpleSpace s) => PreArrow (Differentiable s) where
   terminal = Differentiable $ \_ -> (Origin, zeroV, const mempty)
   fst = Differentiable $ \(x,_) -> (x, fst, const mempty)
   snd = Differentiable $ \(_,y) -> (y, snd, const mempty)
@@ -373,7 +406,7 @@ instance (RealFrac' s) => PreArrow (Differentiable s) where
   f &&& g = genericiseDifferentiable f &&& genericiseDifferentiable g
 
 
-instance (RealFrac' s) => WellPointed (Differentiable s) where
+instance (RealFrac'' s, SimpleSpace s) => WellPointed (Differentiable s) where
   unit = Tagged Origin
   globalElement x = Differentiable $ \Origin -> (x, zeroV, const mempty)
   const x = Differentiable $ \_ -> (x, zeroV, const mempty)
@@ -382,33 +415,74 @@ instance (RealFrac' s) => WellPointed (Differentiable s) where
 
 type DfblFuncValue s = GenericAgent (Differentiable s)
 
-instance (RealFrac' s) => HasAgent (Differentiable s) where
+instance (RealFrac'' s) => HasAgent (Differentiable s) where
   alg = genericAlg
   ($~) = genericAgentMap
-instance ∀ s . (RealFrac' s) => CartesianAgent (Differentiable s) where
+instance ∀ s . (RealFloat'' s, SimpleSpace s) => CartesianAgent (Differentiable s) where
   alg1to2 = genericAlg1to2
   alg2to1 = a2t1
-   where a2t1 :: ∀ α β γ . (LocallyScalable s α, LocallyScalable s β)
-           => (∀ q . LocallyScalable s q
+   where a2t1 :: ∀ α β γ . ( Manifold α, Manifold β
+                           , Atlas' α, Atlas' β
+                           , ProjectableBoundary α
+                           , LocallyScalable s α, LocallyScalable s β
+                           )
+           => (∀ q . ( LocallyScalable s q, Manifold q, Atlas q
+                     , Interior (Needle q) ~ Needle q
+                     , PseudoAffineWithBoundary (Needle q)
+                     , LinearManifold (Needle q)
+                     , SimpleSpace (Needle q)
+                     , HasTrie (ChartIndex q) )
                => DfblFuncValue s q α -> DfblFuncValue s q β -> DfblFuncValue s q γ )
            -> Differentiable s (α,β) γ
-         a2t1 = case ( dualSpaceWitness :: DualSpaceWitness (Needle α)
-                     , dualSpaceWitness :: DualSpaceWitness (Needle β) ) of
-            (DualSpaceWitness, DualSpaceWitness) -> genericAlg2to1
+         a2t1 f = case ( semimanifoldWitness @α, semimanifoldWitness @β
+                       , dualSpaceWitness @(Needle α), dualSpaceWitness @(Needle β) ) of
+            ( SemimanifoldWitness, SemimanifoldWitness
+             ,DualSpaceWitness, DualSpaceWitness )
+                -> needleIsOpenMfd @α
+                    (needleIsOpenMfd @β
+                      (boundaryHasSameScalar @α
+                        (boundaryHasSameScalar @β
+                          (boundaryHasSameScalar @(Needle α)
+                            (boundaryHasSameScalar @(Needle β)
+                              (undefined -- genericAlg2to1 f
+                                     ))))))
   alg2to2 = a2t1
-   where a2t1 :: ∀ α β γ δ . ( LocallyScalable s α, LocallyScalable s β
+   where a2t1 :: ∀ α β γ δ . ( Manifold α, Manifold β, Manifold γ, Manifold δ
+                             , Atlas' α, Atlas' β, Atlas' γ, Atlas' δ
+                             , LocallyScalable s α, LocallyScalable s β
                              , LocallyScalable s γ, LocallyScalable s δ )
-           => (∀ q . LocallyScalable s q
+           => (∀ q . ( LocallyScalable s q, Manifold q, Atlas q
+                     , Interior (Needle q) ~ Needle q
+                     , PseudoAffineWithBoundary (Needle q)
+                     , LinearManifold (Needle q)
+                     , SimpleSpace (Needle q)
+                     , HasTrie (ChartIndex q) )
                => DfblFuncValue s q α -> DfblFuncValue s q β
                      -> (DfblFuncValue s q γ, DfblFuncValue s q δ) )
            -> Differentiable s (α,β) (γ,δ)
-         a2t1 = case ( dualSpaceWitness :: DualSpaceWitness (Needle α)
-                     , dualSpaceWitness :: DualSpaceWitness (Needle β)
-                     , dualSpaceWitness :: DualSpaceWitness (Needle γ)
-                     , dualSpaceWitness :: DualSpaceWitness (Needle δ) ) of
-            (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness, DualSpaceWitness)
-                  -> genericAlg2to2
-instance (RealFrac' s)
+         a2t1 f = case ( semimanifoldWitness @α, semimanifoldWitness @β
+                       , semimanifoldWitness @γ, semimanifoldWitness @δ
+                       , dualSpaceWitness @(Needle α), dualSpaceWitness @(Needle β)
+                       , dualSpaceWitness @(Needle γ), dualSpaceWitness @(Needle δ) ) of
+            ( SemimanifoldWitness, SemimanifoldWitness
+             ,SemimanifoldWitness, SemimanifoldWitness
+             ,DualSpaceWitness, DualSpaceWitness
+             ,DualSpaceWitness, DualSpaceWitness )
+                 -> needleIsOpenMfd @α
+                    (needleIsOpenMfd @β
+                     (needleIsOpenMfd @γ
+                      (needleIsOpenMfd @δ
+                       (boundaryHasSameScalar @α
+                        (boundaryHasSameScalar @β
+                         (boundaryHasSameScalar @γ
+                          (boundaryHasSameScalar @δ
+                           (boundaryHasSameScalar @(Needle α)
+                            (boundaryHasSameScalar @(Needle β)
+                             (boundaryHasSameScalar @(Needle γ)
+                              (boundaryHasSameScalar @(Needle δ)
+                               (undefined -- genericAlg2to2 f
+                                 ))))))))))))
+instance (RealFrac'' s, SimpleSpace s)
       => PointAgent (DfblFuncValue s) (Differentiable s) a x where
   point = genericPoint
 
@@ -438,18 +512,32 @@ actuallyAffine y₀ f = AffinDiffable NotDiffableEndo $ fromOffsetSlope y₀ f
 -- affinPoint p = GenericAgent (AffinDiffable (const p))
 
 
-dfblFnValsFunc :: ( LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
-                  , v ~ Needle c, v' ~ Needle c'
-                  , ε ~ Norm v, ε ~ Norm v'
-                  , RealFrac' s )
+dfblFnValsFunc :: ∀ c c' d v v' ε s
+     . ( Manifold c, Manifold d, Manifold c'
+       , Atlas' c, Atlas' d, Atlas' c'
+       , ProjectableBoundary s, ProjectableBoundary v'
+       , ProjectableBoundary (Needle d)
+       , SimpleSpace (Needle d)
+       , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
+       , v ~ Needle c, v' ~ Needle c'
+       , ε ~ Norm v, ε ~ Norm v'
+       , SimpleSpace v'
+       , RealFrac'' s )
              => (c' -> (c, v'+>v, ε->ε)) -> DfblFuncValue s d c' -> DfblFuncValue s d c
-dfblFnValsFunc f = (Differentiable f $~)
+dfblFnValsFunc f = case ( scalarSpaceWitness @s
+                        , smfdWBoundWitness @s
+                        , semimanifoldWitness @d
+                        , semimanifoldWitness @c' ) of
+   ( ScalarSpaceWitness, OpenManifoldWitness
+    ,SemimanifoldWitness, SemimanifoldWitness )
+        -> needleIsOpenMfd @c (needleIsOpenMfd @d (Differentiable f $~))
 
 dfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
          ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
          ,  LocallyScalable s d
          , v ~ Needle c, v' ~ Needle c', v'' ~ Needle c''
          , ε ~ Norm v  , ε' ~ Norm v'  , ε'' ~ Norm v'', ε~ε', ε~ε'' 
+         , SimpleSpace (Needle d)
          , RealFrac' s )
        => (  c' -> c'' -> (c, (v',v'')+>v, ε -> (ε',ε''))  )
          -> DfblFuncValue s d c' -> DfblFuncValue s d c'' -> DfblFuncValue s d c
@@ -477,38 +565,59 @@ dfblFnValsCombine cmb (GenericAgent fa) (GenericAgent ga)
 
 
 
-instance ∀ v s a . (LinearSpace v, Scalar v ~ s, LocallyScalable s a, RealFloat' s)
+instance ∀ v s a . ( LinearManifold v, Scalar v ~ s
+                   , LocallyScalable s a, Manifold a, Atlas' a, Atlas' v
+                   , SimpleSpace v, SimpleSpace (Needle a)
+                   , RealFloat'' s )
     => AdditiveGroup (DfblFuncValue s a v) where
-  zeroV = case ( linearManifoldWitness :: LinearManifoldWitness v
-               , dualSpaceWitness :: DualSpaceWitness v ) of
-     (LinearManifoldWitness _, DualSpaceWitness) -> point zeroV
-  (^+^) = case ( linearManifoldWitness :: LinearManifoldWitness v
-               , dualSpaceWitness :: DualSpaceWitness v ) of
-     (LinearManifoldWitness _, DualSpaceWitness)
+  zeroV = case ( linearManifoldWitness @v, dualSpaceWitness @v
+               , semimanifoldWitness @a
+               ) of
+     (LinearManifoldWitness, DualSpaceWitness, SemimanifoldWitness)
+         -> needleIsOpenMfd @a (scalarIsOpenMfd @a
+               (needleBoundaryIsTriviallyProjectible @a (point zeroV)))
+  (^+^) = needleIsOpenMfd @a ( needleBoundaryIsTriviallyProjectible @a
+               (case ( linearManifoldWitness @v
+                     , linearManifoldWitness @(Needle a)
+                     , dualSpaceWitness @v
+                     , dualSpaceWitness @(Needle a) ) of
+     (LinearManifoldWitness, LinearManifoldWitness
+      ,DualSpaceWitness, DualSpaceWitness)
          -> curry $ \case
         (GenericAgent (AffinDiffable ef f), GenericAgent (AffinDiffable eg g))
               -> GenericAgent $ AffinDiffable (ef<>eg) (f^+^g)
         (α,β) -> dfblFnValsCombine (\a b -> (a^+^b, arr addV, const mempty)) α β
-  negateV = case ( linearManifoldWitness :: LinearManifoldWitness v
-                 , dualSpaceWitness :: DualSpaceWitness v ) of
-      (LinearManifoldWitness _, DualSpaceWitness) -> \case
+    ))
+  negateV = needleIsOpenMfd @a (case ( linearManifoldWitness @v, dualSpaceWitness @v
+                                     , semimanifoldWitness @a
+                                     ) of
+     (LinearManifoldWitness, DualSpaceWitness, SemimanifoldWitness)
+         -> needleBoundaryIsTriviallyProjectible @a (\case
          (GenericAgent (AffinDiffable ef f))
            -> GenericAgent $ AffinDiffable ef (negateV f)
          α -> dfblFnValsFunc (\a -> (negateV a, negateV id, const mempty)) α
+      )
+    )
   
-instance ∀ n a . (RealDimension n, LocallyScalable n a)
+instance ∀ n a . ( RealFloat'' n, Manifold a, LocallyScalable n a
+                 , SimpleSpace (Needle a)
+                 , Atlas' a, Atlas' n
+                 )
             => Num (DfblFuncValue n a n) where
-  fromInteger = case ( linearManifoldWitness :: LinearManifoldWitness n
-                     , closedScalarWitness :: ClosedScalarWitness n ) of
-      (LinearManifoldWitness _, ClosedScalarWitness) -> point . fromInteger
+  fromInteger = case ( linearManifoldWitness @n, dualSpaceWitness @n
+                     , semimanifoldWitness @a, closedScalarWitness @n
+                     ) of
+     (LinearManifoldWitness, DualSpaceWitness, SemimanifoldWitness, ClosedScalarWitness)
+         -> needleIsOpenMfd @a (scalarIsOpenMfd @a
+               (needleBoundaryIsTriviallyProjectible @a (point . fromInteger)))
   (+) = case closedScalarWitness :: ClosedScalarWitness n of
       ClosedScalarWitness -> (^+^)
   (*) = case ( linearManifoldWitness :: LinearManifoldWitness n
              , closedScalarWitness :: ClosedScalarWitness n ) of
-      (LinearManifoldWitness _, ClosedScalarWitness) -> dfblFnValsCombine $
+      (LinearManifoldWitness, ClosedScalarWitness) -> dfblFnValsCombine $
           \a b -> ( a*b
                   , arr $ addV <<< (scale $ a)***(scale $ b)
-                  , unsafe_dev_ε_δ(show a++"*"++show b) (sqrt :: n->n)
+                  , unsafe_dev_ε_δ(showℝ a++"*"++showℝ b) (sqrt :: n->n)
                        >>> \d¹₂ -> (d¹₂,d¹₂)
                            -- ε δa δb = (a+δa)·(b+δb) - (a·b + (a·δa + b·δb)) 
                            --         = δa·δb
@@ -516,22 +625,23 @@ instance ∀ n a . (RealDimension n, LocallyScalable n a)
                   )
   negate = case closedScalarWitness :: ClosedScalarWitness n of
      ClosedScalarWitness -> negateV
-  abs = mkabs linearManifoldWitness closedScalarWitness
-   where mkabs :: LinearManifoldWitness n -> ClosedScalarWitness n
-                     -> DfblFuncValue n a n -> DfblFuncValue n a n
-         mkabs (LinearManifoldWitness _) ClosedScalarWitness = dfblFnValsFunc dfblAbs
+  abs = needleBoundaryIsTriviallyProjectible @a (
+   case (linearManifoldWitness @n, closedScalarWitness @n) of
+         (LinearManifoldWitness, ClosedScalarWitness) -> dfblFnValsFunc dfblAbs
           where dfblAbs a
-                 | a>0        = (a, id, unsafe_dev_ε_δ("abs "++show a) $ \ε -> a + ε/2) 
-                 | a<0        = (-a, negateV id, unsafe_dev_ε_δ("abs "++show a) $ \ε -> ε/2 - a)
+                 | a>0        = (a, id, unsafe_dev_ε_δ("abs "++showℝ a) $ \ε -> a + ε/2) 
+                 | a<0        = (-a, negateV id, unsafe_dev_ε_δ("abs "++showℝ a)
+                                       $ \ε -> ε/2 - a)
                  | otherwise  = (0, zeroV, scaleNorm (sqrt 0.5))
-  signum = mksgn linearManifoldWitness closedScalarWitness
-   where mksgn :: LinearManifoldWitness n -> ClosedScalarWitness n
-                     -> DfblFuncValue n a n -> DfblFuncValue n a n
-         mksgn (LinearManifoldWitness _) ClosedScalarWitness = dfblFnValsFunc dfblSgn
+     )
+  signum = needleBoundaryIsTriviallyProjectible @a (
+   case (linearManifoldWitness @n, closedScalarWitness @n) of
+         (LinearManifoldWitness, ClosedScalarWitness) -> dfblFnValsFunc dfblSgn
           where dfblSgn a
-                 | a>0        = (1, zeroV, unsafe_dev_ε_δ("signum "++show a) $ const a)
-                 | a<0        = (-1, zeroV, unsafe_dev_ε_δ("signum "++show a) $ \_ -> -a)
+                 | a>0        = (1, zeroV, unsafe_dev_ε_δ("signum "++showℝ a) $ const a)
+                 | a<0        = (-1, zeroV, unsafe_dev_ε_δ("signum "++showℝ a) $ \_ -> -a)
                  | otherwise  = (0, zeroV, const $ spanNorm [1])
+     )
 
 
 
@@ -548,13 +658,13 @@ instance ∀ n a . (RealDimension n, LocallyScalable n a)
 
 
 -- | Important special operator needed to compute intersection of 'Region's.
-minDblfuncs :: ∀ s m . (LocallyScalable s m, RealDimension s)
+minDblfuncs :: ∀ m s . (LocallyScalable s m, RealFloat'' s)
      => Differentiable s m s -> Differentiable s m s -> Differentiable s m s
 minDblfuncs (Differentiable f) (Differentiable g)
              = Differentiable $ h linearManifoldWitness closedScalarWitness
  where h :: LinearManifoldWitness s -> ClosedScalarWitness s
              -> m -> (s, Needle m+>Needle s, LinDevPropag m s)
-       h (LinearManifoldWitness _) ClosedScalarWitness x
+       h (LinearManifoldWitness) ClosedScalarWitness x
          | fx < gx   = ( fx, jf
                        , \d -> devf d <> devg d
                                <> transformNorm δj
@@ -577,20 +687,31 @@ postEndo = genericAgentMap
 
 
 
-genericisePreRegion :: ∀ s m . (RealDimension s, LocallyScalable s m)
+genericisePreRegion :: ∀ m s
+    . ( RealFloat'' s, LocallyScalable s m, Manifold m
+      , Atlas' m, Atlas' s, SimpleSpace (Needle m)
+      )
                           => PreRegion s m -> PreRegion s m
-genericisePreRegion GlobalRegion = case ( linearManifoldWitness :: LinearManifoldWitness s
-                                        , closedScalarWitness :: ClosedScalarWitness s ) of
-    (LinearManifoldWitness _, ClosedScalarWitness) -> PreRegion $ const 1
-genericisePreRegion (RealSubray PositiveHalfSphere xl) = preRegionToInfFrom' xl
-genericisePreRegion (RealSubray NegativeHalfSphere xr) = preRegionFromMinInfTo' xr
-genericisePreRegion r = r
+genericisePreRegion
+ = scalarIsOpenMfd @m (needleIsOpenMfd @m (needleBoundaryIsTriviallyProjectible @m 
+    (scalarBoundaryIsTriviallyProjectible @m (
+      case ( linearManifoldWitness @s, closedScalarWitness @s, semimanifoldWitness @m ) of
+    (LinearManifoldWitness, ClosedScalarWitness, SemimanifoldWitness)
+          -> \case
+          GlobalRegion -> PreRegion $ const 1
+          RealSubray PositiveHalfSphere xl -> preRegionToInfFrom' xl
+          RealSubray NegativeHalfSphere xr -> preRegionFromMinInfTo' xr
+          r -> r
+  ))))
 
 -- | Set-intersection of regions would not be guaranteed to yield a connected result
 --   or even have the reference point of one region contained in the other. This
 --   combinator assumes (unchecked) that the references are in a connected
 --   sub-intersection, which is used as the result.
-unsafePreRegionIntersect :: (RealDimension s, LocallyScalable s a)
+unsafePreRegionIntersect :: ∀ a s
+    . ( RealFloat'' s, LocallyScalable s a
+      , Manifold a, Atlas' a, Atlas' s
+      , SimpleSpace (Needle a) )
                   => PreRegion s a -> PreRegion s a -> PreRegion s a
 unsafePreRegionIntersect GlobalRegion r = r
 unsafePreRegionIntersect r GlobalRegion = r
@@ -598,29 +719,35 @@ unsafePreRegionIntersect (RealSubray PositiveHalfSphere xl) (RealSubray Positive
                  = RealSubray PositiveHalfSphere $ max xl xl'
 unsafePreRegionIntersect (RealSubray NegativeHalfSphere xr) (RealSubray NegativeHalfSphere xr')
                  = RealSubray NegativeHalfSphere $ min xr xr'
-unsafePreRegionIntersect (PreRegion ra) (PreRegion rb) = PreRegion $ minDblfuncs ra rb
+unsafePreRegionIntersect (PreRegion ra) (PreRegion rb) = case scalarSpaceWitness @s of
+      ScalarSpaceWitness -> PreRegion $ minDblfuncs ra rb
 unsafePreRegionIntersect ra rb
    = unsafePreRegionIntersect (genericisePreRegion ra) (genericisePreRegion rb)
 
 -- | Cartesian product of two regions.
-regionProd :: (RealDimension s, LocallyScalable s a, LocallyScalable s b)
+regionProd :: ∀ a b s . ( RealDimension s, ObjectPair (Differentiable s) a b )
                   => Region s a -> Region s b -> Region s (a,b)
 regionProd (Region a₀ ra) (Region b₀ rb) = Region (a₀,b₀) (preRegionProd ra rb)
 
 -- | Cartesian product of two pre-regions.
-preRegionProd :: ∀ s a b . (RealDimension s, LocallyScalable s a, LocallyScalable s b)
+preRegionProd :: ∀ a b s . ( RealDimension s, ObjectPair (Differentiable s) a b )
                   => PreRegion s a -> PreRegion s b -> PreRegion s (a,b)
-preRegionProd = prp linearManifoldWitness closedScalarWitness
- where prp :: LinearManifoldWitness s -> ClosedScalarWitness s
-                 -> PreRegion s a -> PreRegion s b -> PreRegion s (a,b)
-       prp _ _ GlobalRegion GlobalRegion = GlobalRegion
-       prp (LinearManifoldWitness _) ClosedScalarWitness GlobalRegion (PreRegion rb)
-                    = PreRegion $ rb . snd
-       prp (LinearManifoldWitness _) ClosedScalarWitness (PreRegion ra) GlobalRegion
-                    = PreRegion $ ra . fst
-       prp (LinearManifoldWitness _) ClosedScalarWitness (PreRegion ra) (PreRegion rb)
-                    = PreRegion $ minDblfuncs (ra.fst) (rb.snd)
-       prp _ _ ra rb = preRegionProd (genericisePreRegion ra) (genericisePreRegion rb)
+preRegionProd = boundaryHasSameScalar @b
+              ( case ( semimanifoldWitness @a, semimanifoldWitness @b
+                     , linearManifoldWitness @s, closedScalarWitness @s
+                     , smfdWBoundWitness @b ) of
+     ( SemimanifoldWitness, SemimanifoldWitness
+      ,LinearManifoldWitness, ClosedScalarWitness
+      ,OpenManifoldWitness ) -> \case
+                      GlobalRegion -> \case
+                          GlobalRegion -> GlobalRegion
+                          (PreRegion rb) -> PreRegion $ rb . snd
+                      (PreRegion ra) -> \case
+                          GlobalRegion -> PreRegion $ ra . fst
+                          (PreRegion rb) -> PreRegion $ minDblfuncs (ra.fst) (rb.snd)
+                      ra -> \rb -> preRegionProd (genericisePreRegion ra)
+                                                 (genericisePreRegion rb)
+   )
 
 
 positivePreRegion, negativePreRegion :: (RealDimension s) => PreRegion s s
@@ -633,10 +760,10 @@ positivePreRegion' = PreRegion . Differentiable
                        $ prr linearManifoldWitness closedScalarWitness
  where prr :: LinearManifoldWitness s -> ClosedScalarWitness s
            -> s -> (s, Needle s+>Needle s, LinDevPropag s s)
-       prr (LinearManifoldWitness _) ClosedScalarWitness
+       prr (LinearManifoldWitness) ClosedScalarWitness
            x = ( 1 - 1/xp1
                , (1/xp1²) *^ id
-               , unsafe_dev_ε_δ("positivePreRegion@"++show x) δ )
+               , unsafe_dev_ε_δ("positivePreRegion@"++showℝ x) δ )
                  -- ε = (1 − 1/(1+x)) + (-δ · 1/(x+1)²) − (1 − 1/(1+x−δ))
                  --   = 1/(1+x−δ) − 1/(1+x) − δ · 1/(x+1)²
                  --
@@ -673,7 +800,7 @@ positivePreRegion' = PreRegion . Differentiable
               xp1² = xp1 ^ 2
 negativePreRegion' = npr (linearManifoldWitness :: LinearManifoldWitness s)
                          (closedScalarWitness :: ClosedScalarWitness s)
- where npr (LinearManifoldWitness BoundarylessWitness)
+ where npr (LinearManifoldWitness)
            (ClosedScalarWitness :: ClosedScalarWitness s)
                   = PreRegion $ ppr . ngt
         where PreRegion ppr = positivePreRegion' :: PreRegion s s
@@ -686,14 +813,14 @@ preRegionFromMinInfTo = RealSubray NegativeHalfSphere
 preRegionToInfFrom', preRegionFromMinInfTo' :: ∀ s . RealDimension s => s -> PreRegion s s
 preRegionToInfFrom' = prif (linearManifoldWitness :: LinearManifoldWitness s)
                            (closedScalarWitness :: ClosedScalarWitness s)
- where prif (LinearManifoldWitness BoundarylessWitness)
+ where prif (LinearManifoldWitness)
             (ClosedScalarWitness :: ClosedScalarWitness s)
             xs = PreRegion $ ppr . trl
         where PreRegion ppr = positivePreRegion' :: PreRegion s s
               trl = actuallyAffineEndo (-xs) id
 preRegionFromMinInfTo' = prif (linearManifoldWitness :: LinearManifoldWitness s)
                            (closedScalarWitness :: ClosedScalarWitness s)
- where prif (LinearManifoldWitness BoundarylessWitness)
+ where prif (LinearManifoldWitness)
             (ClosedScalarWitness :: ClosedScalarWitness s)
             xe = PreRegion $ ppr . flp
         where PreRegion ppr = positivePreRegion' :: PreRegion s s
@@ -705,10 +832,10 @@ intervalPreRegion (lb,rb) = PreRegion . Differentiable
  where m = lb + radius; radius = (rb - lb)/2
        prr :: LinearManifoldWitness s -> ClosedScalarWitness s
                 -> s -> (s, Needle s+>Needle s, LinDevPropag s s)
-       prr (LinearManifoldWitness _) ClosedScalarWitness
+       prr (LinearManifoldWitness) ClosedScalarWitness
            x = ( 1 - ((x-m)/radius)^2
                , (2*(m-x)/radius^2) *^ id
-               , unsafe_dev_ε_δ("intervalPreRegion@"++show x) $ (*radius) . sqrt )
+               , unsafe_dev_ε_δ("intervalPreRegion@"++showℝ x) $ (*radius) . sqrt )
 
 
 
@@ -721,8 +848,10 @@ intervalPreRegion (lb,rb) = PreRegion . Differentiable
 
 
 instance (RealDimension s) => Category (RWDiffable s) where
-  type Object (RWDiffable s) o = (LocallyScalable s o, Manifold o, SimpleSpace (Needle o))
-  id = RWDiffable $ \x -> (GlobalRegion, pure id)
+  type Object (RWDiffable s) o = Object (Differentiable s) o
+  id = rwdid
+   where rwdid :: ∀ a . Object (RWDiffable s) a => RWDiffable s a a
+         rwdid = RWDiffable $ \x -> (GlobalRegion, pure id)
   RWDiffable f . RWDiffable g = RWDiffable h where
    h x₀ = case g x₀ of
            ( rg, Just gr'@(AffinDiffable IsDiffableEndo gr) )
@@ -838,10 +967,8 @@ data RWDfblFuncValue s d c where
   RWDFV_IdVar :: RWDfblFuncValue s c c
   GenericRWDFV :: RWDiffable s d c -> RWDfblFuncValue s d c
 
-genericiseRWDFV :: ( RealDimension s
-                   , LocallyScalable s c, SimpleSpace (Needle c)
-                   , LocallyScalable s d, SimpleSpace (Needle d)
-                   , Manifold d, Manifold c )
+genericiseRWDFV ::
+   ( RealDimension s, Object (Differentiable s) d, Object (Differentiable s) c )
                     => RWDfblFuncValue s d c -> RWDfblFuncValue s d c
 genericiseRWDFV (ConstRWDFV c) = GenericRWDFV $ const c
 genericiseRWDFV RWDFV_IdVar = GenericRWDFV id
@@ -867,20 +994,19 @@ instance (RealDimension s)
 
 grwDfblFnValsFunc
      :: ( RealDimension s
-        , LocallyScalable s c, LocallyScalable s c', LocallyScalable s d
-        , Manifold d, Manifold c, Manifold c'
+        , Object (Differentiable s) d, Object (Differentiable s) c, Object (Differentiable s) c'
         , v ~ Needle c, v' ~ Needle c'
-        , SimpleSpace v, SimpleSpace (Needle d)
+        , SimpleSpace v
         , ε ~ Norm v, ε ~ Norm v' )
              => (c' -> (c, v'+>v, ε->ε)) -> RWDfblFuncValue s d c' -> RWDfblFuncValue s d c
 grwDfblFnValsFunc f = (RWDiffable (\_ -> (GlobalRegion, pure (Differentiable f))) $~)
 
 grwDfblFnValsCombine :: forall d c c' c'' v v' v'' ε ε' ε'' s. 
-         ( LocallyScalable s c,  LocallyScalable s c',  LocallyScalable s c''
-         , LocallyScalable s d, RealDimension s
-         , Manifold d, Manifold c', Manifold c''
+         ( RealDimension s
+         , Object (Differentiable s) d, Object (Differentiable s) c'
+         , Object (Differentiable s) c', Object (Differentiable s) c''
          , v ~ Needle c, v' ~ Needle c', v'' ~ Needle c''
-         , SimpleSpace v, SimpleSpace (Needle d)
+         , SimpleSpace v
          , ε ~ Norm v  , ε' ~ Norm v'  , ε'' ~ Norm v'', ε~ε', ε~ε''  )
        => (  c' -> c'' -> (c, (v',v'')+>v, ε -> (ε',ε''))  )
          -> RWDfblFuncValue s d c' -> RWDfblFuncValue s d c'' -> RWDfblFuncValue s d c
@@ -911,16 +1037,20 @@ grwDfblFnValsCombine cmb fv gv
         = grwDfblFnValsCombine cmb (genericiseRWDFV fv) (genericiseRWDFV gv)
 
           
-rwDfbl_plus :: ∀ s a v .
-        ( WithField s Manifold a
-        , LinearSpace v, Scalar v ~ s
-        , RealDimension s )
+rwDfbl_plus :: ∀ a v s .
+        ( RealDimension s
+        , Object (Differentiable s) a, Object (Differentiable s) v
+        , LinearSpace v )
       => RWDiffable s a v -> RWDiffable s a v -> RWDiffable s a v
 rwDfbl_plus (RWDiffable f) (RWDiffable g) = RWDiffable
-              $ h linearManifoldWitness dualSpaceWitness
-   where h :: LinearManifoldWitness v -> DualSpaceWitness v
+              $ needleIsOpenMfd @a (needleBoundaryIsTriviallyProjectible @a (
+                   h linearManifoldWitness linearManifoldWitness
+                        dualSpaceWitness dualSpaceWitness))
+   where h :: (OpenManifold (Needle a), ProjectableBoundary (Needle a))
+               => LinearManifoldWitness v -> LinearManifoldWitness (Needle a)
+               -> DualSpaceWitness v -> DualSpaceWitness (Needle a)
                 -> a -> (PreRegion s a, Maybe (Differentiable s a v))
-         h (LinearManifoldWitness _) DualSpaceWitness
+         h LinearManifoldWitness LinearManifoldWitness DualSpaceWitness DualSpaceWitness
            x₀ = (rh, liftA2 fgplus ff gf)
           where (rf, ff) = f x₀
                 (rg, gf) = g x₀
@@ -944,15 +1074,20 @@ rwDfbl_plus (RWDiffable f) (RWDiffable g) = RWDiffable
                 fgplus (AffinDiffable fe fa) (AffinDiffable ge ga)
                            = AffinDiffable (fe<>ge) (fa^+^ga)
 
-rwDfbl_negateV :: ∀ s a v .
+rwDfbl_negateV :: ∀ a v s .
         ( WithField s Manifold a
         , LinearSpace v, Scalar v ~ s
         , RealDimension s )
       => RWDiffable s a v -> RWDiffable s a v
-rwDfbl_negateV (RWDiffable f) = RWDiffable $ h linearManifoldWitness dualSpaceWitness
-   where h :: LinearManifoldWitness v -> DualSpaceWitness v
+rwDfbl_negateV (RWDiffable f) = RWDiffable
+           $ needleIsOpenMfd @a (needleBoundaryIsTriviallyProjectible @a (
+                  h linearManifoldWitness dualSpaceWitness
+                    linearManifoldWitness dualSpaceWitness))
+   where h :: (OpenManifold (Needle a), ProjectableBoundary (Needle a))
+             => LinearManifoldWitness v -> DualSpaceWitness v
+              -> LinearManifoldWitness (Needle a) -> DualSpaceWitness (Needle a)
                 -> a -> (PreRegion s a, Maybe (Differentiable s a v))
-         h (LinearManifoldWitness _) DualSpaceWitness
+         h LinearManifoldWitness DualSpaceWitness LinearManifoldWitness DualSpaceWitness
            x₀ = (rf, fmap fneg ff)
           where (rf, ff) = f x₀
                 fneg :: Differentiable s a v -> Differentiable s a v
@@ -961,10 +1096,10 @@ rwDfbl_negateV (RWDiffable f) = RWDiffable $ h linearManifoldWitness dualSpaceWi
                         where (fx, jf, δf) = fd x
                 fneg (AffinDiffable ef af) = AffinDiffable ef $ negateV af
 
-postCompRW :: ( RealDimension s
-              , LocallyScalable s a, LocallyScalable s b, LocallyScalable s c
-              , Manifold a, Manifold b, Manifold c
-              , SimpleSpace (Needle a), SimpleSpace (Needle b), SimpleSpace (Needle c) )
+postCompRW :: ∀ a b c s . ( RealDimension s
+                          , Object (Differentiable s) a
+                          , Object (Differentiable s) b
+                          , Object (Differentiable s) c )
               => RWDiffable s b c -> RWDfblFuncValue s a b -> RWDfblFuncValue s a c
 postCompRW (RWDiffable f) (ConstRWDFV x) = case f x of
      (_, Just fd) -> ConstRWDFV $ fd $ x
@@ -972,16 +1107,16 @@ postCompRW f RWDFV_IdVar = GenericRWDFV f
 postCompRW f (GenericRWDFV g) = GenericRWDFV $ f . g
 
 
-instance ∀ s a v . ( WithField s Manifold a, SimpleSpace (Needle a)
-                   , Atlas v, HasTrie (ChartIndex v), SimpleSpace v, Scalar v ~ s
-                   , RealDimension s )
+instance ∀ s a v . ( RealDimension s
+                   , Object (Differentiable s) a, Object (Differentiable s) v
+                   , LinearSpace v )
     => AdditiveGroup (RWDfblFuncValue s a v) where
   zeroV = case ( linearManifoldWitness :: LinearManifoldWitness v
                , dualSpaceWitness :: DualSpaceWitness v ) of
-      (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness) -> point zeroV
+      (LinearManifoldWitness, DualSpaceWitness) -> point zeroV
   (^+^) = case ( linearManifoldWitness :: LinearManifoldWitness v
                , dualSpaceWitness :: DualSpaceWitness v ) of
-      (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness)
+      (LinearManifoldWitness, DualSpaceWitness)
          -> curry $ \case
               (ConstRWDFV c₁, ConstRWDFV c₂) -> ConstRWDFV (c₁^+^c₂)
               (ConstRWDFV c₁, RWDFV_IdVar) -> GenericRWDFV $
@@ -997,7 +1132,7 @@ instance ∀ s a v . ( WithField s Manifold a, SimpleSpace (Needle a)
                                 -> GenericRWDFV $ rwDfbl_plus f g
   negateV = case ( linearManifoldWitness :: LinearManifoldWitness v
                  , dualSpaceWitness :: DualSpaceWitness v ) of
-      (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness) -> \case
+      (LinearManifoldWitness, DualSpaceWitness) -> \case
         (ConstRWDFV c) -> ConstRWDFV (negateV c)
         RWDFV_IdVar -> GenericRWDFV $ globalDiffable' (actuallyLinearEndo $ negateV id)
         (GenericRWDFV f) -> GenericRWDFV $ rwDfbl_negateV f
@@ -1012,12 +1147,11 @@ dualCoCoProduct = dccp (dualSpaceWitness::DualSpaceWitness w)
               s' = adjoint $ s :: LinearMap s v (DualVector w)
               tSpread = sum . map recip_t²PLUSs² $ snd (decomposeLinMap t') []
               sSpread = sum . map recip_t²PLUSs² $ snd (decomposeLinMap s') []
-              t²PLUSs²@(Norm t²Ps²M)
+              t²PLUSs²'@(Norm t²Ps²M)
                 = transformNorm t euclideanNorm <> transformNorm s euclideanNorm :: Norm w
-              recip_t²PLUSs² = normSq (dualNorm t²PLUSs²) :: DualVector w -> s
+              recip_t²PLUSs² = normSq (dualNorm t²PLUSs²') :: DualVector w -> s
 
-instance ( RealDimension n, WithField n Manifold a
-         , LocallyScalable n a, SimpleSpace (Needle a))
+instance ∀ n a . ( RealDimension n, Object (Differentiable n) a, SimpleSpace (Needle a) )
             => Num (RWDfblFuncValue n a n) where
   fromInteger i = point $ fromInteger i
   (+) = (^+^)
@@ -1031,8 +1165,7 @@ instance ( RealDimension n, WithField n Manifold a
   GenericRWDFV f * ConstRWDFV c₂ = GenericRWDFV $
                                globalDiffable' (actuallyLinearEndo . arr $ scale $ c₂) . f
   f*g = genericiseRWDFV f ⋅ genericiseRWDFV g
-   where (⋅) :: ∀ n a . (RealDimension n, LocallyScalable n a, SimpleSpace (Needle a))
-           => RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n 
+   where (⋅) :: RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n 
          GenericRWDFV (RWDiffable fpcs) ⋅ GenericRWDFV (RWDiffable gpcs)
            = GenericRWDFV . RWDiffable $
                \d₀ -> let (rc₁, fmay) = fpcs d₀
@@ -1083,14 +1216,13 @@ instance ( RealDimension n, WithField n Manifold a
           | a₀<0       = (negativePreRegion, pure (const $ -1))
           | otherwise  = (positivePreRegion, pure (const 1))
 
-instance ( RealDimension n, WithField n Manifold a
-         , LocallyScalable n a, SimpleSpace (Needle a))
+instance ∀ n a . ( RealDimension n, Object (Differentiable n) a, SimpleSpace (Needle a) )
             => Fractional (RWDfblFuncValue n a n) where
   fromRational i = point $ fromRational i
   recip = postCompRW . RWDiffable $ \a₀ -> if a₀<0
                                     then (negativePreRegion, pure (Differentiable negp))
                                     else (positivePreRegion, pure (Differentiable posp))
-   where negp x = (x'¹, (- x'¹^2) *^ id, unsafe_dev_ε_δ("1/"++show x) δ)
+   where negp x = (x'¹, (- x'¹^2) *^ id, unsafe_dev_ε_δ("1/"++showℝ x) δ)
                  -- ε = 1/x − δ/x² − 1/(x+δ)
                  -- ε·x + ε·δ = 1 + δ/x − δ/x − δ²/x² − 1
                  --           = -δ²/x²
@@ -1103,7 +1235,7 @@ instance ( RealDimension n, WithField n Manifold a
                            else - x -- numerical underflow of εx³ vs mph
                                     --  ≡ ε*x^3 / (2*mph) (Taylor-expansion of the root)
                 x'¹ = recip x
-         posp x = (x'¹, (- x'¹^2) *^ id, unsafe_dev_ε_δ("1/"++show x) δ)
+         posp x = (x'¹, (- x'¹^2) *^ id, unsafe_dev_ε_δ("1/"++showℝ x) δ)
           where δ ε = let mph = ε*x^2/2
                           δ₀ = sqrt (mph^2 + ε*x^3) - mph
                       in if δ₀>0 then δ₀ else x
@@ -1112,18 +1244,17 @@ instance ( RealDimension n, WithField n Manifold a
 
 
 
-instance ∀ n a . ( RealDimension n, WithField n Manifold a
-                 , LocallyScalable n a, SimpleSpace (Needle a) )
+instance ∀ n a . ( RealDimension n, Object (Differentiable n) a, SimpleSpace (Needle a) )
             => Floating (RWDfblFuncValue n a n) where
   pi = point pi
   
   exp = grwDfblFnValsFunc
     $ \x -> let ex = exp x
             in if ex*2 == ex  -- numerical trouble...
-                then if x<0 then ( 0, zeroV, unsafe_dev_ε_δ("exp "++show x) $ \ε -> log ε - x )
+                then if x<0 then ( 0, zeroV, unsafe_dev_ε_δ("exp "++showℝ x) $ \ε -> log ε - x )
                             else ( ex, ex*^id
-                                 , unsafe_dev_ε_δ("exp "++show x) $ \_ -> 1e-300 :: n )
-                else ( ex, ex *^ id, unsafe_dev_ε_δ("exp "++show x)
+                                 , unsafe_dev_ε_δ("exp "++showℝ x) $ \_ -> 1e-300 :: n )
+                else ( ex, ex *^ id, unsafe_dev_ε_δ("exp "++showℝ x)
                           $ \ε -> case acosh(ε/(2*ex) + 1) of
                                     δ | δ==δ      -> δ
                                       | otherwise -> log ε - x )
@@ -1136,7 +1267,7 @@ instance ∀ n a . ( RealDimension n, WithField n Manifold a
   log = postCompRW . RWDiffable $ \x -> if x>0
                                   then (positivePreRegion, pure (Differentiable lnPosR))
                                   else (negativePreRegion, notDefinedHere)
-   where lnPosR x = ( log x, recip x *^ id, unsafe_dev_ε_δ("log "++show x) $ \ε -> x * sqrt(1 - exp(-ε)) )
+   where lnPosR x = ( log x, recip x *^ id, unsafe_dev_ε_δ("log "++showℝ x) $ \ε -> x * sqrt(1 - exp(-ε)) )
                  -- ε = ln x + (-δ)/x − ln(x−δ)
                  --   = ln (x / ((x−δ) · exp(δ/x)))
                  -- x/e^ε = (x−δ) · exp(δ/x)
@@ -1150,13 +1281,13 @@ instance ∀ n a . ( RealDimension n, WithField n Manifold a
   sqrt = postCompRW . RWDiffable $ \x -> if x>0
                                    then (positivePreRegion, pure (Differentiable sqrtPosR))
                                    else (negativePreRegion, notDefinedHere)
-   where sqrtPosR x = ( sx, id ^/ (2*sx), unsafe_dev_ε_δ("sqrt "++show x) $
+   where sqrtPosR x = ( sx, id ^/ (2*sx), unsafe_dev_ε_δ("sqrt "++showℝ x) $
                           \ε -> 2 * (s2 * sqrt sx^3 * sqrt ε + signum (ε*2-sx) * sx * ε) )
           where sx = sqrt x; s2 = sqrt 2
                  -- Exact inverse of O(δ²) remainder.
   
   sin = grwDfblFnValsFunc sinDfb
-   where sinDfb x = ( sx, cx *^ id, unsafe_dev_ε_δ("sin "++show x) δ )
+   where sinDfb x = ( sx, cx *^ id, unsafe_dev_ε_δ("sin "++showℝ x) δ )
           where sx = sin x; cx = cos x
                 sx² = sx^2; cx² = cx^2
                 sx' = abs sx; cx' = abs cx
@@ -1185,7 +1316,7 @@ instance ∀ n a . ( RealDimension n, WithField n Manifold a
   cosh x = (exp x + exp (-x))/2
   
   tanh = grwDfblFnValsFunc tanhDfb
-   where tanhDfb x = ( tnhx, id ^/ (cosh x^2), unsafe_dev_ε_δ("tan "++show x) δ )
+   where tanhDfb x = ( tnhx, id ^/ (cosh x^2), unsafe_dev_ε_δ("tan "++showℝ x) δ )
           where tnhx = tanh x
                 c = (tnhx*2/pi)^2
                 p = 1 + abs x/(2*pi)
@@ -1194,7 +1325,7 @@ instance ∀ n a . ( RealDimension n, WithField n Manifold a
                   -- with quite a big margin. TODO: find a tighter definition.
 
   atan = grwDfblFnValsFunc atanDfb
-   where atanDfb x = ( atnx, id ^/ (1+x^2), unsafe_dev_ε_δ("atan "++show x) δ )
+   where atanDfb x = ( atnx, id ^/ (1+x^2), unsafe_dev_ε_δ("atan "++showℝ x) δ )
           where atnx = atan x
                 c = (atnx*2/pi)^2
                 p = 1 + abs x/(2*pi)
@@ -1210,7 +1341,7 @@ instance ∀ n a . ( RealDimension n, WithField n Manifold a
                   | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
                   | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable asinDefdR))
-   where asinDefdR x = ( asinx, asin'x *^ id, unsafe_dev_ε_δ("asin "++show x) δ )
+   where asinDefdR x = ( asinx, asin'x *^ id, unsafe_dev_ε_δ("asin "++showℝ x) δ )
           where asinx = asin x; asin'x = recip (sqrt $ 1 - x^2)
                 c = 1 - x^2 
                 δ ε = sqrt ε * c
@@ -1220,13 +1351,13 @@ instance ∀ n a . ( RealDimension n, WithField n Manifold a
                   | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
                   | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable acosDefdR))
-   where acosDefdR x = ( acosx, acos'x *^ id, unsafe_dev_ε_δ("acos "++show x) δ )
+   where acosDefdR x = ( acosx, acos'x *^ id, unsafe_dev_ε_δ("acos "++showℝ x) δ )
           where acosx = acos x; acos'x = - recip (sqrt $ 1 - x^2)
                 c = 1 - x^2
                 δ ε = sqrt ε * c -- Like for asin – it's just a translation/reflection.
 
   asinh = grwDfblFnValsFunc asinhDfb
-   where asinhDfb x = ( asinhx, id ^/ sqrt(1+x^2), unsafe_dev_ε_δ("asinh "++show x) δ )
+   where asinhDfb x = ( asinhx, id ^/ sqrt(1+x^2), unsafe_dev_ε_δ("asinh "++showℝ x) δ )
           where asinhx = asinh x
                 δ ε = abs x * sqrt((1 - exp(-ε))*0.8 + ε^2/(3*abs x + 1)) + sqrt(ε/(abs x+0.5))
                  -- Empirical, modified from log function (the area hyperbolic sine
@@ -1235,7 +1366,7 @@ instance ∀ n a . ( RealDimension n, WithField n Manifold a
   acosh = postCompRW . RWDiffable $ \x -> if x>1
                                    then (preRegionToInfFrom 1, pure (Differentiable acoshDfb))
                                    else (preRegionFromMinInfTo 1, notDefinedHere)
-   where acoshDfb x = ( acosh x, id ^/ sqrt(x^2 - 1), unsafe_dev_ε_δ("acosh "++show x) δ )
+   where acoshDfb x = ( acosh x, id ^/ sqrt(x^2 - 1), unsafe_dev_ε_δ("acosh "++showℝ x) δ )
           where δ ε = (2 - 1/sqrt x) * (s2 * sqrt sx^3 * sqrt(ε/s2) + signum (ε*s2-sx) * sx * ε/s2) 
                 sx = sqrt(x-1)
                 s2 = sqrt 2
@@ -1246,7 +1377,7 @@ instance ∀ n a . ( RealDimension n, WithField n Manifold a
                   | x < (-1)   -> (preRegionFromMinInfTo (-1), notDefinedHere)  
                   | x > 1      -> (preRegionToInfFrom 1, notDefinedHere)
                   | otherwise  -> (intervalPreRegion (-1,1), pure (Differentiable atnhDefdR))
-   where atnhDefdR x = ( atanh x, recip(1-x^2) *^ id, unsafe_dev_ε_δ("atanh "++show x) $ \ε -> sqrt(tanh ε)*(1-abs x) )
+   where atnhDefdR x = ( atanh x, recip(1-x^2) *^ id, unsafe_dev_ε_δ("atanh "++showℝ x) $ \ε -> sqrt(tanh ε)*(1-abs x) )
                  -- Empirical, with epsEst upper bound.
   
 
@@ -1290,9 +1421,8 @@ infixr 4 ?->
 --   Just _ 'Control.Applicative.*>' a = a
 --   _      'Control.Applicative.*>' a = Nothing
 --   @
-(?->) :: ( RealDimension n, LocallyScalable n a, LocallyScalable n b, LocallyScalable n c
-         , Manifold b, Manifold c
-         , SimpleSpace (Needle b), SimpleSpace (Needle c) )
+(?->) :: ( RealDimension n, Object (Differentiable n) a, Object (Differentiable n) b
+         , Object (Differentiable n) c )
       => RWDfblFuncValue n c a -> RWDfblFuncValue n c b -> RWDfblFuncValue n c b
 ConstRWDFV _ ?-> f = f
 RWDFV_IdVar ?-> f = f
@@ -1318,12 +1448,12 @@ infixl 5 ?> , ?<
 --   allows chaining of comparison operators like in Python.)
 --   Note that less-than comparison is <http://www.paultaylor.eu/ASD/ equivalent>
 --   to less-or-equal comparison, because there is no such thing as equality.
-(?>) :: (RealDimension n, LocallyScalable n a, Manifold a, SimpleSpace (Needle a))
+(?>) :: ( RealDimension n, Object (Differentiable n) a, SimpleSpace (Needle a) )
            => RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n
 a ?> b = (positiveRegionalId $~ a-b) ?-> b
 
 -- | Return the RHS, if it is greater than the LHS.
-(?<) :: (RealDimension n, LocallyScalable n a, Manifold a, SimpleSpace (Needle a))
+(?<) :: ( RealDimension n, Object (Differentiable n) a, SimpleSpace (Needle a) )
            => RWDfblFuncValue n a n -> RWDfblFuncValue n a n -> RWDfblFuncValue n a n
 ConstRWDFV a ?< RWDFV_IdVar = GenericRWDFV . RWDiffable $
        \x₀ -> if a < x₀ then ( preRegionToInfFrom a
@@ -1346,9 +1476,7 @@ infixl 3 ?|:
 --   @
 -- 
 --  Basically a weaker and agent-ised version of 'backupRegions'.
-(?|:) :: ( RealDimension n, LocallyScalable n a, LocallyScalable n b
-         , Manifold a, Manifold b
-         , SimpleSpace (Needle a), SimpleSpace (Needle b) )
+(?|:) :: ( RealDimension n, Object (Differentiable n) a, Object (Differentiable n) b )
       => RWDfblFuncValue n a b -> RWDfblFuncValue n a b -> RWDfblFuncValue n a b
 ConstRWDFV c ?|: _ = ConstRWDFV c
 RWDFV_IdVar ?|: _ = RWDFV_IdVar
@@ -1365,7 +1493,7 @@ c ?|: f = c ?|: genericiseRWDFV f
 
 -- | Replace the regions in which the first function is undefined with values
 --   from the second function.
-backupRegions :: (RealDimension n, LocallyScalable n a, LocallyScalable n b)
+backupRegions :: (RealDimension n, Object (Differentiable n) a, Object (Differentiable n) b)
       => RWDiffable n a b -> RWDiffable n a b -> RWDiffable n a b
 backupRegions (RWDiffable f) (RWDiffable g) = RWDiffable h
  where h x₀ = case f x₀ of
@@ -1379,12 +1507,12 @@ backupRegions (RWDiffable f) (RWDiffable g) = RWDiffable h
 
 -- | Like 'Data.VectorSpace.lerp', but gives a differentiable function
 --   instead of a Hask one.
-lerp_diffable :: ∀ m s . ( LinearSpace m, Scalar m ~ s, Atlas m
-                         , HasTrie (ChartIndex m), RealDimension s )
+lerp_diffable :: ∀ m s . ( LinearSpace m, RealDimension s, Object (Differentiable s) m )
       => m -> m -> Differentiable s s m
-lerp_diffable = case ( linearManifoldWitness :: LinearManifoldWitness m
-                     , dualSpaceWitness :: DualSpaceWitness m ) of
-     (LinearManifoldWitness BoundarylessWitness, DualSpaceWitness)
+lerp_diffable = case ( linearManifoldWitness @m
+                     , dualSpaceWitness @m
+                     , smfdWBoundWitness @m) of
+     (LinearManifoldWitness, DualSpaceWitness, OpenManifoldWitness)
          -> \a b -> actuallyAffine a . arr $ flipBilin scale $ b.-.a
 
 
