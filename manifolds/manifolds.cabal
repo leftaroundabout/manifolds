@@ -101,6 +101,7 @@ Library
                      Data.Manifold.Riemannian
                      Math.Manifold.Real.Coordinates
                      Math.Manifold.Embedding.Simple.Class
+                     Math.Manifold.Homogeneous
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive
                    Data.Manifold.WithBoundary.Class
