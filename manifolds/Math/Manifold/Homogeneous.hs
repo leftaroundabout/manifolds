@@ -35,16 +35,20 @@ import Data.AffineSpace
 import Data.Basis
 
 import Math.Manifold.Core.PseudoAffine
+import Data.Manifold.PseudoAffine
 import Math.Manifold.Core.Types
 import Data.Manifold.Types.Primitive
 import Math.Manifold.VectorSpace.ZeroDimensional
+import Math.LinearMap.Category
 import Data.Complex
-import Linear (V0, V1, V2, V3, V4, Quaternion)
+import Linear (V0, V1, V2, V3, V4, Quaternion(..), cross)
 import qualified Linear.Affine as LinAff
 import Data.Monoid.Additive
 
 import Control.Applicative
 import Control.Arrow
+
+import Data.Semigroup
 
 import Data.Kind (Type)
 
@@ -72,4 +76,36 @@ instance RealFloat r => Semigroup (SO2_ r) where
   SO2 a <> SO2 b = SO2 $ a*b  -- perhaps should normalize?
 instance RealFloat r => Monoid (SO2_ r) where
   mempty = SO2 1
+  mappend = (<>)
+
+instance RealFloat' r => Semimanifold (SO2_ r) where
+  type Needle (SO2_ r) = r
+  p .+~^ d = p <> expMap d
+  semimanifoldWitness = case linearManifoldWitness @r of
+    LinearManifoldWitness -> SemimanifoldWitness
+
+instance RealFloat' r => LieGroup (SO2_ r) where
+  expMap = SO2 . cis
+  lieBracket _ _ = zeroV
+
+
+type SO3 r = SO3_ Double
+data SO3_ r = SO3 { unitReprSO3 :: Quaternion r }
+
+instance RealFloat r => Semigroup (SO3_ r) where
+  SO3 a <> SO3 b = SO3 $ a*b  -- perhaps should normalize?
+instance RealFloat r => Monoid (SO3_ r) where
+  mempty = SO3 1
+  mappend = (<>)
+
+instance RealFloat' r => Semimanifold (SO3_ r) where
+  type Needle (SO3_ r) = V3 r
+  p .+~^ d = p <> expMap d
+  semimanifoldWitness = case linearManifoldWitness @r of
+    LinearManifoldWitness -> SemimanifoldWitness
+
+instance RealFloat' r => LieGroup (SO3_ r) where
+  expMap a = SO3 . exp $ Quaternion 0 a
+  lieBracket = cross
+
 

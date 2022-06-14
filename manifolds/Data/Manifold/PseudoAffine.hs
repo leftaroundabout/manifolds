@@ -55,6 +55,7 @@ module Data.Manifold.PseudoAffine (
             , Semimanifold(..), Needle'
             , PseudoAffine(..)
             , LinearManifold, ScalarManifold
+            , Num', RealFrac', RealFloat'
             , Num'', RealFrac'', RealFloat''
             -- * Type definitions
             -- ** Needles
