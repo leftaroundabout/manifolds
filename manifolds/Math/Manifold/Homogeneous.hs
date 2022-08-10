@@ -76,7 +76,7 @@ copyNewtypeInstances [t| ∀ g . (Semimanifold g) => LieAlgebra g |]
 --
 --   @
 --   expMap zeroV ≡ mempty
---   lieBracket v w ≡ negateV (lieBracket v w)
+--   lieBracket w v ≡ negateV (lieBracket v w)
 --   ...
 --   @
 class (Semimanifold g, Monoid g) => LieGroup g where
@@ -84,7 +84,7 @@ class (Semimanifold g, Monoid g) => LieGroup g where
   lieBracket :: Bilinear (LieAlgebra g) (LieAlgebra g) (LieAlgebra g)
 
 
-type SO2 r = SO2_ Double
+type SO2 = SO2_ Double
 data SO2_ r = SO2 { unitReprSO2 :: Complex r }
 
 instance RealFloat r => Semigroup (SO2_ r) where
@@ -104,7 +104,7 @@ instance RealFloat' r => LieGroup (SO2_ r) where
   lieBracket = zeroV
 
 
-type SO3 r = SO3_ Double
+type SO3 = SO3_ Double
 data SO3_ r = SO3 { unitReprSO3 :: Quaternion r }
 
 instance RealFloat r => Semigroup (SO3_ r) where
