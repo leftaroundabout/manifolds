@@ -27,6 +27,7 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE TypeInType                 #-}
 {-# LANGUAGE CPP                        #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 
 module Math.Manifold.Homogeneous where
@@ -41,6 +42,7 @@ import Math.Manifold.Core.Types
 import Data.Manifold.Types.Primitive
 import Math.Manifold.VectorSpace.ZeroDimensional
 import Math.LinearMap.Category
+import Math.VectorSpace.Dual
 import Data.Complex
 import Linear (V0, V1, V2, V3, V4, Quaternion(..), cross)
 import qualified Linear.Affine as LinAff
@@ -50,7 +52,7 @@ import Prelude hiding (($))
 import Control.Arrow.Constrained ((<<<), ($))
 import Control.Applicative
 
-import Data.Semigroup
+import Data.Semigroup hiding (Dual)
 
 import Data.Kind (Type)
 import Data.Coerce
@@ -59,94 +61,12 @@ import Data.Type.Coercion
 import Data.CallStack (HasCallStack)
 
 
-newtype LieAlgebra g = LieAlgebra { getLieNeedle :: Needle g }
-deriving instance (AdditiveGroup (Needle g)) => AdditiveGroup (LieAlgebra g)
-instance (VectorSpace (Needle g)) => VectorSpace (LieAlgebra g) where
-  type Scalar (LieAlgebra g) = Scalar (Needle g)
-  μ *^ LieAlgebra v = LieAlgebra $ μ *^ v
-instance (AdditiveGroup (Needle g)) => AffineSpace (LieAlgebra g) where
-  type Diff (LieAlgebra g) = LieAlgebra g
-  (.-.) = (^-^)
-  (.+^) = (^+^)
+newtype LieAlgebra g
+    = LieAlgebra { getLieNeedle :: Needle g }
 
-instance (AdditiveGroup (Needle g)) => Semimanifold (LieAlgebra g) where
-  type Needle (LieAlgebra g) = LieAlgebra g
-  (.+~^) = (^+^)
-instance (AdditiveGroup (Needle g)) => PseudoAffine (LieAlgebra g) where
-  (.-~.) = fmap pure <$> (^-^)
-  (.-~!) = (^-^)
+copyNewtypeInstances [t| ∀ g . (Semimanifold g) => LieAlgebra g |]
+    [''AdditiveGroup]
 
-coerceTensor :: ∀ v v' w . Coercible (Tensor (Scalar v) v w) (Tensor (Scalar v) v' w)
-                  => Tensor (Scalar v) v w -> Tensor (Scalar v) v' w
-coerceTensor = coerce
-
-coerceTensorLin :: ∀ v v' w . Coercible (Tensor (Scalar v) v w) (Tensor (Scalar v) v' w)
-                  => Tensor (Scalar v) v w -+> Tensor (Scalar v) v' w
-coerceTensorLin = LinearFunction coerceTensor
-
-
-instance ∀ g . (TensorSpace (Needle g)) => TensorSpace (LieAlgebra g) where
-  type TensorProduct (LieAlgebra g) w = TensorProduct (Needle g) w
-  coerceFmapTensorProduct _ crc
-         = Coercion <<< coerceFmapTensorProduct @(Needle g) [] crc
-                    <<< Coercion
-  scalarSpaceWitness = case scalarSpaceWitness @(Needle g) of
-    ScalarSpaceWitness -> ScalarSpaceWitness
-  linearManifoldWitness = case linearManifoldWitness @(Needle g) of
-    LinearManifoldWitness -> LinearManifoldWitness
-  toFlatTensor = coerce (toFlatTensor @(Needle g))
-  fromFlatTensor = coerce (fromFlatTensor @(Needle g))
-  tensorProduct = LinearFunction $ \(LieAlgebra v)
-     -> coerceTensorLin @(Needle g) <<< (tensorProduct -+$> v)
-  transposeTensor = tt
-   where tt :: ∀ w . (TensorSpace w, Scalar w ~ Scalar (Needle g))
-                 => (LieAlgebra g ⊗ w) -+> (w ⊗ LieAlgebra g)
-         tt = LinearFunction $ \(Tensor t) -> Tensor
-                ( coerceFmapTensorProduct @w @[] @(Needle g) @(LieAlgebra g) [] Coercion
-                $ getTensorProduct
-                $ transposeTensor @(Needle g) @w
-                 -+$> Tensor t )
-  fmapTensor = ft
-   where ft :: ∀ w x . ( TensorSpace w, Scalar w ~ Scalar (Needle g)
-                       , TensorSpace x, Scalar x ~ Scalar (Needle g) )
-                 => Bilinear (LinearFunction (Scalar (Needle g)) w x)
-                             (LieAlgebra g ⊗ w)
-                             (LieAlgebra g ⊗ x)
-         ft = coerce (fmapTensor @(Needle g) @w @x)
-  fzipTensorWith = ft
-   where ft :: ∀ u w x . ( TensorSpace w, Scalar w ~ Scalar (Needle g)
-                         , TensorSpace x, Scalar x ~ Scalar (Needle g)
-                         , TensorSpace u, Scalar u ~ Scalar (Needle g) )
-                 => Bilinear (LinearFunction (Scalar (Needle g)) (w,x) u)
-                             (LieAlgebra g ⊗ w, LieAlgebra g ⊗ x)
-                             (LieAlgebra g ⊗ u)
-         ft = coerce (fzipTensorWith @(Needle g) @u @w @x)
-  zeroTensor = coerceTensor @(Needle g) zeroTensor 
-  addTensors = at
-   where at :: ∀ w . (TensorSpace w, Scalar w ~ Scalar (Needle g))
-                 => (LieAlgebra g ⊗ w) -> (LieAlgebra g ⊗ w) -> (LieAlgebra g ⊗ w)
-         at = coerce (addTensors @(Needle g) @w)
-  subtractTensors = st
-   where st :: ∀ w . (TensorSpace w, Scalar w ~ Scalar (Needle g))
-                 => (LieAlgebra g ⊗ w) -> (LieAlgebra g ⊗ w) -> (LieAlgebra g ⊗ w)
-         st = coerce (subtractTensors @(Needle g) @w)
-  negateTensor = nt
-   where nt :: ∀ w . (TensorSpace w, Scalar w ~ Scalar (Needle g))
-                 => (LieAlgebra g ⊗ w) -+> (LieAlgebra g ⊗ w)
-         nt = coerce (negateTensor @(Needle g) @w)
-  scaleTensor = st
-   where st :: ∀ w . (TensorSpace w, Scalar w ~ Scalar (Needle g))
-                 => Bilinear (Scalar (Needle g)) (LieAlgebra g ⊗ w) (LieAlgebra g ⊗ w)
-         st = coerce (scaleTensor @(Needle g) @w)
-  wellDefinedVector (LieAlgebra v) = LieAlgebra <$> wellDefinedVector v
-  wellDefinedTensor (Tensor t) = coerceTensor @(Needle g)
-       <$> wellDefinedTensor (Tensor t)
-  
-
--- newtype LieDual
-
--- instance ∀ g . (LinearSpace (Needle g)) => LinearSpace (LieAlgebra g) where
-  -- type DualVector (LieAlgebra g) = 
 
 
 -- | Manifolds with a continuous group structure, whose 'Needle' space
