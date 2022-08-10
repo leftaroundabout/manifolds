@@ -23,6 +23,7 @@ import Data.Manifold.Web
 import Data.Manifold.Web.Internal
 import Data.Manifold.Function.LocalModel
 import Math.Manifold.Embedding.Simple.Class
+import Math.Manifold.Homogeneous
 import Data.VectorSpace
 import Data.Cross (cross3)
 import Linear.V2 (V2(V2))
@@ -198,6 +199,15 @@ tests = testGroup "Tests"
   , QC.testProperty "Undo – arbitrary axis / angle and points in 𝑇S²."
            $ \ax ψ p -> rotateAboutThenUndo @(TangentBundle S²) ax ψ p ≈ p
   ]
+ , testGroup "Homogeneous spaces"
+  $ let lieGroupTests :: ∀ m g . ( g`ActsOn`m, QC.Arbitrary m, AEq m
+                                 , Show m, SP.Show m )
+           => String -> TestTree
+        lieGroupTests descr = testGroup descr $
+         [ QC.testProperty "`mempty` acts as identity"
+          $ \(p :: m) -> action (mempty :: g) p ?≈! p
+         ]
+    in [ lieGroupTests @S¹ @SO2 "SO(2) on S¹" ]
  , testGroup "Coordinates"
   [ testGroup "Single dimension"
    [ QC.testProperty "Access" $ \x -> x^.xCoord ≈ x

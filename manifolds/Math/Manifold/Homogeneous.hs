@@ -11,6 +11,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE DefaultSignatures          #-}
@@ -43,7 +44,7 @@ import Data.Manifold.Types.Primitive
 import Math.Manifold.VectorSpace.ZeroDimensional
 import Math.LinearMap.Category
 import Math.VectorSpace.Dual
-import Data.Complex
+import Data.Complex as ℂ
 import Linear (V0, V1, V2, V3, V4, Quaternion(..), cross)
 import qualified Linear.Affine as LinAff
 import Data.Monoid.Additive
@@ -123,4 +124,18 @@ instance ∀ r . RealFloat' r => LieGroup (SO3_ r) where
   expMap (LieAlgebra a) = SO3 . exp $ Quaternion 0 a
   lieBracket = coerce (cross :: V3 r -> V3 r -> V3 r)
 
+
+
+-- | Manifolds that are homogeneous with respect to action by a Lie group.
+--   Laws:
+--
+--   @
+--   action mempty ≡ id
+--   ...
+--   @
+class (Semimanifold m, LieGroup g) => g `ActsOn` m where
+  action :: g -> m -> m
+
+instance SO2`ActsOn`S¹ where
+  action (SO2 β) p = p .+~^ ℂ.phase β
 
