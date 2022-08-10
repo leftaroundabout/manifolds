@@ -328,26 +328,31 @@ instance LocallyCoercible (V4 ℝ) ((ℝ,ℝ),(ℝ,ℝ)) where
   coerceNeedle' _ = LinearFunction $ \(V4 x y z w) -> ((x,y),(z,w))
 
 
-instance ( Semimanifold a, Semimanifold b, Semimanifold c
+instance ∀ a b c .
+         ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
          , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c)
-         , Scalar (Needle' a) ~ Scalar (Needle a), Scalar (Needle' b) ~ Scalar (Needle b)
-         , Scalar (Needle' c) ~ Scalar (Needle c) )
+         )
      => LocallyCoercible (a,(b,c)) ((a,b),c) where
   locallyTrivialDiffeomorphism = regroup
   coerceNeedle _ = regroup
-  coerceNeedle' _ = regroup
+  coerceNeedle' _ = case ( dualSpaceWitness @(Needle a)
+                         , dualSpaceWitness @(Needle b)
+                         , dualSpaceWitness @(Needle c) ) of
+     (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness) -> regroup
   oppositeLocalCoercion = CanonicalDiffeomorphism
 instance ∀ a b c .
          ( Semimanifold a, Semimanifold b, Semimanifold c
          , LSpace (Needle a), LSpace (Needle b), LSpace (Needle c)
          , Scalar (Needle a) ~ Scalar (Needle b), Scalar (Needle b) ~ Scalar (Needle c)
-         , Scalar (Needle' a) ~ Scalar (Needle a), Scalar (Needle' b) ~ Scalar (Needle b)
-         , Scalar (Needle' c) ~ Scalar (Needle c)  )
+         )
      => LocallyCoercible ((a,b),c) (a,(b,c)) where
   locallyTrivialDiffeomorphism = regroup'
   coerceNeedle _ = regroup'
-  coerceNeedle' _ = regroup'
+  coerceNeedle' _ = case ( dualSpaceWitness @(Needle a)
+                         , dualSpaceWitness @(Needle b)
+                         , dualSpaceWitness @(Needle c) ) of
+     (DualSpaceWitness, DualSpaceWitness, DualSpaceWitness) -> regroup'
   oppositeLocalCoercion = CanonicalDiffeomorphism
 
 
