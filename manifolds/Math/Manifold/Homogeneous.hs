@@ -48,21 +48,21 @@ import Math.Manifold.VectorSpace.ZeroDimensional
 import Math.LinearMap.Category
 import Math.VectorSpace.Dual
 import Data.Complex as ℂ
-import Linear (V0, V1, V2, V3, V4, Quaternion(..), cross)
+import Linear (V0, V1, V2, V3(..), V4, Quaternion(..), cross)
 import qualified Linear.Affine as LinAff
 import Data.Monoid.Additive
 
-import Prelude hiding (($))
+import Prelude hiding (($), (^))
 import Control.Arrow.Constrained ((<<<), ($))
 import Control.Applicative
 
 import Data.Semigroup hiding (Dual)
 
+import qualified Test.QuickCheck as QC
+
 import Data.Kind (Type)
 import Data.Coerce
 import Data.Type.Coercion
-
-import Data.CallStack (HasCallStack)
 
 
 newtype LieAlgebra g
@@ -89,7 +89,11 @@ class (Semimanifold g, Monoid g) => LieGroup g where
 
 
 type SO2 = SO2_ Double
-data SO2_ r = SO2 { unitReprSO2 :: Complex r }
+newtype SO2_ r = SO2 { unitReprSO2 :: Complex r }
+ deriving (Eq, Show)
+
+instance (QC.Arbitrary r, Floating r) => QC.Arbitrary (SO2_ r) where
+  arbitrary = SO2 . ℂ.cis <$> QC.arbitrary
 
 instance RealFloat r => Semigroup (SO2_ r) where
   SO2 a <> SO2 b = SO2 $ a*b  -- perhaps should normalize?
@@ -109,7 +113,15 @@ instance RealFloat' r => LieGroup (SO2_ r) where
 
 
 type SO3 = SO3_ Double
-data SO3_ r = SO3 { unitReprSO3 :: Quaternion r }
+newtype SO3_ r = SO3 { unitReprSO3 :: Quaternion r }
+ deriving (Eq, Show)
+
+instance (QC.Arbitrary r, RealFloat r) => QC.Arbitrary (SO3_ r) where
+  arbitrary = do
+    (a,b,c,d) <- QC.arbitrary
+    pure . SO3 $ case sqrt . sum $ (^2)<$>[a,b,c,d] of
+      l | l>0       -> Quaternion (a/l) (V3 b c d ^/ l)
+        | otherwise -> 1
 
 instance RealFloat r => Semigroup (SO3_ r) where
   SO3 a <> SO3 b = SO3 $ a*b  -- perhaps should normalize?

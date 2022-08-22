@@ -200,15 +200,23 @@ tests = testGroup "Tests"
            $ \ax ψ p -> rotateAboutThenUndo @(TangentBundle S²) ax ψ p ≈ p
   ]
  , testGroup "Homogeneous spaces"
-  $ let lieGroupTests :: ∀ m g . ( g`ActsOn`m, QC.Arbitrary m, AEq m
-                                 , Show m, SP.Show m )
+  $ let lieGroupTests :: ∀ m g . ( g`ActsOn`m
+                                 , QC.Arbitrary m
+                                 , AEq m, Show m, SP.Show m
+                                 , QC.Arbitrary g, Show g )
            => String -> TestTree
         lieGroupTests descr = testGroup descr $
          [ QC.testProperty "`mempty` acts as identity"
           $ \(p :: m) -> action (mempty :: g) p ?≈! p
+         , QC.testProperty "There are non-identic elements" -- This is strictly speaking
+          . QC.expectFailure                                -- not true for all homogeneous
+          $ \a (p :: m) -> action (a :: g) p ?≈! p          -- spaces, but the trivial
+                                                            -- ones don't need testing.
+         , QC.testProperty "Associativity of action"
+          $ \a b (p :: m) -> action (a<>b :: g) p ?≈! action a (action b p)
          ]
-    in [ lieGroupTests @S¹ @SO2 "SO(2) on S¹"
-       , lieGroupTests @S² @SO3 "SO(3) on S²" ]
+    in [ lieGroupTests @S¹ @SO2 "SO(2) acting on S¹"
+       , lieGroupTests @S² @SO3 "SO(3) acting on S²" ]
  , testGroup "Coordinates"
   [ testGroup "Single dimension"
    [ QC.testProperty "Access" $ \x -> x^.xCoord ≈ x
