@@ -31,7 +31,10 @@
 {-# LANGUAGE TemplateHaskell            #-}
 
 
-module Math.Manifold.Homogeneous where
+module Math.Manifold.Homogeneous
+    ( LieGroup(..), LieAlgebra, ActsOn(..)
+    , SO2(..), SO3(..)
+    ) where
 
 import Data.VectorSpace
 import Data.AffineSpace
@@ -124,7 +127,11 @@ instance ∀ r . RealFloat' r => LieGroup (SO3_ r) where
   expMap (LieAlgebra a) = SO3 . exp $ Quaternion 0 a
   lieBracket = coerce (cross :: V3 r -> V3 r -> V3 r)
 
+embedPureImagUnitQuaternion :: RealFloat r => S²_ r -> Quaternion r
+embedPureImagUnitQuaternion = Quaternion 0 . embed
 
+projectPureImagUnitQuaternion :: RealFloat r => Quaternion r -> S²_ r
+projectPureImagUnitQuaternion (Quaternion _ p) = coEmbed p
 
 -- | Manifolds that are homogeneous with respect to action by a Lie group.
 --   Laws:
@@ -136,6 +143,10 @@ instance ∀ r . RealFloat' r => LieGroup (SO3_ r) where
 class (Semimanifold m, LieGroup g) => g `ActsOn` m where
   action :: g -> m -> m
 
-instance SO2`ActsOn`S¹ where
+instance RealFloat' r => SO2_ r`ActsOn`S¹_ r where
   action (SO2 β) p = p .+~^ ℂ.phase β
+
+instance RealFloat' r => SO3_ r`ActsOn`S²_ r where
+  action (SO3 γ) p = projectPureImagUnitQuaternion $ γ * α * recip γ
+   where α = embedPureImagUnitQuaternion p
 

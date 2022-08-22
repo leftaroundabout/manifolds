@@ -207,7 +207,8 @@ tests = testGroup "Tests"
          [ QC.testProperty "`mempty` acts as identity"
           $ \(p :: m) -> action (mempty :: g) p ?≈! p
          ]
-    in [ lieGroupTests @S¹ @SO2 "SO(2) on S¹" ]
+    in [ lieGroupTests @S¹ @SO2 "SO(2) on S¹"
+       , lieGroupTests @S² @SO3 "SO(3) on S²" ]
  , testGroup "Coordinates"
   [ testGroup "Single dimension"
    [ QC.testProperty "Access" $ \x -> x^.xCoord ≈ x
