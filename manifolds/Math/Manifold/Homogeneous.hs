@@ -33,7 +33,7 @@
 
 module Math.Manifold.Homogeneous
     ( LieGroup(..), LieAlgebra, ActsOn(..)
-    , SO2(..), SO3(..)
+    , SO
     ) where
 
 import Data.VectorSpace
@@ -61,6 +61,7 @@ import Data.Semigroup hiding (Dual)
 import qualified Test.QuickCheck as QC
 
 import Data.Kind (Type)
+import GHC.TypeLits (Nat)
 import Data.Coerce
 import Data.Type.Coercion
 
@@ -88,54 +89,74 @@ class (Semimanifold g, Monoid g) => LieGroup g where
   lieBracket :: Bilinear (LieAlgebra g) (LieAlgebra g) (LieAlgebra g)
 
 
-type SO2 = SO2_ Double
-newtype SO2_ r = SO2 { unitReprSO2 :: Complex r }
+data family SO_ (n :: Nat) (r :: Type)
+
+type SO n = SO_ n Double
+
+data instance SO_ 1 r = SO1Identity
  deriving (Eq, Show)
 
-instance (QC.Arbitrary r, Floating r) => QC.Arbitrary (SO2_ r) where
+instance (QC.Arbitrary r, Floating r) => QC.Arbitrary (SO_ 1 r) where
+  arbitrary = pure SO1Identity
+
+instance Semigroup (SO_ 1 r) where
+  SO1Identity <> SO1Identity = SO1Identity
+instance Monoid (SO_ 1 r) where
+  mempty = SO1Identity
+  mappend = (<>)
+
+instance RealFloat' r => Semimanifold (SO_ 1 r) where
+  type Needle (SO_ 1 r) = ZeroDim r
+  SO1Identity .+~^ Origin = SO1Identity
+  semimanifoldWitness = case linearManifoldWitness @r of
+    LinearManifoldWitness -> SemimanifoldWitness
+
+newtype instance SO_ 2 r = SO2 { unitReprSO2 :: Complex r }
+ deriving (Eq, Show)
+
+instance (QC.Arbitrary r, Floating r) => QC.Arbitrary (SO_ 2 r) where
   arbitrary = SO2 . ℂ.cis <$> QC.arbitrary
 
-instance RealFloat r => Semigroup (SO2_ r) where
+instance RealFloat r => Semigroup (SO_ 2 r) where
   SO2 a <> SO2 b = SO2 $ a*b  -- perhaps should normalize?
-instance RealFloat r => Monoid (SO2_ r) where
+instance RealFloat r => Monoid (SO_ 2 r) where
   mempty = SO2 1
   mappend = (<>)
 
-instance RealFloat' r => Semimanifold (SO2_ r) where
-  type Needle (SO2_ r) = r
+instance RealFloat' r => Semimanifold (SO_ 2 r) where
+  type Needle (SO_ 2 r) = r
   p .+~^ d = p <> expMap (LieAlgebra d)
   semimanifoldWitness = case linearManifoldWitness @r of
     LinearManifoldWitness -> SemimanifoldWitness
 
-instance RealFloat' r => LieGroup (SO2_ r) where
+instance RealFloat' r => LieGroup (SO_ 2 r) where
   expMap = SO2 . cis . getLieNeedle
   lieBracket = zeroV
 
 
-type SO3 = SO3_ Double
-newtype SO3_ r = SO3 { unitReprSO3 :: Quaternion r }
+newtype instance SO_ 3 r = SO3 { unitReprSO3 :: Quaternion r }
  deriving (Eq, Show)
 
-instance (QC.Arbitrary r, RealFloat r) => QC.Arbitrary (SO3_ r) where
+instance (QC.Arbitrary r, RealFloat r) => QC.Arbitrary (SO_ 3 r) where
   arbitrary = do
     (a,b,c,d) <- QC.arbitrary
     pure . SO3 $ case sqrt . sum $ (^2)<$>[a,b,c,d] of
       l | l>0       -> Quaternion (a/l) (V3 b c d ^/ l)
         | otherwise -> 1
 
-instance RealFloat r => Semigroup (SO3_ r) where
+instance RealFloat r => Semigroup (SO_ 3 r) where
   SO3 a <> SO3 b = SO3 $ a*b  -- perhaps should normalize?
-instance RealFloat r => Monoid (SO3_ r) where
+instance RealFloat r => Monoid (SO_ 3 r) where
   mempty = SO3 1
   mappend = (<>)
 
-instance RealFloat' r => Semimanifold (SO3_ r) where
-  type Needle (SO3_ r) = V3 r
+instance RealFloat' r => Semimanifold (SO_ 3 r) where
+  type Needle (SO_ 3 r) = V3 r
   p .+~^ d = p <> expMap (LieAlgebra d)
   semimanifoldWitness = case linearManifoldWitness @r of
     LinearManifoldWitness -> SemimanifoldWitness
 
-instance ∀ r . RealFloat' r => LieGroup (SO3_ r) where
+instance ∀ r . RealFloat' r => LieGroup (SO_ 3 r) where
   expMap (LieAlgebra a) = SO3 . exp $ Quaternion 0 a
   lieBracket = coerce (cross :: V3 r -> V3 r -> V3 r)
 
@@ -155,10 +176,10 @@ projectPureImagUnitQuaternion (Quaternion _ p) = coEmbed p
 class (Semimanifold m, LieGroup g) => g `ActsOn` m where
   action :: g -> m -> m
 
-instance RealFloat' r => SO2_ r`ActsOn`S¹_ r where
+instance RealFloat' r => SO_ 2 r`ActsOn`S¹_ r where
   action (SO2 β) p = p .+~^ ℂ.phase β
 
-instance RealFloat' r => SO3_ r`ActsOn`S²_ r where
+instance RealFloat' r => SO_ 3 r`ActsOn`S²_ r where
   action (SO3 γ) p = projectPureImagUnitQuaternion $ γ * α * recip γ
    where α = embedPureImagUnitQuaternion p
 

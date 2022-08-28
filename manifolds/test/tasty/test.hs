@@ -11,6 +11,7 @@
 {-# LANGUAGE OverloadedLists, TypeFamilies, FlexibleContexts, UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances, AllowAmbiguousTypes  #-}
 {-# LANGUAGE TypeOperators, TypeApplications, ScopedTypeVariables, UnicodeSyntax #-}
+{-# LANGUAGE DataKinds #-}
 
 module Main where
 
@@ -215,8 +216,9 @@ tests = testGroup "Tests"
          , QC.testProperty "Compatibility of action"
           $ \a b (p :: m) -> action (a<>b :: g) p ?≈! action a (action b p)
          ]
-    in [ lieGroupTests @S¹ @SO2 "SO(2) acting on S¹"
-       , lieGroupTests @S² @SO3 "SO(3) acting on S²" ]
+    in [ lieGroupTests @S¹ @(SO 2) "SO(2) acting on S¹"
+       , lieGroupTests @S² @(SO 3) "SO(3) acting on S²"
+       ]
  , testGroup "Coordinates"
   [ testGroup "Single dimension"
    [ QC.testProperty "Access" $ \x -> x^.xCoord ≈ x
