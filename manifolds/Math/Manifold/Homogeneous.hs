@@ -149,8 +149,8 @@ projectPureImagUnitQuaternion (Quaternion _ p) = coEmbed p
 --   Laws:
 --
 --   @
---   action mempty ≡ id
---   ...
+--   action mempty ≡ id                  (Identity)
+--   action (a<>b) ≡ action a . action b (Compatibility)
 --   @
 class (Semimanifold m, LieGroup g) => g `ActsOn` m where
   action :: g -> m -> m

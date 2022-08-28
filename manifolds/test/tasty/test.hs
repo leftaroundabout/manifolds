@@ -212,7 +212,7 @@ tests = testGroup "Tests"
           . QC.expectFailure                                -- not true for all homogeneous
           $ \a (p :: m) -> action (a :: g) p ?≈! p          -- spaces, but the trivial
                                                             -- ones don't need testing.
-         , QC.testProperty "Associativity of action"
+         , QC.testProperty "Compatibility of action"
           $ \a b (p :: m) -> action (a<>b :: g) p ?≈! action a (action b p)
          ]
     in [ lieGroupTests @S¹ @SO2 "SO(2) acting on S¹"
