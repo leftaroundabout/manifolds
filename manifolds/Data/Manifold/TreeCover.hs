@@ -226,11 +226,12 @@ trunkBranches (DisjointBranches _ brs) = (`evalState`0) . forM brs $ \st -> do
                return (i₀, st)
 trunkBranches t = pure (0,t)
   
-directionChoices :: WithField ℝ Manifold x
+directionChoices :: ∀ x y . WithField ℝ Manifold x
                => [DBranch x y]
                  -> [ ( (Needle' x, x`Shaded`y)
                       ,[(Needle' x, x`Shaded`y)] ) ]
-directionChoices = map (snd *** map snd) . directionIChoices 0
+directionChoices = case dualSpaceWitness @(Needle x) of
+   DualSpaceWitness -> map (snd *** map snd) . directionIChoices 0
 
 directionIChoices :: (WithField ℝ PseudoAffine x, AdditiveGroup (Needle' x))
                => Int -> [DBranch x y]

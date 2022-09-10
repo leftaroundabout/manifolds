@@ -11,6 +11,7 @@
 {-# LANGUAGE OverloadedLists, TypeFamilies, FlexibleContexts, UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances, AllowAmbiguousTypes  #-}
 {-# LANGUAGE TypeOperators, TypeApplications, ScopedTypeVariables, UnicodeSyntax #-}
+{-# LANGUAGE DataKinds #-}
 
 module Main where
 
@@ -23,6 +24,7 @@ import Data.Manifold.Web
 import Data.Manifold.Web.Internal
 import Data.Manifold.Function.LocalModel
 import Math.Manifold.Embedding.Simple.Class
+import Math.Manifold.Homogeneous
 import Data.VectorSpace
 import Data.Cross (cross3)
 import Linear.V2 (V2(V2))
@@ -198,6 +200,25 @@ tests = testGroup "Tests"
   , QC.testProperty "Undo – arbitrary axis / angle and points in 𝑇S²."
            $ \ax ψ p -> rotateAboutThenUndo @(TangentBundle S²) ax ψ p ≈ p
   ]
+ , testGroup "Homogeneous spaces"
+  $ let lieGroupTests :: ∀ m g . ( g`ActsOn`m
+                                 , QC.Arbitrary m
+                                 , AEq m, Show m, SP.Show m
+                                 , QC.Arbitrary g, Show g )
+           => String -> TestTree
+        lieGroupTests descr = testGroup descr $
+         [ QC.testProperty "`mempty` acts as identity"
+          $ \(p :: m) -> action (mempty :: g) p ?≈! p
+         , QC.testProperty "There are non-identic elements" -- This is strictly speaking
+          . QC.expectFailure                                -- not true for all homogeneous
+          $ \a (p :: m) -> action (a :: g) p ?≈! p          -- spaces, but the trivial
+                                                            -- ones don't need testing.
+         , QC.testProperty "Compatibility of action"
+          $ \a b (p :: m) -> action (a<>b :: g) p ?≈! action a (action b p)
+         ]
+    in [ lieGroupTests @S¹ @(SO 2) "SO(2) acting on S¹"
+       , lieGroupTests @S² @(SO 3) "SO(3) acting on S²"
+       ]
  , testGroup "Coordinates"
   [ testGroup "Single dimension"
    [ QC.testProperty "Access" $ \x -> x^.xCoord ≈ x

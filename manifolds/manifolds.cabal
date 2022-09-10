@@ -48,7 +48,7 @@ Library
                      , linear
                      , MemoTrie
                      , vector
-                     , linearmap-category >= 0.4.2.0 && < 0.5
+                     , linearmap-category >= 0.4.3.0 && < 0.5
                      , spatial-rotations >= 0.1 && < 0.2
                      , containers
                      , array
@@ -101,6 +101,7 @@ Library
                      Data.Manifold.Riemannian
                      Math.Manifold.Real.Coordinates
                      Math.Manifold.Embedding.Simple.Class
+                     Math.Manifold.Homogeneous
   Other-modules:   Data.List.FastNub
                    Data.Manifold.Types.Primitive
                    Data.Manifold.WithBoundary.Class
