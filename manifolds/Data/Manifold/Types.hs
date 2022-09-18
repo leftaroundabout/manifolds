@@ -85,6 +85,9 @@ import Data.Manifold.Types.Stiefel
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Cone
 import Math.LinearMap.Category
+#if MIN_VERSION_linearmap_category(0,5,0)
+import Math.LinearMap.Coercion
+#endif
 
 import qualified Prelude
 import qualified Data.Traversable as Hask
@@ -193,7 +196,11 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
   fmapTensor = bilinearFunction $ \f (Tensor a) -> Tensor $ Arr.map (f$) a
   fzipTensorWith = bilinearFunction $ \f (Tensor a, Tensor b)
                      -> Tensor $ Arr.zipWith (curry $ arr f) a b
+#if MIN_VERSION_linearmap_category(0,5,0)
+  coerceFmapTensorProduct _ VSCCoercion = VSCCoercion
+#else
   coerceFmapTensorProduct _ Coercion = Coercion
+#endif
   wellDefinedTensor (Tensor a) = Tensor <$> Hask.traverse wellDefinedVector a
 
 asTensor :: Coercion (LinearMap s a b) (Tensor s (DualVector a) b)
@@ -220,7 +227,11 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
          d = freeDimension ([]::[v]) - 1
   dualSpaceWitness = case dualSpaceWitness :: DualSpaceWitness v of
          DualSpaceWitness -> DualSpaceWitness
+#if MIN_VERSION_linearmap_category(0,5,0)
+  coerceDoubleDual = VSCCoercion
+#else
   coerceDoubleDual = Coercion
+#endif
   contractTensorMap = LinearFunction $ \(LinearMap m)
                         -> Arr.ifoldl' (\acc i (Tensor t) -> acc ^+^ t Arr.! i) zeroV m
   contractMapTensor = LinearFunction $ \(Tensor m)
