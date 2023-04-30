@@ -61,6 +61,7 @@ import Data.CallStack (HasCallStack)
 
 type OpenManifold m = ( SemimanifoldWithBoundary m
                       , SemimanifoldWithBoundary (Needle m)
+                      , Semimanifold m
                       , LinearSpace (Needle m)
                       , SemimanifoldWithBoundary (Scalar (Needle m))
                       , Interior m ~ m

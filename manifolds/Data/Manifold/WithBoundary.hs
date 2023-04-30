@@ -11,6 +11,7 @@
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE UndecidableInstances     #-}
 {-# LANGUAGE TypeFamilies             #-}
+{-# LANGUAGE MultiParamTypeClasses    #-}
 {-# LANGUAGE FlexibleContexts         #-}
 {-# LANGUAGE GADTs                    #-}
 {-# LANGUAGE DefaultSignatures        #-}
@@ -25,6 +26,7 @@
 {-# LANGUAGE LambdaCase               #-}
 {-# LANGUAGE TypeOperators            #-}
 {-# LANGUAGE TypeInType               #-}
+{-# LANGUAGE NoStarIsType             #-}
 {-# LANGUAGE CPP                      #-}
 
 
@@ -49,8 +51,21 @@ import Math.LinearMap.Category ( Tensor(..), TensorSpace(..)
                                , LinearMap(..), LinearFunction(..), LinearSpace(..)
                                , Num', closedScalarWitness, ClosedScalarWitness(..)
                                , DualSpaceWitness(..), ScalarSpaceWitness(..)
-                               , LinearManifoldWitness(..)
-                               )
+                               , LinearManifoldWitness(..) )
+#if MIN_VERSION_linearmap_category(0,6,0)
+import Math.VectorSpace.DimensionAware
+                ( DimensionAware(..), Dimensional(..), DimensionalityWitness(..)
+                , dimensionality, DimensionalityCases(..)
+                , dimensionalitySing )
+import GHC.TypeLits
+#if MIN_VERSION_singletons(3,0,0)
+import Prelude.Singletons (SNum(..))
+import GHC.TypeLits.Singletons (withKnownNat, SNat(..))
+#else
+import Data.Singletons.Prelude.Num (SNum(..), SNat(..))
+import Data.Singletons.TypeLits (withKnownNat)
+#endif
+#endif
 import Math.VectorSpace.Dual
 import Math.VectorSpace.MiscUtil.MultiConstraints (SameScalar)
 import Data.Monoid.Additive
@@ -70,7 +85,11 @@ import Data.CallStack (HasCallStack)
 
 
 
-
+interiorSemimanifoldWitness :: ∀ a . SemimanifoldWithBoundary a
+          => SemimanifoldWitness (Interior a)
+interiorSemimanifoldWitness = case smfdWBoundWitness @a of
+  OpenManifoldWitness -> semimanifoldWitness
+  SmfdWBoundWitness -> semimanifoldWitness
 
 #define VectorSpaceSansBoundary(v, s)                         \
 instance (Num' (s), Eq (s), OpenManifold (s), ProjectableBoundary (s)) \
@@ -167,6 +186,49 @@ instance ∀ a b v dn .
         NBoundOfL x y v -> NBoundOfL (μ*^x) (μ*^y) (μ*^v)
         NBoundOfR x y v -> NBoundOfR (μ*^x) (μ*^y) (μ*^v)
     ))
+
+type family ProductBoundaryNeedleTDimension dna dnb dv where
+  ProductBoundaryNeedleTDimension 
+    ('Just n) ('Just m) ('Just o) = 'Just (n*m*o - 1)
+  ProductBoundaryNeedleTDimension _ _ _ = 'Nothing
+
+#if MIN_VERSION_linearmap_category(0,6,0)
+instance ( SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
+         , SameScalar LinearSpace
+           '[ v, dn`Space`Needle (Interior a), dn`Space`Needle (Interior b) ]
+         , AdditiveGroup (dn`Space`Needle (Boundary a))
+         , AdditiveGroup (dn`Space`Needle (Boundary b))
+         , ValidDualness dn )
+    => DimensionAware (ProductBoundaryNeedleT dn a b v) where
+  type StaticDimension (ProductBoundaryNeedleT dn a b v)
+          = ProductBoundaryNeedleTDimension (StaticDimension (dn`Space`Needle (Interior a)))
+                                            (StaticDimension (dn`Space`Needle (Interior b)))
+                                            (StaticDimension v)
+  dimensionalityWitness = case ( interiorSemimanifoldWitness @a
+                               , interiorSemimanifoldWitness @b ) of
+      (SemimanifoldWitness, SemimanifoldWitness)
+                -> case ( dimensionality @(dn`Space`Needle (Interior a))
+                        , dimensionality @(dn`Space`Needle (Interior b))
+                        , dimensionality @v ) of
+       (StaticDimensionalCase, StaticDimensionalCase, StaticDimensionalCase)
+            -> withKnownNat (dimensionalitySing @(dn`Space`Needle (Interior a))
+                               %* dimensionalitySing @(dn`Space`Needle (Interior b))
+                               %* dimensionalitySing @v
+                               %- SNat @1
+                            )
+                IsStaticDimensional
+instance ( SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
+         , SameScalar LinearSpace
+           '[ v, dn`Space`Needle (Interior a), dn`Space`Needle (Interior b) ]
+         , AdditiveGroup (dn`Space`Needle (Boundary a))
+         , AdditiveGroup (dn`Space`Needle (Boundary b))
+         , n`Dimensional`(dn`Space`Needle (Interior a))
+         , m`Dimensional`(dn`Space`Needle (Interior b))
+         , o`Dimensional`v
+         , KnownNat d, d ~ (n*m*o-1)
+         , ValidDualness dn )
+    => d`Dimensional`(ProductBoundaryNeedleT dn a b v) where
+#endif
 
 instance ( SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
          , SameScalar LinearSpace

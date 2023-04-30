@@ -34,6 +34,12 @@ Extra-Doc-Files:     images/examples/*.png,
                      images/examples/TreesAndWebs/*.png
                      images/examples/DiffableFunction-plots/*.png
 
+flag staticDimensionalLinmapCategory
+  description: Whether to use linearmap-category-0.6 with its fixed-dimension classes.
+               This requires also the singletons package.
+  default: True
+  manual: False
+
 Source-Repository head
     type: git
     location: git://github.com/leftaroundabout/manifolds.git
@@ -48,7 +54,7 @@ Library
                      , linear
                      , MemoTrie
                      , vector
-                     , linearmap-category >= 0.4.3.0 && < 0.6
+                     , linearmap-category >= 0.4.3.0 && < 0.7
                      , spatial-rotations >= 0.1 && < 0.2
                      , containers
                      , array
@@ -68,6 +74,14 @@ Library
                      , constrained-categories >= 0.3.1 && < 0.5
                      , pragmatic-show
                      , QuickCheck >=2.8 && <3
+  if flag(staticDimensionalLinmapCategory)
+    build-depends:
+                       linearmap-category >=0.6
+                     , singletons >=3.0 && <3.3
+                     , singletons-base >=3.0 && <3.3
+  else
+    build-depends:
+                       linearmap-category <0.6
   other-extensions:  FlexibleInstances
                      , TypeFamilies
                      , FlexibleContexts
