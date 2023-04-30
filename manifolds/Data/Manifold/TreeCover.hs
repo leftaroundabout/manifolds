@@ -782,7 +782,7 @@ leavesWithPotentialNeighbours = map (second snd) . go pseudoAffineWitness 0 0 []
                                               (wall^.wallID._2.swapped) groups
                                          | wall <- levelWalls ]
                                ]
-               where groups = ($[]) <$> Map.fromListWith (.)
+               where groups = ($ []) <$> Map.fromListWith (.)
                                [ (wall^.wallID._2, (i:))
                                | (i,(_, (gsc,_))) <- zip [n₀..] pts
                                , wall <- takeWhile ((==depth) . fst . _wallID) gsc ]
