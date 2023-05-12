@@ -50,6 +50,9 @@ import Math.LinearMap.Category ( Tensor(..), TensorSpace(..)
                                , Num', closedScalarWitness, ClosedScalarWitness(..)
                                , DualSpaceWitness(..), ScalarSpaceWitness(..)
                                , LinearManifoldWitness(..)
+#if MIN_VERSION_linearmap_category(0,6,0)
+                               , DimensionAware(..)
+#endif
                                )
 import Math.VectorSpace.Dual
 import Math.VectorSpace.MiscUtil.MultiConstraints (SameScalar)
@@ -167,6 +170,18 @@ instance ∀ a b v dn .
         NBoundOfL x y v -> NBoundOfL (μ*^x) (μ*^y) (μ*^v)
         NBoundOfR x y v -> NBoundOfR (μ*^x) (μ*^y) (μ*^v)
     ))
+
+#if MIN_VERSION_linearmap_category(0,6,0)
+instance ( SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
+         , SameScalar LinearSpace
+           '[ v, dn`Space`Needle (Interior a), dn`Space`Needle (Interior b) ]
+         , AdditiveGroup (dn`Space`Needle (Boundary a))
+         , AdditiveGroup (dn`Space`Needle (Boundary b))
+         , ValidDualness dn )
+    => DimensionAware (ProductBoundaryNeedleT dn a b v) where
+  type StaticDimension (ProductBoundaryNeedleT dn a b v)
+          = 'Just 37
+#endif
 
 instance ( SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
          , SameScalar LinearSpace

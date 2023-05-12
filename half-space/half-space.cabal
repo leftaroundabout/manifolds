@@ -22,7 +22,7 @@ library
   exposed-modules:     Data.Monoid.Additive
   -- other-modules:
   other-extensions:    FlexibleInstances, UndecidableInstances, TypeFamilies, FlexibleContexts, GADTs, DefaultSignatures, DeriveGeneric, StandaloneDeriving, ConstraintKinds, UnicodeSyntax, ScopedTypeVariables, AllowAmbiguousTypes, TypeApplications, RankNTypes, EmptyCase, TypeOperators, TypeInType, CPP
-  build-depends:       base >=4.10 && <4.15
+  build-depends:       base >=4.10 && <4.16
                        , vector-space >=0.16 && <0.17
                        , manifolds-core >=0.6 && <0.7
                        , equational-reasoning >=0.7 && <0.8

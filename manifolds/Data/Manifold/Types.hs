@@ -13,6 +13,7 @@
 
 {-# LANGUAGE FlexibleInstances        #-}
 {-# LANGUAGE UndecidableInstances     #-}
+{-# LANGUAGE InstanceSigs             #-}
 {-# LANGUAGE CPP                      #-}
 {-# LANGUAGE TypeFamilies             #-}
 {-# LANGUAGE FunctionalDependencies   #-}
@@ -26,6 +27,8 @@
 {-# LANGUAGE ConstraintKinds          #-}
 {-# LANGUAGE PatternGuards            #-}
 {-# LANGUAGE TypeOperators            #-}
+{-# LANGUAGE TypeApplications         #-}
+{-# LANGUAGE DataKinds                #-}
 {-# LANGUAGE ScopedTypeVariables      #-}
 {-# LANGUAGE UnicodeSyntax            #-}
 {-# LANGUAGE PatternSynonyms          #-}
@@ -85,18 +88,25 @@ import Data.Manifold.Types.Stiefel
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Cone
 import Math.LinearMap.Category
+#if MIN_VERSION_linearmap_category(0,6,0)
+import Math.VectorSpace.DimensionAware
+import Math.VectorSpace.DimensionAware.Theorems.MaybeNat
+        (ClipPred, clipPredSing, FmapClipPred)
+#endif
 #if MIN_VERSION_linearmap_category(0,5,0)
 import Math.LinearMap.Coercion
 #endif
 
 import qualified Prelude
+import GHC.TypeLits (type (+), type (-))
 import qualified Data.Traversable as Hask
 
-import Control.Category.Constrained.Prelude hiding ((^))
+import Control.Category.Constrained.Prelude hiding ((^), type (+))
 import Control.Arrow.Constrained
 import Control.Monad.Constrained
-import Data.Foldable.Constrained
+import Data.Foldable.Constrained hiding (type (+))
 
+import Data.Coerce
 import Data.Type.Coercion
 
 type StiefelScalar s = (RealFloat s, UArr.Unbox s)
@@ -174,6 +184,19 @@ instance (FiniteFreeSpace v, UArr.Unbox (Scalar v)) => AffineSpace (Stiefel1Need
 
 deriveAffine((FiniteFreeSpace v, UArr.Unbox (Scalar v)), Stiefel1Needle v)
 
+#if MIN_VERSION_linearmap_category(0,6,0)
+instance ∀ v . (FiniteFreeSpace v, DimensionAware v, UArr.Unbox (Scalar v))
+              => DimensionAware (Stiefel1Needle v) where
+  type StaticDimension (Stiefel1Needle v) = FmapClipPred (StaticDimension v) 
+  dimensionalityWitness = case dimensionalityWitness @v of
+    IsStaticDimensional -> IsStaticDimensional
+    IsFlexibleDimensional -> IsFlexibleDimensional
+instance ∀ v n n' . ( FiniteFreeSpace v, n`Dimensional`v, n' ~ ClipPred n
+                    , UArr.Unbox (Scalar v) )
+              => n'`Dimensional`(Stiefel1Needle v) where
+  knownDimensionalitySing = clipPredSing (dimensionalitySing @v)
+#endif
+
 instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar v))
               => TensorSpace (Stiefel1Needle v) where
   type TensorProduct (Stiefel1Needle v) w = Array w
@@ -196,17 +219,13 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
   fmapTensor = bilinearFunction $ \f (Tensor a) -> Tensor $ Arr.map (f$) a
   fzipTensorWith = bilinearFunction $ \f (Tensor a, Tensor b)
                      -> Tensor $ Arr.zipWith (curry $ arr f) a b
-#if MIN_VERSION_linearmap_category(0,5,0)
+#if MIN_VERSION_linearmap_category(0,6,0)
+  coerceFmapTensorProduct _ VSCCoercion = Coercion
+#elif MIN_VERSION_linearmap_category(0,5,0)
   coerceFmapTensorProduct _ VSCCoercion = VSCCoercion
-#else
-  coerceFmapTensorProduct _ Coercion = Coercion
 #endif
   wellDefinedTensor (Tensor a) = Tensor <$> Hask.traverse wellDefinedVector a
 
-asTensor :: Coercion (LinearMap s a b) (Tensor s (DualVector a) b)
-asTensor = Coercion
-asLinearMap :: Coercion (Tensor s (DualVector a) b) (LinearMap s a b)
-asLinearMap = Coercion
 infixr 0 +$>
 (+$>) :: (LinearSpace a, TensorSpace b, Scalar a ~ s, Scalar b ~ s)
             => LinearMap s a b -> a -> b
@@ -223,7 +242,7 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
            => DualSpaceWitness w -> (Stiefel1Needle v ⊗ w) +> (Stiefel1Needle v ⊗ w)
          ti DualSpaceWitness = LinearMap . Arr.generate d
            $ \i -> fmap (LinearFunction $ \w -> Tensor . Arr.generate d $
-              \j -> if i==j then w else zeroV) $ asTensor $ id
+              \j -> if i==j then w else zeroV) $ coerce (id :: w+>w)
          d = freeDimension ([]::[v]) - 1
   dualSpaceWitness = case dualSpaceWitness :: DualSpaceWitness v of
          DualSpaceWitness -> DualSpaceWitness
@@ -245,8 +264,14 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
                         -> Arr.ifoldl' (\acc i w -> acc ^+^ v UArr.! i *^ w) zeroV m
   applyTensorFunctional = bilinearFunction $ \(LinearMap f) (Tensor t)
                            -> Arr.ifoldl' (\acc i u -> acc + u <.>^ t Arr.! i) 0 f
-  applyTensorLinMap = bilinearFunction $ \(LinearMap f) (Tensor t)
-         -> Arr.ifoldl' (\w i u -> w ^+^ ((asLinearMap $ f Arr.! i) +$> u)) zeroV t
+  applyTensorLinMap :: ∀ u w . ( LinearSpace u, Scalar u ~ Scalar v
+                               , TensorSpace w, Scalar w ~ Scalar v )
+    => Bilinear (LinearMap (Scalar v) (Tensor (Scalar v) (Stiefel1Needle v) u) w)
+               (Tensor (Scalar v) (Stiefel1Needle v) u)
+               w
+  applyTensorLinMap = case dualSpaceWitness @u of
+     DualSpaceWitness -> bilinearFunction $ \(LinearMap f) (Tensor t)
+         -> Arr.ifoldl' (\w i u -> w ^+^ ((coerce $ f Arr.! i) +$> u)) zeroV t
   composeLinear = bilinearFunction $ \f (LinearMap g)
                      -> LinearMap $ Arr.map (getLinearFunction applyLinear f$) g
   useTupleLinearSpaceComponents _ = undefined

@@ -48,7 +48,7 @@ Library
                      , linear
                      , MemoTrie
                      , vector
-                     , linearmap-category >= 0.4.3.0 && < 0.6
+                     , linearmap-category >= 0.4.3.0 && < 0.7
                      , spatial-rotations >= 0.1 && < 0.2
                      , containers
                      , array
