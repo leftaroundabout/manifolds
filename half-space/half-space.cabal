@@ -4,7 +4,7 @@ cabal-version:       >=1.10
 -- http://haskell.org/cabal/users-guide/
 
 name:                half-space
-version:             0.1.0.0
+version:             0.1.1.0
 synopsis:            Additive monoids generalising vector spaces
 -- description:
 homepage:            https://github.com/leftaroundabout/manifolds
