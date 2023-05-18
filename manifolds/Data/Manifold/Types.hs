@@ -111,6 +111,7 @@ import Control.Arrow.Constrained
 import Control.Monad.Constrained
 import Data.Foldable.Constrained hiding (type (+))
 
+import Data.Coerce
 import Data.Type.Coercion
 
 type StiefelScalar s = (RealFloat s, UArr.Unbox s)
@@ -257,7 +258,7 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
            => DualSpaceWitness w -> (Stiefel1Needle v ⊗ w) +> (Stiefel1Needle v ⊗ w)
          ti DualSpaceWitness = LinearMap . Arr.generate d
            $ \i -> fmap (LinearFunction $ \w -> Tensor . Arr.generate d $
-              \j -> if i==j then w else zeroV) $ asTensor $ id
+              \j -> if i==j then w else zeroV) $ coerce (id :: w+>w)
          d = freeDimension ([]::[v]) - 1
   dualSpaceWitness = case dualSpaceWitness :: DualSpaceWitness v of
          DualSpaceWitness -> DualSpaceWitness
@@ -286,7 +287,7 @@ instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar
                w
   applyTensorLinMap = case dualSpaceWitness @u of
      DualSpaceWitness -> bilinearFunction $ \(LinearMap f) (Tensor t)
-         -> Arr.ifoldl' (\w i u -> w ^+^ ((asLinearMap $ f Arr.! i) +$> u)) zeroV t
+         -> Arr.ifoldl' (\w i u -> w ^+^ ((coerce $ f Arr.! i) +$> u)) zeroV t
   composeLinear = bilinearFunction $ \f (LinearMap g)
                      -> LinearMap $ Arr.map (getLinearFunction applyLinear f$) g
   useTupleLinearSpaceComponents _ = undefined
