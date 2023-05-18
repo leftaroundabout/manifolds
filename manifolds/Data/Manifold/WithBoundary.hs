@@ -187,12 +187,12 @@ instance ∀ a b v dn .
         NBoundOfR x y v -> NBoundOfR (μ*^x) (μ*^y) (μ*^v)
     ))
 
+#if MIN_VERSION_linearmap_category(0,6,0)
 type family ProductBoundaryNeedleTDimension dna dnb dv where
   ProductBoundaryNeedleTDimension 
     ('Just n) ('Just m) ('Just o) = 'Just (n*m*o - 1)
   ProductBoundaryNeedleTDimension _ _ _ = 'Nothing
 
-#if MIN_VERSION_linearmap_category(0,6,0)
 instance ( SemimanifoldWithBoundary a, SemimanifoldWithBoundary b
          , SameScalar LinearSpace
            '[ v, dn`Space`Needle (Interior a), dn`Space`Needle (Interior b) ]

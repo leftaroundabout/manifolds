@@ -188,6 +188,7 @@ instance (FiniteFreeSpace v, UArr.Unbox (Scalar v)) => AffineSpace (Stiefel1Need
 
 deriveAffine((FiniteFreeSpace v, UArr.Unbox (Scalar v)), Stiefel1Needle v)
 
+#if MIN_VERSION_linearmap_category(0,6,0)
 type family ClipPred n where
   ClipPred 0 = 0
   ClipPred n = n-1
@@ -209,6 +210,7 @@ instance ∀ v n n' . ( FiniteFreeSpace v, n`Dimensional`v, n' ~ ClipPred n
                     , UArr.Unbox (Scalar v) )
               => n'`Dimensional`(Stiefel1Needle v) where
   knownDimensionalitySing = clipPredSing (dimensionalitySing @v)
+#endif
 
 instance ∀ v . (LSpace v, FiniteFreeSpace v, Eq (Scalar v), UArr.Unbox (Scalar v))
               => TensorSpace (Stiefel1Needle v) where
