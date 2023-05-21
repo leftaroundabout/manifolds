@@ -63,6 +63,7 @@ Library
                      , free
                      , semigroups
                      , void
+                     , list-t >=1.0 && <1.1
                      , number-show >= 0.1 && < 0.2
                      , ieee754 >= 0.8 && < 1
                      , tagged

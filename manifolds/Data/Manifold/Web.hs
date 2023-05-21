@@ -108,7 +108,6 @@ import qualified Control.Monad       as Hask hiding(forM_, sequence)
 import Control.Monad.ST (runST)
 import Data.STRef (newSTRef, modifySTRef, readSTRef)
 import Control.Monad.Trans.State
-import Control.Monad.Trans.List
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Writer hiding (censor)
 import Data.Functor.Identity (Identity(..))

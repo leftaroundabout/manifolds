@@ -101,7 +101,8 @@ import qualified Control.Monad       as Hask hiding(forM_, sequence)
 import Data.Functor.Identity
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Writer
-import Control.Monad.Trans.List
+import ListT (ListT)
+import qualified ListT
 import Control.Monad.Trans.OuterMaybe
 import Control.Monad.Trans.Class
 import qualified Data.Foldable       as Hask
@@ -846,7 +847,7 @@ entireTree :: ∀ x y . (WithField ℝ PseudoAffine x, SimpleSpace (Needle x))
               => x`Shaded`y -> LeafyTree x y
 entireTree (PlainLeaves lvs)
     = let (ctr,_) = pseudoECM ([]::[x]) $ NE.fromList lvs
-      in  GenericTree [ (ctr, GenericTree . ListT $ Right
+      in  GenericTree [ (ctr, GenericTree $ ListT.fromFoldable
                                 [ (x, GenericTree . lift $ Left y)
                                 | (x,y)<-lvs ] )
                       ]
@@ -856,7 +857,7 @@ entireTree (DisjointBranches _ brs)
                   , (x, GenericTree subt) <- sub ]
 entireTree (OverlappingBranches _ (Shade ctr _) brs)
     = GenericTree [ ( ctr
-                    , GenericTree . ListT . Right
+                    , GenericTree . ListT.fromFoldable
                        $ Hask.foldMap (Hask.foldMap $ treeBranches . entireTree) brs ) ]
 
 
