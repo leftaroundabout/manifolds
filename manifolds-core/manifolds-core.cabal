@@ -25,7 +25,7 @@ library
   other-modules:       Math.Manifold.Core.Types.Internal
   other-extensions:    FlexibleInstances, UndecidableInstances, ExplicitNamespaces, TypeFamilies, FunctionalDependencies, FlexibleContexts, GADTs, RankNTypes, TupleSections, ConstraintKinds, PatternGuards, TypeOperators, ScopedTypeVariables, RecordWildCards, DataKinds, StandaloneDeriving, DefaultSignatures, UnicodeSyntax, MultiWayIf
   build-depends:       base >=4.5 && <5
-                       , vector-space >=0.11 && <0.17
+                       , vector-space >=0.11 && <0.20
                        , call-stack <0.5
                        , equational-reasoning >=0.6 && <0.8
   -- hs-source-dirs:      
