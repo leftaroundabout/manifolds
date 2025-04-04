@@ -361,6 +361,7 @@ instance ( Semimanifold (f p), Semimanifold (g p)
 instance ( Semimanifold (f p), Semimanifold (g p)
          , InnerSpace (Needle (f p)), InnerSpace (Needle (g p))
          , Scalar (Needle (f p)) ~ Scalar (Needle (g p))
+         , AdditiveGroup (Scalar (Needle (g p)))
          , Num (Scalar (Needle (f p))) )
     => InnerSpace (NeedleProductSpace f g p)
 instance (Semimanifold (f p), Semimanifold (g p))
@@ -402,7 +403,9 @@ instance AdditiveGroup (Needle (VRep x)) => AdditiveGroup (GenericNeedle x) wher
 instance VectorSpace (Needle (VRep x)) => VectorSpace (GenericNeedle x) where
   type Scalar (GenericNeedle x) = Scalar (Needle (VRep x))
   (*^) μ = GenericNeedle . (*^) μ . getGenericNeedle
-instance InnerSpace (Needle (VRep x)) => InnerSpace (GenericNeedle x) where
+instance ( InnerSpace (Needle (VRep x))
+         , AdditiveGroup (Scalar (Needle (Gnrx.Rep x Void))) )
+            => InnerSpace (GenericNeedle x) where
   GenericNeedle v <.> GenericNeedle w = v <.> w
 instance AdditiveGroup (Needle (VRep x)) => AffineSpace (GenericNeedle x) where
   type Diff (GenericNeedle x) = GenericNeedle x
